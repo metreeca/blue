@@ -3,7 +3,7 @@ name: Promote
 on:
   push:
     tags:
-      - 'v0.9.*'
+      - 'v0.*'
 
 permissions:
   contents: write
