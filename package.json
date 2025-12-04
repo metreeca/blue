@@ -39,7 +39,8 @@
     "setup": "npm install && npm audit fix",
     "build": "rm -rf dist docs && tsc && typedoc",
     "check": "npx vitest run",
-    "watch": "npx typedoc && (npx typedoc --watch & npx five-server docs --open)"
+    "watch": "npx tsc --watch",
+    "proof": "npx typedoc && (npx typedoc --watch & npx five-server docs --open)"
   },
   "dependencies": {
     "@metreeca/core": "^0.9.11"
