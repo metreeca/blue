@@ -230,22 +230,16 @@ This controlled subset is specified by:
 
 - [cardinality constraints](https://www.w3.org/TR/shacl/#core-components-count) (`sh:minCount`, `sh:maxCount`)
   for specifying how many values a property must or may have
-
 - [value range constraints](https://www.w3.org/TR/shacl/#core-components-range) (`sh:minExclusive`,
   `sh:maxExclusive`, `sh:minInclusive`, `sh:maxInclusive`) for numeric value ranges
-
 - [string constraints](https://www.w3.org/TR/shacl/#core-components-string) (`sh:minLength`, `sh:maxLength`,
   `sh:pattern`, `sh:languageIn`) for text length, patterns, and language tags
-
 - [value type constraints](https://www.w3.org/TR/shacl/#core-components-value-type) (`sh:class`) for declaring the
   expected type of resource instances; limited to a single class
-
 - [value constraints](https://www.w3.org/TR/shacl/#InConstraintComponent) (`sh:in`, `sh:hasValue`) for enumerations and
   required values
-
 - [logical constraints](https://www.w3.org/TR/shacl/#core-components-logical) limited to `sh:or` as typed unions on
   properties; `sh:not`, `sh:and`, and `sh:xone` are not supported
-
 - [closed shapes](https://www.w3.org/TR/shacl/#ClosedConstraintComponent) enforced by default on all resource shapes;
   unknown properties are always rejected
 
