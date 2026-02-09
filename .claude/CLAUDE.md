@@ -3,16 +3,10 @@ title: Project Guidelines
 description: Development guidelines and conventions for the @metreeca/blue package.
 ---
 
-> [!CAUTION]
->
-> - **UNDER NO CIRCUMSTANCES** rearchitect or refactor unrelated code beyond the requested scope.
-> - **NEVER** make unsolicited changes or revert **unrelated** user edits.
-> - **ONLY** modify code when explicitly requested or clearly required.
+# References
 
-> [!IMPORTANT]
->
-> - **ALL** relevant skills **MUST** be used when applicable without continuous prompting.
-> - **SKILL** guidance **ALWAYS** supersedes internal general-purpose knowledge.
+- [SHACL](https://www.w3.org/TR/shacl/) - Shapes Constraint Language
+- [Qest](https://metreeca.github.io/qest/) - Linked data models
 
 # NPM Scripts
 

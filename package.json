@@ -1,7 +1,7 @@
 {
   "name": "@metreeca/blue",
   "version": "0.9.0",
-  "description": "{TBD}",
+  "description": "Declarative blueprints for model-driven linked data processing.",
   "keywords": [
     "typescript",
     "utilities"
@@ -24,8 +24,13 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./dist/index/index.js"
-   },
+    ".": "./dist/index.js",
+    "./boolean": "./dist/boolean.js",
+    "./number": "./dist/number.js",
+    "./string": "./dist/string.js",
+    "./local": "./dist/local.js",
+    "./resource": "./dist/resource.js"
+  },
   "files": [
     "README.md",
     "LICENSE",
@@ -37,18 +42,18 @@
   "scripts": {
     "clean": "rm -rf dist docs node_modules",
     "setup": "npm install && npm audit fix",
-    "build": "rm -rf dist docs && tsc && typedoc",
-    "check": "npx vitest run",
+    "build": "rm -rf dist docs & tsc -p tsconfig.build.json && npx typedoc",
+    "check": "npx vitest --typecheck run",
     "watch": "npx tsc --watch",
-    "proof": "npx typedoc && (npx typedoc --watch & npx five-server docs --open)"
+    "proof": "npm run build && (npx typedoc --watch & npx five-server docs --open)"
   },
   "dependencies": {
-    "@metreeca/core": "^0.9.11"
+    "@metreeca/core": "^0.9.16",
+    "@metreeca/qest": "^0.9.1"
   },
   "devDependencies": {
     "five-server": "^0.4.5",
     "typedoc": "^0.28.14",
-    "typedoc-github-theme": "^0.3.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.13"
   }

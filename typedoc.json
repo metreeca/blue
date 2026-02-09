@@ -1,7 +1,4 @@
 {
-  "plugin": [
-    "typedoc-github-theme"
-  ],
   "includeVersion": true,
   "sortEntryPoints": false,
   "sort": [
@@ -9,18 +6,46 @@
   ],
   "categorizeByGroup": true,
   "groupOrder": [
-    "Data Model",
-    "Guards and Factories",
-    "Codecs",
     "Variables",
     "Type Aliases",
     "Interfaces",
+    "Resources",
+    "Properties",
+    "Ranges",
     "*"
   ],
   "useFirstParagraphOfCommentAsSummary": true,
   "favicon": "https://metreeca.com/assets/icon.ico",
   "sourceLinkExternal": true,
   "markdownLinkExternal": true,
+  "externalSymbolLinkMappings": {
+    "@metreeca/core": {
+      "Relay": "https://metreeca.github.io/core/types/relay.Relay.html",
+      "isIdentifier": "https://metreeca.github.io/core/functions/index.isIdentifier.html",
+      "Identifier": "https://metreeca.github.io/core/types/index.Identifier.html",
+      "Lazy": "https://metreeca.github.io/core/types/index.Lazy.html",
+      "IRI": "https://metreeca.github.io/core/types/resource.IRI.html",
+      "Namespace": "https://metreeca.github.io/core/types/resource.Namespace.html",
+      "Tag": "https://metreeca.github.io/core/types/language.Tag.html",
+      "TagRange": "https://metreeca.github.io/core/types/language.TagRange.html"
+    },
+    "@metreeca/qest": {
+      "Resource": "https://metreeca.github.io/qest/types/state.Resource.html",
+      "Reference": "https://metreeca.github.io/qest/types/state.Reference.html",
+      "Value": "https://metreeca.github.io/qest/types/state.Value.html",
+      "Local": "https://metreeca.github.io/qest/types/state.Local.html",
+      "Locals": "https://metreeca.github.io/qest/types/state.Locals.html",
+      "Indexed": "https://metreeca.github.io/qest/types/state.Indexed.html",
+      "decodeResource": "https://metreeca.github.io/qest/functions/state.decodeResource.html",
+      "decodePatch": "https://metreeca.github.io/qest/functions/state.decodePatch.html",
+      "decodeQuery": "https://metreeca.github.io/qest/functions/query.decodeQuery.html",
+      "Binding": "https://metreeca.github.io/qest/types/model.Binding.html",
+      "isValue": "https://metreeca.github.io/qest/functions/state.isValue.html",
+      "isPatch": "https://metreeca.github.io/qest/functions/state.isPatch.html",
+      "isModel": "https://metreeca.github.io/qest/functions/model.isModel.html",
+      "isQuery": "https://metreeca.github.io/qest/functions/model.isQuery.html"
+    }
+  },
   "navigationLinks": {
     "GitHub": "https://github.com/metreeca/blue"
   },
