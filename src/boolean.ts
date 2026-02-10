@@ -115,6 +115,8 @@ export interface BooleanConstraints {
 /**
  * Creates a boolean shape with a typed model value and no other constraints.
  *
+ * @group Factories
+ *
  * @typeParam M The literal boolean type for the model
  *
  * @param model Prototype value for runtime model assembly
@@ -131,6 +133,8 @@ export function boolean<M extends boolean>(model: M): BooleanShape & { readonly 
 
 /**
  * Creates a boolean shape with optional model constraint.
+ *
+ * @group Factories
  *
  * @param constraints Optional shape constraints
  *
@@ -149,6 +153,8 @@ export function boolean(constraints?: BooleanConstraints): BooleanShape;
 
 /**
  * Creates a boolean shape.
+ *
+ * @group Factories
  */
 export function boolean(constraints: boolean | BooleanConstraints = {}): BooleanShape {
 

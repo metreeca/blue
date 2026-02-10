@@ -189,6 +189,8 @@ export interface LocalizedConstraints {
 /**
  * Creates a single-valued language-tagged map shape with a typed model value and no other constraints.
  *
+ * @group Factories
+ *
  * @typeParam M The literal type for the model
  *
  * @param model Prototype value for runtime model assembly
@@ -205,6 +207,8 @@ export function local<M extends Local>(model: M): LocalShape & { readonly model:
 
 /**
  * Creates a single-valued language-tagged map shape with optional validation constraints.
+ *
+ * @group Factories
  *
  * @param constraints Optional shape {@link LocalConstraints constraints}
  *
@@ -224,6 +228,8 @@ export function local(constraints?: LocalConstraints): LocalShape;
 
 /**
  * Creates a single-valued language-tagged map shape.
+ *
+ * @group Factories
  */
 export function local(constraints: Local | LocalConstraints = {}): LocalShape {
 
@@ -248,6 +254,8 @@ export function local(constraints: Local | LocalConstraints = {}): LocalShape {
 
 /**
  * Creates a multi-valued language-tagged map shape.
+ *
+ * @group Factories
  *
  * @param constraints Optional validation {@link LocalsConstraints constraints}
  *

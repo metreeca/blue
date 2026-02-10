@@ -94,10 +94,12 @@
  *
  * function checkProduct(value: Product): Trace {
  *   return collect([
- *     value.minPrice !== undefined && value.maxPrice !== undefined && value.minPrice > value.maxPrice
+ *     value.minPrice !== undefined && value.maxPrice !== undefined
+ *     		&& value.minPrice > value.maxPrice
  *       ? ["minPrice must not exceed maxPrice"]
  *       : [],
- *     value.startDate !== undefined && value.endDate !== undefined && value.startDate > value.endDate
+ *     value.startDate !== undefined && value.endDate !== undefined
+ *     		&& value.startDate > value.endDate
  *       ? ["startDate must not follow endDate"]
  *       : []
  *   ]);

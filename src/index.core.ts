@@ -58,6 +58,8 @@ const cache = new WeakMap<() => unknown, unknown>();
 /**
  * Checks whether a value is a valid {@link Trace}.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` is an array of strings or nested trace dictionaries; false otherwise
@@ -72,6 +74,8 @@ export function isTrace(value: unknown): value is Trace {
 /**
  * Checks whether a value is a valid {@link Validator}.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` is a function; false otherwise
@@ -82,6 +86,8 @@ export function isValidator(value: unknown): value is Validator {
 
 /**
  * Checks whether a value is a valid {@link ValueShape}.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *

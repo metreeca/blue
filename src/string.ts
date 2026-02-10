@@ -246,6 +246,8 @@ export interface TextualConstraints {
 /**
  * Creates a string shape with a typed model value and no other constraints.
  *
+ * @group Factories
+ *
  * @typeParam M The literal string type for the model
  *
  * @param model Prototype value for runtime model assembly
@@ -262,6 +264,8 @@ export function string<M extends string>(model: M): StringShape & { readonly mod
 
 /**
  * Creates a string shape with optional validation constraints.
+ *
+ * @group Factories
  *
  * @param constraints Optional shape {@link StringConstraints constraints}
  *
@@ -281,6 +285,8 @@ export function string(constraints?: StringConstraints): StringShape;
 
 /**
  * Creates a string shape.
+ *
+ * @group Factories
  */
 export function string(constraints: string | StringConstraints = {}): StringShape {
 
@@ -307,6 +313,8 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 /**
  * Creates a shape for email address values.
  *
+ * @group Factories
+ *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
  * @returns A shape for validating email addresses
@@ -324,6 +332,8 @@ export function email(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for absolute URL reference values.
  *
+ * @group Factories
+ *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
  * @returns A shape for validating absolute URLs
@@ -340,6 +350,8 @@ export function url(constraints: TextualConstraints = {}): StringShape {
 
 /**
  * Creates a shape for absolute URI reference values.
+ *
+ * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
@@ -363,6 +375,8 @@ export function uri(constraints: TextualConstraints = {}): StringShape {
  *
  * Supports optional timezone indicators (Z for UTC or ±hh:mm offset).
  *
+ * @group Factories
+ *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
  * @returns A shape for validating ISO 8601 year strings
@@ -384,6 +398,8 @@ export function year(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 calendar date values (YYYY-MM-DD).
  *
+ * @group Factories
+ *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
  * @returns A shape for validating ISO 8601 date strings
@@ -401,6 +417,8 @@ export function date(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 time of day values (hh:mm:ss).
  *
+ * @group Factories
+ *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
  * @returns A shape for validating ISO 8601 time strings
@@ -417,6 +435,8 @@ export function time(constraints: TextualConstraints = {}): StringShape {
 
 /**
  * Creates a shape for ISO 8601 date and time values (YYYY-MM-DDThh:mm:ss).
+ *
+ * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
@@ -436,6 +456,8 @@ export function instant(constraints: TextualConstraints = {}): StringShape {
  * Creates a shape for ISO 8601 timestamp values with millisecond precision (YYYY-MM-DDThh:mm:ss.sssZ).
  *
  * Requires exactly 3 fractional second digits (millisecond precision) and UTC timezone (Z only).
+ *
+ * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
@@ -457,6 +479,8 @@ export function timestamp(constraints: TextualConstraints = {}): StringShape {
 
 /**
  * Creates a shape for ISO 8601 duration values (PnYnMnDTnHnMnS).
+ *
+ * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *

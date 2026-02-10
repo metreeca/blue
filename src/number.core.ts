@@ -49,6 +49,8 @@ const NumericConstraintsTemplate = {
 /**
  * Checks whether a value is a {@link NumberShape}.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` is a valid {@link NumberShape}; false otherwise
@@ -67,6 +69,8 @@ export function isNumberShape(value: unknown): value is NumberShape {
 /**
  * Checks whether a value is a valid {@link NumberConstraints} object.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` is a valid {@link NumberConstraints}; false otherwise
@@ -83,6 +87,8 @@ export function isNumberConstraints(value: unknown): value is NumberConstraints 
 
 /**
  * Checks whether a value is a valid {@link NumericConstraints} object.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *

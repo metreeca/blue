@@ -30,6 +30,8 @@ import type { Trace } from "./index.js";
 /**
  * Checks whether a value is a {@link BooleanShape}.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` is a valid {@link BooleanShape}; false otherwise
@@ -45,6 +47,8 @@ export function isBooleanShape(value: unknown): value is BooleanShape {
 
 /**
  * Checks whether a value is a valid {@link BooleanConstraints} object.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *

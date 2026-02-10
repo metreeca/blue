@@ -49,6 +49,8 @@ const LocalizedConstraintsTemplate = {
 /**
  * Checks whether a value is a {@link LocalShape}.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` has `kind: "local"`, a `model` mapping language tag ranges to strings, and valid optional
@@ -67,6 +69,8 @@ export function isLocalShape(value: unknown): value is LocalShape {
 
 /**
  * Checks whether a value is a {@link LocalsShape}.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *
@@ -87,6 +91,8 @@ export function isLocalsShape(value: unknown): value is LocalsShape {
 /**
  * Checks whether a value is a valid {@link LocalConstraints} object.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` has valid optional constraints (`model`, `minLength`, `maxLength`, `languageIn`); false
@@ -105,6 +111,8 @@ export function isLocalConstraints(value: unknown): value is LocalConstraints {
 /**
  * Checks whether a value is a valid {@link LocalsConstraints} object.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` has valid optional constraints (`model`, `minLength`, `maxLength`, `languageIn`); false
@@ -122,6 +130,8 @@ export function isLocalsConstraints(value: unknown): value is LocalsConstraints 
 
 /**
  * Checks whether a value is a valid {@link LocalizedConstraints} object.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *

@@ -141,6 +141,8 @@ type Properties = ResourceShape["properties"];
 /**
  * Checks whether a value is a {@link ReferenceShape}.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` has `kind: "reference"`, a valid IRI `model`, and valid `backlink` and `shape` fields;
@@ -164,6 +166,8 @@ export function isReferenceShape(value: unknown): value is ReferenceShape {
  *
  * Validates structural integrity including `kind`, `model`, constraints, and properties. Each property must be an
  * {@link Id}, {@link Type}, or {@link Property}, and at most one `Id` and one `Type` entry are allowed.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *
@@ -205,6 +209,8 @@ export function isResourceShape(value: unknown): value is ResourceShape {
 /**
  * Checks whether a value is a valid {@link ResourceConstraints} object.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` has valid optional resource constraints; false otherwise
@@ -216,6 +222,8 @@ export function isResourceConstraints(value: unknown): value is ResourceConstrai
 
 /**
  * Checks whether a value is a valid {@link Id}.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *
@@ -234,6 +242,8 @@ export function isId(value: unknown): value is Id {
 /**
  * Checks whether a value is a valid {@link Type}.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` has `kind: "type"` and valid optional constraints; false otherwise
@@ -250,6 +260,8 @@ export function isType(value: unknown): value is Type {
 
 /**
  * Checks whether a value is a valid {@link Property}.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *
@@ -271,6 +283,8 @@ export function isProperty(value: unknown): value is Property {
 /**
  * Checks whether a value is a valid {@link PropertyConstraints} object.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` has valid optional property constraints; false otherwise
@@ -282,6 +296,8 @@ export function isPropertyConstraints(value: unknown): value is PropertyConstrai
 
 /**
  * Checks whether a value is a valid {@link Range}.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *
@@ -303,6 +319,8 @@ export function isRange(value: unknown): value is Range {
 
 /**
  * Checks whether a value is a valid {@link Union}.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *
@@ -326,6 +344,8 @@ export function isUnion(value: unknown): value is Union {
  *
  * Validates that all keys are identifiers or bindings, and all values are valid {@link Entry entries}.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` is an object with valid entry keys and values; false otherwise
@@ -338,6 +358,8 @@ export function isEntries(value: unknown): value is Entries {
  * Checks whether a value is a valid {@link Entry}.
  *
  * An entry can be an {@link Id}, {@link Type}, {@link Range}, or {@link Property}.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *

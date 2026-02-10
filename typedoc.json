@@ -9,9 +9,8 @@
     "Variables",
     "Type Aliases",
     "Interfaces",
-    "Resources",
-    "Properties",
-    "Ranges",
+    "Guards",
+    "Factories",
     "*"
   ],
   "useFirstParagraphOfCommentAsSummary": true,

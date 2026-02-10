@@ -229,6 +229,8 @@ export interface NumericConstraints {
 /**
  * Creates a numeric shape with a typed model value and no other constraints.
  *
+ * @group Factories
+ *
  * @typeParam M The literal number type for the model
  *
  * @param model Prototype value for runtime model assembly
@@ -245,6 +247,8 @@ export function number<M extends number>(model: M): NumberShape & { readonly mod
 
 /**
  * Creates a numeric shape with optional validation constraints.
+ *
+ * @group Factories
  *
  * @param constraints Optional shape {@link NumberConstraints constraints}
  *
@@ -263,6 +267,8 @@ export function number(constraints?: NumberConstraints): NumberShape;
 
 /**
  * Creates a numeric shape.
+ *
+ * @group Factories
  */
 export function number(constraints: number | NumberConstraints = {}): NumberShape {
 
@@ -287,6 +293,8 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
 /**
  * Creates a shape for 8-bit signed integer values.
  *
+ * @group Factories
+ *
  * @param constraints Optional {@link NumericConstraints} validation constraints
  *
  * @returns A shape for validating 8-bit signed integers
@@ -301,6 +309,8 @@ export function byte(constraints: NumericConstraints = {}): NumberShape {
 
 /**
  * Creates a shape for 16-bit signed integer values.
+ *
+ * @group Factories
  *
  * @param constraints Optional {@link NumericConstraints} validation constraints
  *
@@ -317,6 +327,8 @@ export function short(constraints: NumericConstraints = {}): NumberShape {
 /**
  * Creates a shape for 32-bit signed integer values.
  *
+ * @group Factories
+ *
  * @param constraints Optional {@link NumericConstraints} validation constraints
  *
  * @returns A shape for validating 32-bit signed integers
@@ -331,6 +343,8 @@ export function int(constraints: NumericConstraints = {}): NumberShape {
 
 /**
  * Creates a shape for 64-bit signed integer values.
+ *
+ * @group Factories
  *
  * @param constraints Optional {@link NumericConstraints} validation constraints
  *
@@ -347,6 +361,8 @@ export function long(constraints: NumericConstraints = {}): NumberShape {
 /**
  * Creates a shape for IEEE 754 single-precision floating-point values.
  *
+ * @group Factories
+ *
  * @param constraints Optional {@link NumericConstraints} validation constraints
  *
  * @returns A shape for validating single-precision floats
@@ -361,6 +377,8 @@ export function float(constraints: NumericConstraints = {}): NumberShape {
 
 /**
  * Creates a shape for IEEE 754 double-precision floating-point values.
+ *
+ * @group Factories
  *
  * @param constraints Optional {@link NumericConstraints} validation constraints
  *
@@ -377,6 +395,8 @@ export function double(constraints: NumericConstraints = {}): NumberShape {
 /**
  * Creates a shape for arbitrary-precision integer values.
  *
+ * @group Factories
+ *
  * @param constraints Optional {@link NumericConstraints} validation constraints
  *
  * @returns A shape for validating arbitrary-precision integers
@@ -391,6 +411,8 @@ export function integer(constraints: NumericConstraints = {}): NumberShape {
 
 /**
  * Creates a shape for arbitrary-precision decimal values.
+ *
+ * @group Factories
  *
  * @param constraints Optional {@link NumericConstraints} validation constraints
  *

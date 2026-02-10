@@ -44,6 +44,8 @@ const TextualConstraintsTemplate = {
 /**
  * Checks whether a value is a {@link StringShape}.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` has `kind: "string"`, a required `model` string, and valid optional constraints
@@ -68,6 +70,8 @@ export function isStringShape(value: unknown): value is StringShape {
 /**
  * Checks whether a value is a valid {@link StringConstraints} object.
  *
+ * @group Guards
+ *
  * @param value The value to check
  *
  * @returns true if `value` has valid optional constraints (`model`, `minLength`, `maxLength`, `pattern`, `in`,
@@ -90,6 +94,8 @@ export function isStringConstraints(value: unknown): value is StringConstraints 
 
 /**
  * Checks whether a value is a valid {@link TextualConstraints} object.
+ *
+ * @group Guards
  *
  * @param value The value to check
  *

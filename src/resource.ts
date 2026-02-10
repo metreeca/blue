@@ -63,11 +63,11 @@
  * import { string } from '@metreeca/blue';
  *
  * const Shape = resource({
- *   name: required(string()),      // exactly one (1..1)
- *   alias: optional(string()),     // at most one (0..1)
- *   tags: repeatable(string()),    // one or more (1..*)
- *   notes: multiple(string()),     // zero or more (0..*)
- *   codes: cardinality(2, 5)(string()) // custom range (2..5)
+ *   name: required(string()),           // 1..1
+ *   alias: optional(string()),          // 0..1
+ *   tags: repeatable(string()),         // 1..*
+ *   notes: multiple(string()),          // 0..*
+ *   codes: cardinality(2, 5)(string())  // 2..5
  * });
  * ```
  *
@@ -112,8 +112,8 @@
  * const Product = resource({
  *   id: id(),
  *   name: required(string()),
- *   rating: optional(Rating),          // embedded — inline object, managed with Product
- *   vendor: required(reference(Vendor)) // standalone — IRI reference, managed independently
+ *   rating: optional(Rating),            // embedded
+ *   vendor: required(reference(Vendor)) // standalone
  * });
  * ```
  *
@@ -175,10 +175,26 @@
  *     PostalAddress: reference(PostalAddress)
  *   }))
  * });
+ * ```
  *
- * // address values use variant keys as discriminators:
- * // { text: "123 Main St" }
- * // { PostalAddress: { id: "/addresses/1", street: "123 Main St", city: "Springfield" } }
+ * Variant keys act as discriminators in runtime values:
+ *
+ * ```json
+ * {
+ *   "address": {
+ *     "text": "123 Main St"
+ *   }
+ * }
+ *
+ * {
+ *   "address": {
+ *     "PostalAddress": {
+ *       "id": "https://data.example.com/addresses/456",
+ *       "streetAddress": "12 Harbour Street",
+ *       "addressLocality": "Copenhagen"
+ *     }
+ *   }
+ * }
  * ```
  *
  * @module
@@ -833,6 +849,8 @@ export type Cardinality<V, L extends undefined | number, U extends undefined | n
  * > The target shape must include an {@link Id} property. This constraint is checked at runtime but not at compile
  * > time due to limitations with recursive type inference.
  *
+ * @group Factories
+ *
  * @param shape The target resource shape, either directly or as a lazy function to support circular and
  *     self-referential definitions
  *
@@ -858,6 +876,8 @@ export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
  *
  * Backlinks are reverse links managed by the target resource. They are read-only from the source resource perspective:
  * included in responses but rejected in state updates and patches.
+ *
+ * @group Factories
  *
  * @param shape The target resource shape, either directly or as a lazy function to support circular and
  *     self-referential definitions
@@ -891,7 +911,7 @@ export function backlink(shape: Lazy<ResourceShape>): ReferenceShape {
  *
  * - `name: required(string())` is equivalent to `name: property(required(string()))`
  *
- * @group Resources
+ * @group Factories
  *
  * @typeParam E The entries record type
  *
@@ -925,7 +945,7 @@ export function resource<E extends Entries>(
  * > When inheriting from multiple shapes, namespaces are inconsistent if some parents define a namespace while others
  * > don't, or if parents define different namespace IRIs. In such cases, an overriding `namespace` must be declared.
  *
- * @group Resources
+ * @group Factories
  *
  * @typeParam C The constraints type (used to infer inheritance)
  * @typeParam E The entries record type
@@ -962,6 +982,8 @@ export function resource<
 
 /**
  * Creates resource shapes.
+ *
+ * @group Factories
  */
 export function resource(
 	a: Entries | ResourceConstraints,
@@ -1161,7 +1183,7 @@ export function resource(
  *
  * Maps to JSON-LD `@id` and provides a required single absolute IRI property.
  *
- * @group Properties
+ * @group Factories
  *
  * @param constraints The identifier property constraints
  * @param constraints.hidden Excludes the property from default serialisation
@@ -1189,7 +1211,7 @@ export function id(constraints: {
  *
  * Maps to JSON-LD `@type` and provides an optional single absolute IRI property.
  *
- * @group Properties
+ * @group Factories
  *
  * @param constraints The type property constraints
  * @param constraints.hidden Excludes the property from default serialisation
@@ -1216,7 +1238,7 @@ export function type(constraints: {
 /**
  * Creates a property shape from a value range.
  *
- * @group Properties
+ * @group Factories
  *
  * @typeParam V The range type
  *
@@ -1236,7 +1258,7 @@ export function property<V extends Range>(
  * The `forward` and `reverse` fields accept plain strings for convenience; they are converted to {@link IRI} values
  * internally.
  *
- * @group Properties
+ * @group Factories
  *
  * @typeParam V The range type
  *
@@ -1252,6 +1274,8 @@ export function property<V extends Range>(
 
 /**
  * Creates property shapes.
+ *
+ * @group Factories
  */
 export function property(a: Range | PropertyConstraints, b?: Range): Property {
 
@@ -1278,7 +1302,7 @@ export function property(a: Range | PropertyConstraints, b?: Range): Property {
  * Unions are pure type discriminators — cardinality constraints are applied by wrapping the union in a
  * {@link Range} via cardinality helpers like {@link required}, {@link optional}, etc.
  *
- * @group Ranges
+ * @group Factories
  *
  * @typeParam V The variants record type
  *
@@ -1327,7 +1351,7 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
  *
  * Allows zero or more values, resulting in an optional array type (`undefined | readonly V[]`).
  *
- * @group Ranges
+ * @group Factories
  *
  * @typeParam S The value shape or union type
  *
@@ -1346,7 +1370,7 @@ export function multiple<S extends ValueShape | Union>(shape: Lazy<S>): Range<S[
  *
  * Requires one or more values, resulting in a non-empty array type (`readonly [V, ...V[]]`).
  *
- * @group Ranges
+ * @group Factories
  *
  * @typeParam S The value shape or union type
  *
@@ -1365,7 +1389,7 @@ export function repeatable<S extends ValueShape | Union>(shape: Lazy<S>): Range<
  *
  * Allows zero or one value, resulting in an optional scalar type (`undefined | V`).
  *
- * @group Ranges
+ * @group Factories
  *
  * @typeParam S The value shape or union type
  *
@@ -1384,7 +1408,7 @@ export function optional<S extends ValueShape | Union>(shape: Lazy<S>): Range<S[
  *
  * Requires exactly one value, resulting in a required scalar type (`V`).
  *
- * @group Ranges
+ * @group Factories
  *
  * @typeParam S The value shape or union type
  *
@@ -1403,7 +1427,7 @@ export function required<S extends ValueShape | Union>(shape: Lazy<S>): Range<S[
  *
  * Returns a factory function that creates ranges with the specified minimum and maximum counts.
  *
- * @group Ranges
+ * @group Factories
  *
  * @typeParam L The minimum count constraint type
  * @typeParam U The maximum count constraint type
