@@ -5,7 +5,13 @@ description: Development guidelines and conventions for the @metreeca/blue packa
 
 # References
 
+## Standards
+
 - [SHACL](https://www.w3.org/TR/shacl/) - Shapes Constraint Language
+
+## Dependencies
+
+- [Core](https://metreeca.github.io/core/) - Essential TypeScript abstractions
 - [Qest](https://metreeca.github.io/qest/) - Linked data models
 
 # NPM Scripts
