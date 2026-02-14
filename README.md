@@ -26,7 +26,7 @@ validation engine:
 > [!NOTE]
 >
 > **@metreeca/blue** is part of the
-> [@metreeca/qest integrated ecosystem](https://github.com/metreeca/qest#integrated-ecosystem)
+> [@metreeca/qest integrated ecosystem](https://github.com/metreeca/qest#ecosystem)
 > for rapid development of linked data applications.
 
 # Installation
