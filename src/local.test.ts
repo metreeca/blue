@@ -44,9 +44,9 @@ describe("guards", () => {
 
 		});
 
-		it("returns false for object with non-local model", async () => {
+		it("returns true for object with string model shorthand", async () => {
 
-			expect(isLocalShape({ kind: "local", model: "text" })).toBe(false);
+			expect(isLocalShape({ kind: "local", model: "text" })).toBe(true);
 
 		});
 
@@ -110,9 +110,14 @@ describe("guards", () => {
 
 		});
 
+		it("returns true for object with string model shorthand", async () => {
+
+			expect(isLocalConstraints({ model: "text" })).toBe(true);
+
+		});
+
 		it("returns false for object with invalid model", async () => {
 
-			expect(isLocalConstraints({ model: "text" })).toBe(false);
 			expect(isLocalConstraints({ model: { en: 42 } })).toBe(false);
 
 		});
@@ -239,6 +244,19 @@ describe("factories", () => {
 
 			});
 
+			it("normalizes string model shorthand to { und: value }", async () => {
+
+				expect(local("example").model).toEqual({ und: "example" });
+				expect(local("").model).toEqual({ und: "" });
+
+			});
+
+			it("normalizes string model in constraints to { und: value }", async () => {
+
+				expect(local({ model: "example" }).model).toEqual({ und: "example" });
+
+			});
+
 			it("returns an immutable shape", async () => {
 
 				const shape = local();
@@ -351,6 +369,12 @@ describe("factories", () => {
 
 				expect(locals().model).toEqual({ "*": [""] });
 				expect(locals({}).model).toEqual({ "*": [""] });
+
+			});
+
+			it("normalizes string array model shorthand to { und: value }", async () => {
+
+				expect(locals({ model: ["example"] }).model).toEqual({ und: ["example"] });
 
 			});
 
@@ -567,6 +591,34 @@ describe("validators", () => {
 
 		});
 
+		describe("string shorthand", () => {
+
+			it("validates plain string values as { und: value }", async () => {
+
+				expect(validateLocal(["hello"], local({ minLength: 3 }))).toEqual([]);
+
+			});
+
+			it("returns trace when plain string fails length constraint", async () => {
+
+				expect(validateLocal(["hi"], local({ minLength: 5 })).length).toBeGreaterThan(0);
+
+			});
+
+			it("returns trace when plain string fails languageIn constraint", async () => {
+
+				expect(validateLocal(["hello"], local({ languageIn: ["en"] })).length).toBeGreaterThan(0);
+
+			});
+
+			it("returns empty trace when plain string matches languageIn with und", async () => {
+
+				expect(validateLocal(["hello"], local({ languageIn: ["und"] }))).toEqual([]);
+
+			});
+
+		});
+
 		describe("trace structure", () => {
 
 			it("includes tag key for length violation", async () => {
@@ -701,6 +753,34 @@ describe("validators", () => {
 					minLength: 10,
 					languageIn: ["en"]
 				})).length).toBeGreaterThan(0);
+
+			});
+
+		});
+
+		describe("string array shorthand", () => {
+
+			it("validates plain string array values as { und: value }", async () => {
+
+				expect(validateLocals([["hello", "world"]], locals({ minLength: 3 }))).toEqual([]);
+
+			});
+
+			it("returns trace when plain string array fails length constraint", async () => {
+
+				expect(validateLocals([["hi"]], locals({ minLength: 5 })).length).toBeGreaterThan(0);
+
+			});
+
+			it("returns trace when plain string array fails languageIn constraint", async () => {
+
+				expect(validateLocals([["hello"]], locals({ languageIn: ["en"] })).length).toBeGreaterThan(0);
+
+			});
+
+			it("returns empty trace when plain string array matches languageIn with und", async () => {
+
+				expect(validateLocals([["hello"]], locals({ languageIn: ["und"] }))).toEqual([]);
 
 			});
 

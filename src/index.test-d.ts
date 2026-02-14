@@ -52,8 +52,16 @@ describe("Model", () => {
 		expectTypeOf<Infer<LocalShape>>().toEqualTypeOf<Local>();
 	});
 
+	test("LocalShape accepts string shorthand", () => {
+		expectTypeOf<string>().toExtend<Infer<LocalShape>>();
+	});
+
 	test("LocalsShape → Locals", () => {
 		expectTypeOf<Infer<LocalsShape>>().toEqualTypeOf<Locals>();
+	});
+
+	test("LocalsShape accepts string array shorthand", () => {
+		expectTypeOf<readonly string[]>().toExtend<Infer<LocalsShape>>();
 	});
 
 	test("ReferenceShape → Reference", () => {

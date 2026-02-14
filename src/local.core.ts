@@ -148,7 +148,7 @@ export function isLocalizedConstraints(value: unknown): value is LocalizedConstr
  * Validates single-valued language-tagged maps against a shape.
  *
  * Enforces length constraints (minLength, maxLength) on string values and language tag constraints (languageIn) on
- * tags.
+ * tags. Plain string values are normalised to `{ und: value }` before validation.
  *
  * @param values The local values to validate
  * @param shape The local shape defining validation constraints
@@ -165,6 +165,7 @@ export function validateLocal(values: readonly Local[], {
 }: LocalShape): Trace {
 
 	const entries = values
+		.map((value): Record<string, string> => typeof value === "string" ? { und: value } : value)
 		.flatMap(value => Object.entries(value))
 		.map(([tag, text]) => [tag, [
 
@@ -188,7 +189,7 @@ export function validateLocal(values: readonly Local[], {
  * Validates multi-valued language-tagged maps against a shape.
  *
  * Enforces length constraints (minLength, maxLength) on string values and language tag constraints (languageIn) on
- * tags.
+ * tags. Plain string array values are normalised to `{ und: values }` before validation.
  *
  * @param values The locals values to validate
  * @param shape The locals shape defining validation constraints
@@ -205,8 +206,9 @@ export function validateLocals(values: readonly Locals[], {
 }: LocalsShape): Trace {
 
 	const entries = values
+		.map(value => Array.isArray(value) ? { und: value } as const : value as Record<string, readonly string[]>)
 		.flatMap(value => Object.entries(value))
-		.map(([tag, texts]) => [tag, [
+		.map(([tag, texts]: [string, readonly string[]]) => [tag, [
 
 			...texts.flatMap(text => minLength !== undefined && text.length < minLength
 				? [`expected string length >= ${minLength}`] : []),

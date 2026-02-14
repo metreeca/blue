@@ -35,7 +35,7 @@ import {
 	type Lazy
 } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
-import { isLocal, isLocals, isReference, isResource, type Value } from "@metreeca/qest/state";
+import { isLocal, isLocals, isReference, isResource, type Locals, type Value } from "@metreeca/qest/state";
 import { isBooleanShape, validateBoolean } from "./boolean.core.js";
 import type { Trace, Validator, ValueShape } from "./index.js";
 import { isLocalShape, isLocalsShape, validateLocal, validateLocals } from "./local.core.js";
@@ -151,7 +151,7 @@ export function validateValue(values: readonly Value[], shape: ValueShape): Trac
 
 			return [
 				...values.flatMap(v => isLocals(v) ? [] : [`expected locals values`]),
-				...validateLocals(values.filter(isLocals), shape)
+				...validateLocals(values.filter(isLocals) as Locals[], shape)
 			];
 
 		case "reference":

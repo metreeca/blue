@@ -744,19 +744,19 @@ describe("factories", () => {
 
 		describe("type conformance", () => {
 
-			it("throws on non-object name", async () => {
+			it("accepts string name shorthand", async () => {
 
 				expect(() => resource({ name: "Person" } as any, {
 					name: property(required(string()))
-				})).toThrow(TypeError);
+				})).not.toThrow();
 
 			});
 
-			it("throws on non-object description", async () => {
+			it("accepts string description shorthand", async () => {
 
 				expect(() => resource({ description: "A person" } as any, {
 					name: property(required(string()))
-				})).toThrow(TypeError);
+				})).not.toThrow();
 
 			});
 

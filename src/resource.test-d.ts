@@ -24,9 +24,10 @@
  */
 
 import type { IRI } from "@metreeca/core/resource";
-import type { Resource } from "@metreeca/qest/state";
+import type { Local, Locals, Resource } from "@metreeca/qest/state";
 import { assertType, describe, expectTypeOf, test } from "vitest";
 import { type Infer, validate } from "./index.js";
+import { local, locals } from "./local.js";
 import type { NumberShape } from "./number.js";
 import {
 	type Cardinality,
@@ -630,6 +631,58 @@ describe("Model", () => {
 
 		});
 
+	});
+
+});
+
+
+describe("Local/Locals shorthand acceptance", () => {
+
+	const Shape = resource({
+		title: required(local()),
+		keywords: optional(locals())
+	});
+
+	test("infers Local type for local property", () => {
+		expectTypeOf<Infer<typeof Shape>>().toHaveProperty("title").toEqualTypeOf<Local>();
+	});
+
+	test("infers Locals | undefined type for optional locals property", () => {
+		expectTypeOf<Infer<typeof Shape>>().toHaveProperty("keywords").toEqualTypeOf<Locals | undefined>();
+	});
+
+	test("local property accepts string shorthand", () => {
+		expectTypeOf<string>().toExtend<Infer<typeof Shape>["title"]>();
+	});
+
+	test("locals property accepts string array shorthand", () => {
+		expectTypeOf<readonly string[]>().toExtend<NonNullable<Infer<typeof Shape>["keywords"]>>();
+	});
+
+	test("accepts tagged object for local property", () => {
+		assertType<Infer<typeof Shape>>({ title: { en: "Hello" } });
+	});
+
+	test("accepts string shorthand for local property", () => {
+		assertType<Infer<typeof Shape>>({ title: "Hello" });
+	});
+
+	test("accepts tagged object for locals property", () => {
+		assertType<Infer<typeof Shape>>({ title: "Hello", keywords: { en: ["a", "b"] } });
+	});
+
+	test("accepts string array shorthand for locals property", () => {
+		assertType<Infer<typeof Shape>>({ title: "Hello", keywords: ["a", "b"] });
+	});
+
+	test("rejects number for local property", () => {
+		// @ts-expect-error - number not assignable to Local
+		assertType<Infer<typeof Shape>>({ title: 42 });
+	});
+
+	test("rejects number array for locals property", () => {
+		// @ts-expect-error - number[] not assignable to Locals
+		assertType<Infer<typeof Shape>>({ title: "Hello", keywords: [1, 2] });
 	});
 
 });

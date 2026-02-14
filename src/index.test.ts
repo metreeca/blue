@@ -996,9 +996,9 @@ describe("validators", () => {
 
 		});
 
-		it("rejects plain string for local shape", async () => {
+		it("accepts plain string shorthand for local shape", async () => {
 
-			expect(validateValue(["hello"], local()).length).toBeGreaterThan(0);
+			expect(validateValue(["hello"], local())).toEqual([]);
 
 		});
 

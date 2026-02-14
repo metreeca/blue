@@ -28,13 +28,16 @@
  *
  * **Defining Language-Tagged Shapes**
  *
- * Single-valued maps hold one string per language tag; multi-valued maps hold arrays:
+ * Single-valued maps hold one string per language tag; multi-valued maps hold arrays.
+ * Plain strings and string arrays are accepted as shorthands for language-neutral values
+ * and are normalised to the `und` (Undetermined) language tag:
  *
  * ```typescript
  * import { local, locals } from '@metreeca/blue';
  *
  * const label = local();                                   // wildcard: { "*": "" }
- * const title = local({ minLength: 1, maxLength: 200 });   // constrained
+ * const title = local("Untitled");                         // shorthand: { und: "Untitled" }
+ * const name = local({ minLength: 1, maxLength: 200 });    // constrained
  * const description = local({ languageIn: ["en", "it"] }); // language-restricted
  *
  * const keywords = locals();                               // wildcard: { "*": [""] }
@@ -90,6 +93,8 @@ export interface LocalShape extends LocalizedConstraints {
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
+	 * Accepts plain strings as shorthands for language-neutral values, equivalent to `{ und: value }`.
+	 *
 	 * @defaultValue `{ "*": "" }` (wildcard empty string)
 	 */
 	readonly model: Local;
@@ -111,6 +116,8 @@ export interface LocalsShape extends LocalizedConstraints {
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
+	 * Accepts plain string arrays as shorthands for language-neutral values, equivalent to `{ und: values }`.
+	 *
 	 * @defaultValue `{ "*": [""] }` (wildcard empty string array)
 	 */
 	readonly model: Locals;
@@ -126,6 +133,8 @@ export interface LocalConstraints extends LocalizedConstraints {
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
+	 * Accepts plain strings as shorthands for language-neutral values, normalised to `{ und: value }`.
+	 *
 	 * @defaultValue `{ "*": "" }` (wildcard empty string)
 	 */
 	readonly model?: LocalModel;
@@ -139,6 +148,8 @@ export interface LocalsConstraints extends LocalizedConstraints {
 
 	/**
 	 * Prototype value for runtime model assembly.
+	 *
+	 * Accepts plain string arrays as shorthands for language-neutral values, normalised to `{ und: values }`.
 	 *
 	 * @defaultValue `{ "*": [""] }` (wildcard empty string array)
 	 */
@@ -201,6 +212,7 @@ export interface LocalizedConstraints {
  *
  * ```typescript
  * const title = local({ "*": "Untitled" } as const);
+ * const name = local("Default");  // shorthand for { und: "Default" }
  * ```
  */
 export function local<M extends Local>(model: M): LocalShape & { readonly model: M };
@@ -233,16 +245,18 @@ export function local(constraints?: LocalConstraints): LocalShape;
  */
 export function local(constraints: Local | LocalConstraints = {}): LocalShape {
 
-	const $constraints = isLocalModel(constraints) && Object.keys(constraints).length > 0
-		? { model: constraints as Local }
-		: constraints;
+	const $constraints = typeof constraints === "string"
+		? { model: { und: constraints } as Local }
+		: !isLocalConstraints(constraints) && isLocalModel(constraints) && Object.keys(constraints).length > 0
+			? { model: constraints as Local }
+			: constraints;
 
 	const { model, languageIn, ...rest } = assert($constraints, isLocalConstraints);
 
 	return immutable({
 
 		kind: "local",
-		model: model ?? { "*": "" },
+		model: typeof model === "string" ? { und: model } : model ?? { "*": "" },
 
 		languageIn,
 
@@ -270,7 +284,7 @@ export function locals(constraints: LocalsConstraints = {}): LocalsShape {
 	return immutable({
 
 		kind: "locals",
-		model: model ?? { "*": [""] },
+		model: Array.isArray(model) ? { und: model } : model ?? { "*": [""] },
 
 		languageIn,
 
