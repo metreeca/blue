@@ -204,14 +204,8 @@
  *
  * @module
  *
- * @groupDescription Resources
- * Factory functions for creating resource and IRI shapes.
- *
- * @groupDescription Properties
- * Factory functions for creating property shapes and special property mappings.
- *
- * @groupDescription Ranges
- * Factory functions for creating value ranges with cardinality constraints.
+ * @groupDescription Factories
+ * Factory functions for creating resource shapes, property definitions, and value ranges.
  *
  * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  * @see {@link https://www.w3.org/TR/shacl/#ClosedConstraintComponent SHACL § 4.8.1 sh:closed}
