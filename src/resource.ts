@@ -154,6 +154,11 @@
  * });
  * ```
  *
+ * > [!IMPORTANT]
+ * > Constraints are enforced **conjunctively**: when a child shape overrides an inherited property, values must satisfy
+ * > both the child's constraints and all inherited constraints. Overrides can restrict inherited constraints but never
+ * > relax them.
+ *
  * **Polymorphic Properties**
  *
  * Use {@link union} for properties accepting multiple value types. Unions are pure type discriminators — cardinality
@@ -432,7 +437,9 @@ export interface ResourceConstraints {
 	/**
 	 * Parent shape(s) this shape inherits from.
 	 *
-	 * Inherited properties and constraints are merged into the derived shape.
+	 * Inherited properties and constraints are merged into the derived shape. When a child overrides an inherited
+	 * property, constraints are enforced conjunctively: values must satisfy both the child's and all inherited
+	 * constraints. This ensures overrides can only restrict, never relax, inherited definitions.
 	 *
 	 * > [!WARNING]
 	 * > When inheriting from multiple shapes with different {@link namespace} values, an overriding namespace must be

@@ -423,7 +423,7 @@ export function validateReference(values: readonly Reference[], shape: Reference
  */
 export function validateResource(values: readonly Resource[], shape: ResourceShape): Trace {
 
-	const { properties, validators } = resolveInheritance(shape);
+	const { properties, overrides, validators } = resolveInheritance(shape);
 	const labels = resolveLabels(properties);
 
 	return values.flatMap(value => collect([
@@ -432,7 +432,7 @@ export function validateResource(values: readonly Resource[], shape: ResourceSha
 			validateId(value, properties, shape),
 			validateType(value, properties),
 			validateEnvelope(value, labels),
-			validateProperties(value, properties)
+			validateProperties(value, properties, overrides)
 		],
 
 		validators
@@ -462,7 +462,7 @@ export function validateResource(values: readonly Resource[], shape: ResourceSha
  */
 export function validatePatch(values: readonly Patch[], shape: ResourceShape): Trace {
 
-	const { properties } = resolveInheritance(shape);
+	const { properties, overrides } = resolveInheritance(shape);
 	const labels = resolveLabels(properties);
 
 	return values.flatMap(value => collect([[
@@ -470,7 +470,7 @@ export function validatePatch(values: readonly Patch[], shape: ResourceShape): T
 		validateId(value, properties, shape),
 		validateType(value, properties),
 		validateEnvelope(value, labels),
-		validatePatchProperties(value, properties)
+		validatePatchProperties(value, properties, overrides)
 
 	]]));
 
@@ -541,17 +541,19 @@ export function validateQuery(values: readonly Query[], shape: ResourceShape, de
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Flattens the inheritance chain of a {@link ResourceShape} into merged properties and validators.
+ * Flattens the inheritance chain of a {@link ResourceShape} into merged properties, overrides, and validators.
  *
  * Walks `extends` references recursively, merging parent properties and validators left-to-right. Child definitions
- * override inherited ones for properties; validators are deduplicated using `Set` identity.
+ * override inherited ones for properties; validators are deduplicated using `Set` identity. When a child overrides
+ * an inherited property, the inherited range is tracked in the overrides map for conjunctive constraint enforcement.
  *
  * @param shape The shape whose inheritance chain is to be resolved
  *
- * @returns The merged properties and deduplicated validators
+ * @returns The merged properties, inherited range overrides, and deduplicated validators
  */
 function resolveInheritance(shape: ResourceShape): {
 	properties: Properties;
+	overrides: Record<string, readonly Range[]>;
 	validators: readonly Validator<Resource>[];
 } {
 
@@ -561,6 +563,7 @@ function resolveInheritance(shape: ResourceShape): {
 
 		return {
 			properties: shape.properties,
+			overrides: {},
 			validators: shape.validators ?? []
 		};
 
@@ -576,20 +579,24 @@ function resolveInheritance(shape: ResourceShape): {
 			.map(resolveInheritance)
 			.reduce((acc, resolved) => ({
 				properties: { ...acc.properties, ...resolved.properties },
+				overrides: { ...acc.overrides, ...resolved.overrides },
 				validators: [...new Set([...acc.validators, ...resolved.validators])]
 			}), {
 				properties: {} as Properties,
+				overrides: {} as Record<string, readonly Range[]>,
 				validators: [] as readonly Validator<Resource>[]
 			});
 
 		return {
 			properties: { ...inherited.properties, ...shape.properties },
+			overrides: collectOverrides(inherited.properties, inherited.overrides, shape.properties),
 			validators: [...new Set([...inherited.validators, ...(shape.validators ?? [])])]
 		};
 
 	}
 
 }
+
 
 /**
  * Extracts the set of user-visible property labels from a properties map.
@@ -601,9 +608,42 @@ function resolveInheritance(shape: ResourceShape): {
  * @returns The set of canonical property labels
  */
 function resolveLabels(properties: Properties): Set<string> {
+
 	return new Set(
 		Object.keys(properties).map(key => key.includes("=") ? key.split("=")[0] : key)
 	);
+
+}
+
+/**
+ * Collects inherited ranges for properties overridden by local definitions.
+ *
+ * When a local property overrides an inherited one, the inherited property's range is added to the overrides map so
+ * that both the local and inherited constraints are validated conjunctively. Propagates transitive overrides from
+ * parent shapes.
+ *
+ * @param inheritedProperties The resolved inherited properties
+ * @param inheritedOverrides The inherited overrides from parent shapes
+ * @param localProperties The local properties that may override inherited ones
+ *
+ * @returns The updated overrides map including newly overridden ranges
+ */
+function collectOverrides(
+	inheritedProperties: Properties,
+	inheritedOverrides: Record<string, readonly Range[]>,
+	localProperties: Properties
+): Record<string, readonly Range[]> {
+	return Object.entries(localProperties).reduce((overrides, [key, local]) => {
+
+		const inherited = inheritedProperties[key];
+
+		if ( inherited?.kind === "property" && local.kind === "property" ) {
+			return { ...overrides, [key]: [...(overrides[key] ?? []), (inherited as Property).range] };
+		} else {
+			return overrides;
+		}
+
+	}, { ...inheritedOverrides } as Record<string, readonly Range[]>);
 }
 
 
@@ -719,22 +759,25 @@ function validateEnvelope(value: Object, labels: Set<string>): Record<string, Tr
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Validates all regular properties of a resource value against their range definitions.
+ * Validates all regular properties of a resource value against their local and inherited range definitions.
  *
- * Delegates to {@link validatePropertyRange} for each property, enforcing full cardinality and value constraints.
+ * Enforces conjunctive constraint semantics: when a child overrides a property, values must satisfy both the child's
+ * constraints and all inherited constraints from parent shapes.
  *
  * @param value The resource value to validate
  * @param properties The resolved properties map
+ * @param overrides The inherited ranges for overridden properties
  *
  * @returns A record mapping each invalid property label to its validation trace
  */
-function validateProperties(value: Object, properties: Properties): Record<string, Trace> {
+function validateProperties(value: Object, properties: Properties, overrides: Record<string, readonly Range[]>): Record<string, Trace> {
 	return Object.fromEntries(
 		Object.entries(properties)
 			.filter(([, prop]) => prop.kind === "property")
 			.map(([key, prop]) => {
 				const name = key.includes("=") ? key.split("=")[0] : key;
-				return [name, validatePropertyRange(value[name], prop as Property)] as const;
+				const inherited = overrides[key]?.flatMap(range => validateRange(value[name], range)) ?? [];
+				return [name, [...validatePropertyRange(value[name], prop as Property), ...inherited]] as const;
 			})
 			.filter(([, trace]) => trace.length > 0)
 	);
@@ -826,20 +869,28 @@ function validateUnionValues(values: readonly Value[], u: Union): Trace {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Validates properties of a patch value, accepting absent and `null` (deletion marker) entries.
+ * Validates all regular properties of a patch value against their local and inherited range definitions.
+ *
+ * Enforces conjunctive constraint semantics: when a child overrides a property, present values must satisfy both the
+ * child's constraints and all inherited constraints. Absent and `null` values are accepted.
  *
  * @param value The patch value to validate
  * @param properties The resolved properties map
+ * @param overrides The inherited ranges for overridden properties
  *
  * @returns A record mapping each invalid property label to its validation trace
  */
-function validatePatchProperties(value: Object, properties: Properties): Record<string, Trace> {
+function validatePatchProperties(value: Object, properties: Properties, overrides: Record<string, readonly Range[]>): Record<string, Trace> {
 	return Object.fromEntries(
 		Object.entries(properties)
 			.filter(([, prop]) => prop.kind === "property")
 			.map(([key, prop]) => {
 				const name = key.includes("=") ? key.split("=")[0] : key;
-				return [name, validatePatchPropertyRange(value[name], prop as Property)] as const;
+				const v = value[name];
+				const inherited = (v !== null && v !== undefined)
+					? overrides[key]?.flatMap(range => validatePatchRange(v, range)) ?? []
+					: [];
+				return [name, [...validatePatchPropertyRange(v, prop as Property), ...inherited]] as const;
 			})
 			.filter(([, trace]) => trace.length > 0)
 	);

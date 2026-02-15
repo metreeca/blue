@@ -2386,6 +2386,88 @@ describe("validators", () => {
 
 			});
 
+			it("enforces inherited constraints on overridden properties", async () => {
+
+				const Base = resource({
+					name: required(string({ minLength: 3 }))
+				});
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string({ pattern: "^[A-Z]" }))
+				});
+
+				// satisfies both parent (minLength: 3) and child (pattern: ^[A-Z])
+
+				expect(validateResource([{ name: "Alice" }], Derived)).toEqual([]);
+
+				// violates parent's minLength: 3 even though it matches child's pattern
+
+				expect(validateResource([{ name: "A" }], Derived).length).toBeGreaterThan(0);
+
+				// violates child's pattern even though it satisfies parent's minLength
+
+				expect(validateResource([{ name: "alice" }], Derived).length).toBeGreaterThan(0);
+
+			});
+
+			it("prevents relaxing inherited constraints on overridden properties", async () => {
+
+				const Base = resource({
+					name: required(string({ minLength: 3, maxLength: 50 }))
+				});
+
+				// child tries to relax parent constraints
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string({ minLength: 1, maxLength: 100 }))
+				});
+
+				// satisfies both parent and child constraints
+
+				expect(validateResource([{ name: "Alice" }], Derived)).toEqual([]);
+
+				// satisfies child's relaxed minLength: 1 but violates parent's minLength: 3
+
+				expect(validateResource([{ name: "AB" }], Derived).length).toBeGreaterThan(0);
+
+				// satisfies child's relaxed maxLength: 100 but violates parent's maxLength: 50
+
+				expect(validateResource([{ name: "A".repeat(51) }], Derived).length).toBeGreaterThan(0);
+
+			});
+
+			it("enforces grandparent constraints through diamond inheritance", async () => {
+
+				const GrandParent = resource({
+					name: required(string({ minLength: 3 }))
+				});
+
+				const Parent1 = resource({ extends: GrandParent }, {
+					name: required(string({ pattern: "^[A-Z]" }))
+				});
+
+				const Parent2 = resource({ extends: GrandParent }, {
+					name: required(string({ maxLength: 50 }))
+				});
+
+				const Child = resource({ extends: [Parent1, Parent2] }, {
+					name: required(string())
+				});
+
+				// satisfies grandparent (minLength: 3), last parent (maxLength: 50) and child
+
+				expect(validateResource([{ name: "Alice" }], Child)).toEqual([]);
+
+				// violates grandparent's minLength: 3
+
+				expect(validateResource([{ name: "AB" }], Child).length).toBeGreaterThan(0);
+
+				// violates last parent's maxLength: 50
+
+				expect(validateResource([{ name: "A".repeat(51) }], Child).length).toBeGreaterThan(0);
+
+			});
+
 		});
 
 		describe("value constraints", () => {
@@ -3597,6 +3679,56 @@ describe("validators", () => {
 
 			});
 
+			it("enforces inherited constraints on overridden properties", async () => {
+
+				const Base = resource({
+					name: required(string({ minLength: 3 }))
+				});
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string({ pattern: "^[A-Z]" }))
+				});
+
+				// satisfies both parent (minLength: 3) and child (pattern: ^[A-Z])
+
+				expect(validatePatch([{ name: "Alice" }], Derived)).toEqual([]);
+
+				// violates parent's minLength: 3 even though it matches child's pattern
+
+				expect(validatePatch([{ name: "A" }], Derived).length).toBeGreaterThan(0);
+
+				// violates child's pattern even though it satisfies parent's minLength
+
+				expect(validatePatch([{ name: "alice" }], Derived).length).toBeGreaterThan(0);
+
+			});
+
+			it("prevents relaxing inherited constraints on overridden properties", async () => {
+
+				const Base = resource({
+					name: required(string({ minLength: 3, maxLength: 50 }))
+				});
+
+				// child tries to relax parent constraints
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string({ minLength: 1, maxLength: 100 }))
+				});
+
+				// satisfies both parent and child constraints
+
+				expect(validatePatch([{ name: "Alice" }], Derived)).toEqual([]);
+
+				// satisfies child's relaxed minLength: 1 but violates parent's minLength: 3
+
+				expect(validatePatch([{ name: "AB" }], Derived).length).toBeGreaterThan(0);
+
+				// satisfies child's relaxed maxLength: 100 but violates parent's maxLength: 50
+
+				expect(validatePatch([{ name: "A".repeat(51) }], Derived).length).toBeGreaterThan(0);
+
+			});
+
 		});
 
 	});
@@ -4032,6 +4164,42 @@ describe("validators", () => {
 
 			});
 
+			it("enforces shape on overridden inherited property", async () => {
+
+				const Base = resource({
+					name: required(string())
+				});
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string({ minLength: 3 }))
+				});
+
+				// type shape still enforced on overridden property
+
+				expect(validateModel([{ name: "A" }], Derived)).toEqual([]);
+				expect(validateModel([{ name: 42 }], Derived).length).toBeGreaterThan(0);
+
+			});
+
+			it("prevents relaxing inherited constraints on overridden properties", async () => {
+
+				const Base = resource({
+					name: required(string({ minLength: 3, maxLength: 50 }))
+				});
+
+				// child tries to relax parent constraints
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string({ minLength: 1, maxLength: 100 }))
+				});
+
+				// value constraints skipped in model mode, but type shape preserved
+
+				expect(validateModel([{ name: "A" }], Derived)).toEqual([]);
+				expect(validateModel([{ name: 42 }], Derived).length).toBeGreaterThan(0);
+
+			});
+
 		});
 
 		describe("value constraints", () => {
@@ -4390,6 +4558,42 @@ describe("validators", () => {
 				const Target = resource({ id: id(), name: required(string()) });
 
 				expect(validateQuery([{ name: "", extra: "" }], Target).length).toBeGreaterThan(0);
+
+			});
+
+			it("enforces shape on overridden inherited property", async () => {
+
+				const Base = resource({
+					name: required(string())
+				});
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string({ minLength: 3 }))
+				});
+
+				// type shape still enforced on overridden property
+
+				expect(validateQuery([{ name: "" }], Derived)).toEqual([]);
+				expect(validateQuery([{ name: 42 }], Derived).length).toBeGreaterThan(0);
+
+			});
+
+			it("prevents relaxing inherited constraints on overridden properties", async () => {
+
+				const Base = resource({
+					name: required(string({ minLength: 3, maxLength: 50 }))
+				});
+
+				// child tries to relax parent constraints
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string({ minLength: 1, maxLength: 100 }))
+				});
+
+				// value constraints skipped in query mode, but type shape preserved
+
+				expect(validateQuery([{ name: "" }], Derived)).toEqual([]);
+				expect(validateQuery([{ name: 42 }], Derived).length).toBeGreaterThan(0);
 
 			});
 
