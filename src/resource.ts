@@ -572,6 +572,17 @@ export interface PropertyConstraints {
 	 */
 	readonly hidden?: boolean;
 
+	/**
+	 * Marks the property as system-managed.
+	 *
+	 * > [!IMPORTANT]
+	 * > Computed properties are populated by the system and may be silently overwritten on mutation operations.
+	 * > Client-supplied values must still be present in mutation payloads but carry no guarantees of being preserved.
+	 *
+	 * @defaultValue `undefined` (`false`)
+	 */
+	readonly computed?: boolean;
+
 
 	/**
 	 * Human-readable name for the property.

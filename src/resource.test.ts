@@ -178,6 +178,12 @@ describe("guards", () => {
 
 		});
 
+		it("returns false for unknown fields", async () => {
+
+			expect(isId({ kind: "id", computed: true })).toBe(false);
+
+		});
+
 		it("returns false for non-object values", async () => {
 
 			expect(isId(null)).toBe(false);
@@ -207,6 +213,12 @@ describe("guards", () => {
 		it("returns false for object with invalid hidden", async () => {
 
 			expect(isType({ kind: "type", hidden: "true" })).toBe(false);
+
+		});
+
+		it("returns false for unknown fields", async () => {
+
+			expect(isType({ kind: "type", computed: true })).toBe(false);
 
 		});
 
@@ -278,6 +290,13 @@ describe("guards", () => {
 		it("returns true for valid property", async () => {
 
 			expect(isProperty(property(required(string())))).toBe(true);
+
+		});
+
+		it("returns true for property with computed flag", async () => {
+
+			expect(isProperty(property({ computed: true }, required(string())))).toBe(true);
+			expect(isProperty(property({ computed: false }, required(string())))).toBe(true);
 
 		});
 

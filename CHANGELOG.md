@@ -9,6 +9,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Add `computed` flag to `PropertyConstraints` for marking system-managed properties
 - Accept plain string and string array shorthands for language-tagged Local/Locals values, normalising them to the
   `und` (Undetermined) language tag
 

@@ -114,6 +114,7 @@ const ResourceConstraintsTemplate = {
 const PropertyConstraintsTemplate = {
 
 	hidden: (v: unknown) => isOptional(v, isBoolean),
+	computed: (v: unknown) => isOptional(v, isBoolean),
 
 	name: (v: unknown) => isOptional(v, isLocalValue),
 	description: (v: unknown) => isOptional(v, isLocalValue),
