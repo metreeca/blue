@@ -182,27 +182,19 @@ The same schema validates different kinds of CRUD payloads, each corresponding t
 by [@metreeca/qest](https://metreeca.github.io/qest/):
 
 - **`"value"`** — Create/Replace ([`Resource`](https://metreeca.github.io/qest/types/state.Resource.html), default); all
-  constraints enforced, missing and unknown properties rejected
-- **`"patch"`** — Partial Update ([`Patch`](https://metreeca.github.io/qest/types/state.Patch.html)); `null` values
-  accepted as deletion markers, missing properties accepted as not modified, custom validators skipped
+	constraints enforced, missing and unknown properties rejected
 - **`"model"`** — Retrieve ([`Model`](https://metreeca.github.io/qest/types/model.Model.html)); entry point for
-  retrieval projections, only type compatibility checked, missing properties accepted as not requested
+	retrieval projections, only type compatibility checked, missing properties accepted as not requested
 - **`"query"`** — Search ([`Query`](https://metreeca.github.io/qest/types/model.Query.html)); entry point for search
-  queries, extends model validation with operator-prefixed filtering and ordering keys
+	queries, extends model validation with operator-prefixed filtering and ordering keys
 
 Models and queries are mutually recursive — a model may contain nested queries and vice versa: `"model"` and `"query"`
 modes provide distinct entry points into a shared recursive validation process, suited to different contexts.
 
 ```ts
-validate(patch, Product, { mode: "patch" }); // partial update
 validate(model, Product, { mode: "model" }); // retrieval model
 validate(query, Product, { mode: "query" }); // search query
 ```
-
-> [!WARNING]
->
-> In `"patch"` mode, nested resources are validated as complete states — patch semantics (missing properties accepted,
-> custom validators skipped) apply only at the top level.
 
 > [!IMPORTANT]
 >
@@ -229,19 +221,19 @@ enabling TypeScript developers to use shape-based validation without mastering S
 This controlled subset is specified by:
 
 - [cardinality constraints](https://www.w3.org/TR/shacl/#core-components-count) (`sh:minCount`, `sh:maxCount`)
-  for specifying how many values a property must or may have
+	for specifying how many values a property must or may have
 - [value range constraints](https://www.w3.org/TR/shacl/#core-components-range) (`sh:minExclusive`,
-  `sh:maxExclusive`, `sh:minInclusive`, `sh:maxInclusive`) for numeric value ranges
+	`sh:maxExclusive`, `sh:minInclusive`, `sh:maxInclusive`) for numeric value ranges
 - [string constraints](https://www.w3.org/TR/shacl/#core-components-string) (`sh:minLength`, `sh:maxLength`,
-  `sh:pattern`, `sh:languageIn`) for text length, patterns, and language tags
+	`sh:pattern`, `sh:languageIn`) for text length, patterns, and language tags
 - [value type constraints](https://www.w3.org/TR/shacl/#core-components-value-type) (`sh:class`) for declaring the
-  expected type of resource instances; limited to a single class
+	expected type of resource instances; limited to a single class
 - [value constraints](https://www.w3.org/TR/shacl/#InConstraintComponent) (`sh:in`, `sh:hasValue`) for enumerations and
-  required values
+	required values
 - [logical constraints](https://www.w3.org/TR/shacl/#core-components-logical) limited to `sh:or` as typed unions on
-  properties; `sh:not`, `sh:and`, and `sh:xone` are not supported
+	properties; `sh:not`, `sh:and`, and `sh:xone` are not supported
 - [closed shapes](https://www.w3.org/TR/shacl/#ClosedConstraintComponent) enforced by default on all resource shapes;
-  unknown properties are always rejected
+	unknown properties are always rejected
 
 [Property pair constraints](https://www.w3.org/TR/shacl/#core-components-property-pairs) and
 [property paths](https://www.w3.org/TR/shacl/#property-paths) are not supported; cross-property logic can be implemented

@@ -33,8 +33,7 @@
  * > [!IMPORTANT]
  * > All IRI values in validated resources must be absolute. When decoding client input, relative references may be
  * > auto‑resolved using the `base` option in
- * > [decodeResource](https://metreeca.github.io/qest/functions/state.decodeResource.html),
- * > [decodePatch](https://metreeca.github.io/qest/functions/state.decodePatch.html), or
+ * > [decodeResource](https://metreeca.github.io/qest/functions/state.decodeResource.html) or
  * > [decodeQuery](https://metreeca.github.io/qest/functions/query.decodeQuery.html).
  *
  * **Defining Resource Shapes**
@@ -92,8 +91,7 @@
  * resource** — a nested object with no independent identity, created and managed together with its parent.
  *
  * > [!NOTE]
- * > In state and patch validation, embedded resources are always validated as complete states — patch semantics
- * > (missing properties accepted, custom validators skipped) apply only at the top level.
+ * > In state validation, embedded resources are always validated as complete states.
  *
  * ```typescript
  * import { resource, id, required, optional, reference } from '@metreeca/blue';
@@ -118,7 +116,7 @@
  * ```
  *
  * Use {@link backlink} for reverse links managed by the target resource. Backlinks are read-only from the source
- * resource perspective: included in responses but rejected in state updates and patches.
+ * resource perspective: included in responses but rejected in state updates.
  *
  * Self-referential shapes use lazy factories:
  *
@@ -296,8 +294,7 @@ export interface ReferenceShape {
 	 * Marks the reference as a reverse link managed by the target resource.
 	 *
 	 * Backlinks are read-only from the source resource perspective: included in responses but rejected in state
-	 * updates and patches. The forward link is owned by the target resource, not by the source resource declaring the
-	 * backlink.
+	 * updates. The forward link is owned by the target resource, not by the source resource declaring the backlink.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -876,7 +873,7 @@ export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
  * Creates a backlink reference shape for the given target {@link ResourceShape resource shape}.
  *
  * Backlinks are reverse links managed by the target resource. They are read-only from the source resource perspective:
- * included in responses but rejected in state updates and patches.
+ * included in responses but rejected in state updates.
  *
  * @group Factories
  *

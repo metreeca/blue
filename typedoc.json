@@ -36,11 +36,9 @@
       "Locals": "https://metreeca.github.io/qest/types/state.Locals.html",
       "Indexed": "https://metreeca.github.io/qest/types/state.Indexed.html",
       "decodeResource": "https://metreeca.github.io/qest/functions/state.decodeResource.html",
-      "decodePatch": "https://metreeca.github.io/qest/functions/state.decodePatch.html",
       "decodeQuery": "https://metreeca.github.io/qest/functions/query.decodeQuery.html",
       "Binding": "https://metreeca.github.io/qest/types/model.Binding.html",
       "isValue": "https://metreeca.github.io/qest/functions/state.isValue.html",
-      "isPatch": "https://metreeca.github.io/qest/functions/state.isPatch.html",
       "isModel": "https://metreeca.github.io/qest/functions/model.isModel.html",
       "isQuery": "https://metreeca.github.io/qest/functions/model.isQuery.html"
     }

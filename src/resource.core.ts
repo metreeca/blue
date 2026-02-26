@@ -18,7 +18,7 @@
  * Resource shape type guards and validation.
  *
  * Provides type guards for {@link ResourceShape}, {@link ResourceConstraints}, and related types (Id, Type, Property,
- * Range, Union, Entries, Entry), plus the resource/patch/model validators enforcing structural, cardinality, and value
+ * Range, Union, Entries, Entry), plus the resource/model validators enforcing structural, cardinality, and value
  * constraints with inheritance resolution.
  *
  * @module
@@ -52,7 +52,6 @@ import {
 	isLocal as isLocalValue,
 	isReference,
 	isValue,
-	type Patch,
 	type Reference,
 	type Resource,
 	type Value
@@ -444,39 +443,6 @@ export function validateResource(values: readonly Resource[], shape: ResourceSha
 }
 
 /**
- * Validates partial resource updates against a {@link ResourceShape}.
- *
- * Checks resource-level constraints, property value constraints, closed shape enforcement, and inherited properties.
- * The id property is required when defined in the shape. Unknown properties are rejected but missing regular properties
- * are accepted as not modified. Minimum cardinality constraints are skipped for absent properties. Custom validators
- * are skipped.
- *
- * Nested resources are validated using full {@link validateResource} semantics, not patch semantics. When a nested
- * resource is present, it represents a complete replacement value, so all required properties must be provided and
- * custom validators are enforced.
- *
- * @param values The patch instances to validate
- * @param shape The resource shape defining the expected structure
- *
- * @returns A trace of validation errors, empty if all patches are valid
- */
-export function validatePatch(values: readonly Patch[], shape: ResourceShape): Trace {
-
-	const { properties, overrides } = resolveInheritance(shape);
-	const labels = resolveLabels(properties);
-
-	return values.flatMap(value => collect([[
-
-		validateId(value, properties, shape),
-		validateType(value, properties),
-		validateEnvelope(value, labels),
-		validatePatchProperties(value, properties, overrides)
-
-	]]));
-
-}
-
-/**
  * Validates query/projection models against a {@link ResourceShape}.
  *
  * Checks closed shape enforcement, property shape (scalar vs singleton tuple), and inherited properties. Value
@@ -862,106 +828,6 @@ function validateUnionValues(values: readonly Value[], u: Union): Trace {
 	return values
 		.filter(v => !variantShapes.some(shape => validateValue([v], shape).length === 0))
 		.map(() => `value does not match any allowed type`);
-
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates all regular properties of a patch value against their local and inherited range definitions.
- *
- * Enforces conjunctive constraint semantics: when a child overrides a property, present values must satisfy both the
- * child's constraints and all inherited constraints. Absent and `null` values are accepted.
- *
- * @param value The patch value to validate
- * @param properties The resolved properties map
- * @param overrides The inherited ranges for overridden properties
- *
- * @returns A record mapping each invalid property label to its validation trace
- */
-function validatePatchProperties(value: Object, properties: Properties, overrides: Record<string, readonly Range[]>): Record<string, Trace> {
-	return Object.fromEntries(
-		Object.entries(properties)
-			.filter(([, prop]) => prop.kind === "property")
-			.map(([key, prop]) => {
-				const name = key.includes("=") ? key.split("=")[0] : key;
-				const v = value[name];
-				const inherited = (v !== null && v !== undefined)
-					? overrides[key]?.flatMap(range => validatePatchRange(v, range)) ?? []
-					: [];
-				return [name, [...validatePatchPropertyRange(v, prop as Property), ...inherited]] as const;
-			})
-			.filter(([, trace]) => trace.length > 0)
-	);
-}
-
-/**
- * Dispatches patch property validation, accepting `null` (deletion) and `undefined` (absent) unconditionally.
- *
- * @param value The property value to validate
- * @param prop The property definition
- *
- * @returns A trace of validation errors
- */
-function validatePatchPropertyRange(value: unknown, prop: Property): Trace {
-
-	if ( value === null ) { // null is a deletion marker, always accepted
-
-		return [];
-
-	} else if ( value === undefined ) { // absent properties accepted in patch mode
-
-		return [];
-
-	} else {
-
-		return validatePatchRange(value, prop.range);
-
-	}
-
-}
-
-/**
- * Validates a present patch property value against a single {@link Range}.
- *
- * Skips `minCount` enforcement since absent properties are acceptable in patch mode.
- *
- * @param value The property value to validate
- * @param range The range definition
- *
- * @returns A trace of validation errors
- */
-function validatePatchRange(value: unknown, range: Range): Trace {
-
-	const { maxCount, shape } = range;
-
-	const isScalar = maxCount === 1;
-	const values: readonly Value[] = Array.isArray(value) ? value : [value];
-
-	// shape validation (scalar vs array)
-
-	const shapeTraces: Trace = [
-		(isScalar !== Array.isArray(value))
-		|| (isScalar ? `expected scalar value` : `expected array value`)
-	].filter(isString);
-
-	// cardinality: skip minCount for patches, enforce maxCount
-
-	const cardinalityTraces: Trace = [
-
-		(maxCount === undefined || values.length <= maxCount)
-		|| `expected at most ${maxCount} value(s), got ${values.length}`
-
-	].filter(isString);
-
-	// value validation — delegate to union matching when shape is a union
-
-	const valueTraces = shape.kind === "union"
-		? validateUnionValues(values, shape)
-		: validateValue(values, shape);
-
-	return [...shapeTraces, ...cardinalityTraces, ...valueTraces];
 
 }
 

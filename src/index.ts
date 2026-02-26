@@ -65,14 +65,11 @@
  *
  * **Validation Modes**
  *
- * Beyond complete resource states, {@link validate} supports partial updates, projections, and queries:
+ * Beyond complete resource states, {@link validate} supports projections and queries:
  *
  * ```typescript
  * // validate a complete resource state (default)
  * validate(data, Product);
- *
- * // validate a partial update (null values = deletions)
- * validate(data, Product, { mode: "patch" });
  *
  * // validate a projection model
  * validate(data, Product, { mode: "model" });
@@ -124,12 +121,12 @@ import { Tag, TagRange } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/nested";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { isModel, isQuery, type Model, type Query } from "@metreeca/qest/model";
-import { isPatch, isResource, isValue, type Patch, type Resource, type Value } from "@metreeca/qest/state";
+import { isResource, isValue, type Resource, type Value } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
 import { collect, isTrace, isValidator, isValueShape, materialize, validateValue } from "./index.core.js";
 import type { LocalShape, LocalsShape } from "./local.js";
 import type { NumberShape } from "./number.js";
-import { isResourceShape, validateModel, validatePatch, validateQuery, validateResource } from "./resource.core.js";
+import { isResourceShape, validateModel, validateQuery, validateResource } from "./resource.core.js";
 import type { ReferenceShape, ResourceShape } from "./resource.js";
 import type { StringShape } from "./string.js";
 
@@ -142,14 +139,12 @@ export { collect, isTrace, isValidator, isValueShape };
  * Set by {@link brand} and checked by {@link branded} to skip redundant validation against the same shape.
  *
  * - `State` — brands resources validated without an explicit mode
- * - `Patch` — brands resources validated in patch mode
  * - `Model` — brands resources validated in model mode
  * - `Query` — brands resources validated in query mode
  */
 const Validated = immutable({
 
 	State: Symbol("StateValidated"),
-	Patch: Symbol("PatchValidated"),
 	Model: Symbol("ModelValidated"),
 	Query: Symbol("QueryValidated")
 
@@ -259,38 +254,6 @@ export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape
 }>;
 
 /**
- * Validates a partial resource update against a shape.
- *
- * Performs structural validation using {@link isPatch}, accepting `null` property values as deletion markers. The id
- * property is required when defined in the shape. Enforces constraints on properties present in the payload — missing
- * regular properties are accepted as not modified.
- *
- * @typeParam T The patch type inferred from `shape`
- *
- * @param value The value to validate
- * @param shape The {@link ResourceShape} defining validation constraints; may be a {@link Lazy} factory
- * @param opts Validation options
- * @param opts.mode Must be `"patch"`
- *
- * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure
- *
- * @remarks
- *
- * Idempotent for object values: calling multiple times on the same branded object with the same mode returns the
- * same reference.
- */
-export function validate<T extends Patch>(value: unknown, shape: Lazy<ResourceShape>, opts: {
-
-	readonly mode: "patch"
-
-}): Relay<{
-
-	readonly value: T,
-	readonly trace: Trace
-
-}>;
-
-/**
  * Validates a query/projection model against a shape.
  *
  * Performs structural validation using {@link isModel}. Value constraints and custom validators are skipped as a model
@@ -367,7 +330,7 @@ export function validate<T extends Query>(value: unknown, shape: Lazy<ResourceSh
  */
 export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 
-	readonly mode: "value" | "patch" | "model" | "query"
+	readonly mode: "value" | "model" | "query"
 	readonly depth?: null | number
 
 } = {
@@ -388,7 +351,7 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 
 	} = assert(opts, (v: unknown): v is typeof opts => isObject(v, {
 
-		mode: v => v === "value" || v === "patch" || v === "model" || v === "query",
+		mode: v => v === "value" || v === "model" || v === "query",
 		depth: v => v === undefined || v === null || isNumber(v) && Number.isInteger(v) && v >= 0
 
 	}));
@@ -399,10 +362,9 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 		const shape = materialize(lazy);
 
 		return mode === "model" ? model(shape)
-			: mode === "patch" ? patch(shape)
-				: mode === "query" ? query(shape)
-					: isObject(shape) && shape.kind === "resource" ? state(shape)
-						: other(shape);
+			: mode === "query" ? query(shape)
+				: isObject(shape) && shape.kind === "resource" ? state(shape)
+					: other(shape);
 
 	} catch ( e ) {
 
@@ -426,26 +388,6 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 
 			return trace.length === 0
 				? createRelay({ value: brand($value, Validated.Model, $shape) })
-				: createRelay({ trace: immutable(trace, isTrace) });
-
-		}
-	}
-
-	function patch(shape: ValueShape) {
-
-		const $shape = immutable(shape, isResourceShape);
-
-		if ( branded(value, Validated.Patch, $shape) ) {
-
-			return createRelay({ value: value as Patch });
-
-		} else {
-
-			const $value = assert(value, isPatch);
-			const trace = validatePatch([$value], $shape);
-
-			return trace.length === 0
-				? createRelay({ value: brand($value, Validated.Patch, $shape) })
 				: createRelay({ trace: immutable(trace, isTrace) });
 
 		}
@@ -530,7 +472,7 @@ function branded(value: unknown, symbol: symbol, shape: ValueShape): boolean {
  *
  * @returns The branded and immutable value
  */
-function brand<V extends Resource | Patch | Model>(value: V, symbol: symbol, shape: ValueShape): V {
+function brand<V extends Resource | Model>(value: V, symbol: symbol, shape: ValueShape): V {
 
 	const target = Object.isExtensible(value) ? value
 		: Object.fromEntries(Object.keys(value).map(key => [key, value[key]]));

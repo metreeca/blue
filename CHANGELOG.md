@@ -12,6 +12,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Accept plain string and string array shorthands for language-tagged Local/Locals values, normalising them to the
   `und` (Undetermined) language tag
 
+### Removed
+
+- Remove `validate()` patch mode (`mode: "patch"`) and `validatePatch()` following upstream removal from @metreeca/qest
+
 ### Fixed
 
 - Enforce inherited constraints conjunctively when a property is overridden in a derived shape

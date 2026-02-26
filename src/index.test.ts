@@ -210,21 +210,6 @@ describe("validate", () => {
 
 		});
 
-		it("skips validation for patch already validated with same shape", async () => {
-
-			const shape = resource({
-				name: required(string())
-			});
-
-			const value = { name: "Alice" };
-			const first = validate(value, shape, { mode: "patch" });
-			const branded = first({ value: v => v });
-
-			const second = validate(branded, shape, { mode: "patch" });
-			expect(second({ value: v => v })).toBe(branded);
-
-		});
-
 		it("skips validation for model already validated with same shape", async () => {
 
 			const shape = resource({
@@ -265,52 +250,6 @@ describe("validate", () => {
 
 			const invalid = validate({}, shape);
 			expect(invalid({ trace: t => t.length })).toBeGreaterThan(0);
-
-		});
-
-	});
-
-	describe("patch mode", () => {
-
-		it("returns value for valid patch", async () => {
-
-			const shape = resource({
-				name: required(string())
-			});
-
-			const result = validate({ name: "Alice" }, shape, { mode: "patch" });
-			expect(result({ value: v => v })).toEqual({ name: "Alice" });
-
-		});
-
-		it("returns value for patch with null property", async () => {
-
-			const shape = resource({
-				name: required(string())
-			});
-
-			const result = validate({ name: null }, shape, { mode: "patch" });
-			expect(result({ value: v => v })).toEqual({ name: null });
-
-		});
-
-		it("returns value for empty patch", async () => {
-
-			const shape = resource({
-				name: required(string())
-			});
-
-			const result = validate({}, shape, { mode: "patch" });
-			expect(result({ value: v => v })).toEqual({});
-
-		});
-
-		it("returns trace for non-object value", async () => {
-
-			const shape = resource({});
-			const result = validate("not a patch", shape, { mode: "patch" });
-
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
 
 		});
 
@@ -760,17 +699,6 @@ describe("validate", () => {
 
 			const result = validate("hello", () => string());
 			expect(result({ value: v => v })).toBe("hello");
-
-		});
-
-		it("resolves factory for patch mode", async () => {
-
-			const shape = resource({
-				name: required(string())
-			});
-
-			const result = validate({ name: "Alice" }, () => shape, { mode: "patch" });
-			expect(result({ value: v => v })).toEqual({ name: "Alice" });
 
 		});
 
