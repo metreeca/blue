@@ -65,7 +65,7 @@
 import { assert } from "@metreeca/core/error";
 import { type TagRange } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/nested";
-import { isLocalModel, type LocalModel, type LocalsModel } from "@metreeca/qest/model";
+import { isLocale, type Locale, type Locales } from "@metreeca/qest/model";
 import { type Local, type Locals } from "@metreeca/qest/state";
 import {
 	isLocalConstraints,
@@ -137,7 +137,7 @@ export interface LocalConstraints extends LocalizedConstraints {
 	 *
 	 * @defaultValue `{ "*": "" }` (wildcard empty string)
 	 */
-	readonly model?: LocalModel;
+	readonly model?: Locale;
 
 }
 
@@ -153,7 +153,7 @@ export interface LocalsConstraints extends LocalizedConstraints {
 	 *
 	 * @defaultValue `{ "*": [""] }` (wildcard empty string array)
 	 */
-	readonly model?: LocalsModel;
+	readonly model?: Locales;
 
 }
 
@@ -247,7 +247,7 @@ export function local(constraints: Local | LocalConstraints = {}): LocalShape {
 
 	const $constraints = typeof constraints === "string"
 		? { model: { und: constraints } as Local }
-		: !isLocalConstraints(constraints) && isLocalModel(constraints) && Object.keys(constraints).length > 0
+		: !isLocalConstraints(constraints) && isLocale(constraints) && Object.keys(constraints).length > 0
 			? { model: constraints as Local }
 			: constraints;
 

@@ -18,14 +18,15 @@ import { asTag } from "@metreeca/core/language";
 import { createNamespace } from "@metreeca/core/resource";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
+import { collect } from "./index.core.js";
 import type { Validator } from "./index.js";
 import { local, locals } from "./local.js";
 import { integer } from "./number.js";
 import {
+	flatten,
 	isReferenceShape,
 	match,
 	validateModel,
-	validateQuery,
 	validateReference,
 	validateResource
 } from "./resource.core.js";
@@ -56,7 +57,7 @@ import {
 	union,
 	type Union
 } from "./resource.js";
-import { string } from "./string.js";
+import { string, year } from "./string.js";
 
 
 describe("guards", () => {
@@ -1749,6 +1750,112 @@ describe("factories", () => {
 
 describe("validators", () => {
 
+	describe("validateReference", () => {
+
+		describe("no constraints", () => {
+
+			it("accepts any reference when target shape has no constraints", async () => {
+
+				const target = resource({});
+				const shape = reference(target);
+
+				expect(collect([validateReference(["app:/users/123"], shape)])).toEqual([]);
+
+			});
+
+			it("accepts empty values", async () => {
+
+				const target = resource({});
+				const shape = reference(target);
+
+				expect(collect([validateReference([], shape)])).toEqual([]);
+
+			});
+
+		});
+
+		describe("pattern constraint", () => {
+
+			it("accepts references matching the target pattern", async () => {
+
+				const target = resource({ pattern: "/users/{id}" }, {});
+				const shape = reference(target);
+
+				expect(collect([validateReference(["app:/users/123"], shape)])).toEqual([]);
+
+			});
+
+			it("rejects references not matching the target pattern", async () => {
+
+				const target = resource({ pattern: "/users/{id}" }, {});
+				const shape = reference(target);
+
+				expect(validateReference(["app:/products/123"], shape).length).toBeGreaterThan(0);
+
+			});
+
+		});
+
+		describe("in constraint", () => {
+
+			it("accepts references in the allowed set", async () => {
+
+				const target = resource({ in: ["app:/users/1", "app:/users/2"] }, {});
+				const shape = reference(target);
+
+				expect(collect([validateReference(["app:/users/1"], shape)])).toEqual([]);
+
+			});
+
+			it("rejects references not in the allowed set", async () => {
+
+				const target = resource({ in: ["app:/users/1", "app:/users/2"] }, {});
+				const shape = reference(target);
+
+				expect(validateReference(["app:/users/99"], shape).length).toBeGreaterThan(0);
+
+			});
+
+		});
+
+		describe("hasValue constraint", () => {
+
+			it("accepts when all required values are present", async () => {
+
+				const target = resource({ hasValue: ["app:/users/1"] }, {});
+				const shape = reference(target);
+
+				expect(collect([validateReference(["app:/users/1", "app:/users/2"], shape)])).toEqual([]);
+
+			});
+
+			it("rejects when required values are missing", async () => {
+
+				const target = resource({ hasValue: ["app:/users/1"] }, {});
+				const shape = reference(target);
+
+				expect(validateReference(["app:/users/2"], shape).length).toBeGreaterThan(0);
+
+			});
+
+		});
+
+		describe("lazy shape resolution", () => {
+
+			it("resolves lazy shape function before validation", async () => {
+
+				const target = resource({ pattern: "/users/{id}" }, {});
+				const shape = reference(() => target);
+
+				expect(collect([validateReference(["app:/users/123"], shape)])).toEqual([]);
+				expect(validateReference(["app:/products/123"], shape).length).toBeGreaterThan(0);
+
+			});
+
+		});
+
+	});
+
 	describe("validateResource", () => {
 
 		describe("resource constraints", () => {
@@ -1763,13 +1870,13 @@ describe("validators", () => {
 
 				it("accepts empty resource with no properties", async () => {
 
-					expect(validateResource([{}], resource({}))).toEqual([]);
+					expect(collect([validateResource([{}], resource({}))])).toEqual([]);
 
 				});
 
 				it("accepts resource with subset of defined properties", async () => {
 
-					expect(validateResource([{ name: "Alice" }], named)).toEqual([]);
+					expect(collect([validateResource([{ name: "Alice" }], named)])).toEqual([]);
 
 				});
 
@@ -1780,7 +1887,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateResource([{ "id": "app:/users/123", name: "Alice" }], shape)).toEqual([]);
+					expect(collect([validateResource([{ "id": "app:/users/123", name: "Alice" }], shape)])).toEqual([]);
 
 				});
 
@@ -1791,7 +1898,10 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateResource([{ "type": "app:/types/Person", name: "Alice" }], shape)).toEqual([]);
+					expect(collect([validateResource([{
+						"type": "app:/types/Person",
+						name: "Alice"
+					}], shape)])).toEqual([]);
 
 				});
 
@@ -1805,7 +1915,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateResource([{ code: 1, name: "Alice" }], Derived)).toEqual([]);
+					expect(collect([validateResource([{ code: 1, name: "Alice" }], Derived)])).toEqual([]);
 
 				});
 
@@ -1832,7 +1942,7 @@ describe("validators", () => {
 
 				it("accepts resource passing custom validator", async () => {
 
-					expect(validateResource([{ age: 25 }], validated)).toEqual([]);
+					expect(collect([validateResource([{ age: 25 }], validated)])).toEqual([]);
 
 				});
 
@@ -1856,7 +1966,7 @@ describe("validators", () => {
 
 					// both pass
 
-					expect(validateResource([{ a: 1, b: 1 }], shape)).toEqual([]);
+					expect(collect([validateResource([{ a: 1, b: 1 }], shape)])).toEqual([]);
 
 					// first fails
 
@@ -1882,7 +1992,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateResource([{ age: 25, name: "Alice" }], Derived)).toEqual([]);
+					expect(collect([validateResource([{ age: 25, name: "Alice" }], Derived)])).toEqual([]);
 					expect(validateResource([{ age: 15, name: "Bob" }], Derived).length).toBeGreaterThan(0);
 
 				});
@@ -1956,7 +2066,7 @@ describe("validators", () => {
 
 				const shape = resource({ id: id() });
 
-				expect(validateResource([{ "id": "app:/users/123" }], shape)).toEqual([]);
+				expect(collect([validateResource([{ "id": "app:/users/123" }], shape)])).toEqual([]);
 
 			});
 
@@ -1990,7 +2100,7 @@ describe("validators", () => {
 
 					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
-					expect(validateResource([{ "id": "app:/users/123" }], shape)).toEqual([]);
+					expect(collect([validateResource([{ "id": "app:/users/123" }], shape)])).toEqual([]);
 
 				});
 
@@ -1998,7 +2108,7 @@ describe("validators", () => {
 
 					const shape = resource({ pattern: "/users/*" }, { id: id() });
 
-					expect(validateResource([{ "id": "app:/users/123/profile" }], shape)).toEqual([]);
+					expect(collect([validateResource([{ "id": "app:/users/123/profile" }], shape)])).toEqual([]);
 
 				});
 
@@ -2026,7 +2136,7 @@ describe("validators", () => {
 
 					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
 
-					expect(validateResource([{ "id": "app:/users/alice" }], shape)).toEqual([]);
+					expect(collect([validateResource([{ "id": "app:/users/alice" }], shape)])).toEqual([]);
 
 				});
 
@@ -2062,7 +2172,7 @@ describe("validators", () => {
 
 					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
 
-					expect(validateResource([{ "id": "app:/users/admin" }], shape)).toEqual([]);
+					expect(collect([validateResource([{ "id": "app:/users/admin" }], shape)])).toEqual([]);
 
 				});
 
@@ -2092,7 +2202,7 @@ describe("validators", () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateResource([{ "type": "app:/types/Person" }], shape)).toEqual([]);
+				expect(collect([validateResource([{ "type": "app:/types/Person" }], shape)])).toEqual([]);
 
 			});
 
@@ -2100,7 +2210,7 @@ describe("validators", () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateResource([{}], shape)).toEqual([]);
+				expect(collect([validateResource([{}], shape)])).toEqual([]);
 
 			});
 
@@ -2126,33 +2236,26 @@ describe("validators", () => {
 
 			describe("required property", () => {
 
+				const named = resource({
+					name: required(string())
+				});
+
+
 				it("accepts present required property", async () => {
 
-					const shape = resource({
-						name: required(string())
-					});
-
-					expect(validateResource([{ name: "Alice" }], shape)).toEqual([]);
+					expect(collect([validateResource([{ name: "Alice" }], named)])).toEqual([]);
 
 				});
 
 				it("rejects missing required property", async () => {
 
-					const shape = resource({
-						name: required(string())
-					});
-
-					expect(validateResource([{}], shape).length).toBeGreaterThan(0);
+					expect(validateResource([{}], named).length).toBeGreaterThan(0);
 
 				});
 
 				it("rejects array value", async () => {
 
-					const shape = resource({
-						name: required(string())
-					});
-
-					expect(validateResource([{ name: ["Alice"] }], shape).length).toBeGreaterThan(0);
+					expect(validateResource([{ name: ["Alice"] }], named).length).toBeGreaterThan(0);
 
 				});
 
@@ -2160,34 +2263,26 @@ describe("validators", () => {
 
 			describe("optional property", () => {
 
+				const aged = resource({
+					age: optional(integer())
+				});
+
+
 				it("accepts present optional property", async () => {
 
-					const shape = resource({
-						age: optional(integer())
-					});
-
-					expect(validateResource([{ age: 30 }], shape)).toEqual([]);
+					expect(collect([validateResource([{ age: 30 }], aged)])).toEqual([]);
 
 				});
 
 				it("accepts missing optional property", async () => {
 
-					const shape = resource({
-						age: optional(integer())
-					});
-
-					expect(validateResource([{}], shape)).toEqual([]);
+					expect(collect([validateResource([{}], aged)])).toEqual([]);
 
 				});
 
-
 				it("rejects array value", async () => {
 
-					const shape = resource({
-						age: optional(integer())
-					});
-
-					expect(validateResource([{ age: [30] }], shape).length).toBeGreaterThan(0);
+					expect(validateResource([{ age: [30] }], aged).length).toBeGreaterThan(0);
 
 				});
 
@@ -2195,53 +2290,38 @@ describe("validators", () => {
 
 			describe("repeatable property", () => {
 
+				const tagged = resource({
+					tags: repeatable(string())
+				});
+
+
 				it("accepts array with single element", async () => {
 
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateResource([{ tags: ["a"] }], shape)).toEqual([]);
+					expect(collect([validateResource([{ tags: ["a"] }], tagged)])).toEqual([]);
 
 				});
 
 				it("accepts array with multiple elements", async () => {
 
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateResource([{ tags: ["a", "b", "c"] }], shape)).toEqual([]);
+					expect(collect([validateResource([{ tags: ["a", "b", "c"] }], tagged)])).toEqual([]);
 
 				});
 
 				it("rejects empty array", async () => {
 
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateResource([{ tags: [] }], shape).length).toBeGreaterThan(0);
+					expect(validateResource([{ tags: [] }], tagged).length).toBeGreaterThan(0);
 
 				});
 
 				it("rejects missing repeatable property", async () => {
 
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateResource([{}], shape).length).toBeGreaterThan(0);
+					expect(validateResource([{}], tagged).length).toBeGreaterThan(0);
 
 				});
 
 				it("rejects scalar value", async () => {
 
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateResource([{ tags: "a" }], shape).length).toBeGreaterThan(0);
+					expect(validateResource([{ tags: "a" }], tagged).length).toBeGreaterThan(0);
 
 				});
 
@@ -2249,53 +2329,38 @@ describe("validators", () => {
 
 			describe("multiple property", () => {
 
+				const aliased = resource({
+					aliases: multiple(string())
+				});
+
+
 				it("accepts array with single element", async () => {
 
-					const shape = resource({
-						aliases: multiple(string())
-					});
-
-					expect(validateResource([{ aliases: ["x"] }], shape)).toEqual([]);
+					expect(collect([validateResource([{ aliases: ["x"] }], aliased)])).toEqual([]);
 
 				});
 
 				it("accepts array with multiple elements", async () => {
 
-					const shape = resource({
-						aliases: multiple(string())
-					});
-
-					expect(validateResource([{ aliases: ["x", "y", "z"] }], shape)).toEqual([]);
+					expect(collect([validateResource([{ aliases: ["x", "y", "z"] }], aliased)])).toEqual([]);
 
 				});
 
 				it("accepts empty array", async () => {
 
-					const shape = resource({
-						aliases: multiple(string())
-					});
-
-					expect(validateResource([{ aliases: [] }], shape)).toEqual([]);
+					expect(collect([validateResource([{ aliases: [] }], aliased)])).toEqual([]);
 
 				});
 
 				it("accepts missing multiple property", async () => {
 
-					const shape = resource({
-						aliases: multiple(string())
-					});
-
-					expect(validateResource([{}], shape)).toEqual([]);
+					expect(collect([validateResource([{}], aliased)])).toEqual([]);
 
 				});
 
 				it("rejects scalar value", async () => {
 
-					const shape = resource({
-						aliases: multiple(string())
-					});
-
-					expect(validateResource([{ aliases: "x" }], shape).length).toBeGreaterThan(0);
+					expect(validateResource([{ aliases: "x" }], aliased).length).toBeGreaterThan(0);
 
 				});
 
@@ -2309,8 +2374,8 @@ describe("validators", () => {
 						tags: cardinality(2)(string())
 					});
 
-					expect(validateResource([{ tags: ["a", "b"] }], shape)).toEqual([]);
-					expect(validateResource([{ tags: ["a", "b", "c"] }], shape)).toEqual([]);
+					expect(collect([validateResource([{ tags: ["a", "b"] }], shape)])).toEqual([]);
+					expect(collect([validateResource([{ tags: ["a", "b", "c"] }], shape)])).toEqual([]);
 
 				});
 
@@ -2330,8 +2395,8 @@ describe("validators", () => {
 						tags: cardinality(undefined, 3)(string())
 					});
 
-					expect(validateResource([{ tags: ["a", "b", "c"] }], shape)).toEqual([]);
-					expect(validateResource([{ tags: ["a"] }], shape)).toEqual([]);
+					expect(collect([validateResource([{ tags: ["a", "b", "c"] }], shape)])).toEqual([]);
+					expect(collect([validateResource([{ tags: ["a"] }], shape)])).toEqual([]);
 
 				});
 
@@ -2351,8 +2416,8 @@ describe("validators", () => {
 						tags: cardinality(2, 4)(string())
 					});
 
-					expect(validateResource([{ tags: ["a", "b"] }], shape)).toEqual([]);
-					expect(validateResource([{ tags: ["a", "b", "c", "d"] }], shape)).toEqual([]);
+					expect(collect([validateResource([{ tags: ["a", "b"] }], shape)])).toEqual([]);
+					expect(collect([validateResource([{ tags: ["a", "b", "c", "d"] }], shape)])).toEqual([]);
 
 				});
 
@@ -2379,7 +2444,7 @@ describe("validators", () => {
 					age: optional(integer())
 				});
 
-				expect(validateResource([{ name: "Alice" }], Derived)).toEqual([]);
+				expect(collect([validateResource([{ name: "Alice" }], Derived)])).toEqual([]);
 				expect(validateResource([{}], Derived).length).toBeGreaterThan(0);
 
 			});
@@ -2398,7 +2463,7 @@ describe("validators", () => {
 					email: optional(string())
 				});
 
-				expect(validateResource([{ name: "Alice", age: 30 }], Person)).toEqual([]);
+				expect(collect([validateResource([{ name: "Alice", age: 30 }], Person)])).toEqual([]);
 				expect(validateResource([{ name: "Alice" }], Person).length).toBeGreaterThan(0);
 				expect(validateResource([{ age: 30 }], Person).length).toBeGreaterThan(0);
 
@@ -2416,7 +2481,7 @@ describe("validators", () => {
 
 				// satisfies both parent (minLength: 3) and child (pattern: ^[A-Z])
 
-				expect(validateResource([{ name: "Alice" }], Derived)).toEqual([]);
+				expect(collect([validateResource([{ name: "Alice" }], Derived)])).toEqual([]);
 
 				// violates parent's minLength: 3 even though it matches child's pattern
 
@@ -2442,7 +2507,7 @@ describe("validators", () => {
 
 				// satisfies both parent and child constraints
 
-				expect(validateResource([{ name: "Alice" }], Derived)).toEqual([]);
+				expect(collect([validateResource([{ name: "Alice" }], Derived)])).toEqual([]);
 
 				// satisfies child's relaxed minLength: 1 but violates parent's minLength: 3
 
@@ -2474,7 +2539,7 @@ describe("validators", () => {
 
 				// satisfies grandparent (minLength: 3), last parent (maxLength: 50) and child
 
-				expect(validateResource([{ name: "Alice" }], Child)).toEqual([]);
+				expect(collect([validateResource([{ name: "Alice" }], Child)])).toEqual([]);
 
 				// violates grandparent's minLength: 3
 
@@ -2498,8 +2563,8 @@ describe("validators", () => {
 						active: required(boolean())
 					});
 
-					expect(validateResource([{ active: true }], shape)).toEqual([]);
-					expect(validateResource([{ active: false }], shape)).toEqual([]);
+					expect(collect([validateResource([{ active: true }], shape)])).toEqual([]);
+					expect(collect([validateResource([{ active: false }], shape)])).toEqual([]);
 
 				});
 
@@ -2523,7 +2588,7 @@ describe("validators", () => {
 						age: required(integer())
 					});
 
-					expect(validateResource([{ age: 42 }], shape)).toEqual([]);
+					expect(collect([validateResource([{ age: 42 }], shape)])).toEqual([]);
 
 				});
 
@@ -2547,7 +2612,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateResource([{ name: "Alice" }], shape)).toEqual([]);
+					expect(collect([validateResource([{ name: "Alice" }], shape)])).toEqual([]);
 
 				});
 
@@ -2567,7 +2632,7 @@ describe("validators", () => {
 						tags: repeatable(string({ minLength: 2 }))
 					});
 
-					expect(validateResource([{ tags: ["abc", "de", "fgh"] }], shape)).toEqual([]);
+					expect(collect([validateResource([{ tags: ["abc", "de", "fgh"] }], shape)])).toEqual([]);
 					expect(validateResource([{ tags: ["abc", "x", "fgh"] }], shape).length).toBeGreaterThan(0);
 
 				});
@@ -2582,7 +2647,7 @@ describe("validators", () => {
 						label: required(local())
 					});
 
-					expect(validateResource([{ label: { "en": "Hello" } }], shape)).toEqual([]);
+					expect(collect([validateResource([{ label: { "en": "Hello" } }], shape)])).toEqual([]);
 
 				});
 
@@ -2606,7 +2671,12 @@ describe("validators", () => {
 						labels: required(locals())
 					});
 
-					expect(validateResource([{ labels: { en: ["Hello"], it: ["Ciao"] } }], shape)).toEqual([]);
+					expect(collect([validateResource([{
+						labels: {
+							en: ["Hello"],
+							it: ["Ciao"]
+						}
+					}], shape)])).toEqual([]);
 
 				});
 
@@ -2634,7 +2704,7 @@ describe("validators", () => {
 						address: required(Address)
 					});
 
-					expect(validateResource([{ address: { city: "Rome" } }], Person)).toEqual([]);
+					expect(collect([validateResource([{ address: { city: "Rome" } }], Person)])).toEqual([]);
 
 				});
 
@@ -2693,8 +2763,8 @@ describe("validators", () => {
 
 				it("accepts scalar matching variant type", async () => {
 
-					expect(validateResource([{ value: "hello" }], textOrCount)).toEqual([]);
-					expect(validateResource([{ value: 42 }], textOrCount)).toEqual([]);
+					expect(collect([validateResource([{ value: "hello" }], textOrCount)])).toEqual([]);
+					expect(collect([validateResource([{ value: 42 }], textOrCount)])).toEqual([]);
 
 				});
 
@@ -2707,7 +2777,7 @@ describe("validators", () => {
 				it("accepts array matching variant type and cardinality", async () => {
 
 					// multiUnion is repeatable (1..*): 3 values satisfy both type and cardinality
-					expect(validateResource([{ value: [1, 2, 3] }], multiUnion)).toEqual([]);
+					expect(collect([validateResource([{ value: [1, 2, 3] }], multiUnion)])).toEqual([]);
 
 				});
 
@@ -2730,7 +2800,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateResource([{ value: "hello", name: "Alice" }], Derived)).toEqual([]);
+					expect(collect([validateResource([{ value: "hello", name: "Alice" }], Derived)])).toEqual([]);
 					expect(validateResource([{ value: true, name: "Alice" }], Derived).length).toBeGreaterThan(0);
 
 				});
@@ -2756,11 +2826,11 @@ describe("validators", () => {
 
 			it("accepts resource satisfying all constraints", async () => {
 
-				expect(validateResource([{
+				expect(collect([validateResource([{
 					"id": "app:/users/123",
 					name: "Alice",
 					age: 30
-				}], shape)).toEqual([]);
+				}], shape)])).toEqual([]);
 
 			});
 
@@ -2795,123 +2865,17 @@ describe("validators", () => {
 
 	});
 
-	describe("validateReference", () => {
-
-		describe("no constraints", () => {
-
-			it("accepts any reference when target shape has no constraints", async () => {
-
-				const target = resource({});
-				const shape = reference(target);
-
-				expect(validateReference(["app:/users/123"], shape)).toEqual([]);
-
-			});
-
-			it("accepts empty values", async () => {
-
-				const target = resource({});
-				const shape = reference(target);
-
-				expect(validateReference([], shape)).toEqual([]);
-
-			});
-
-		});
-
-		describe("pattern constraint", () => {
-
-			it("accepts references matching the target pattern", async () => {
-
-				const target = resource({ pattern: "/users/{id}" }, {});
-				const shape = reference(target);
-
-				expect(validateReference(["app:/users/123"], shape)).toEqual([]);
-
-			});
-
-			it("rejects references not matching the target pattern", async () => {
-
-				const target = resource({ pattern: "/users/{id}" }, {});
-				const shape = reference(target);
-
-				expect(validateReference(["app:/products/123"], shape).length).toBeGreaterThan(0);
-
-			});
-
-		});
-
-		describe("in constraint", () => {
-
-			it("accepts references in the allowed set", async () => {
-
-				const target = resource({ in: ["app:/users/1", "app:/users/2"] }, {});
-				const shape = reference(target);
-
-				expect(validateReference(["app:/users/1"], shape)).toEqual([]);
-
-			});
-
-			it("rejects references not in the allowed set", async () => {
-
-				const target = resource({ in: ["app:/users/1", "app:/users/2"] }, {});
-				const shape = reference(target);
-
-				expect(validateReference(["app:/users/99"], shape).length).toBeGreaterThan(0);
-
-			});
-
-		});
-
-		describe("hasValue constraint", () => {
-
-			it("accepts when all required values are present", async () => {
-
-				const target = resource({ hasValue: ["app:/users/1"] }, {});
-				const shape = reference(target);
-
-				expect(validateReference(["app:/users/1", "app:/users/2"], shape)).toEqual([]);
-
-			});
-
-			it("rejects when required values are missing", async () => {
-
-				const target = resource({ hasValue: ["app:/users/1"] }, {});
-				const shape = reference(target);
-
-				expect(validateReference(["app:/users/2"], shape).length).toBeGreaterThan(0);
-
-			});
-
-		});
-
-		describe("lazy shape resolution", () => {
-
-			it("resolves lazy shape function before validation", async () => {
-
-				const target = resource({ pattern: "/users/{id}" }, {});
-				const shape = reference(() => target);
-
-				expect(validateReference(["app:/users/123"], shape)).toEqual([]);
-				expect(validateReference(["app:/products/123"], shape).length).toBeGreaterThan(0);
-
-			});
-
-		});
-
-	});
-
 	describe("validateModel", () => {
 
 		describe("resource constraints", () => {
 
-			describe("closed shape", () => {
+			describe("binding resolution", () => {
 
 				it("accepts empty model on empty shape", async () => {
 
 					const shape = resource({});
 
-					expect(validateModel([{}], shape)).toEqual([]);
+					expect(collect([validateModel([{}], shape, 0)])).toEqual([]);
 
 				});
 
@@ -2922,7 +2886,7 @@ describe("validators", () => {
 						age: optional(integer())
 					});
 
-					expect(validateModel([{ name: "Alice", age: 30 }], shape)).toEqual([]);
+					expect(collect([validateModel([{ name: "Alice", age: 30 }], shape, 0)])).toEqual([]);
 
 				});
 
@@ -2933,7 +2897,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ "id": "app:/users/123", name: "Alice" }], shape)).toEqual([]);
+					expect(collect([validateModel([{ "id": "app:/users/123", name: "Alice" }], shape, 0)])).toEqual([]);
 
 				});
 
@@ -2947,68 +2911,76 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ id: 1, name: "Alice" }], Derived)).toEqual([]);
+					expect(collect([validateModel([{ id: 1, name: "Alice" }], Derived, 0)])).toEqual([]);
 
 				});
 
-				it("rejects unknown property on empty shape", async () => {
+				it("accepts unknown binding on empty shape", async () => {
+
+					// name is shorthand for name=name → apply() returns undefined → lenient
 
 					const shape = resource({});
 
-					expect(validateModel([{ name: "Alice" }], shape).length).toBeGreaterThan(0);
+					expect(collect([validateModel([{ name: "Alice" }], shape, 0)])).toEqual([]);
 
 				});
 
-				it("rejects unknown property", async () => {
+				it("accepts unknown binding", async () => {
+
+					// extra=extra → apply() returns undefined → lenient
 
 					const shape = resource({
 						name: required(string())
 					});
 
-					expect(validateModel([{ name: "Alice", extra: "value" }], shape).length).toBeGreaterThan(0);
+					expect(collect([validateModel([{ name: "Alice", extra: "value" }], shape, 0)])).toEqual([]);
 
 				});
 
-				it("rejects multiple unknown properties", async () => {
+				it("accepts multiple unknown bindings", async () => {
 
 					const shape = resource({
 						name: required(string())
 					});
 
-					expect(validateModel([{
+					expect(collect([validateModel([{
 						name: "Alice",
 						extra1: "a",
 						extra2: "b"
-					}], shape).length).toBeGreaterThan(0);
+					}], shape, 0)])).toEqual([]);
 
 				});
 
-				it("rejects undeclared id property", async () => {
+				it("accepts undeclared id binding", async () => {
+
+					// id=id → apply() returns undefined (id entry not declared) → lenient
 
 					const shape = resource({
 						name: required(string())
 					});
 
-					expect(validateModel([{ "id": "app:/users/123", name: "Alice" }], shape).length).toBeGreaterThan(0);
+					expect(collect([validateModel([{ "id": "app:/users/123", name: "Alice" }], shape, 0)])).toEqual([]);
 
 				});
 
-				it("rejects unknown property alongside declared id", async () => {
+				it("accepts unknown binding alongside declared id", async () => {
+
+					// extra=extra → apply() returns undefined → lenient
 
 					const shape = resource({
 						id: id(),
 						name: required(string())
 					});
 
-					expect(validateModel([{
+					expect(collect([validateModel([{
 						"id": "app:/users/123",
 						name: "Alice",
 						extra: "value"
-					}], shape).length).toBeGreaterThan(0);
+					}], shape, 0)])).toEqual([]);
 
 				});
 
-				it("rejects unknown properties in derived shape", async () => {
+				it("accepts unknown binding in derived shape", async () => {
 
 					const Base = resource({
 						id: required(integer())
@@ -3018,13 +2990,34 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{
+					expect(collect([validateModel([{
 						id: 1,
 						name: "Alice",
 						extra: "value"
-					}], Derived).length).toBeGreaterThan(0);
+					}], Derived, 0)])).toEqual([]);
 
 				});
+
+				it("ignores non-binding key", async () => {
+
+					const shape = resource({
+						name: required(string())
+					});
+
+					expect(collect([validateModel([{ name: "Alice", ">=name": "A" } as any], shape, 0)])).toEqual([]);
+
+				});
+
+				it("ignores probe key", async () => {
+
+					const shape = resource({
+						name: required(string())
+					});
+
+					expect(collect([validateModel([{ name: "Alice", "^name": "asc" } as any], shape, 0)])).toEqual([]);
+
+				});
+
 
 			});
 
@@ -3040,7 +3033,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ name: "Alice" }], shape)).toEqual([]);
+					expect(collect([validateModel([{ name: "Alice" }], shape, 0)])).toEqual([]);
 
 				});
 
@@ -3056,28 +3049,13 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ age: 15, name: "Bob" }], Derived)).toEqual([]);
+					expect(collect([validateModel([{ age: 15, name: "Bob" }], Derived, 0)])).toEqual([]);
 
 				});
 
 			});
 
 			describe("trace structure", () => {
-
-				it("returns string array for closed shape violations", async () => {
-
-					const shape = resource({
-						name: required(string())
-					});
-
-					// unknown property triggers closed shape violation
-
-					const trace = validateModel([{ name: "Alice", extra: "value" }], shape);
-
-					expect(Array.isArray(trace)).toBeTruthy();
-					expect(trace.length).toBeGreaterThan(0);
-
-				});
 
 				it("includes property path in nested traces", async () => {
 
@@ -3104,36 +3082,17 @@ describe("validators", () => {
 
 				});
 
-				it("includes both unknown and invalid property traces in dictionary", async () => {
-
-					const Address = resource({
-						city: required(string())
-					});
-
-					const shape = resource({
-						address: required(Address)
-					});
-
-					const trace = validateModel([{ address: { city: ["Rome"] } as any, extra: "value" }], shape, null);
-					const dict = trace.find(e => typeof e === "object") as Record<string, unknown> | undefined;
-
-					expect(dict).toBeDefined();
-					expect(dict).toHaveProperty("extra");
-					expect(dict).toHaveProperty("address");
-
-				});
-
 			});
 
 		});
 
 		describe("id constraints", () => {
 
-			it("accepts single absolute IRI", async () => {
+			it("accepts string value", async () => {
 
 				const shape = resource({ id: id() });
 
-				expect(validateModel([{ "id": "app:/users/123" }], shape)).toEqual([]);
+				expect(collect([validateModel([{ "id": "some-id" }], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3141,15 +3100,7 @@ describe("validators", () => {
 
 				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
-				expect(validateModel([{}], shape)).toEqual([]);
-
-			});
-
-			it("rejects non-IRI value", async () => {
-
-				const shape = resource({ id: id() });
-
-				expect(validateModel([{ "id": "not an iri" }], shape).length).toBeGreaterThan(0);
+				expect(collect([validateModel([{}], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3157,7 +3108,7 @@ describe("validators", () => {
 
 				const shape = resource({ id: id() });
 
-				expect(validateModel([{ "id": ["/users/1", "/users/2"] } as any], shape).length).toBeGreaterThan(0);
+				expect(validateModel([{ "id": ["/users/1", "/users/2"] } as any], shape, 0).length).toBeGreaterThan(0);
 
 			});
 
@@ -3165,7 +3116,7 @@ describe("validators", () => {
 
 				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
-				expect(validateModel([{ "id": "app:/invalid" }], shape)).toEqual([]);
+				expect(collect([validateModel([{ "id": "app:/invalid" }], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3173,7 +3124,7 @@ describe("validators", () => {
 
 				const shape = resource({ in: ["app:/users/alice"] }, { id: id() });
 
-				expect(validateModel([{ "id": "app:/users/charlie" }], shape)).toEqual([]);
+				expect(collect([validateModel([{ "id": "app:/users/charlie" }], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3181,7 +3132,7 @@ describe("validators", () => {
 
 				const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
 
-				expect(validateModel([{ "id": "app:/users/guest" }], shape)).toEqual([]);
+				expect(collect([validateModel([{ "id": "app:/users/guest" }], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3189,11 +3140,11 @@ describe("validators", () => {
 
 		describe("type constraints", () => {
 
-			it("accepts single absolute IRI", async () => {
+			it("accepts string value", async () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateModel([{ "type": "app:/types/Person" }], shape)).toEqual([]);
+				expect(collect([validateModel([{ "type": "some-type" }], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3201,15 +3152,7 @@ describe("validators", () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateModel([{}], shape)).toEqual([]);
-
-			});
-
-			it("rejects non-IRI value", async () => {
-
-				const shape = resource({ type: type() });
-
-				expect(validateModel([{ "type": "not an iri" }], shape).length).toBeGreaterThan(0);
+				expect(collect([validateModel([{}], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3217,7 +3160,7 @@ describe("validators", () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateModel([{ "type": ["/types/A", "/types/B"] } as any], shape).length).toBeGreaterThan(0);
+				expect(validateModel([{ "type": ["/types/A", "/types/B"] } as any], shape, 0).length).toBeGreaterThan(0);
 
 			});
 
@@ -3233,7 +3176,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{}], shape)).toEqual([]);
+					expect(collect([validateModel([{}], shape, 0)])).toEqual([]);
 
 				});
 
@@ -3243,7 +3186,7 @@ describe("validators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateModel([{}], shape)).toEqual([]);
+					expect(collect([validateModel([{}], shape, 0)])).toEqual([]);
 
 				});
 
@@ -3257,7 +3200,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ name: "Alice" }], shape)).toEqual([]);
+					expect(collect([validateModel([{ name: "Alice" }], shape, 0)])).toEqual([]);
 
 				});
 
@@ -3267,7 +3210,7 @@ describe("validators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateModel([{ tags: ["a"] }], shape)).toEqual([]);
+					expect(collect([validateModel([{ tags: ["a"] }], shape, 0)])).toEqual([]);
 
 				});
 
@@ -3277,7 +3220,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ name: ["Alice"] } as any], shape).length).toBeGreaterThan(0);
+					expect(validateModel([{ name: ["Alice"] } as any], shape, 0).length).toBeGreaterThan(0);
 
 				});
 
@@ -3287,7 +3230,7 @@ describe("validators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateModel([{ tags: "a" }], shape).length).toBeGreaterThan(0);
+					expect(validateModel([{ tags: "a" }], shape, 0).length).toBeGreaterThan(0);
 
 				});
 
@@ -3305,8 +3248,8 @@ describe("validators", () => {
 						age: optional(integer())
 					});
 
-					expect(validateModel([{ name: "Alice" }], Derived)).toEqual([]);
-					expect(validateModel([{ name: ["Alice"] } as any], Derived).length).toBeGreaterThan(0);
+					expect(collect([validateModel([{ name: "Alice" }], Derived, 0)])).toEqual([]);
+					expect(validateModel([{ name: ["Alice"] } as any], Derived, 0).length).toBeGreaterThan(0);
 
 				});
 
@@ -3324,9 +3267,9 @@ describe("validators", () => {
 						email: optional(string())
 					});
 
-					expect(validateModel([{}], Person)).toEqual([]);
-					expect(validateModel([{ name: "Alice", age: 30 }], Person)).toEqual([]);
-					expect(validateModel([{ name: ["Alice"] } as any], Person).length).toBeGreaterThan(0);
+					expect(collect([validateModel([{}], Person, 0)])).toEqual([]);
+					expect(collect([validateModel([{ name: "Alice", age: 30 }], Person, 0)])).toEqual([]);
+					expect(validateModel([{ name: ["Alice"] } as any], Person, 0).length).toBeGreaterThan(0);
 
 				});
 
@@ -3344,27 +3287,8 @@ describe("validators", () => {
 
 				// type shape still enforced on overridden property
 
-				expect(validateModel([{ name: "A" }], Derived)).toEqual([]);
-				expect(validateModel([{ name: 42 }], Derived).length).toBeGreaterThan(0);
-
-			});
-
-			it("prevents relaxing inherited constraints on overridden properties", async () => {
-
-				const Base = resource({
-					name: required(string({ minLength: 3, maxLength: 50 }))
-				});
-
-				// child tries to relax parent constraints
-
-				const Derived = resource({ extends: Base }, {
-					name: required(string({ minLength: 1, maxLength: 100 }))
-				});
-
-				// value constraints skipped in model mode, but type shape preserved
-
-				expect(validateModel([{ name: "A" }], Derived)).toEqual([]);
-				expect(validateModel([{ name: 42 }], Derived).length).toBeGreaterThan(0);
+				expect(collect([validateModel([{ name: "A" }], Derived, 0)])).toEqual([]);
+				expect(validateModel([{ name: 42 }], Derived, 0).length).toBeGreaterThan(0);
 
 			});
 
@@ -3378,7 +3302,7 @@ describe("validators", () => {
 					name: required(string())
 				});
 
-				expect(validateModel([{ name: "Alice" }], shape)).toEqual([]);
+				expect(collect([validateModel([{ name: "Alice" }], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3388,7 +3312,7 @@ describe("validators", () => {
 					name: required(string())
 				});
 
-				expect(validateModel([{ name: 42 }], shape).length).toBeGreaterThan(0);
+				expect(validateModel([{ name: 42 }], shape, 0).length).toBeGreaterThan(0);
 
 			});
 
@@ -3398,7 +3322,7 @@ describe("validators", () => {
 					age: required(integer({ minInclusive: 0 }))
 				});
 
-				expect(validateModel([{ age: -5 }], shape)).toEqual([]);
+				expect(collect([validateModel([{ age: -5 }], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3413,20 +3337,20 @@ describe("validators", () => {
 
 				it("accepts value matching one variant type", async () => {
 
-					expect(validateModel([{ value: "hello" }], textOrCount)).toEqual([]);
-					expect(validateModel([{ value: 42 }], textOrCount)).toEqual([]);
+					expect(collect([validateModel([{ value: "hello" }], textOrCount, 0)])).toEqual([]);
+					expect(collect([validateModel([{ value: 42 }], textOrCount, 0)])).toEqual([]);
 
 				});
 
 				it("accepts missing union property", async () => {
 
-					expect(validateModel([{}], textOrCount)).toEqual([]);
+					expect(collect([validateModel([{}], textOrCount, 0)])).toEqual([]);
 
 				});
 
 				it("rejects value matching no variant type", async () => {
 
-					expect(validateModel([{ value: true }], textOrCount).length).toBeGreaterThan(0);
+					expect(validateModel([{ value: true }], textOrCount, 0).length).toBeGreaterThan(0);
 
 				});
 
@@ -3436,8 +3360,32 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ value: "hello" }], Derived)).toEqual([]);
-					expect(validateModel([{ value: true }], Derived).length).toBeGreaterThan(0);
+					expect(collect([validateModel([{ value: "hello" }], Derived, 0)])).toEqual([]);
+					expect(validateModel([{ value: true }], Derived, 0).length).toBeGreaterThan(0);
+
+				});
+
+			});
+
+			describe("union bindings", () => {
+
+				const shape = resource({
+					value: required(union({
+						text: string(),
+						count: integer()
+					}))
+				});
+
+				it("accepts alias binding matching one variant type", async () => {
+
+					expect(collect([validateModel([{ "alias=value": "hello" }], shape, 0)])).toEqual([]);
+					expect(collect([validateModel([{ "alias=value": 42 }], shape, 0)])).toEqual([]);
+
+				});
+
+				it("rejects alias binding matching no variant type", async () => {
+
+					expect(validateModel([{ "alias=value": true }], shape, 0).length).toBeGreaterThan(0);
 
 				});
 
@@ -3455,7 +3403,7 @@ describe("validators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateModel([{ supervisor: "app:/users/1" }], shape)).toEqual([]);
+				expect(collect([validateModel([{ supervisor: "app:/users/1" }], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3467,7 +3415,7 @@ describe("validators", () => {
 					members: multiple(reference(Target))
 				});
 
-				expect(validateModel([{ members: ["app:/users/1", "app:/users/2"] } as any], shape)).toEqual([]);
+				expect(collect([validateModel([{ members: ["app:/users/1", "app:/users/2"] } as any], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3479,7 +3427,7 @@ describe("validators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateModel([{ supervisor: { name: "Alice" } }], shape, null)).toEqual([]);
+				expect(collect([validateModel([{ supervisor: { name: "Alice" } }], shape, null)])).toEqual([]);
 
 			});
 
@@ -3491,7 +3439,7 @@ describe("validators", () => {
 					members: multiple(reference(Target))
 				});
 
-				expect(validateModel([{ members: [{ name: "Alice" }, { name: "Bob" }] } as any], shape, null)).toEqual([]);
+				expect(collect([validateModel([{ members: [{ name: "Alice" }, { name: "Bob" }] } as any], shape, null)])).toEqual([]);
 
 			});
 
@@ -3503,11 +3451,11 @@ describe("validators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateModel([{ supervisor: 42 }], shape).length).toBeGreaterThan(0);
+				expect(validateModel([{ supervisor: 42 }], shape, 0).length).toBeGreaterThan(0);
 
 			});
 
-			it("validates nested model recursively at multiple levels", async () => {
+			describe("nested model recursion at multiple levels", () => {
 
 				const Department = resource({ id: id(), label: required(string()) });
 
@@ -3521,23 +3469,33 @@ describe("validators", () => {
 					supervisor: optional(reference(Employee))
 				});
 
-				// valid 2-level expansion
+				it("accepts valid 2-level expansion", async () => {
 
-				expect(validateModel([{
-					supervisor: { name: "Alice", department: { label: "Engineering" } }
-				}], shape, null)).toEqual([]);
+					expect(collect([validateModel([{
+						supervisor: { name: "Alice", department: { label: "Engineering" } }
+					}], shape, null)])).toEqual([]);
 
-				// unknown property at level 1
+				});
 
-				expect(validateModel([{
-					supervisor: { name: "Alice", extra: "bad" }
-				}], shape, null).length).toBeGreaterThan(0);
+				it("accepts unknown binding at level 1", async () => {
 
-				// unknown property at level 2
+					// extra=extra → apply() returns undefined → lenient
 
-				expect(validateModel([{
-					supervisor: { name: "Alice", department: { label: "Engineering", extra: "bad" } }
-				}], shape, null).length).toBeGreaterThan(0);
+					expect(collect([validateModel([{
+						supervisor: { name: "Alice", extra: "bad" }
+					}], shape, null)])).toEqual([]);
+
+				});
+
+				it("accepts unknown binding at level 2", async () => {
+
+					// extra=extra → apply() returns undefined → lenient
+
+					expect(collect([validateModel([{
+						supervisor: { name: "Alice", department: { label: "Engineering", extra: "bad" } }
+					}], shape, null)])).toEqual([]);
+
+				});
 
 			});
 
@@ -3549,7 +3507,7 @@ describe("validators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateModel([{}], shape)).toEqual([]);
+				expect(collect([validateModel([{}], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3561,7 +3519,7 @@ describe("validators", () => {
 					children: multiple(backlink(Target))
 				});
 
-				expect(validateModel([{ children: ["app:/items/1", "app:/items/2"] } as any], shape)).toEqual([]);
+				expect(collect([validateModel([{ children: ["app:/items/1", "app:/items/2"] } as any], shape, 0)])).toEqual([]);
 
 			});
 
@@ -3573,7 +3531,31 @@ describe("validators", () => {
 					children: multiple(backlink(Target))
 				});
 
-				expect(validateModel([{ children: [{ name: "Child" }] }], shape, null)).toEqual([]);
+				expect(collect([validateModel([{ children: [{ name: "Child" }] }], shape, null)])).toEqual([]);
+
+			});
+
+		});
+
+		describe("resource properties", () => {
+
+			it("accepts reference for inline resource property", async () => {
+
+				const shape = resource({
+					child: optional(resource({ name: required(string()) }))
+				});
+
+				expect(collect([validateModel([{ child: "app:/children/1" }], shape, 0)])).toEqual([]);
+
+			});
+
+			it("accepts nested model for inline resource property", async () => {
+
+				const shape = resource({
+					child: optional(resource({ name: required(string()) }))
+				});
+
+				expect(collect([validateModel([{ child: { name: "Alice" } }], shape, null)])).toEqual([]);
 
 			});
 
@@ -3589,7 +3571,7 @@ describe("validators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateModel([{ child: { label: "x" } }], Outer).length).toBeGreaterThan(0);
+				expect(validateModel([{ child: { label: "x" } }], Outer, 0).length).toBeGreaterThan(0);
 
 			});
 
@@ -3601,7 +3583,7 @@ describe("validators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateModel([{ child: { label: "x" } }], Outer, null)).toEqual([]);
+				expect(collect([validateModel([{ child: { label: "x" } }], Outer, null)])).toEqual([]);
 
 			});
 
@@ -3625,7 +3607,7 @@ describe("validators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateModel([{ child: "app:/items/1" }], Outer, 0)).toEqual([]);
+				expect(collect([validateModel([{ child: "app:/items/1" }], Outer, 0)])).toEqual([]);
 
 			});
 
@@ -3637,7 +3619,7 @@ describe("validators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateModel([{ child: { label: "x" } }], Outer, 1)).toEqual([]);
+				expect(collect([validateModel([{ child: { label: "x" } }], Outer, 1)])).toEqual([]);
 
 			});
 
@@ -3671,9 +3653,9 @@ describe("validators", () => {
 					middle: optional(reference(Middle))
 				});
 
-				expect(validateModel([{
+				expect(collect([validateModel([{
 					middle: { leaf: { value: "x" } }
-				}], Root, 2)).toEqual([]);
+				}], Root, 2)])).toEqual([]);
 
 			});
 
@@ -3697,512 +3679,845 @@ describe("validators", () => {
 					child: required(Embedded)
 				});
 
-				expect(validateModel([{ child: { label: "x" } }], Outer, 1)).toEqual([]);
+				expect(collect([validateModel([{ child: { label: "x" } }], Outer, 1)])).toEqual([]);
 
 			});
 
 		});
 
-	});
+		describe("bindings", () => {
 
-	describe("validateQuery", () => {
+			it("accepts valid binding key on model", async () => {
 
-		describe("projection properties", () => {
+				const Target = resource({ released: required(year()) });
 
-			it("accepts query with only projection properties", async () => {
+				// year: transform produces number, 0 is number — should be accepted
+
+				expect(collect([validateModel([{ "releaseYear=year:released": 0 }], Target, 0)])).toEqual([]);
+
+			});
+
+			it("does not report binding key as unexpected property", async () => {
+
+				const Target = resource({ name: required(string()) });
+
+				// "alias=name" is a valid binding key — envelope should not reject it
+
+				expect(collect([validateModel([{ "alias=name": "" }], Target, 0)])).toEqual([]);
+
+			});
+
+			it("rejects binding with wrong post-transform type", async () => {
+
+				const Target = resource({ released: required(year()) });
+
+				// year: produces number, "" is string — should be rejected
+
+				const trace = validateModel([{ "releaseYear=year:released": "" }], Target, 0);
+
+				expect(trace.length).toBeGreaterThan(0);
+				expect(trace).toEqual(expect.arrayContaining([
+					expect.objectContaining({ "releaseYear=year:released": expect.any(Array) })
+				]));
+
+			});
+
+			it("accepts binding referencing undefined property", async () => {
+
+				// apply() returns undefined for unknown property → lenient: no shape to validate against
+
+				const Target = resource({ name: required(string()) });
+
+				expect(collect([validateModel([{ "y=year:missing": 0 }], Target, 0)])).toEqual([]);
+
+			});
+
+		});
+
+		describe("nested query criteria", () => {
+
+			describe("projection properties", () => {
+
+				it("accepts query with only projection properties", async () => {
+
+					const Target = resource({ id: id(), name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ name: "", age: 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts query with unknown projection binding", async () => {
+
+					// extra=extra → apply() returns undefined → lenient
+
+					const Target = resource({ id: id(), name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{
+						items: [{
+							name: "",
+							extra: ""
+						}]
+					}], Wrapper, null)])).toEqual([]);
+
+				});
+
+			});
+
+			describe("id projection", () => {
 
 				const Target = resource({ id: id(), name: required(string()), age: optional(integer()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
 
-				const shape = resource({
-					members: multiple(reference(Target))
+				it.each([
+					["single", { id: "app:/items/1" }],
+					["leading", { id: "app:/items/1", name: "", age: 0 }],
+					["inner", { name: "", id: "app:/items/1", age: 0 }],
+					["trailing", { name: "", age: 0, id: "app:/items/1" }]
+				])("accepts id as %s projection property", async (_position, query) => {
+
+					expect(collect([validateModel([{ items: [query] }], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateQuery([{ name: "", age: 0 }], Target)).toEqual([]);
-
 			});
 
-			it("rejects query with unknown projection property", async () => {
+			describe("type projection", () => {
 
-				const Target = resource({ id: id(), name: required(string()) });
+				const Target = resource({ type: type(), name: required(string()), age: optional(integer()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
 
-				expect(validateQuery([{ name: "", extra: "" }], Target).length).toBeGreaterThan(0);
+				it.each([
+					["single", { type: "app:/types/Person" }],
+					["leading", { type: "app:/types/Person", name: "", age: 0 }],
+					["inner", { name: "", type: "app:/types/Person", age: 0 }],
+					["trailing", { name: "", age: 0, type: "app:/types/Person" }]
+				])("accepts type as %s projection property", async (_position, query) => {
 
-			});
+					expect(collect([validateModel([{ items: [query] }], Wrapper, null)])).toEqual([]);
 
-			it("enforces shape on overridden inherited property", async () => {
-
-				const Base = resource({
-					name: required(string())
 				});
 
-				const Derived = resource({ extends: Base }, {
-					name: required(string({ minLength: 3 }))
+			});
+
+			describe("filter criteria", () => {
+
+				it("accepts comparison filter on existing property", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ ">=age": 18 }] }], Wrapper, null)])).toEqual([]);
+
 				});
 
-				// type shape still enforced on overridden property
+				it("accepts text search filter on string property", async () => {
 
-				expect(validateQuery([{ name: "" }], Derived)).toEqual([]);
-				expect(validateQuery([{ name: 42 }], Derived).length).toBeGreaterThan(0);
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-			});
+					expect(collect([validateModel([{ items: [{ "~name": "alice" }] }], Wrapper, null)])).toEqual([]);
 
-			it("prevents relaxing inherited constraints on overridden properties", async () => {
-
-				const Base = resource({
-					name: required(string({ minLength: 3, maxLength: 50 }))
 				});
 
-				// child tries to relax parent constraints
+				it("accepts disjunctive filter on existing property", async () => {
 
-				const Derived = resource({ extends: Base }, {
-					name: required(string({ minLength: 1, maxLength: 100 }))
+					const Target = resource({ status: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "?status": "active" }] }], Wrapper, null)])).toEqual([]);
+
 				});
 
-				// value constraints skipped in query mode, but type shape preserved
+				it("accepts conjunctive filter on existing property", async () => {
 
-				expect(validateQuery([{ name: "" }], Derived)).toEqual([]);
-				expect(validateQuery([{ name: 42 }], Derived).length).toBeGreaterThan(0);
+					const Target = resource({ tags: repeatable(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-			});
+					expect(collect([validateModel([{ items: [{ "!tags": "urgent" }] }], Wrapper, null)])).toEqual([]);
 
-		});
-
-		describe("filter criteria", () => {
-
-			it("accepts comparison filter on existing property", async () => {
-
-				const Target = resource({ name: required(string()), age: optional(integer()) });
-
-				expect(validateQuery([{ ">=age": 18 }], Target)).toEqual([]);
-
-			});
-
-			it("accepts text search filter on string property", async () => {
-
-				const Target = resource({ name: required(string()) });
-
-				expect(validateQuery([{ "~name": "alice" }], Target)).toEqual([]);
-
-			});
-
-			it("accepts disjunctive filter on existing property", async () => {
-
-				const Target = resource({ status: required(string()) });
-
-				expect(validateQuery([{ "?status": "active" }], Target)).toEqual([]);
-
-			});
-
-			it("accepts conjunctive filter on existing property", async () => {
-
-				const Target = resource({ tags: repeatable(string()) });
-
-				expect(validateQuery([{ "!tags": "urgent" }], Target)).toEqual([]);
-
-			});
-
-			it("rejects filter on undefined property", async () => {
-
-				const Target = resource({ name: required(string()) });
-
-				expect(validateQuery([{ ">=age": 18 }], Target).length).toBeGreaterThan(0);
-
-			});
-
-		});
-
-		describe("ordering criteria", () => {
-
-			it("accepts sort ordering on existing property", async () => {
-
-				const Target = resource({ name: required(string()), age: optional(integer()) });
-
-				expect(validateQuery([{ "^name": "asc", "^age": "desc" }], Target)).toEqual([]);
-
-			});
-
-			it("accepts focus ordering on existing property", async () => {
-
-				const Target = resource({ status: required(string()) });
-
-				expect(validateQuery([{ "*status": ["active"] }], Target)).toEqual([]);
-
-			});
-
-			it("rejects ordering on undefined property", async () => {
-
-				const Target = resource({ name: required(string()) });
-
-				expect(validateQuery([{ "^missing": "asc" }], Target).length).toBeGreaterThan(0);
-
-			});
-
-		});
-
-		describe("pagination", () => {
-
-			it("accepts offset and limit", async () => {
-
-				const Target = resource({ name: required(string()) });
-
-				expect(validateQuery([{ "@": 10, "#": 25 }], Target)).toEqual([]);
-
-			});
-
-		});
-
-		describe("mixed keys", () => {
-
-			it("accepts projection, filter, ordering, and pagination together", async () => {
-
-				const Target = resource({
-					name: required(string()),
-					age: optional(integer()),
-					status: required(string())
 				});
 
-				expect(validateQuery([{
-					name: "",
-					">=age": 18,
-					"~name": "alice",
-					"^age": "asc",
-					"@": 0,
-					"#": 10
-				}], Target)).toEqual([]);
+				it("accepts filter on undefined property", async () => {
 
-			});
+					// apply() returns undefined for unknown property → lenient
 
-			it("rejects unknown projection property alongside valid query keys", async () => {
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-				const Target = resource({ name: required(string()) });
+					expect(collect([validateModel([{ items: [{ ">=age": 18 }] }], Wrapper, null)])).toEqual([]);
 
-				expect(validateQuery([{
-					name: "",
-					extra: "",
-					"^name": "asc"
-				}], Target).length).toBeGreaterThan(0);
-
-			});
-
-		});
-
-		describe("nested query in model", () => {
-
-			it("validates nested query tuple against reference shape", async () => {
-
-				const Member = resource({ name: required(string()), age: optional(integer()) });
-
-				const shape = resource({
-					members: multiple(reference(Member))
 				});
 
-				expect(validateModel([{
-					members: [{ name: "", "^name": "asc", "#": 10 }]
-				}], shape, null)).toEqual([]);
-
 			});
 
-			it("rejects nested query with filter on undefined property", async () => {
+			describe("ordering criteria", () => {
 
-				const Member = resource({ name: required(string()) });
+				it("accepts sort ordering on existing property", async () => {
 
-				const shape = resource({
-					members: multiple(reference(Member))
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{
+						items: [{
+							"^name": "asc",
+							"^age": "desc"
+						}]
+					}], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateModel([{
-					members: [{ ">=missing": 0 }]
-				}], shape, null).length).toBeGreaterThan(0);
+				it("accepts focus ordering on existing property", async () => {
 
-			});
+					const Target = resource({ status: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-			it("rejects nested query with unknown projection property", async () => {
+					expect(collect([validateModel([{ items: [{ "*status": ["active"] }] }], Wrapper, null)])).toEqual([]);
 
-				const Member = resource({ name: required(string()) });
-
-				const shape = resource({
-					members: multiple(reference(Member))
 				});
 
-				expect(validateModel([{
-					members: [{ name: "", extra: "" }]
-				}], shape).length).toBeGreaterThan(0);
+				it("accepts ordering on undefined property", async () => {
 
-			});
+					// apply() returns undefined for unknown property → lenient
 
-		});
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-		describe("existing behavior preserved", () => {
+					expect(collect([validateModel([{ items: [{ "^missing": "asc" }] }], Wrapper, null)])).toEqual([]);
 
-			it("accepts plain nested model in reference tuple", async () => {
-
-				const Member = resource({ name: required(string()) });
-
-				const shape = resource({
-					members: multiple(reference(Member))
 				});
 
-				expect(validateModel([{ members: [{ name: "" }] }], shape, null)).toEqual([]);
-
 			});
 
-			it("accepts scalar reference with IRI string", async () => {
+			describe("pagination", () => {
 
-				const Target = resource({ id: id(), name: required(string()) });
+				it("accepts offset and limit", async () => {
 
-				const shape = resource({
-					supervisor: optional(reference(Target))
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "@": 10, "#": 25 }] }], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateModel([{ supervisor: "app:/users/1" }], shape)).toEqual([]);
-
 			});
 
-			it("preserves local model validation", async () => {
+			describe("mixed keys", () => {
 
-				const shape = resource({
-					label: required(local())
+				it("accepts projection, filter, ordering, and pagination together", async () => {
+
+					const Target = resource({
+						name: required(string()),
+						age: optional(integer()),
+						status: required(string())
+					});
+
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{
+						items: [{
+							name: "",
+							">=age": 18,
+							"~name": "alice",
+							"^age": "asc",
+							"@": 0,
+							"#": 10
+						}]
+					}], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateModel([{ label: { "en": "Hello" } }], shape)).toEqual([]);
+				it("accepts unknown binding alongside valid query keys", async () => {
 
-			});
+					// `extra` is a binding (identity shorthand), apply() returns undefined → lenient
 
-			it("preserves locals model validation", async () => {
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-				const shape = resource({
-					labels: required(locals())
+					expect(collect([validateModel([{
+						items: [{
+							name: "",
+							extra: "",
+							"^name": "asc"
+						}]
+					}], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateModel([{ labels: { "en": ["Hello"] as const } }], shape)).toEqual([]);
-
 			});
 
-		});
+			describe("nested model passthrough", () => {
 
-		describe("deep path criteria", () => {
+				it("accepts plain nested model in reference tuple", async () => {
 
-			it("accepts filter with single-segment path", async () => {
+					const Member = resource({ name: required(string()) });
+					const Wrapper = resource({ members: multiple(reference(Member)) });
 
-				const Target = resource({ name: required(string()), age: optional(integer()) });
+					expect(collect([validateModel([{ members: [{ name: "" }] }], Wrapper, null)])).toEqual([]);
 
-				expect(validateQuery([{ ">=age": 18 }], Target)).toEqual([]);
-
-			});
-
-			it("accepts filter through reference property", async () => {
-
-				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
-
-				const Target = resource({ vendor: required(reference(Vendor)) });
-
-				expect(validateQuery([{ ">=vendor.rating": 3 }], Target)).toEqual([]);
-
-			});
-
-			it("accepts ordering through reference property", async () => {
-
-				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
-
-				const Target = resource({ vendor: required(reference(Vendor)) });
-
-				expect(validateQuery([{ "^vendor.rating": "asc" }], Target)).toEqual([]);
-
-			});
-
-			it("accepts three-segment path through nested references", async () => {
-
-				const Category = resource({ label: required(string()) });
-
-				const Product = resource({ name: required(string()), category: required(reference(Category)) });
-
-				const Target = resource({ product: required(reference(Product)) });
-
-				expect(validateQuery([{ "^product.category.label": "asc" }], Target)).toEqual([]);
-
-			});
-
-			it("rejects deep path with undefined nested property", async () => {
-
-				const Vendor = resource({ name: required(string()) });
-
-				const Target = resource({ vendor: required(reference(Vendor)) });
-
-				expect(validateQuery([{ ">=vendor.rating": 3 }], Target).length).toBeGreaterThan(0);
-
-			});
-
-			it("rejects deep path through leaf property", async () => {
-
-				const Target = resource({ name: required(string()), age: optional(integer()) });
-
-				expect(validateQuery([{ ">=name.deep": 0 }], Target).length).toBeGreaterThan(0);
-
-			});
-
-			it("accepts deep path through union when at least one variant resolves", async () => {
-
-				const TypeA = resource({ score: required(integer()) });
-				const TypeB = resource({ label: required(string()) });
-
-				const Target = resource({
-					item: property(required(union({
-						a: reference(TypeA),
-						b: reference(TypeB)
-					})))
 				});
 
-				expect(validateQuery([{ ">=item.score": 5 }], Target)).toEqual([]);
+				it("accepts scalar reference with IRI string", async () => {
+
+					const Target = resource({ id: id(), name: required(string()) });
+					const Wrapper = resource({ supervisor: optional(reference(Target)) });
+
+					expect(collect([validateModel([{ supervisor: "app:/users/1" }], Wrapper, 0)])).toEqual([]);
+
+				});
+
+				it("preserves local model validation", async () => {
+
+					const Wrapper = resource({ label: required(local()) });
+
+					expect(collect([validateModel([{ label: { "en": "Hello" } }], Wrapper, 0)])).toEqual([]);
+
+				});
+
+				it("preserves locals model validation", async () => {
+
+					const Wrapper = resource({ labels: required(locals()) });
+
+					expect(collect([validateModel([{ labels: { "en": ["Hello"] as const } }], Wrapper, 0)])).toEqual([]);
+
+				});
 
 			});
 
-			it("rejects deep path through union when no variant resolves", async () => {
+			describe("deep path criteria", () => {
 
-				const TypeA = resource({ score: required(integer()) });
-				const TypeB = resource({ label: required(string()) });
+				it("accepts filter with single-segment path", async () => {
 
-				const Target = resource({
-					item: property(required(union({
-						a: reference(TypeA),
-						b: reference(TypeB)
-					})))
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ ">=age": 18 }] }], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateQuery([{ ">=item.missing": 0 }], Target).length).toBeGreaterThan(0);
+				it("accepts filter through reference property", async () => {
+
+					const Vendor = resource({ name: required(string()), rating: optional(integer()) });
+					const Target = resource({ vendor: required(reference(Vendor)) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts ordering through reference property", async () => {
+
+					const Vendor = resource({ name: required(string()), rating: optional(integer()) });
+					const Target = resource({ vendor: required(reference(Vendor)) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "^vendor.rating": "asc" }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts three-segment path through nested references", async () => {
+
+					const Category = resource({ label: required(string()) });
+					const Product = resource({ name: required(string()), category: required(reference(Category)) });
+					const Target = resource({ product: required(reference(Product)) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts deep path with undefined nested property", async () => {
+
+					// apply() returns undefined for unknown nested property → lenient
+
+					const Vendor = resource({ name: required(string()) });
+					const Target = resource({ vendor: required(reference(Vendor)) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts deep path through leaf property", async () => {
+
+					// apply() returns undefined for non-traversable leaf → lenient
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ ">=name.deep": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
 
 			});
 
-		});
+			describe("union path criteria", () => {
 
-		describe("depth", () => {
+				it("accepts filter through union variant reference", async () => {
 
-			it("rejects nested query via reference when depth is 0", async () => {
+					const ItemShape = resource({ score: optional(integer()) });
+					const Target = resource({ item: required(union({ a: reference(ItemShape), b: string() })) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-				const Member = resource({ name: required(string()) });
+					expect(collect([validateModel([{ items: [{ ">=item.score": 5 }] }], Wrapper, null)])).toEqual([]);
 
-				const shape = resource({
-					members: multiple(reference(Member))
 				});
 
-				expect(validateQuery([{
-					members: [{ name: "" }]
-				}], shape, 0).length).toBeGreaterThan(0);
+				it("accepts deep path through union with missing property", async () => {
+
+					// apply() returns undefined when no union variant has the property → lenient
+
+					const ItemShape = resource({ score: optional(integer()) });
+					const Target = resource({ item: required(union({ a: reference(ItemShape), b: string() })) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ ">=item.missing": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
 
 			});
 
-			it("accepts IRI reference in query when depth is 0", async () => {
+			describe("binding criteria", () => {
 
-				const Member = resource({ id: id(), name: required(string()) });
+				it("accepts binding with valid transform and projection type", async () => {
 
-				const shape = resource({
-					members: multiple(reference(Member))
+					const Target = resource({ name: required(string()), released: optional(year()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "releaseYear=year:released": 0 }] }], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateQuery([{
-					members: ["app:/users/1"]
-				} as any], shape, 0)).toEqual([]);
+				it("rejects binding with type mismatch in projection", async () => {
+
+					const Target = resource({ name: required(string()), released: optional(year()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "releaseYear=year:released": "" }] }], Wrapper, null).length).toBeGreaterThan(0);
+
+				});
+
+				it("accepts binding referencing undefined property", async () => {
+
+					// apply() returns undefined for unknown property → lenient
+
+					const Target = resource({ name: required(string()), released: optional(year()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "y=year:missing": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts chained aggregate transform", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts multi-step chained transform", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "avg=round:avg:price": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts count transform on empty path", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("rejects count transform with wrong projection type", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "total=count:": "" }] }], Wrapper, null).length).toBeGreaterThan(0);
+
+				});
+
+				it("accepts sum transform on empty path", async () => {
+
+					// sum requires numeric, empty path resolves to resource shape → apply() returns undefined → lenient
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "total=sum:": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts lower transform on empty path", async () => {
+
+					// lower requires string, empty path resolves to resource shape → apply() returns undefined → lenient
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "alias=lower:": "" }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts aggregate binding producing resource model", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				describe("identity and aggregate bindings", () => {
+
+					const Target = resource({
+						name: required(string()),
+						age: optional(integer()),
+						active: optional(boolean()),
+						link: optional(reference(resource({ id: id(), label: required(string()) }))),
+						child: required(resource({ label: required(string()) }))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					it("accepts identity binding on string property", async () => {
+
+
+						expect(collect([validateModel([{ items: [{ "alias=name": "" }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts identity binding on integer property", async () => {
+
+
+						expect(collect([validateModel([{ items: [{ "alias=age": 0 }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts identity binding on boolean property", async () => {
+
+
+						expect(collect([validateModel([{ items: [{ "alias=active": true }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts identity binding on reference property with IRI", async () => {
+
+
+						expect(collect([validateModel([{ items: [{ "alias=link": "app:/items/1" }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("rejects identity binding on reference property with wrong type", async () => {
+
+
+						expect(validateModel([{ items: [{ "alias=link": 0 }] }], Wrapper, null).length).toBeGreaterThan(0);
+
+					});
+
+					it("accepts identity binding on embedded resource with model", async () => {
+
+
+						expect(collect([validateModel([{ items: [{ "alias=child": { label: "" } }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("rejects identity binding on embedded resource with invalid model", async () => {
+
+
+						expect(validateModel([{ items: [{ "alias=child": { label: 0 } }] }], Wrapper, null).length).toBeGreaterThan(0);
+
+					});
+
+					it("accepts identity binding on embedded resource with unknown binding", async () => {
+
+						// unknown=unknown → apply() returns undefined → lenient
+
+						expect(collect([validateModel([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts identity binding on embedded resource with non-object", async () => {
+
+
+						expect(collect([validateModel([{ items: [{ "alias=child": "not-an-object" }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts aggregate binding on embedded resource with model", async () => {
+
+
+						expect(collect([validateModel([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("rejects aggregate binding on embedded resource with invalid model", async () => {
+
+
+						expect(validateModel([{ items: [{ "alias=min:child": { label: 0 } }] }], Wrapper, null).length).toBeGreaterThan(0);
+
+					});
+
+					it("accepts aggregate binding on embedded resource with non-object", async () => {
+
+
+						expect(collect([validateModel([{ items: [{ "alias=min:child": "not-an-object" }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts identity binding on embedded resource with depth", async () => {
+
+
+						expect(collect([validateModel([{ items: [{ "alias=child": { label: "x" } }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts identity binding on reference property with query", async () => {
+
+
+						expect(collect([validateModel([{
+							items: [{
+								"alias=link": {
+									label: "",
+									"^label": "asc"
+								}
+							}]
+						}], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts identity binding on reference property with unknown binding", async () => {
+
+						// unknown=unknown → apply() returns undefined → lenient
+
+						expect(collect([validateModel([{ items: [{ "alias=link": { unknown: "" } }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts identity binding on embedded resource with query", async () => {
+
+
+						expect(collect([validateModel([{
+							items: [{
+								"alias=child": {
+									label: "",
+									"^label": "asc"
+								}
+							}]
+						}], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts identity binding on embedded resource with unknown binding", async () => {
+
+						// unknown=unknown → apply() returns undefined → lenient
+
+						expect(collect([validateModel([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts aggregate binding on reference property with query", async () => {
+
+
+						expect(collect([validateModel([{
+							items: [{
+								"alias=min:link": {
+									label: "",
+									">=label": "a"
+								}
+							}]
+						}], Wrapper, null)])).toEqual([]);
+
+					});
+
+					it("accepts aggregate binding on embedded resource with query", async () => {
+
+
+						expect(collect([validateModel([{
+							items: [{
+								"alias=min:child": {
+									label: "",
+									">=label": "a"
+								}
+							}]
+						}], Wrapper, null)])).toEqual([]);
+
+					});
+
+				});
 
 			});
 
-			it("rejects nested query via reference when depth is omitted (defaults to 0)", async () => {
+			describe("transform domain violations", () => {
 
-				const Member = resource({ name: required(string()) });
+				// apply() returns undefined for all domain violations → lenient: no shape to validate against
 
-				const shape = resource({
-					members: multiple(reference(Member))
+				it("accepts sum transform on string property", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "total=sum:name": 0 }] }], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateQuery([{
-					members: [{ name: "" }]
-				}], shape).length).toBeGreaterThan(0);
+				it("accepts abs transform on reference property", async () => {
+
+					const Target = resource({
+						name: required(string()),
+						price: optional(integer()),
+						link: optional(reference(resource({ id: id() })))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "v=abs:link": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts year transform on number property", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "y=year:price": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts temporal transform on plain string property", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "m=month:name": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts aggregate-after-aggregate pipe", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
 
 			});
 
-			it("accepts nested query via reference when depth is null (unlimited)", async () => {
+			describe("localised shape transforms", () => {
 
-				const Member = resource({ name: required(string()) });
+				it("accepts lower transform on local property", async () => {
 
-				const shape = resource({
-					members: multiple(reference(Member))
+					// lower: accepts string, returns same → valid for localised shapes
+
+					const Target = resource({ label: required(local()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "alias=lower:label": { "en": "hello" } }] }], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateQuery([{
-					members: [{ name: "" }]
-				}], shape, null)).toEqual([]);
+				it("accepts upper transform on local property", async () => {
+
+					const Target = resource({ label: required(local()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "alias=upper:label": { "en": "HELLO" } }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts length transform on local property", async () => {
+
+					// length: accepts string, returns integer → not "same" → apply() returns undefined for localised → lenient
+
+					const Target = resource({ label: required(local()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "alias=length:label": 5 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts abs transform on local property", async () => {
+
+					// abs requires numeric, local is not numeric → apply() returns undefined → lenient
+
+					const Target = resource({ label: required(local()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, null)])).toEqual([]);
+
+				});
+
+				it("accepts lower transform on locals property", async () => {
+
+					const Target = resource({ labels: required(locals()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "alias=lower:labels": { "en": ["hello"] as const } }] }], Wrapper, null)])).toEqual([]);
+
+				});
 
 			});
 
-			it("accepts nested query via reference when depth is 1", async () => {
+			describe("union partial domain match", () => {
 
-				const Member = resource({ name: required(string()) });
+				it("accepts numeric transform on union with numeric variant", async () => {
 
-				const shape = resource({
-					members: multiple(reference(Member))
+					// abs: numeric domain — integer variant survives, string variant filtered → Range(integer)
+
+					const Target = resource({
+						value: required(union({ num: integer(), text: string() }))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "alias=abs:value": 42 }] }], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateQuery([{
-					members: [{ name: "" }]
-				}], shape, 1)).toEqual([]);
+				it("rejects numeric transform on union with numeric variant when template is wrong type", async () => {
 
-			});
+					// abs on union(integer, string) → Range(integer), but template is string → rejects
 
-			it("rejects 2-level nesting via reference when depth is 1", async () => {
+					const Target = resource({
+						value: required(union({ num: integer(), text: string() }))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-				const Leaf = resource({ value: required(string()) });
+					expect(validateModel([{ items: [{ "alias=abs:value": "wrong" }] }], Wrapper, null).length).toBeGreaterThan(0);
 
-				const Middle = resource({
-					leaf: optional(reference(Leaf))
 				});
 
-				const Root = resource({
-					middle: optional(reference(Middle))
+				it("accepts string transform on union with string variant", async () => {
+
+					// lower: string domain — string variant survives, integer variant filtered → Range(string)
+
+					const Target = resource({
+						value: required(union({ num: integer(), text: string() }))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(collect([validateModel([{ items: [{ "alias=lower:value": "" }] }], Wrapper, null)])).toEqual([]);
+
 				});
 
-				expect(validateQuery([{
-					middle: { leaf: { value: "" } }
-				}], Root, 1).length).toBeGreaterThan(0);
+				it("accepts transform on union where no variant matches domain", async () => {
 
-			});
+					// year: temporal domain — neither boolean nor integer is temporal → apply() returns undefined → lenient
 
-			it("accepts 2-level nesting via reference when depth is 2", async () => {
+					const Target = resource({
+						value: required(union({ flag: boolean(), count: integer() }))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-				const Leaf = resource({ value: required(string()) });
+					expect(collect([validateModel([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, null)])).toEqual([]);
 
-				const Middle = resource({
-					leaf: optional(reference(Leaf))
 				});
-
-				const Root = resource({
-					middle: optional(reference(Middle))
-				});
-
-				expect(validateQuery([{
-					middle: { leaf: { value: "" } }
-				}], Root, 2)).toEqual([]);
-
-			});
-
-			it("rejects nested embedded resource when depth is 0", async () => {
-
-				const Embedded = resource({ label: required(string()) });
-
-				const Outer = resource({
-					child: required(Embedded)
-				});
-
-				expect(validateQuery([{ child: { label: "" } }], Outer, 0).length).toBeGreaterThan(0);
-
-			});
-
-			it("accepts nested embedded resource when depth is 1", async () => {
-
-				const Embedded = resource({ label: required(string()) });
-
-				const Outer = resource({
-					child: required(Embedded)
-				});
-
-				expect(validateQuery([{ child: { label: "" } }], Outer, 1)).toEqual([]);
 
 			});
 
@@ -4212,65 +4527,360 @@ describe("validators", () => {
 
 });
 
-describe("match", () => {
+describe("utilities", () => {
 
-	describe("absolute pattern", () => {
+	describe("flatten", () => {
 
-		it("matches absolute IRI with same origin", async () => {
+		describe("no inheritance", () => {
 
-			expect(match(
-				"https://example.org/products/123",
-				"https://example.org/products/{id}"
-			)).toBeTruthy();
+			it("returns own properties with empty overrides", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					age: optional(integer())
+				});
+
+				const { properties, overrides, validators } = flatten(shape);
+
+				expect(properties).toBe(shape.properties);
+				expect(overrides).toEqual({});
+				expect(validators).toEqual([]);
+
+			});
+
+			it("returns own validators", async () => {
+
+				const v: Validator = () => [];
+
+				const shape = resource({ validators: [v] }, {
+					name: required(string())
+				});
+
+				const { validators } = flatten(shape);
+
+				expect(validators).toEqual([v]);
+
+			});
 
 		});
 
-		it("rejects absolute IRI with different origin", async () => {
+		describe("single parent", () => {
 
-			expect(match(
-				"https://other.org/products/123",
-				"https://example.org/products/{id}"
-			)).toBeFalsy();
+			it("merges parent and child properties", async () => {
+
+				const Parent = resource({
+					name: required(string())
+				});
+
+				const Child = resource({ extends: Parent }, {
+					age: required(integer())
+				});
+
+				const { properties } = flatten(Child);
+
+				expect(Object.keys(properties)).toContain("name");
+				expect(Object.keys(properties)).toContain("age");
+
+			});
+
+			it("overrides parent property with child property", async () => {
+
+				const Parent = resource({
+					name: required(string())
+				});
+
+				const Child = resource({ extends: Parent }, {
+					name: required(string())
+				});
+
+				const { properties, overrides } = flatten(Child);
+
+				expect(properties.name).toBe(Child.properties.name);
+				expect(overrides["name"]).toBeDefined();
+				expect(overrides["name"]).toHaveLength(1);
+
+			});
+
+			it("does not record overrides for non-property entries", async () => {
+
+				const Parent = resource({
+					label: type()
+				});
+
+				const Child = resource({ extends: Parent }, {
+					label: type()
+				});
+
+				const { overrides } = flatten(Child);
+
+				expect(overrides["label"]).toBeUndefined();
+
+			});
+
+			it("merges parent and child validators", async () => {
+
+				const v1: Validator = () => [];
+				const v2: Validator = () => [];
+
+				const Parent = resource({ validators: [v1] }, {
+					name: required(string())
+				});
+
+				const Child = resource({ extends: Parent, validators: [v2] }, {
+					age: required(integer())
+				});
+
+				const { validators } = flatten(Child);
+
+				expect(validators).toContain(v1);
+				expect(validators).toContain(v2);
+
+			});
+
+			it("deduplicates shared validators by identity", async () => {
+
+				const v: Validator = () => [];
+
+				const Parent = resource({ validators: [v] }, {
+					name: required(string())
+				});
+
+				const Child = resource({ extends: Parent, validators: [v] }, {
+					age: required(integer())
+				});
+
+				const { validators } = flatten(Child);
+
+				expect(validators).toHaveLength(1);
+				expect(validators).toContain(v);
+
+			});
 
 		});
 
-		it("rejects root-relative IRI", async () => {
+		describe("lazy parent", () => {
 
-			expect(match(
-				"/products/123",
-				"https://example.org/products/{id}"
-			)).toBeFalsy();
+			it("resolves lazy parent reference", async () => {
+
+				const Parent = resource({
+					name: required(string())
+				});
+
+				const Child = resource({ extends: () => Parent }, {
+					age: required(integer())
+				});
+
+				const { properties } = flatten(Child);
+
+				expect(Object.keys(properties)).toContain("name");
+				expect(Object.keys(properties)).toContain("age");
+
+			});
+
+		});
+
+		describe("multiple parents", () => {
+
+			it("merges properties from all parents left-to-right", async () => {
+
+				const Parent1 = resource({
+					name: required(string())
+				});
+
+				const Parent2 = resource({
+					age: required(integer())
+				});
+
+				const Child = resource({ extends: [Parent1, Parent2] }, {
+					active: required(boolean())
+				});
+
+				const { properties } = flatten(Child);
+
+				expect(Object.keys(properties)).toContain("name");
+				expect(Object.keys(properties)).toContain("age");
+				expect(Object.keys(properties)).toContain("active");
+
+			});
+
+			it("right parent overrides left parent for same property", async () => {
+
+				const Parent1 = resource({
+					name: required(string())
+				});
+
+				const Parent2 = resource({
+					name: property(optional(string()))
+				});
+
+				const Child = resource({ extends: [Parent1, Parent2] }, {
+					age: required(integer())
+				});
+
+				const { properties } = flatten(Child);
+
+				expect(properties.name).toBe(Parent2.properties.name);
+
+			});
+
+			it("merges validators from all parents", async () => {
+
+				const v1: Validator = () => [];
+				const v2: Validator = () => [];
+
+				const Parent1 = resource({ validators: [v1] }, {
+					name: required(string())
+				});
+
+				const Parent2 = resource({ validators: [v2] }, {
+					age: required(integer())
+				});
+
+				const Child = resource({ extends: [Parent1, Parent2] }, {
+					active: required(boolean())
+				});
+
+				const { validators } = flatten(Child);
+
+				expect(validators).toContain(v1);
+				expect(validators).toContain(v2);
+
+			});
+
+		});
+
+		describe("transitive inheritance", () => {
+
+			it("flattens grandparent properties", async () => {
+
+				const Grandparent = resource({
+					name: required(string())
+				});
+
+				const Parent = resource({ extends: Grandparent }, {
+					age: required(integer())
+				});
+
+				const Child = resource({ extends: Parent }, {
+					active: required(boolean())
+				});
+
+				const { properties } = flatten(Child);
+
+				expect(Object.keys(properties)).toContain("name");
+				expect(Object.keys(properties)).toContain("age");
+				expect(Object.keys(properties)).toContain("active");
+
+			});
+
+			it("accumulates transitive overrides", async () => {
+
+				const Grandparent = resource({
+					name: required(string())
+				});
+
+				const Parent = resource({ extends: Grandparent }, {
+					name: required(string())
+				});
+
+				const Child = resource({ extends: Parent }, {
+					name: required(string())
+				});
+
+				const { overrides } = flatten(Child);
+
+				expect(overrides["name"]).toBeDefined();
+				expect(overrides["name"].length).toBeGreaterThanOrEqual(2);
+
+			});
+
+			it("propagates grandparent validators", async () => {
+
+				const v: Validator = () => [];
+
+				const Grandparent = resource({ validators: [v] }, {
+					name: required(string())
+				});
+
+				const Parent = resource({ extends: Grandparent }, {
+					age: required(integer())
+				});
+
+				const Child = resource({ extends: Parent }, {
+					active: required(boolean())
+				});
+
+				const { validators } = flatten(Child);
+
+				expect(validators).toContain(v);
+
+			});
 
 		});
 
 	});
 
-	describe("root-relative pattern", () => {
+	describe("match", () => {
 
-		it("matches root-relative IRI", async () => {
+		describe("absolute pattern", () => {
 
-			expect(match(
-				"/products/123",
-				"/products/{id}"
-			)).toBeTruthy();
+			it("matches absolute IRI with same origin", async () => {
+
+				expect(match(
+					"https://example.org/products/123",
+					"https://example.org/products/{id}"
+				)).toBeTruthy();
+
+			});
+
+			it("rejects absolute IRI with different origin", async () => {
+
+				expect(match(
+					"https://other.org/products/123",
+					"https://example.org/products/{id}"
+				)).toBeFalsy();
+
+			});
+
+			it("rejects root-relative IRI", async () => {
+
+				expect(match(
+					"/products/123",
+					"https://example.org/products/{id}"
+				)).toBeFalsy();
+
+			});
 
 		});
 
-		it("matches absolute IRI ignoring origin", async () => {
+		describe("root-relative pattern", () => {
 
-			expect(match(
-				"https://example.org/products/123",
-				"/products/{id}"
-			)).toBeTruthy();
+			it("matches root-relative IRI", async () => {
 
-		});
+				expect(match(
+					"/products/123",
+					"/products/{id}"
+				)).toBeTruthy();
 
-		it("matches absolute IRI with any origin", async () => {
+			});
 
-			expect(match(
-				"https://other.org/products/123",
-				"/products/{id}"
-			)).toBeTruthy();
+			it("matches absolute IRI ignoring origin", async () => {
+
+				expect(match(
+					"https://example.org/products/123",
+					"/products/{id}"
+				)).toBeTruthy();
+
+			});
+
+			it("matches absolute IRI with any origin", async () => {
+
+				expect(match(
+					"https://other.org/products/123",
+					"/products/{id}"
+				)).toBeTruthy();
+
+			});
 
 		});
 

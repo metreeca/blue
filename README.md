@@ -185,21 +185,15 @@ by [@metreeca/qest](https://metreeca.github.io/qest/):
 	constraints enforced, missing and unknown properties rejected
 - **`"model"`** — Retrieve ([`Model`](https://metreeca.github.io/qest/types/model.Model.html)); entry point for
 	retrieval projections, only type compatibility checked, missing properties accepted as not requested
-- **`"query"`** — Search ([`Query`](https://metreeca.github.io/qest/types/model.Query.html)); entry point for search
-	queries, extends model validation with operator-prefixed filtering and ordering keys
-
-Models and queries are mutually recursive — a model may contain nested queries and vice versa: `"model"` and `"query"`
-modes provide distinct entry points into a shared recursive validation process, suited to different contexts.
 
 ```ts
 validate(model, Product, { mode: "model" }); // retrieval model
-validate(query, Product, { mode: "query" }); // search query
 ```
 
 > [!IMPORTANT]
 >
-> In `"model"` and `"query"` modes, nested resource and reference expansion is controlled by the `depth` option, which
-> defaults to `0` — rejecting any nested model or query while still accepting IRI references. Set `depth` to a positive
+> In `"model"` mode, nested resource and reference expansion is controlled by the `depth` option, which
+> defaults to `0` — rejecting any nested model while still accepting IRI references. Set `depth` to a positive
 > integer to allow that many levels of nesting, or to `null` for unlimited depth.
 >
 > ```ts

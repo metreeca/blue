@@ -25,7 +25,7 @@
 
 import { isArray, isNumber, isObject, isOptional, isString } from "@metreeca/core";
 import { isTagRange, matchTag } from "@metreeca/core/language";
-import { isLocalModel, isLocalsModel } from "@metreeca/qest/model";
+import { isLocale, isLocales } from "@metreeca/qest/model";
 import type { Local, Locals } from "@metreeca/qest/state";
 import type { Trace } from "./index.js";
 import type { LocalConstraints, LocalizedConstraints, LocalsConstraints, LocalShape, LocalsShape } from "./local.js";
@@ -60,7 +60,7 @@ export function isLocalShape(value: unknown): value is LocalShape {
 	return isObject(value, {
 
 		kind: v => v === "local",
-		model: isLocalModel,
+		model: isLocale,
 
 		...LocalizedConstraintsTemplate
 
@@ -81,7 +81,7 @@ export function isLocalsShape(value: unknown): value is LocalsShape {
 	return isObject(value, {
 
 		kind: v => v === "locals",
-		model: isLocalsModel,
+		model: isLocales,
 
 		...LocalizedConstraintsTemplate
 
@@ -101,7 +101,7 @@ export function isLocalsShape(value: unknown): value is LocalsShape {
 export function isLocalConstraints(value: unknown): value is LocalConstraints {
 	return isObject(value, {
 
-		model: (v: unknown) => isOptional(v, isLocalModel),
+		model: (v: unknown) => isOptional(v, isLocale),
 
 		...LocalizedConstraintsTemplate
 
@@ -121,7 +121,7 @@ export function isLocalConstraints(value: unknown): value is LocalConstraints {
 export function isLocalsConstraints(value: unknown): value is LocalsConstraints {
 	return isObject(value, {
 
-		model: (v: unknown) => isOptional(v, isLocalsModel),
+		model: (v: unknown) => isOptional(v, isLocales),
 
 		...LocalizedConstraintsTemplate
 
@@ -178,10 +178,9 @@ export function validateLocal(values: readonly Local[], {
 			languageIn !== undefined && !languageIn.some(range => matchTag(tag, range))
 			&& `tag not in allowed languages [${languageIn.join(", ")}]`
 
-		].filter(isString)])
-		.filter(([, errors]) => errors.length > 0);
+		].filter(isString)]);
 
-	return entries.length > 0 ? [Object.fromEntries(entries)] : [];
+	return [Object.fromEntries(entries)];
 
 }
 
@@ -219,9 +218,8 @@ export function validateLocals(values: readonly Locals[], {
 			languageIn !== undefined && !languageIn.some(range => matchTag(tag, range))
 			&& `tag not in allowed languages [${languageIn.join(", ")}]`
 
-		].filter(isString)])
-		.filter(([, errors]) => errors.length > 0);
+		].filter(isString)]);
 
-	return entries.length > 0 ? [Object.fromEntries(entries)] : [];
+	return [Object.fromEntries(entries)];
 
 }

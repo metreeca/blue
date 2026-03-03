@@ -17,8 +17,8 @@
 /**
  * Core validation utilities and type guards.
  *
- * Provides internal validation infrastructure including trace and shape type guards, lazy value materialisation with
- * caching, trace collection utilities, and the central value validation dispatcher.
+ * Provides validation infrastructure including type guards, lazy value materialisation, probe resolution,
+ * value validation, and trace collection.
  *
  * @module
  */
@@ -28,20 +28,86 @@ import {
 	isArray,
 	isBoolean,
 	isFunction,
-	isIdentifier,
 	isNumber,
 	isObject,
 	isString,
 	type Lazy
 } from "@metreeca/core";
+import { assert, error as report } from "@metreeca/core/error";
 import { immutable } from "@metreeca/core/nested";
-import { isLocal, isLocals, isReference, isResource, type Locals, type Value } from "@metreeca/qest/state";
+import { isProbe, type Probe, type Transform } from "@metreeca/qest/model";
+import { isLocal, isLocals, isReference, isResource, type Value } from "@metreeca/qest/state";
 import { isBooleanShape, validateBoolean } from "./boolean.core.js";
 import type { Trace, Validator, ValueShape } from "./index.js";
 import { isLocalShape, isLocalsShape, validateLocal, validateLocals } from "./local.core.js";
 import { isNumberShape, validateNumber } from "./number.core.js";
-import { isReferenceShape, isResourceShape, validateReference, validateResource } from "./resource.core.js";
+import { decimal, integer } from "./number.js";
+import { flatten, isReferenceShape, isResourceShape, validateReference, validateResource } from "./resource.core.js";
+import type { Range, ResourceShape, Union } from "./resource.js";
 import { isStringShape, validateString } from "./string.core.js";
+import { date, duration, instant, string, time, timestamp, uri, year } from "./string.js";
+
+
+/**
+ * Registry of transforms mapped to their shape-level type metadata.
+ */
+const Transforms: Record<Transform, {
+
+	/**
+	 * Whether the transform is an aggregate.
+	 *
+	 * Aggregate transforms set `maxCount` to `1`; scalar transforms preserve `maxCount` from the path. All
+	 * transforms set `minCount` to undefined.
+	 */
+	readonly aggregate: boolean,
+
+	readonly accepts: "any" | "numeric" | "temporal" | "string",
+	readonly returns: "same" | "integer" | "decimal" | "string"
+
+}> = immutable({
+
+	count: { aggregate: true, accepts: "any", returns: "integer" },
+	min: { aggregate: true, accepts: "any", returns: "same" },
+	max: { aggregate: true, accepts: "any", returns: "same" },
+	sum: { aggregate: true, accepts: "numeric", returns: "same" },
+	avg: { aggregate: true, accepts: "numeric", returns: "decimal" },
+
+	abs: { aggregate: false, accepts: "numeric", returns: "same" },
+	floor: { aggregate: false, accepts: "numeric", returns: "same" },
+	ceil: { aggregate: false, accepts: "numeric", returns: "same" },
+	round: { aggregate: false, accepts: "numeric", returns: "same" },
+
+	lower: { aggregate: false, accepts: "string", returns: "same" },
+	upper: { aggregate: false, accepts: "string", returns: "same" },
+	length: { aggregate: false, accepts: "string", returns: "integer" },
+
+	year: { aggregate: false, accepts: "temporal", returns: "integer" },
+	month: { aggregate: false, accepts: "temporal", returns: "integer" },
+	day: { aggregate: false, accepts: "temporal", returns: "integer" },
+	hours: { aggregate: false, accepts: "temporal", returns: "integer" },
+	minutes: { aggregate: false, accepts: "temporal", returns: "integer" },
+	seconds: { aggregate: false, accepts: "temporal", returns: "decimal" }
+
+});
+
+/**
+ * Known temporal string shape models.
+ *
+ * Closed set of all model values produced by temporal string shape factories. Used by {@link apply}
+ * to distinguish temporal strings from plain strings when checking transform compatibility.
+ */
+const Temporal: ReadonlySet<string> = new Set([
+
+	year,
+	date,
+	time,
+	instant,
+	timestamp,
+	duration
+
+].map(factory =>
+	factory().model
+));
 
 
 /**
@@ -66,7 +132,7 @@ const cache = new WeakMap<() => unknown, unknown>();
  */
 export function isTrace(value: unknown): value is Trace {
 	return isArray(value, v => isString(v) || isObject(v, (v, k) =>
-			isIdentifier(k) && isTrace(v)
+			isString(k) && isTrace(v)
 		)
 	);
 }
@@ -121,52 +187,359 @@ export function validateValue(values: readonly Value[], shape: ValueShape): Trac
 
 		case "boolean":
 
-			return [
-				...values.flatMap(v => isBoolean(v) ? [] : [`expected boolean values`]),
-				...validateBoolean(values.filter(isBoolean), shape)
-			];
+			return validate(values, isBoolean, v => validateBoolean(v, shape));
 
 		case "number":
 
-			return [
-				...values.flatMap(v => isNumber(v) ? [] : [`expected number values`]),
-				...validateNumber(values.filter(isNumber), shape)
-			];
+			return validate(values, isNumber, v => validateNumber(v, shape));
 
 		case "string":
 
-			return [
-				...values.flatMap(v => isString(v) ? [] : [`expected string values`]),
-				...validateString(values.filter(isString), shape)
-			];
+			return validate(values, isString, v => validateString(v, shape));
 
 		case "local":
 
-			return [
-				...values.flatMap(v => isLocal(v) ? [] : [`expected local values`]),
-				...validateLocal(values.filter(isLocal), shape)
-			];
+			return validate(values, isLocal, v => validateLocal(v, shape));
 
 		case "locals":
 
-			return [
-				...values.flatMap(v => isLocals(v) ? [] : [`expected locals values`]),
-				...validateLocals(values.filter(isLocals) as Locals[], shape)
-			];
+			return validate(values, isLocals, v => validateLocals(v, shape));
 
 		case "reference":
 
-			return [
-				...values.flatMap(v => isReference(v) ? [] : [`expected reference values`]),
-				...validateReference(values.filter(isReference), shape)
-			];
+			return validate(values, isReference, v => validateReference(v, shape));
 
 		case "resource":
 
-			return [
-				...values.flatMap(v => isResource(v) ? [] : [`expected resource values`]),
-				...validateResource(values.filter(isResource), shape)
-			];
+			return validate(values, isResource, v => validateResource(v, shape));
+
+	}
+
+
+	function validate<T>(
+		values: readonly Value[],
+		guard: (v: unknown) => v is T,
+		check: (matched: readonly T[]) => Trace
+	): Trace {
+
+		const matched = values.filter(guard) as (Value & T)[];
+		return [
+			...Array<string>(values.length-matched.length).fill(`expected ${shape.kind} values`),
+			...check(matched)
+		];
+	}
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Applies a probe to a value shape, resolving the effective output {@link Range}.
+ *
+ * **Shape dispatch** — dispatches on the input shape kind:
+ *
+ * - {@link ResourceShape}: traverses path segments through nested properties as detailed below
+ * - {@link ReferenceShape}: materialises the lazy target shape and proceeds as for {@link ResourceShape}
+ * - Other shapes: returns `undefined` for any non-empty path since leaf shapes have no traversable properties,
+ *   then applies the transform pipe and returns the resolved {@link Range}
+ *
+ * **Path traversal** — traverses the probe's `path` segments through nested resource properties, flattening
+ * inheritance at each step. If a step references an unknown property, the path resolves to `undefined` at runtime.
+ * At {@link Union} boundaries, variants that lack the property are skipped; only if no variant defines it does the
+ * path resolve to `undefined`.
+ *
+ * **Pipe application** — applies the probe's `pipe` transforms to the shape resolved by path traversal. A domain
+ * violation, that is a transform applied outside its declared domain, resolves to `undefined` at runtime. An invalid
+ * composition (aggregate after aggregate) is rejected.
+ *
+ * **Path cardinality** — accumulated product of the cardinality constraints at each traversed step:
+ *
+ * - `maxCount` is the product of `maxCount` at each step; if any step has `maxCount` undefined, the result is undefined
+ * - `minCount` is the product of `minCount` at each step; if any step has `minCount` undefined or `0`, the result is
+ *   undefined
+ * - {@link Union} steps do not introduce additional cardinality; the cardinality of the property containing the union
+ *   applies to all branches collectively
+ *
+ * **Pipe cardinality** — applied after path cardinality:
+ *
+ * - all transforms set `minCount` to undefined
+ * - scalar transforms preserve `maxCount` from the path
+ * - aggregate transforms set `maxCount` to `1`
+ *
+ * @param probe The probe containing path and transform pipe
+ *
+ * @param shape The input value shape to resolve
+ * @returns The resolved output {@link Range} with accumulated cardinality, or `undefined` when the probe is
+ *     demonstrated to never produce a valid value at runtime
+ *
+ * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
+ */
+export function apply(probe: Probe, shape: ValueShape): Range | undefined {
+
+	type Focus = {
+
+		readonly minCount?: number
+		readonly maxCount?: number
+
+		readonly variants: readonly ValueShape[]
+
+	}
+
+
+	const { pipe, path } = assert(probe, isProbe);
+	const $shape = assert(shape, isValueShape);
+
+
+	return transform(traverse(
+		$shape.kind === "reference" // materialise reference shapes to their target resource shape
+			? materialize($shape.shape)
+			: $shape
+	));
+
+
+	/**
+	 * Traverse the property path, accumulating cardinality and collecting resolved variants.
+	 */
+	function traverse(shape: ValueShape): Focus | undefined {
+
+		return path.reduce<Focus | undefined>((accumulated, segment) => {
+
+			return accumulated?.variants.reduce<Focus | undefined>((merged, variant) => {
+
+				const resolved = resolve(variant, segment);
+
+				if ( resolved === undefined ) { // skip variants that lack the property
+
+					return merged;
+
+				} else if ( merged === undefined ) { // seed with accumulated cardinality
+
+					return {
+
+						minCount: multiply(accumulated.minCount, resolved.minCount),
+						maxCount: multiply(accumulated.maxCount, resolved.maxCount),
+
+						variants: resolved.variants
+
+					};
+
+				} else { // merge variants
+
+					return {
+
+						minCount: merged.minCount,
+						maxCount: merged.maxCount,
+
+						variants: [...merged.variants, ...resolved.variants]
+					};
+
+				}
+
+			}, undefined);
+
+		}, {
+
+			minCount: 1,
+			maxCount: 1,
+
+			variants: [shape]
+		});
+
+	}
+
+	/**
+	 * Resolve a single property step, returning its cardinality and value shape variants.
+	 */
+	function resolve(shape: ValueShape, property: Identifier): Focus | undefined {
+
+		const properties = shape.kind === "resource" ? flatten(shape).properties
+			: shape.kind === "reference" ? flatten(materialize(shape.shape)).properties
+				: undefined;
+
+		if ( properties === undefined ) {
+
+			return undefined; // non-traversable leaf type: skip in union context
+
+		} else {
+
+			const entry = properties[property];
+
+			if ( entry === undefined ) {
+
+				return undefined; // undefined property: resolution fails
+
+			} else if ( entry.kind === "id" ) {
+
+				return {
+
+					minCount: 1,
+					maxCount: 1,
+
+					variants: [uri()]
+
+				};
+
+			} else if ( entry.kind === "type" ) {
+
+				return {
+
+					maxCount: 1,
+
+					variants: [uri()]
+
+				};
+
+			} else {
+
+				const { range } = entry;
+
+				return {
+
+					minCount: range.minCount,
+					maxCount: range.maxCount,
+
+					variants: range.shape.kind === "union"
+						? Object.values(range.shape.variants)
+						: [range.shape]
+
+				};
+
+			}
+
+		}
+
+	}
+
+	/**
+	 * Multiply optional cardinalities, propagating undefined.
+	 */
+	function multiply(a: number | undefined, b: number | undefined): number | undefined {
+
+		if ( a === undefined || b === undefined ) {
+			return undefined;
+		} else {
+			return a*b === 0 ? undefined : a*b;
+		}
+
+	}
+
+
+	/**
+	 * Apply the transform pipe to each variant, adjusting cardinality and assembling the output range.
+	 */
+	function transform(focus: Focus | undefined): Range | undefined {
+
+		if ( focus === undefined ) { return undefined; } else {
+
+			const successes = focus.variants
+				.map(reduce)
+				.filter(r => r !== undefined);
+
+			if ( successes.length === 0 ) {
+
+				return undefined;
+
+			} else {
+
+				const piped = pipe.length > 0;
+				const aggregate = pipe.some(name => Transforms[name].aggregate);
+
+				return toRange({
+
+					minCount: piped ? undefined : focus.minCount,
+					maxCount: aggregate ? 1 : focus.maxCount,
+
+					variants: successes
+
+				});
+
+			}
+		}
+	}
+
+	/**
+	 * Apply the transform pipe to a single shape, returning undefined on type incompatibility.
+	 */
+	function reduce(shape: ValueShape): ValueShape | undefined {
+
+		return pipe.reduce<{ shape: ValueShape; aggregate: boolean } | undefined>((state, name) => {
+
+			if ( state === undefined ) { return undefined; } else {
+
+				const localised = isLocalised(state.shape);
+				const transform = Transforms[name];
+
+				const accepted = localised ? (transform.accepts === "string" && transform.returns === "same")
+					: transform.accepts === "any" ? true
+						: transform.accepts === "numeric" ? isNumeric(state.shape)
+							: transform.accepts === "string" ? isTextual(state.shape)
+								: transform.accepts === "temporal" ? isTemporal(state.shape)
+									: false;
+
+				return !accepted || (transform.aggregate && state.aggregate) ? undefined : {
+
+					aggregate: state.aggregate || transform.aggregate,
+
+					shape: transform.returns === "same" ? state.shape
+						: transform.returns === "integer" ? integer()
+							: transform.returns === "decimal" ? decimal()
+								: transform.returns === "string" ? (localised ? state.shape : string())
+									: report<ValueShape>(`unsupported transform output type '${transform.returns}'`)
+
+				};
+
+			}
+
+		}, {
+
+			aggregate: false,
+			shape
+
+		})?.shape;
+
+	}
+
+
+	function isNumeric(shape: ValueShape) {
+		return shape.kind === "number";
+	}
+
+	function isTextual(shape: ValueShape) {
+		return shape.kind === "string" && !Temporal.has(shape.model);
+	}
+
+	function isTemporal(shape: ValueShape) {
+		return shape.kind === "string" && Temporal.has(shape.model);
+	}
+
+	function isLocalised(shape: ValueShape) {
+		return shape.kind === "local" || shape.kind === "locals";
+	}
+
+
+	/**
+	 * Convert a focus to an output range, wrapping multiple variants into a union.
+	 */
+	function toRange({ minCount, maxCount, variants }: Focus): Range {
+
+		return immutable({
+
+			kind: "range",
+
+			minCount,
+			maxCount,
+
+			shape: variants.length === 1 ? variants[0] : {
+
+				kind: "union",
+
+				model: Object.fromEntries(variants.map((s, i) => [s.kind+"#"+i, s.model])),
+				variants: Object.fromEntries(variants.map((s, i) => [s.kind+"#"+i, s]))
+
+			}
+
+		});
 
 	}
 
@@ -256,13 +629,16 @@ export function collect(traces: readonly Trace[]): Trace {
 
 				Object.entries(entry).forEach(([key, trace]) => {
 
-					if ( !isIdentifier(key) ) {
-						throw new TypeError(`invalid nested trace key <${key}>`);
-					}
-
-					accumulator.records[key] = accumulator.records[key] === undefined
+					const merged = accumulator.records[key] === undefined
 						? collect([trace as Trace]) // merge singleton to validate
 						: collect([accumulator.records[key], trace as Trace]);
+
+					if ( merged.length > 0 ) {
+						accumulator.records[key] = merged;
+					} else {
+						delete accumulator.records[key];
+					}
+
 				});
 
 			} else {

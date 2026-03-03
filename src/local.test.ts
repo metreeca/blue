@@ -485,7 +485,7 @@ describe("validators", () => {
 
 			it("returns empty trace when all strings meet minimum length", async () => {
 
-				expect(validateLocal([{ en: "hello", fr: "bonjour" }], local({ minLength: 3 }))).toEqual([]);
+				expect(validateLocal([{ en: "hello", fr: "bonjour" }], local({ minLength: 3 }))).toEqual([{ en: [], fr: [] }]);
 
 			});
 
@@ -507,7 +507,7 @@ describe("validators", () => {
 
 			it("returns empty trace when all strings are within maximum length", async () => {
 
-				expect(validateLocal([{ en: "hello", fr: "bonjour" }], local({ maxLength: 10 }))).toEqual([]);
+				expect(validateLocal([{ en: "hello", fr: "bonjour" }], local({ maxLength: 10 }))).toEqual([{ en: [], fr: [] }]);
 
 			});
 
@@ -529,7 +529,7 @@ describe("validators", () => {
 				expect(validateLocal([{
 					en: "hello",
 					fr: "bonjour"
-				}], local({ languageIn: ["en", "fr"] }))).toEqual([]);
+				}], local({ languageIn: ["en", "fr"] }))).toEqual([{ en: [], fr: [] }]);
 
 			});
 
@@ -546,8 +546,8 @@ describe("validators", () => {
 
 				const shape = local({ languageIn: ["en-*"] });
 
-				expect(validateLocal([{ "en-US": "color" }], shape)).toEqual([]);
-				expect(validateLocal([{ "en-GB": "colour" }], shape)).toEqual([]);
+				expect(validateLocal([{ "en-US": "color" }], shape)).toEqual([{ "en-US": [] }]);
+				expect(validateLocal([{ "en-GB": "colour" }], shape)).toEqual([{ "en-GB": [] }]);
 
 			});
 
@@ -567,7 +567,7 @@ describe("validators", () => {
 					minLength: 2,
 					maxLength: 10,
 					languageIn: ["en", "fr"]
-				}))).toEqual([]);
+				}))).toEqual([{ en: [], fr: [] }]);
 
 			});
 
@@ -595,7 +595,7 @@ describe("validators", () => {
 
 			it("validates plain string values as { und: value }", async () => {
 
-				expect(validateLocal(["hello"], local({ minLength: 3 }))).toEqual([]);
+				expect(validateLocal(["hello"], local({ minLength: 3 }))).toEqual([{ und: [] }]);
 
 			});
 
@@ -613,7 +613,7 @@ describe("validators", () => {
 
 			it("returns empty trace when plain string matches languageIn with und", async () => {
 
-				expect(validateLocal(["hello"], local({ languageIn: ["und"] }))).toEqual([]);
+				expect(validateLocal(["hello"], local({ languageIn: ["und"] }))).toEqual([{ und: [] }]);
 
 			});
 
@@ -644,22 +644,22 @@ describe("validators", () => {
 			it("includes only violating tag keys", async () => {
 
 				const trace = validateLocal([{ en: "hi", fr: "bonjour" }], local({ minLength: 5 }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, unknown> | undefined;
+				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
 
 				expect(dict).toBeDefined();
-				expect(dict).toHaveProperty("en");
-				expect(dict).not.toHaveProperty("fr");
+				expect(dict!["en"].length).toBeGreaterThan(0);
+				expect(dict!["fr"]).toEqual([]);
 
 			});
 
 			it("includes range key for subtag violation", async () => {
 
 				const trace = validateLocal([{ "en-US": "color", "de": "farbe" }], local({ languageIn: ["en-*"] }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, unknown> | undefined;
+				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
 
 				expect(dict).toBeDefined();
-				expect(dict).toHaveProperty("de");
-				expect(dict).not.toHaveProperty("en-US");
+				expect(dict!["de"].length).toBeGreaterThan(0);
+				expect(dict!["en-US"]).toEqual([]);
 
 			});
 
@@ -676,7 +676,7 @@ describe("validators", () => {
 				expect(validateLocals([{
 					en: ["hello", "world"],
 					fr: ["bonjour"]
-				}], locals({ minLength: 3 }))).toEqual([]);
+				}], locals({ minLength: 3 }))).toEqual([{ en: [], fr: [] }]);
 
 			});
 
@@ -695,7 +695,7 @@ describe("validators", () => {
 				expect(validateLocals([{
 					en: ["hello", "hi"],
 					fr: ["bonjour"]
-				}], locals({ maxLength: 10 }))).toEqual([]);
+				}], locals({ maxLength: 10 }))).toEqual([{ en: [], fr: [] }]);
 
 			});
 
@@ -714,7 +714,7 @@ describe("validators", () => {
 				expect(validateLocals([{
 					en: ["hello"],
 					fr: ["bonjour"]
-				}], locals({ languageIn: ["en", "fr"] }))).toEqual([]);
+				}], locals({ languageIn: ["en", "fr"] }))).toEqual([{ en: [], fr: [] }]);
 
 			});
 
@@ -729,7 +729,7 @@ describe("validators", () => {
 
 			it("handles language range matching", async () => {
 
-				expect(validateLocals([{ "en-US": ["color"] }], locals({ languageIn: ["en-*"] }))).toEqual([]);
+				expect(validateLocals([{ "en-US": ["color"] }], locals({ languageIn: ["en-*"] }))).toEqual([{ "en-US": [] }]);
 
 			});
 
@@ -743,7 +743,7 @@ describe("validators", () => {
 					minLength: 2,
 					maxLength: 10,
 					languageIn: ["en", "fr"]
-				}))).toEqual([]);
+				}))).toEqual([{ en: [], fr: [] }]);
 
 			});
 
@@ -762,7 +762,7 @@ describe("validators", () => {
 
 			it("validates plain string array values as { und: value }", async () => {
 
-				expect(validateLocals([["hello", "world"]], locals({ minLength: 3 }))).toEqual([]);
+				expect(validateLocals([["hello", "world"]], locals({ minLength: 3 }))).toEqual([{ und: [] }]);
 
 			});
 
@@ -780,7 +780,7 @@ describe("validators", () => {
 
 			it("returns empty trace when plain string array matches languageIn with und", async () => {
 
-				expect(validateLocals([["hello"]], locals({ languageIn: ["und"] }))).toEqual([]);
+				expect(validateLocals([["hello"]], locals({ languageIn: ["und"] }))).toEqual([{ und: [] }]);
 
 			});
 
@@ -811,11 +811,11 @@ describe("validators", () => {
 			it("includes only violating tag keys", async () => {
 
 				const trace = validateLocals([{ en: ["hi"], fr: ["bonjour"] }], locals({ minLength: 5 }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, unknown> | undefined;
+				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
 
 				expect(dict).toBeDefined();
-				expect(dict).toHaveProperty("en");
-				expect(dict).not.toHaveProperty("fr");
+				expect(dict!["en"].length).toBeGreaterThan(0);
+				expect(dict!["fr"]).toEqual([]);
 
 			});
 
@@ -825,11 +825,11 @@ describe("validators", () => {
 					"en-US": ["color"],
 					"de": ["farbe"]
 				}], locals({ languageIn: ["en-*"] }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, unknown> | undefined;
+				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
 
 				expect(dict).toBeDefined();
-				expect(dict).toHaveProperty("de");
-				expect(dict).not.toHaveProperty("en-US");
+				expect(dict!["de"].length).toBeGreaterThan(0);
+				expect(dict!["en-US"]).toEqual([]);
 
 			});
 

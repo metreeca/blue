@@ -224,7 +224,6 @@ import {
 import { assert } from "@metreeca/core/error";
 import { immutable } from "@metreeca/core/nested";
 import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
-import type { Binding } from "@metreeca/qest/model";
 import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
 import { isValueShape, materialize } from "./index.core.js";
 import type { Infer, Validator, ValueShape } from "./index.js";
@@ -354,12 +353,9 @@ export interface ResourceShape extends ResourceConstraints {
 	/**
 	 * Property shapes defining the expected structure.
 	 *
-	 * Property keys are either plain {@link Identifier identifiers} or {@link Binding bindings} for computed values.
-	 * Binding suffixes are stripped when projecting to the resource type via {@link Projection}.
-	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
 	 */
-	readonly properties: { readonly [property: Identifier | Binding]: Id | Type | Property };
+	readonly properties: { readonly [property: Identifier]: Id | Type | Property };
 
 }
 
@@ -730,11 +726,10 @@ export interface Union<
 /**
  * Property definitions for a {@link ResourceShape}.
  *
- * Maps property names to their definitions. Property names may include an `=${expression}` suffix for computed
- * values, which is stripped when projecting to the resource type.
+ * Maps property names to their definitions.
  */
 export type Entries =
-	| { readonly [property: Identifier | Binding]: Entry };
+	| { readonly [property: Identifier]: Entry };
 
 /**
  * A property definition entry.
@@ -755,8 +750,8 @@ export type Entry =
  * Checks that child property overrides are assignable to inherited types.
  */
 export type Overrides<E extends Entries, I> = {
-	[K in keyof E]: Projection<K & string> extends keyof I
-		? Content<E[K]> extends I[Projection<K & string>] ? E[K] : never
+	[K in keyof E]: K & string extends keyof I
+		? Content<E[K]> extends I[K & string] ? E[K] : never
 		: E[K]
 };
 
@@ -796,16 +791,8 @@ export type Intersection<U extends Value> =
  * @typeParam E The entries type
  */
 export type Composition<E extends Entries> =
-	& { readonly [K in RequiredKeys<E> as Projection<K & string>]: Content<E[K]> }
-	& { readonly [K in OptionalKeys<E> as Projection<K & string>]?: Exclude<Content<E[K]>, undefined> };
-
-/**
- * Strips the `=expression` suffix from a property key.
- *
- * @typeParam K The property key
- */
-export type Projection<K extends string> =
-	K extends `${infer Base}=${string}` ? Base : K;
+	& { readonly [K in RequiredKeys<E> as K & string]: Content<E[K]> }
+	& { readonly [K in OptionalKeys<E> as K & string]?: Exclude<Content<E[K]>, undefined> };
 
 /**
  * Extracts the content type from an {@link Entry}.

@@ -35,7 +35,6 @@ import {
 	type Content,
 	multiple,
 	optional,
-	type Projection,
 	property,
 	type Range,
 	reference,
@@ -719,33 +718,9 @@ describe("override validation", () => {
 });
 
 
-describe("Projection", () => {
+describe("Composition", () => {
 
-	test("extracts identifier from plain key", () => {
-		expectTypeOf<Projection<"name">>().toEqualTypeOf<"name">();
-	});
-
-	test("extracts identifier from expression-annotated key", () => {
-		expectTypeOf<Projection<"name=?name">>().toEqualTypeOf<"name">();
-	});
-
-	test("handles complex expressions", () => {
-		expectTypeOf<Projection<"count=count(*)">>().toEqualTypeOf<"count">();
-	});
-
-	test("Composition strips suffix from expression-annotated keys", () => {
-
-		const shape = resource({
-			"name=label": required(string()),
-			"count=count:items": optional(integer())
-		});
-
-		expectTypeOf<Infer<typeof shape>>().toHaveProperty("name").toEqualTypeOf<string>();
-		expectTypeOf<Infer<typeof shape>>().toHaveProperty("count").toEqualTypeOf<number | undefined>();
-
-	});
-
-	test("Composition preserves plain identifier keys unchanged", () => {
+	test("maps identifier keys to their content types", () => {
 
 		const shape = resource({
 			name: required(string()),
@@ -757,21 +732,7 @@ describe("Projection", () => {
 
 	});
 
-	test("Composition handles mixed plain and expression-annotated keys", () => {
-
-		const shape = resource({
-			"label=rdfs:label": required(string()),
-			name: required(string()),
-			"count=count:items": optional(integer())
-		});
-
-		expectTypeOf<Infer<typeof shape>>().toHaveProperty("label").toEqualTypeOf<string>();
-		expectTypeOf<Infer<typeof shape>>().toHaveProperty("name").toEqualTypeOf<string>();
-		expectTypeOf<Infer<typeof shape>>().toHaveProperty("count").toEqualTypeOf<number | undefined>();
-
-	});
-
-	test("Composition accepts extra properties via Resource index signature", () => {
+	test("accepts extra properties via Resource index signature", () => {
 
 		const shape = resource({
 			name: required(string())

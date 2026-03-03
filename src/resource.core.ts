@@ -38,25 +38,17 @@ import {
 } from "@metreeca/core";
 import { isIRI } from "@metreeca/core/resource";
 import { isIndexed } from "@metreeca/qest/index";
+import { decodeProbe, type Model, type Probe, type Query } from "@metreeca/qest/model";
 import {
-	decodeCriterion,
-	isBinding,
-	isLocalModel,
-	isLocalsModel,
-	isModel,
-	isQuery,
-	type Model,
-	type Query
-} from "@metreeca/qest/model";
-import {
-	isLocal as isLocalValue,
+	isLocal,
+	isLocals,
 	isReference,
 	isValue,
 	type Reference,
 	type Resource,
 	type Value
 } from "@metreeca/qest/state";
-import { collect, isValidator, isValueShape, materialize, validateValue } from "./index.core.js";
+import { apply, isValidator, isValueShape, materialize, validateValue } from "./index.core.js";
 import type { Trace, Validator, ValueShape } from "./index.js";
 import type {
 	Entries,
@@ -92,8 +84,8 @@ const ResourceConstraintsTemplate = {
 
 	virtual: (v: unknown) => isOptional(v, isBoolean),
 
-	name: (v: unknown) => isOptional(v, isLocalValue),
-	description: (v: unknown) => isOptional(v, isLocalValue),
+	name: (v: unknown) => isOptional(v, isLocal),
+	description: (v: unknown) => isOptional(v, isLocal),
 	namespace: (v: unknown) => isOptional(v, isFunction),
 
 	extends: (v: unknown) => isOptional(v, v => isSome(v, v => isLazy(v, isResourceShape))),
@@ -116,19 +108,14 @@ const PropertyConstraintsTemplate = {
 	hidden: (v: unknown) => isOptional(v, isBoolean),
 	computed: (v: unknown) => isOptional(v, isBoolean),
 
-	name: (v: unknown) => isOptional(v, isLocalValue),
-	description: (v: unknown) => isOptional(v, isLocalValue),
+	name: (v: unknown) => isOptional(v, isLocal),
+	description: (v: unknown) => isOptional(v, isLocal),
 
 	forward: (v: unknown) => isOptional(v, v => isIRI(v, "absolute") || isFunction(v)),
 	reverse: (v: unknown) => isOptional(v, v => isIRI(v, "absolute") || isFunction(v))
 
 };
 
-
-/**
- * Generic object type for resource values under validation.
- */
-type Object = Record<string, unknown>;
 
 /**
  * Shorthand for the properties map of a {@link ResourceShape}.
@@ -184,7 +171,7 @@ export function isResourceShape(value: unknown): value is ResourceShape {
 		properties: v => {
 
 			if ( isObject(v, (v, k) =>
-				(isIdentifier(k) || isBinding(k)) && (isId(v) || isType(v) || isProperty(v))
+				isIdentifier(k) && (isId(v) || isType(v) || isProperty(v))
 			) ) {
 
 				// at most one id and one type entry
@@ -301,8 +288,8 @@ export function isPropertyConstraints(value: unknown): value is PropertyConstrai
  *
  * @param value The value to check
  *
- * @returns true if `value` has `kind: "range"`, optional `minCount`/`maxCount` numbers, and a valid `shape`;
- *     false otherwise
+ * @returns true if `value` has `kind: "range"`, optional `minCount`/`maxCount` numbers, and a `shape` that is a
+ *     {@link ValueShape} or {@link Union}; false otherwise
  */
 export function isRange(value: unknown): value is Range {
 	return isObject(value, {
@@ -342,7 +329,7 @@ export function isUnion(value: unknown): value is Union {
 /**
  * Checks whether a value is a valid {@link Entries} object.
  *
- * Validates that all keys are identifiers or bindings, and all values are valid {@link Entry entries}.
+ * Validates that all keys are identifiers and all values are valid {@link Entry entries}.
  *
  * @group Guards
  *
@@ -351,7 +338,7 @@ export function isUnion(value: unknown): value is Union {
  * @returns true if `value` is an object with valid entry keys and values; false otherwise
  */
 export function isEntries(value: unknown): value is Entries {
-	return isObject(value, (v, k) => (isIdentifier(k) || isBinding(k)) && isEntry(v));
+	return isObject(value, (v, k) => isIdentifier(k) && isEntry(v));
 }
 
 /**
@@ -409,7 +396,6 @@ export function validateReference(values: readonly Reference[], shape: Reference
 
 }
 
-
 /**
  * Validates complete resource states against a {@link ResourceShape}.
  *
@@ -423,84 +409,347 @@ export function validateReference(values: readonly Reference[], shape: Reference
  */
 export function validateResource(values: readonly Resource[], shape: ResourceShape): Trace {
 
-	const { properties, overrides, validators } = resolveInheritance(shape);
-	const labels = resolveLabels(properties);
+	const { properties, overrides, validators } = flatten(shape);
 
-	return values.flatMap(value => collect([
+	const envelope = new Set(Object.keys(properties));
 
-		[
-			validateId(value, properties, shape),
-			validateType(value, properties),
-			validateEnvelope(value, labels),
-			validateProperties(value, properties, overrides)
-		],
 
-		validators
+	return values.flatMap(value => [
+
+		Object.fromEntries([
+
+			// property validation — validate declared shape properties
+
+			...Object.entries(properties).map(([key, entry]) => [key,
+
+				entry.kind === "id" ? validateId(value[key])
+					: entry.kind === "type" ? validateType(value[key])
+						: entry.kind === "property" ? validateProperty(value[key], entry, overrides[key])
+							: []
+
+			]),
+
+			// envelope validation — reject unknown properties
+
+			...Object.keys(value)
+				.filter(key => !envelope.has(key))
+				.map(key => [key, [`unexpected property`]])
+
+		]),
+
+		...validators
 			.filter(isFunction)
 			.flatMap(validator => validator(value).filter(isString))
 
-	]));
+	]);
+
+
+	function validateId(v: unknown): Trace {
+
+		return [
+
+			// format validation
+
+			...(v === undefined ? [`expected required id`] : [
+				(!Array.isArray(v)) || `expected single value`,
+				(isString(v) && isIRI(v, "absolute")) || `expected absolute IRI`
+			].filter(isString)),
+
+			// constraint validation
+
+			...(!isString(v) ? [] : [
+
+				(shape.pattern === undefined || match(v as Reference, shape.pattern))
+				|| `expected IRI matching pattern <${shape.pattern}>`,
+
+				(shape.in === undefined || shape.in.includes(v as Reference))
+				|| `expected IRI in [${shape.in.join(", ")}]`,
+
+				(shape.hasValue === undefined || shape.hasValue.includes(v as Reference))
+				|| `expected values to include [${shape.hasValue.join(", ")}]`
+
+			].filter(isString))
+
+		];
+
+	}
+
+	function validateType(v: unknown): Trace {
+
+		return v === undefined ? [] : [
+			(!Array.isArray(v)) || `expected single value`,
+			(isString(v) && isIRI(v, "absolute")) || `expected absolute IRI`
+		].filter(isString);
+
+	}
+
+	function validateProperty(v: unknown, entry: Property, inherited?: readonly Range[]): Trace {
+
+		return [
+
+			// range validation
+
+			...validateRange(v, entry.range),
+
+			// inherited range validation
+
+			...inherited?.flatMap(range => validateRange(v, range)) ?? []
+
+		];
+
+	}
+
+	function validateRange(value: unknown, range: Range): Trace {
+
+		const { minCount, maxCount, shape } = range;
+
+		const isScalar = maxCount === 1;
+
+		const values: readonly Value[] = value === undefined ? [] : Array.isArray(value) ? value : [value];
+
+
+		return [
+
+			// shape validation (scalar vs array)
+
+			...([
+				(value === undefined || isScalar !== Array.isArray(value))
+				|| (isScalar ? `expected scalar value` : `expected array value`)
+			].filter(isString)),
+
+
+			// cardinality validation
+
+			...([
+
+				(minCount === undefined || values.length >= minCount)
+				|| `expected at least ${minCount} value(s), got ${values.length}`,
+
+				(maxCount === undefined || values.length <= maxCount)
+				|| `expected at most ${maxCount} value(s), got ${values.length}`
+
+			].filter(isString)),
+
+			// value validation — delegate to union matching when shape is a union
+
+			...(shape.kind === "union"
+					? validateUnion(values, shape)
+					: validateValue(values, shape)
+			)
+
+		];
+
+	}
+
+	function validateUnion(values: readonly Value[], union: Union): Trace {
+
+		const variants = Object.values(union.variants);
+
+		return values
+			.filter(v => !variants.some(shape => validateValue([v], shape).length === 0))
+			.map(() => `value does not match any allowed type`);
+
+	}
 
 }
 
 /**
- * Validates query/projection models against a {@link ResourceShape}.
+ * Validates projection models against a {@link ResourceShape}.
  *
- * Checks closed shape enforcement, property shape (scalar vs singleton tuple), and inherited properties. Value
- * constraints, minCount/maxCount cardinality, and custom validators are skipped as a model describes a projection shape
- * rather than actual data. Unknown properties are rejected but missing properties are accepted as not requested.
+ * Checks property shape (scalar vs singleton tuple), inherited properties, and {@link Probe} keys (transform pipe
+ * resolution and projection type-checking). Value constraints, minCount/maxCount cardinality, and custom validators are
+ * skipped as a model describes a projection shape rather than actual data. Unknown properties are silently skipped and
+ * missing properties are accepted as not requested. Wherever a property specifies a resource (either directly or via a
+ * reference), the model value may be either a {@link Reference} (retrieving just the id) or a nested resource model,
+ * subject to `depth` limits.
  *
  * @param values The model instances to validate
  * @param shape The resource shape defining the expected structure
- * @param depth Maximum nesting depth for reference and embedded resource expansion; `0` rejects any nested model or
- *     query while still accepting IRI references; `null` for unlimited
+ * @param depth Maximum nesting depth for reference and embedded resource expansion; `0` rejects any nested model
+ *     while still accepting IRI references; `null` for unlimited
  *
  * @returns A trace of validation errors, empty if all models are valid
  */
-export function validateModel(values: readonly Model[], shape: ResourceShape, depth?: null | number): Trace {
+export function validateModel(values: readonly Model[], shape: ResourceShape, depth: null | number): Trace {
 
-	const { properties } = resolveInheritance(shape);
-	const labels = resolveLabels(properties);
+	return values.flatMap(value => [
 
-	return values.flatMap(value => collect([[
+		Object.fromEntries(Object.entries(value).map(([key, v]) => {
 
-		validateId(value, properties),
-		validateType(value, properties),
-		validateEnvelope(value, labels),
-		validateModelProperties(value, properties, depth)
+			return [key, validateBinding(v, decodeProbe(key), shape, depth)];
 
-	]]));
+		}))
 
-}
+	]);
 
-/**
- * Validates query/projection models with filtering, ordering, and pagination criteria against a {@link ResourceShape}.
- *
- * Extends {@link validateModel} to handle query-specific keys: projection properties are validated for existence and
- * type compatibility; operator-prefixed filter and ordering keys are validated to ensure referenced expressions resolve
- * to properties defined in the shape; pagination keys are accepted structurally.
- *
- * @param values The query instances to validate
- * @param shape The resource shape defining the expected structure
- * @param depth Maximum nesting depth for reference and embedded resource expansion; `0` rejects any nested model or
- *     query while still accepting IRI references; `null` for unlimited
- *
- * @returns A trace of validation errors, empty if all queries are valid
- */
-export function validateQuery(values: readonly Query[], shape: ResourceShape, depth?: null | number): Trace {
 
-	const { properties } = resolveInheritance(shape);
-	const labels = resolveLabels(properties);
+	function validateBinding(v: unknown, binding: Probe, shape: ValueShape, depth: null | number): Trace {
 
-	return values.flatMap(value => collect([[
+		// probe target is already checked to be an Identifier by structural type guards
 
-		validateId(value, properties),
-		validateType(value, properties),
-		validateQueryEnvelope(value, labels),
-		validateModelProperties(value, properties, depth),
-		...validateQueryCriteria(value, properties)
+		const effective = apply(binding, shape);
 
-	]]));
+		// undefined range means the binding cannot be populated at runtime; skip validation
+
+		return effective === undefined ? [] : validateRange(v, effective, depth);
+
+	}
+
+	function validateRange(value: unknown, range: Range, depth: null | number): Trace {
+
+		const { maxCount, shape } = range;
+
+		const isScalar = maxCount === 1;
+
+		const values = value === undefined ? [] : Array.isArray(value) ? value : [value];
+
+
+		return [
+
+			// shape validation (scalar vs singleton tuple); tuple arity already checked by structural type guards
+
+			...([
+				(value === undefined || isScalar !== Array.isArray(value))
+				|| (isScalar ? `expected scalar value` : `expected array value`)
+			].filter(isString)),
+
+			// template validation — delegate to union matching or type-specific check
+
+			...(shape.kind === "union"
+					? validateUnion(values, shape, range, depth)
+					: validateTemplate(values, range, depth)
+			)
+
+		];
+
+	}
+
+	function validateUnion(values: readonly unknown[], union: Union, range: Range, depth: null | number): Trace {
+
+		const variants = Object.values(union.variants);
+
+		return values
+			.filter(v => !variants.some(variant => validateTemplate([v], { ...range, shape: variant }, depth).length === 0))
+			.map(() => `value does not match any allowed type`);
+
+	}
+
+	function validateTemplate(values: readonly unknown[], range: Range, depth: null | number): Trace {
+
+		const { maxCount, shape } = range;
+
+		const collection = maxCount === undefined || maxCount > 1;
+
+
+		switch ( shape.kind ) {
+
+			case "boolean":
+
+				return validate(values, isBoolean);
+
+			case "number":
+
+				return validate(values, isNumber);
+
+			case "string":
+
+				return validate(values, isString);
+
+			case "local":
+
+				return validate(values, isLocal);
+
+			case "locals":
+
+				return validate(values, isLocals);
+
+			case "reference":
+
+				return validateNested(values, collection, materialize(shape.shape), depth);
+
+			case "resource":
+
+				return validateNested(values, collection, shape, depth);
+
+			default:
+
+				return [];
+
+		}
+
+
+		function validate(values: readonly unknown[], guard: (v: unknown) => boolean): Trace {
+			return values
+				.filter(v => !guard(v))
+				.map(() => `expected ${shape.kind} values`);
+		}
+
+	}
+
+	function validateNested(values: readonly unknown[], collection: boolean, target: ResourceShape, depth: null | number): Trace {
+		return values.flatMap(v => {
+
+			if ( isReference(v) ) {
+
+				return [];
+
+			} else if ( !isObject(v) ) {
+
+				return [];
+
+			} else if ( depth !== null && depth <= 0 ) {
+
+				return [`exceeded maximum nesting depth`];
+
+			} else if ( collection ) {
+
+				return validateQuery([v as Query], target, depth === null ? depth : depth-1);
+
+			} else {
+
+				return validateModel([v as Model], target, depth === null ? depth : depth-1);
+
+			}
+
+		});
+	}
+
+	function validateQuery(values: readonly Query[], shape: ResourceShape, depth: null | number): Trace {
+
+		return values.flatMap(value => [
+
+			Object.fromEntries(Object.entries(value).map(([key, v]) => {
+
+				const probe = decodeProbe(key);
+				const { target } = probe;
+
+				if ( target === "@" || target === "#" ) {
+
+					return [key, []]; // !!! validate paging parameters
+
+				} else if ( target === "<" || target === ">" || target === "<=" || target === ">=" ) {
+
+					return [key, []]; // !!! validate comparison operators
+
+				} else if ( target === "~" || target === "?" || target === "!" || target === "*" ) {
+
+					return [key, []]; // !!! validate filter operators
+
+				} else if ( target === "^" ) {
+
+					return [key, []]; // !!! validate sort operator
+
+				} else {
+
+					return [key, validateBinding(v, probe, shape, depth)];
+
+				}
+
+			}))
+
+		]);
+
+	}
 
 }
 
@@ -510,15 +759,13 @@ export function validateQuery(values: readonly Query[], shape: ResourceShape, de
 /**
  * Flattens the inheritance chain of a {@link ResourceShape} into merged properties, overrides, and validators.
  *
- * Walks `extends` references recursively, merging parent properties and validators left-to-right. Child definitions
- * override inherited ones for properties; validators are deduplicated using `Set` identity. When a child overrides
- * an inherited property, the inherited range is tracked in the overrides map for conjunctive constraint enforcement.
+ * Overridden inherited ranges are tracked in the overrides map for conjunctive constraint enforcement.
  *
  * @param shape The shape whose inheritance chain is to be resolved
  *
  * @returns The merged properties, inherited range overrides, and deduplicated validators
  */
-function resolveInheritance(shape: ResourceShape): {
+export function flatten(shape: ResourceShape): {
 	properties: Properties;
 	overrides: Record<string, readonly Range[]>;
 	validators: readonly Validator<Resource>[];
@@ -540,582 +787,46 @@ function resolveInheritance(shape: ResourceShape): {
 			? parents.map(p => materialize(p))
 			: [materialize(parents)];
 
-		// merge parent properties and validators
+		// merge parent properties/validators left-to-right; deduplicate validators by Set identity
 
 		const inherited = parentShapes
-			.map(resolveInheritance)
-			.reduce((acc, resolved) => ({
-				properties: { ...acc.properties, ...resolved.properties },
-				overrides: { ...acc.overrides, ...resolved.overrides },
-				validators: [...new Set([...acc.validators, ...resolved.validators])]
+			.map(flatten)
+			.reduce((inherited, resolved) => ({
+				properties: { ...inherited.properties, ...resolved.properties },
+				overrides: { ...inherited.overrides, ...resolved.overrides },
+				validators: [...new Set([...inherited.validators, ...resolved.validators])]
 			}), {
 				properties: {} as Properties,
 				overrides: {} as Record<string, readonly Range[]>,
 				validators: [] as readonly Validator<Resource>[]
 			});
 
+		// collect inherited ranges overridden by local properties; propagate transitive overrides
+
+		const overrides = Object.entries(shape.properties)
+			.reduce((overrides, [key, local]) => {
+
+				const parent = inherited.properties[key];
+
+				if ( parent?.kind === "property" && local.kind === "property" ) {
+					return { ...overrides, [key]: [...(overrides[key] ?? []), parent.range] };
+				} else {
+					return overrides;
+				}
+
+			}, {
+				...inherited.overrides
+			});
+
 		return {
 			properties: { ...inherited.properties, ...shape.properties },
-			overrides: collectOverrides(inherited.properties, inherited.overrides, shape.properties),
+			overrides,
 			validators: [...new Set([...inherited.validators, ...(shape.validators ?? [])])]
 		};
 
 	}
 
 }
-
-
-/**
- * Extracts the set of user-visible property labels from a properties map.
- *
- * Strips alias suffixes (after `=`) to produce the canonical label used for closed-shape envelope checks.
- *
- * @param properties The resolved properties map
- *
- * @returns The set of canonical property labels
- */
-function resolveLabels(properties: Properties): Set<string> {
-
-	return new Set(
-		Object.keys(properties).map(key => key.includes("=") ? key.split("=")[0] : key)
-	);
-
-}
-
-/**
- * Collects inherited ranges for properties overridden by local definitions.
- *
- * When a local property overrides an inherited one, the inherited property's range is added to the overrides map so
- * that both the local and inherited constraints are validated conjunctively. Propagates transitive overrides from
- * parent shapes.
- *
- * @param inheritedProperties The resolved inherited properties
- * @param inheritedOverrides The inherited overrides from parent shapes
- * @param localProperties The local properties that may override inherited ones
- *
- * @returns The updated overrides map including newly overridden ranges
- */
-function collectOverrides(
-	inheritedProperties: Properties,
-	inheritedOverrides: Record<string, readonly Range[]>,
-	localProperties: Properties
-): Record<string, readonly Range[]> {
-	return Object.entries(localProperties).reduce((overrides, [key, local]) => {
-
-		const inherited = inheritedProperties[key];
-
-		if ( inherited?.kind === "property" && local.kind === "property" ) {
-			return { ...overrides, [key]: [...(overrides[key] ?? []), (inherited as Property).range] };
-		} else {
-			return overrides;
-		}
-
-	}, { ...inheritedOverrides } as Record<string, readonly Range[]>);
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates the id property of a resource value.
- *
- * Checks format (single absolute IRI) and, when `shape` is provided, enforces `pattern`, `in`, and `hasValue`
- * constraints. Reports a required-id error only in shape-aware mode.
- *
- * @param value The resource value to validate
- * @param properties The resolved properties map
- * @param shape Optional resource shape for constraint and requiredness checks
- *
- * @returns A record mapping the id key to its validation trace, empty if valid or no id property is defined
- */
-function validateId(value: Object, properties: Properties, shape?: ResourceShape): Record<string, Trace> {
-
-	const idEntry = Object.entries(properties).find(([, p]) => p.kind === "id");
-
-	if ( idEntry === undefined ) {
-
-		return {};
-
-	} else {
-
-		const [key] = idEntry;
-		const v = value[key];
-
-		const formatTrace: Trace = v === undefined
-			? (shape !== undefined ? [`expected required id`] : [])
-			: [
-				(!Array.isArray(v)) || `expected single value`,
-				(isString(v) && isIRI(v, "absolute")) || `expected absolute IRI`
-			].filter(isString);
-
-		const constraintTrace: Trace = shape === undefined || !isString(v) ? []
-			: [
-
-				(shape.pattern === undefined || match(v as Reference, shape.pattern))
-				|| `expected IRI matching pattern <${shape.pattern}>`,
-
-				(shape.in === undefined || shape.in.includes(v as Reference))
-				|| `expected IRI in [${shape.in.join(", ")}]`,
-
-				(shape.hasValue === undefined || shape.hasValue.includes(v as Reference))
-				|| `expected values to include [${shape.hasValue.join(", ")}]`
-
-			].filter(isString);
-
-		const trace = [...formatTrace, ...constraintTrace];
-
-		return trace.length > 0 ? { [key]: trace } : {};
-
-	}
-
-}
-
-/**
- * Validates the type property of a resource value.
- *
- * Checks that the type, when present, is a single absolute IRI. The type property is always optional.
- *
- * @param value The resource value to validate
- * @param properties The resolved properties map
- *
- * @returns A record mapping the type key to its validation trace, empty if valid or no type property is defined
- */
-function validateType(value: Object, properties: Properties): Record<string, Trace> {
-
-	const typeEntry = Object.entries(properties).find(([, p]) => p.kind === "type");
-
-	if ( typeEntry === undefined ) {
-
-		return {};
-
-	} else {
-
-		const [key] = typeEntry;
-		const v = value[key];
-
-		const trace: Trace = v === undefined
-			? []
-			: [
-				(!Array.isArray(v)) || `expected single value`,
-				(isString(v) && isIRI(v, "absolute")) || `expected absolute IRI`
-			].filter(isString);
-
-		return trace.length > 0 ? { [key]: trace } : {};
-
-	}
-
-}
-
-/**
- * Enforces closed-shape semantics by rejecting properties not defined in the shape.
- *
- * @param value The resource value to validate
- * @param labels The set of known property labels from the shape
- *
- * @returns A record mapping each unexpected property key to an error trace
- */
-function validateEnvelope(value: Object, labels: Set<string>): Record<string, Trace> {
-	return Object.fromEntries(
-		Object.keys(value)
-			.filter(key => !labels.has(key))
-			.map(key => [key, [`unexpected property`]])
-	);
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates all regular properties of a resource value against their local and inherited range definitions.
- *
- * Enforces conjunctive constraint semantics: when a child overrides a property, values must satisfy both the child's
- * constraints and all inherited constraints from parent shapes.
- *
- * @param value The resource value to validate
- * @param properties The resolved properties map
- * @param overrides The inherited ranges for overridden properties
- *
- * @returns A record mapping each invalid property label to its validation trace
- */
-function validateProperties(value: Object, properties: Properties, overrides: Record<string, readonly Range[]>): Record<string, Trace> {
-	return Object.fromEntries(
-		Object.entries(properties)
-			.filter(([, prop]) => prop.kind === "property")
-			.map(([key, prop]) => {
-				const name = key.includes("=") ? key.split("=")[0] : key;
-				const inherited = overrides[key]?.flatMap(range => validateRange(value[name], range)) ?? [];
-				return [name, [...validatePropertyRange(value[name], prop as Property), ...inherited]] as const;
-			})
-			.filter(([, trace]) => trace.length > 0)
-	);
-}
-
-/**
- * Validates a property value against its range.
- *
- * @param value The property value to validate
- * @param prop The property definition containing the range specification
- *
- * @returns A trace of validation errors
- */
-function validatePropertyRange(value: unknown, prop: Property): Trace {
-	return validateRange(value, prop.range);
-}
-
-/**
- * Validates a property value against a single {@link Range}.
- *
- * Checks shape (scalar vs array), cardinality (`minCount`/`maxCount`), and delegates value-level checks to
- * {@link validateValue} for plain shapes or {@link validateUnion} for union shapes.
- *
- * @param value The property value to validate
- * @param range The range definition
- *
- * @returns A trace of validation errors
- */
-function validateRange(value: unknown, range: Range): Trace {
-
-	const { minCount, maxCount, shape } = range;
-
-	const isScalar = maxCount === 1;
-	const values: readonly Value[] = value === undefined
-		? []
-		: Array.isArray(value) ? value : [value];
-
-	// shape validation (scalar vs array)
-
-	const shapeTraces: Trace = [
-		(value === undefined || isScalar !== Array.isArray(value))
-		|| (isScalar ? `expected scalar value` : `expected array value`)
-	].filter(isString);
-
-	// cardinality validation
-
-	const cardinalityTraces: Trace = [
-
-		(minCount === undefined || values.length >= minCount)
-		|| `expected at least ${minCount} value(s), got ${values.length}`,
-
-		(maxCount === undefined || values.length <= maxCount)
-		|| `expected at most ${maxCount} value(s), got ${values.length}`
-
-	].filter(isString);
-
-	// value validation — delegate to union matching when shape is a union
-
-	const valueTraces = shape.kind === "union"
-		? validateUnionValues(values, shape)
-		: validateValue(values, shape);
-
-	return [...shapeTraces, ...cardinalityTraces, ...valueTraces];
-
-}
-
-/**
- * Validates values against a {@link Union} of value shapes.
- *
- * Pure type matching: each individual value must match at least one variant. A value that fails all variants is
- * reported as a type mismatch. Cardinality is enforced by the enclosing {@link Range}, not here.
- *
- * @param values The values to validate
- * @param u The union definition
- *
- * @returns A trace of validation errors
- */
-function validateUnionValues(values: readonly Value[], u: Union): Trace {
-
-	const variantShapes = Object.values(u.variants);
-
-	return values
-		.filter(v => !variantShapes.some(shape => validateValue([v], shape).length === 0))
-		.map(() => `value does not match any allowed type`);
-
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates properties of a model (projection) value, checking only type and shape compatibility.
- *
- * Absent properties are accepted as not requested. Cardinality and value constraints are skipped since a model
- * describes a projection shape rather than actual data.
- *
- * @param value The model value to validate
- * @param properties The resolved properties map
- *
- * @returns A record mapping each invalid property label to its validation trace
- */
-function validateModelProperties(value: Object, properties: Properties, depth?: null | number): Record<string, Trace> {
-	return Object.fromEntries(
-		Object.entries(properties)
-			.filter(([, prop]) => prop.kind === "property")
-			.map(([key, prop]) => {
-				const name = key.includes("=") ? key.split("=")[0] : key;
-				return [name, validateModelPropertyRange(value[name], prop as Property, depth)] as const;
-			})
-			.filter(([, trace]) => trace.length > 0)
-	);
-}
-
-/**
- * Dispatches model property validation, accepting `undefined` (absent) unconditionally.
- *
- * @param value The property value to validate
- * @param prop The property definition
- *
- * @returns A trace of validation errors
- */
-function validateModelPropertyRange(value: unknown, prop: Property, depth?: null | number): Trace {
-
-	if ( value === undefined ) { // absent properties accepted in model mode
-
-		return [];
-
-	} else {
-
-		return validateModelRange(value, prop.range, depth);
-
-	}
-
-}
-
-/**
- * Validates a model property value against a single {@link Range}.
- *
- * Checks type compatibility first; shape (scalar vs array) is verified only when the type matches. Cardinality
- * constraints are skipped entirely. When the range shape is a union, delegates to union type matching.
- *
- * @param value The property value to validate
- * @param range The range definition
- *
- * @returns A trace of validation errors
- */
-function validateModelRange(value: unknown, range: Range, depth?: null | number): Trace {
-
-	const { maxCount, shape } = range;
-
-	const isScalar = maxCount === 1;
-	const values: readonly Value[] = Array.isArray(value) ? value : [value];
-
-	// type check — delegate to union matching when shape is a union
-
-	const typeTraces = shape.kind === "union"
-		? validateModelUnionValues(values, shape, depth)
-		: validateModelValue(values, shape, depth);
-
-	// shape validation (scalar vs array) - only when type matches
-
-	const shapeTraces: Trace = typeTraces.length === 0 ? [
-		(isScalar !== Array.isArray(value))
-		|| (isScalar ? `expected scalar value` : `expected array value`)
-	].filter(isString) : [];
-
-	return [...shapeTraces, ...typeTraces];
-
-}
-
-/**
- * Validates model values against a {@link Union} of value shapes.
- *
- * Type-only matching: cardinality and value constraints are skipped.
- *
- * @param values The values to validate
- * @param u The union definition
- *
- * @returns A trace of validation errors
- */
-function validateModelUnionValues(values: readonly Value[], u: Union, depth?: null | number): Trace {
-
-	const variantShapes = Object.values(u.variants);
-
-	return values
-		.filter(v => !variantShapes.some(shape => validateModelValue([v], shape, depth).length === 0))
-		.map(() => `value does not match any allowed type`);
-
-}
-
-/**
- * Validates model values for type compatibility only, without enforcing value constraints.
- *
- * For `reference` and `resource` shapes, recursively accepts references, queries, and nested models via
- * {@link validateQuery} and {@link validateModel}.
- *
- * @param values The values to type-check
- * @param shape The expected value shape
- *
- * @returns A trace of validation errors
- */
-function validateModelValue(values: readonly Value[], shape: ValueShape, depth?: null | number): Trace {
-
-	switch ( shape.kind ) {
-
-		case "boolean":
-
-			return values.flatMap(v => isBoolean(v) ? [] : [`expected boolean values`]);
-
-		case "number":
-
-			return values.flatMap(v => isNumber(v) ? [] : [`expected number values`]);
-
-		case "string":
-
-			return values.flatMap(v => isString(v) ? [] : [`expected string values`]);
-
-		case "local":
-
-			return values.flatMap(v => isLocalModel(v) ? [] : [`expected local values`]);
-
-		case "locals":
-
-			return values.flatMap(v => isLocalsModel(v) ? [] : [`expected locals values`]);
-
-		case "reference":
-
-			const targetShape = materialize(shape.shape);
-
-			return values.flatMap(v =>
-				isReference(v) ? []
-					: (depth ?? 0) <= 0 && depth !== null ? [`exceeded maximum nesting depth`]
-						: isQuery(v) ? validateQuery([v], targetShape, decrement(depth))
-							: isModel(v) ? validateModel([v], targetShape, decrement(depth))
-								: [`expected reference, model values, or query`]
-			);
-
-		case "resource":
-
-			return values.flatMap(v =>
-				(depth ?? 0) <= 0 && depth !== null ? [`exceeded maximum nesting depth`]
-					: isQuery(v) ? validateQuery([v], shape, decrement(depth))
-						: isModel(v) ? validateModel([v], shape, decrement(depth))
-							: [`expected model values or query`]
-			);
-
-	}
-
-}
-
-/**
- * Decrements a depth counter, returning `null` unchanged.
- *
- * @param depth The current depth limit, or `null` for unlimited
- *
- * @returns `depth - 1` when a number; `null` otherwise
- */
-function decrement(depth: null | number | undefined): null | number | undefined {
-	return depth === null || depth === undefined ? depth : depth-1;
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Enforces closed-shape semantics for query values, filtering out operator-prefixed criterion keys before checking.
- *
- * Only plain identifier keys are validated against the shape; operator-prefixed keys are handled separately by
- * {@link validateQueryCriteria}.
- *
- * @param value The query value to validate
- * @param labels The set of known property labels from the shape
- *
- * @returns A record mapping each unexpected identifier key to an error trace
- */
-function validateQueryEnvelope(value: Object, labels: Set<string>): Record<string, Trace> {
-
-	return validateEnvelope(
-		Object.fromEntries(Object.entries(value).filter(([key]) => isIdentifier(key))),
-		labels
-	);
-
-}
-
-/**
- * Validates operator-prefixed filter and ordering criterion keys in a query value.
- *
- * Decodes each criterion key and resolves the embedded property path through nested shapes via
- * {@link resolvePath}. Malformed keys are reported directly.
- *
- * @param value The query value to validate
- * @param properties The resolved properties map
- *
- * @returns A trace of validation errors for unresolvable or malformed criteria
- */
-function validateQueryCriteria(value: Object, properties: Properties): Trace {
-
-	return Object.keys(value)
-		.filter(key => !isIdentifier(key) && key !== "@" && key !== "#")
-		.flatMap(key => {
-
-			try {
-
-				const { path } = decodeCriterion(key);
-
-				return resolvePath(path, properties);
-
-			} catch {
-				return [`malformed criterion <${key}>`];
-			}
-
-		});
-
-}
-
-/**
- * Resolves a criterion path against a shape's property hierarchy.
- *
- * Walks each segment of the path through nested shapes, resolving `reference` and `resource` properties
- * to their nested `ResourceShape`. For `union` properties, accepts if at least one variant resolves the
- * remaining path. Reports an error if a segment references an undefined property or a leaf shape that
- * cannot be traversed further.
- *
- * @param path The property path segments from {@link decodeCriterion}
- * @param properties The resolved properties to validate against
- *
- * @returns A trace of validation errors, empty if the full path resolves successfully
- */
-function resolvePath(path: readonly string[], properties: Properties): Trace {
-
-	const [segment, ...rest] = path;
-	const entry = segment !== undefined ? properties[segment] : undefined;
-
-	return segment === undefined ? []
-		: entry === undefined || entry.kind !== "property" ? [`criterion references undefined property <${segment}>`]
-			: rest.length === 0 ? []
-				: resolvePath(rest, resolveRange(entry.range));
-
-}
-
-/**
- * Resolves the nested properties of a property range for criterion path traversal.
- *
- * For ranges with union shapes, merges properties from all variants to accept paths valid in any branch.
- *
- * @param range The property range to resolve
- *
- * @returns The nested properties, empty for leaf shapes
- */
-function resolveRange(range: Range): Properties {
-	return range.shape.kind === "union"
-		? Object.assign({}, ...Object.values(range.shape.variants).map(v => resolveShape(v)))
-		: resolveShape(range.shape);
-}
-
-/**
- * Extracts the properties from a value shape for criterion path traversal.
- *
- * Only `reference` and `resource` shapes carry nested properties; leaf shapes return an empty map.
- *
- * @param shape The value shape to resolve
- *
- * @returns The nested properties, empty for leaf shapes
- */
-function resolveShape(shape: ValueShape): Properties {
-	return shape.kind === "reference" ? resolveInheritance(materialize(shape.shape)).properties
-		: shape.kind === "resource" ? resolveInheritance(shape).properties
-			: {};
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Checks whether an IRI matches a pattern template.

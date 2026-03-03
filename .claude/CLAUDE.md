@@ -22,3 +22,10 @@ description: Development guidelines and conventions for the @metreeca/blue packa
 - **`npm run check`** - Run Vitest test suite
 - **`npm run watch`** - Watch and recompile TypeScript on changes
 - **`npm run proof`** - Start TypeDoc watch mode and documentation server
+
+# Data Model
+
+**CRITICAL: Retrieval models contain only bindings.** Plain property keys like `{ name }` are shorthands for
+`{ name=name }` and are handled by `decodeProbe()` with no need for dedicated processing. All model entries — whether
+explicit bindings like `"alias=year:released"` or implicit ones like `"name"` — are uniformly processed through
+`decodeProbe()` and `apply()`.
