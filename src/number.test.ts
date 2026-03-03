@@ -481,27 +481,27 @@ describe("validators", () => {
 
 		describe("minExclusive constraint", () => {
 
-			it("returns empty trace for values strictly greater than minimum", async () => {
+			it("returns undefined for values strictly greater than minimum", async () => {
 
-				expect(validateNumber([1], number({ minExclusive: 0 }))).toEqual([]);
+				expect(validateNumber([1], number({ minExclusive: 0 }))).toBeUndefined();
 
 			});
 
 			it("returns trace for values equal to minimum", async () => {
 
-				expect(validateNumber([0], number({ minExclusive: 0 })).length).toBeGreaterThan(0);
+				expect(validateNumber([0], number({ minExclusive: 0 }))).toHaveProperty("minExclusive");
 
 			});
 
 			it("returns trace for values less than minimum", async () => {
 
-				expect(validateNumber([-1], number({ minExclusive: 0 })).length).toBeGreaterThan(0);
+				expect(validateNumber([-1], number({ minExclusive: 0 }))).toHaveProperty("minExclusive");
 
 			});
 
-			it("returns empty trace for fractional values above boundary", async () => {
+			it("returns undefined for fractional values above boundary", async () => {
 
-				expect(validateNumber([0.0001], number({ minExclusive: 0 }))).toEqual([]);
+				expect(validateNumber([0.0001], number({ minExclusive: 0 }))).toBeUndefined();
 
 			});
 
@@ -509,27 +509,27 @@ describe("validators", () => {
 
 		describe("maxExclusive constraint", () => {
 
-			it("returns empty trace for values strictly less than maximum", async () => {
+			it("returns undefined for values strictly less than maximum", async () => {
 
-				expect(validateNumber([99], number({ maxExclusive: 100 }))).toEqual([]);
+				expect(validateNumber([99], number({ maxExclusive: 100 }))).toBeUndefined();
 
 			});
 
 			it("returns trace for values equal to maximum", async () => {
 
-				expect(validateNumber([100], number({ maxExclusive: 100 })).length).toBeGreaterThan(0);
+				expect(validateNumber([100], number({ maxExclusive: 100 }))).toHaveProperty("maxExclusive");
 
 			});
 
 			it("returns trace for values greater than maximum", async () => {
 
-				expect(validateNumber([101], number({ maxExclusive: 100 })).length).toBeGreaterThan(0);
+				expect(validateNumber([101], number({ maxExclusive: 100 }))).toHaveProperty("maxExclusive");
 
 			});
 
-			it("returns empty trace for fractional values below boundary", async () => {
+			it("returns undefined for fractional values below boundary", async () => {
 
-				expect(validateNumber([99.9999], number({ maxExclusive: 100 }))).toEqual([]);
+				expect(validateNumber([99.9999], number({ maxExclusive: 100 }))).toBeUndefined();
 
 			});
 
@@ -537,21 +537,21 @@ describe("validators", () => {
 
 		describe("minInclusive constraint", () => {
 
-			it("returns empty trace for values greater than minimum", async () => {
+			it("returns undefined for values greater than minimum", async () => {
 
-				expect(validateNumber([1], number({ minInclusive: 0 }))).toEqual([]);
+				expect(validateNumber([1], number({ minInclusive: 0 }))).toBeUndefined();
 
 			});
 
-			it("returns empty trace for values equal to minimum", async () => {
+			it("returns undefined for values equal to minimum", async () => {
 
-				expect(validateNumber([0], number({ minInclusive: 0 }))).toEqual([]);
+				expect(validateNumber([0], number({ minInclusive: 0 }))).toBeUndefined();
 
 			});
 
 			it("returns trace for values less than minimum", async () => {
 
-				expect(validateNumber([-1], number({ minInclusive: 0 })).length).toBeGreaterThan(0);
+				expect(validateNumber([-1], number({ minInclusive: 0 }))).toHaveProperty("minInclusive");
 
 			});
 
@@ -559,21 +559,21 @@ describe("validators", () => {
 
 		describe("maxInclusive constraint", () => {
 
-			it("returns empty trace for values less than maximum", async () => {
+			it("returns undefined for values less than maximum", async () => {
 
-				expect(validateNumber([99], number({ maxInclusive: 100 }))).toEqual([]);
+				expect(validateNumber([99], number({ maxInclusive: 100 }))).toBeUndefined();
 
 			});
 
-			it("returns empty trace for values equal to maximum", async () => {
+			it("returns undefined for values equal to maximum", async () => {
 
-				expect(validateNumber([100], number({ maxInclusive: 100 }))).toEqual([]);
+				expect(validateNumber([100], number({ maxInclusive: 100 }))).toBeUndefined();
 
 			});
 
 			it("returns trace for values greater than maximum", async () => {
 
-				expect(validateNumber([101], number({ maxInclusive: 100 })).length).toBeGreaterThan(0);
+				expect(validateNumber([101], number({ maxInclusive: 100 }))).toHaveProperty("maxInclusive");
 
 			});
 
@@ -581,24 +581,24 @@ describe("validators", () => {
 
 		describe("combined range constraints", () => {
 
-			it("returns empty trace for values within inclusive range", async () => {
+			it("returns undefined for values within inclusive range", async () => {
 
-				expect(validateNumber([50], number({ minInclusive: 0, maxInclusive: 100 }))).toEqual([]);
+				expect(validateNumber([50], number({ minInclusive: 0, maxInclusive: 100 }))).toBeUndefined();
 
 			});
 
-			it("returns empty trace for values at inclusive boundaries", async () => {
+			it("returns undefined for values at inclusive boundaries", async () => {
 
 				const shape = number({ minInclusive: 0, maxInclusive: 100 });
 
-				expect(validateNumber([0], shape)).toEqual([]);
-				expect(validateNumber([100], shape)).toEqual([]);
+				expect(validateNumber([0], shape)).toBeUndefined();
+				expect(validateNumber([100], shape)).toBeUndefined();
 
 			});
 
-			it("returns empty trace for values within exclusive range", async () => {
+			it("returns undefined for values within exclusive range", async () => {
 
-				expect(validateNumber([50], number({ minExclusive: 0, maxExclusive: 100 }))).toEqual([]);
+				expect(validateNumber([50], number({ minExclusive: 0, maxExclusive: 100 }))).toBeUndefined();
 
 			});
 
@@ -606,8 +606,8 @@ describe("validators", () => {
 
 				const shape = number({ minExclusive: 0, maxExclusive: 100 });
 
-				expect(validateNumber([0], shape).length).toBeGreaterThan(0);
-				expect(validateNumber([100], shape).length).toBeGreaterThan(0);
+				expect(validateNumber([0], shape)).toHaveProperty("minExclusive");
+				expect(validateNumber([100], shape)).toHaveProperty("maxExclusive");
 
 			});
 
@@ -615,9 +615,9 @@ describe("validators", () => {
 
 				const shape = number({ minInclusive: 0, maxExclusive: 100 });
 
-				expect(validateNumber([0], shape)).toEqual([]);
-				expect(validateNumber([99], shape)).toEqual([]);
-				expect(validateNumber([100], shape).length).toBeGreaterThan(0);
+				expect(validateNumber([0], shape)).toBeUndefined();
+				expect(validateNumber([99], shape)).toBeUndefined();
+				expect(validateNumber([100], shape)).toHaveProperty("maxExclusive");
 
 			});
 
@@ -625,9 +625,9 @@ describe("validators", () => {
 
 				const shape = number({ minExclusive: 0, maxInclusive: 100 });
 
-				expect(validateNumber([0], shape).length).toBeGreaterThan(0);
-				expect(validateNumber([1], shape)).toEqual([]);
-				expect(validateNumber([100], shape)).toEqual([]);
+				expect(validateNumber([0], shape)).toHaveProperty("minExclusive");
+				expect(validateNumber([1], shape)).toBeUndefined();
+				expect(validateNumber([100], shape)).toBeUndefined();
 
 			});
 
@@ -635,31 +635,31 @@ describe("validators", () => {
 
 		describe("in constraint", () => {
 
-			it("returns empty trace for values in the enumeration", async () => {
+			it("returns undefined for values in the enumeration", async () => {
 
 				const shape = number({ in: [1, 2, 3] });
 
-				expect(validateNumber([1], shape)).toEqual([]);
-				expect(validateNumber([2], shape)).toEqual([]);
-				expect(validateNumber([3], shape)).toEqual([]);
+				expect(validateNumber([1], shape)).toBeUndefined();
+				expect(validateNumber([2], shape)).toBeUndefined();
+				expect(validateNumber([3], shape)).toBeUndefined();
 
 			});
 
 			it("returns trace for values not in the enumeration", async () => {
 
-				expect(validateNumber([4], number({ in: [1, 2, 3] })).length).toBeGreaterThan(0);
+				expect(validateNumber([4], number({ in: [1, 2, 3] }))).toHaveProperty("in");
 
 			});
 
 			it("returns trace for values close to but not in the enumeration", async () => {
 
-				expect(validateNumber([1.5], number({ in: [1, 2, 3] })).length).toBeGreaterThan(0);
+				expect(validateNumber([1.5], number({ in: [1, 2, 3] }))).toHaveProperty("in");
 
 			});
 
 			it("returns trace for empty enumeration", async () => {
 
-				expect(validateNumber([1], number({ in: [] })).length).toBeGreaterThan(0);
+				expect(validateNumber([1], number({ in: [] }))).toHaveProperty("in");
 
 			});
 
@@ -667,14 +667,14 @@ describe("validators", () => {
 
 				const shape = number({ in: [42] });
 
-				expect(validateNumber([42], shape)).toEqual([]);
-				expect(validateNumber([0], shape).length).toBeGreaterThan(0);
+				expect(validateNumber([42], shape)).toBeUndefined();
+				expect(validateNumber([0], shape)).toHaveProperty("in");
 
 			});
 
-			it("returns empty trace for negative values in enumeration", async () => {
+			it("returns undefined for negative values in enumeration", async () => {
 
-				expect(validateNumber([-1], number({ in: [-1, 0, 1] }))).toEqual([]);
+				expect(validateNumber([-1], number({ in: [-1, 0, 1] }))).toBeUndefined();
 
 			});
 
@@ -682,8 +682,8 @@ describe("validators", () => {
 
 				const shape = number({ in: [1.5, 2.5, 3.5] });
 
-				expect(validateNumber([1.5], shape)).toEqual([]);
-				expect(validateNumber([1], shape).length).toBeGreaterThan(0);
+				expect(validateNumber([1.5], shape)).toBeUndefined();
+				expect(validateNumber([1], shape)).toHaveProperty("in");
 
 			});
 
@@ -691,39 +691,39 @@ describe("validators", () => {
 
 		describe("hasValue constraint", () => {
 
-			it("returns empty trace when all required values are present", async () => {
+			it("returns undefined when all required values are present", async () => {
 
-				expect(validateNumber([1, 2, 3], number({ hasValue: [1, 2] }))).toEqual([]);
+				expect(validateNumber([1, 2, 3], number({ hasValue: [1, 2] }))).toBeUndefined();
 
 			});
 
-			it("returns empty trace when values exactly match required", async () => {
+			it("returns undefined when values exactly match required", async () => {
 
-				expect(validateNumber([1, 2], number({ hasValue: [1, 2] }))).toEqual([]);
+				expect(validateNumber([1, 2], number({ hasValue: [1, 2] }))).toBeUndefined();
 
 			});
 
 			it("returns trace when required value is missing", async () => {
 
-				expect(validateNumber([1, 3], number({ hasValue: [1, 2] })).length).toBeGreaterThan(0);
+				expect(validateNumber([1, 3], number({ hasValue: [1, 2] }))).toHaveProperty("hasValue");
 
 			});
 
 			it("returns trace when values array is empty", async () => {
 
-				expect(validateNumber([], number({ hasValue: [1] })).length).toBeGreaterThan(0);
+				expect(validateNumber([], number({ hasValue: [1] }))).toHaveProperty("hasValue");
 
 			});
 
-			it("returns empty trace when hasValue is empty array", async () => {
+			it("returns undefined when hasValue is empty array", async () => {
 
-				expect(validateNumber([1, 2], number({ hasValue: [] }))).toEqual([]);
+				expect(validateNumber([1, 2], number({ hasValue: [] }))).toBeUndefined();
 
 			});
 
-			it("returns empty trace for single required value present", async () => {
+			it("returns undefined for single required value present", async () => {
 
-				expect(validateNumber([1], number({ hasValue: [1] }))).toEqual([]);
+				expect(validateNumber([1], number({ hasValue: [1] }))).toBeUndefined();
 
 			});
 
@@ -731,12 +731,12 @@ describe("validators", () => {
 
 		describe("combined constraints", () => {
 
-			it("returns empty trace when satisfying both range and enumeration", async () => {
+			it("returns undefined when satisfying both range and enumeration", async () => {
 
 				const shape = number({ minInclusive: 0, maxInclusive: 10, in: [2, 4, 6, 8] });
 
-				expect(validateNumber([2], shape)).toEqual([]);
-				expect(validateNumber([8], shape)).toEqual([]);
+				expect(validateNumber([2], shape)).toBeUndefined();
+				expect(validateNumber([8], shape)).toBeUndefined();
 
 			});
 
@@ -746,7 +746,7 @@ describe("validators", () => {
 					minInclusive: 0,
 					maxInclusive: 10,
 					in: [2, 4, 6, 8]
-				})).length).toBeGreaterThan(0);
+				}))).toHaveProperty("in");
 
 			});
 
@@ -754,8 +754,11 @@ describe("validators", () => {
 
 				const shape = number({ minInclusive: 5, in: [1, 2, 3, 7, 8, 9] });
 
-				expect(validateNumber([1], shape).length).toBeGreaterThan(0);
-				expect(validateNumber([7], shape)).toEqual([]);
+				const result = validateNumber([4], shape);
+
+				expect(result).toHaveProperty("minInclusive");
+				expect(result).toHaveProperty("in");
+				expect(validateNumber([7], shape)).toBeUndefined();
 
 			});
 
@@ -763,14 +766,14 @@ describe("validators", () => {
 
 		describe("no constraints", () => {
 
-			it("returns empty trace for any finite number with no constraints", async () => {
+			it("returns undefined for any finite number with no constraints", async () => {
 
 				const shape = number();
 
-				expect(validateNumber([0], shape)).toEqual([]);
-				expect(validateNumber([42], shape)).toEqual([]);
-				expect(validateNumber([-42], shape)).toEqual([]);
-				expect(validateNumber([3.14159], shape)).toEqual([]);
+				expect(validateNumber([0], shape)).toBeUndefined();
+				expect(validateNumber([42], shape)).toBeUndefined();
+				expect(validateNumber([-42], shape)).toBeUndefined();
+				expect(validateNumber([3.14159], shape)).toBeUndefined();
 
 			});
 
@@ -778,39 +781,30 @@ describe("validators", () => {
 
 		describe("per-value errors", () => {
 
-			it("reports one error per failing value for minInclusive", async () => {
+			it("includes count prefix for multiple failing values", async () => {
 
-				expect(validateNumber([-1, -2], number({ minInclusive: 0 }))).toHaveLength(2);
+				const result = validateNumber([-1, -2], number({ minInclusive: 0 }));
 
-			});
-
-			it("reports one error per failing value for maxInclusive", async () => {
-
-				expect(validateNumber([150, 200], number({ maxInclusive: 100 }))).toHaveLength(2);
+				expect(typeof result === "object" && typeof (result as any).minInclusive === "string"
+					&& (result as any).minInclusive.startsWith("(2/2)")).toBeTruthy();
 
 			});
 
-			it("reports one error per failing value for minExclusive", async () => {
+			it("reports errors only for failing values in count prefix", async () => {
 
-				expect(validateNumber([0, -1], number({ minExclusive: 0 }))).toHaveLength(2);
+				const result = validateNumber([-1, 50, -2], number({ minInclusive: 0 }));
 
-			});
-
-			it("reports one error per failing value for maxExclusive", async () => {
-
-				expect(validateNumber([100, 101], number({ maxExclusive: 100 }))).toHaveLength(2);
+				expect(typeof result === "object" && typeof (result as any).minInclusive === "string"
+					&& (result as any).minInclusive.startsWith("(2/3)")).toBeTruthy();
 
 			});
 
-			it("reports one error per failing value for in", async () => {
+			it("omits count prefix for single value", async () => {
 
-				expect(validateNumber([4, 5], number({ in: [1, 2, 3] }))).toHaveLength(2);
+				const result = validateNumber([-1], number({ minInclusive: 0 }));
 
-			});
-
-			it("reports errors only for failing values", async () => {
-
-				expect(validateNumber([-1, 50, -2], number({ minInclusive: 0 }))).toHaveLength(2);
+				expect(typeof result === "object" && typeof (result as any).minInclusive === "string"
+					&& !(result as any).minInclusive.startsWith("(")).toBeTruthy();
 
 			});
 

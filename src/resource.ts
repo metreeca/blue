@@ -226,7 +226,7 @@ import { immutable } from "@metreeca/core/nested";
 import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
 import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
 import { isValueShape, materialize } from "./index.core.js";
-import type { Infer, Validator, ValueShape } from "./index.js";
+import type { Infer, ValueShape } from "./index.js";
 import {
 	isEntries,
 	isEntry,
@@ -240,6 +240,7 @@ import {
 	isType,
 	isUnion
 } from "./resource.core.js";
+import type { Validator } from "./trace.js";
 
 
 export {

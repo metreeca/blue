@@ -17,8 +17,8 @@
 import type { Probe, Transform } from "@metreeca/qest/model";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
-import { apply, isTrace, isValidator, isValueShape, materialize, validateValue } from "./index.core.js";
-import { collect, type Trace, validate, type ValueShape } from "./index.js";
+import { apply, isValueShape, materialize, validateValue } from "./index.core.js";
+import { validate, type ValueShape } from "./index.js";
 import { local, locals } from "./local.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import {
@@ -84,7 +84,7 @@ describe("validate", () => {
 			const shape = resource({});
 			const result = validate(null, shape);
 
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -93,7 +93,7 @@ describe("validate", () => {
 			const shape = resource({});
 			const result = validate(undefined, shape);
 
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -102,7 +102,7 @@ describe("validate", () => {
 			const shape = resource({});
 			const result = validate("not a resource", shape);
 
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -111,7 +111,7 @@ describe("validate", () => {
 			const shape = resource({});
 			const result = validate(42, shape);
 
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -120,7 +120,7 @@ describe("validate", () => {
 			const shape = resource({});
 			const result = validate(true, shape);
 
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -129,7 +129,7 @@ describe("validate", () => {
 			const shape = resource({});
 			const result = validate([{ name: "Alice" }], shape);
 
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -138,7 +138,7 @@ describe("validate", () => {
 			const shape = resource({});
 			const result = validate(() => {}, shape);
 
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -248,7 +248,7 @@ describe("validate", () => {
 			// invalid resource should not be branded
 
 			const invalid = validate({}, shape);
-			expect(invalid({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(invalid({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -283,7 +283,7 @@ describe("validate", () => {
 			const shape = resource({});
 			const result = validate(42, shape, { mode: "model" });
 
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -296,7 +296,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({ child: { label: "x" } }, shape, { mode: "model" });
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -322,7 +322,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({ child: { label: "x" } }, shape, { mode: "model", depth: 0 });
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -382,7 +382,7 @@ describe("validate", () => {
 				middle: { leaf: { value: "x" } }
 			}, shape, { mode: "model", depth: 1 });
 
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -412,7 +412,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({ child: { label: "x" } }, shape, { mode: "model", depth: 0 });
-			expect(result({ trace: t => t.length })).toBeGreaterThan(0);
+			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -509,71 +509,6 @@ describe("validate", () => {
 
 describe("guards", () => {
 
-	describe("isTrace", () => {
-
-		it("returns true for empty array", async () => {
-
-			expect(isTrace([])).toBeTruthy();
-
-		});
-
-		it("returns true for array of strings", async () => {
-
-			expect(isTrace(["error1", "error2"])).toBeTruthy();
-
-		});
-
-		it("returns true for array with nested dictionaries", async () => {
-
-			expect(isTrace(["error", { name: ["invalid"] }])).toBeTruthy();
-
-		});
-
-		it("returns true for deeply nested traces", async () => {
-
-			expect(isTrace([{ address: ["msg", { city: ["invalid"] }] }])).toBeTruthy();
-
-		});
-
-		it("returns false for non-array values", async () => {
-
-			expect(isTrace(null)).toBeFalsy();
-			expect(isTrace(undefined)).toBeFalsy();
-			expect(isTrace("error")).toBeFalsy();
-			expect(isTrace(42)).toBeFalsy();
-
-		});
-
-		it("returns false for array with non-string non-object elements", async () => {
-
-			expect(isTrace([42])).toBeFalsy();
-			expect(isTrace([true])).toBeFalsy();
-
-		});
-
-	});
-
-	describe("isValidator", () => {
-
-		it("returns true for functions", async () => {
-
-			expect(isValidator(() => [])).toBeTruthy();
-			expect(isValidator((_v: unknown) => [])).toBeTruthy();
-
-		});
-
-		it("returns false for non-function values", async () => {
-
-			expect(isValidator(null)).toBeFalsy();
-			expect(isValidator(undefined)).toBeFalsy();
-			expect(isValidator("function")).toBeFalsy();
-			expect(isValidator(42)).toBeFalsy();
-			expect(isValidator({})).toBeFalsy();
-
-		});
-
-	});
-
 	describe("isValueShape", () => {
 
 		it("returns true for boolean shape", async () => {
@@ -641,80 +576,83 @@ describe("validators", () => {
 
 	describe("validateValue", () => {
 
-		it("returns empty trace for valid string", async () => {
+		it("returns undefined for valid string", async () => {
 
-			expect(collect([validateValue(["hello"], string())])).toEqual([]);
+			expect(validateValue(["hello"], string())).toBeUndefined();
 
 		});
 
-		it("returns empty trace for valid number", async () => {
+		it("returns undefined for valid number", async () => {
 
-			expect(collect([validateValue([42], number())])).toEqual([]);
+			expect(validateValue([42], number())).toBeUndefined();
 
 		});
 
 		it("returns trace for type mismatch against string shape", async () => {
 
-			expect(validateValue([42], string()).length).toBeGreaterThan(0);
+			expect(validateValue([42], string())).toHaveProperty("kind");
 
 		});
 
 		it("returns trace for type mismatch against number shape", async () => {
 
-			expect(validateValue(["hello"], number()).length).toBeGreaterThan(0);
+			expect(validateValue(["hello"], number())).toHaveProperty("kind");
 
 		});
 
-		it("returns empty trace for valid local value", async () => {
+		it("returns undefined for valid local value", async () => {
 
-			expect(collect([validateValue([{ "en": "hello" }], local())])).toEqual([]);
+			expect(validateValue([{ "en": "hello" }], local())).toBeUndefined();
 
 		});
 
 		it("accepts plain string shorthand for local shape", async () => {
 
-			expect(collect([validateValue(["hello"], local())])).toEqual([]);
+			expect(validateValue(["hello"], local())).toBeUndefined();
 
 		});
 
 		it("rejects locals value for local shape", async () => {
 
-			expect(validateValue([{ "en": ["hello", "world"] }], local()).length).toBeGreaterThan(0);
+			expect(validateValue([{ "en": ["hello", "world"] }], local())).toBeDefined();
 
 		});
 
-		it("returns empty trace for valid locals value", async () => {
+		it("returns undefined for valid locals value", async () => {
 
-			expect(collect([validateValue([{ "en": ["hello"] }], locals())])).toEqual([]);
+			expect(validateValue([{ "en": ["hello"] }], locals())).toBeUndefined();
 
 		});
 
 		it("rejects local value for locals shape", async () => {
 
-			expect(validateValue([{ "en": "hello" }], locals()).length).toBeGreaterThan(0);
+			expect(validateValue([{ "en": "hello" }], locals())).toBeDefined();
 
 		});
 
 		describe("per-value errors", () => {
 
-			it("reports one type error per mismatched value", async () => {
+			it("reports type mismatch", async () => {
 
-				expect(validateValue([42, true] as any[], string())).toHaveLength(2);
-
-			});
-
-			it("reports type errors only for mismatched values", async () => {
-
-				expect(validateValue([42, "hello", true] as any[], string())).toHaveLength(2);
+				expect(validateValue([42, true] as any[], string())).toHaveProperty("kind");
 
 			});
 
-			it("validates matching values against constraints", async () => {
+			it("reports type mismatch only for mismatched values", async () => {
+
+				const trace = validateValue([42, "hello", true] as any[], string());
+
+				expect(trace).toHaveProperty("kind");
+
+			});
+
+			it("reports both type mismatch and constraint violations", async () => {
 
 				const trace = validateValue(["ab", 42, "c"] as any[], string({ minLength: 3 }));
 
-				// 1 type error (42) + 2 constraint errors ("ab", "c" too short)
-				expect(trace).toHaveLength(3);
+				// type mismatch (42) + constraint errors ("ab", "c" too short)
+				expect(trace).toHaveProperty("kind");
+				expect(trace).toHaveProperty("minLength");
 
 			});
 
@@ -727,7 +665,7 @@ describe("validators", () => {
 describe("apply", () => {
 
 	function probe(path: readonly string[], pipe: readonly Transform[] = []): Probe {
-		return { target: path[path.length - 1] ?? "_", pipe, path };
+		return { target: path[path.length-1] ?? "_", pipe, path };
 	}
 
 	// transform-focused helpers: wrap leaf shape in a resource property
@@ -795,7 +733,7 @@ describe("apply", () => {
 				["float", float()],
 				["double", double()],
 				["integer", integer()],
-				["decimal", decimal()],
+				["decimal", decimal()]
 			])("accepts %s shape for sum and preserves it", async (_label, s) => {
 
 				expect(transformRange(["sum"], s)?.shape).toBe(s);
@@ -848,7 +786,7 @@ describe("apply", () => {
 				["time", time()],
 				["instant", instant()],
 				["timestamp", timestamp()],
-				["duration", duration()],
+				["duration", duration()]
 			])("accepts %s shape for year", async (_label, s) => {
 
 				expect(transformRange(["year"], s)?.shape).toEqual(integer());
@@ -875,7 +813,7 @@ describe("apply", () => {
 
 		it.each([
 			["local", local()],
-			["locals", locals()],
+			["locals", locals()]
 		])("accepts string-to-string transform on %s and preserves it", async (_label, s) => {
 
 			expect(transformRange(["lower"], s)?.shape).toBe(s);
@@ -884,7 +822,7 @@ describe("apply", () => {
 
 		it.each([
 			["local", local()],
-			["locals", locals()],
+			["locals", locals()]
 		])("accepts string-to-string pipe on %s and preserves it", async (_label, s) => {
 
 			expect(transformRange(["lower", "upper"], s)?.shape).toBe(s);
@@ -893,7 +831,7 @@ describe("apply", () => {
 
 		it.each([
 			["local", local()],
-			["locals", locals()],
+			["locals", locals()]
 		])("returns undefined range for non-string-to-string transform on %s", async (_label, s) => {
 
 			expect(transformRange(["length"], s)).toBeUndefined();
@@ -902,7 +840,7 @@ describe("apply", () => {
 
 		it.each([
 			["local", local()],
-			["locals", locals()],
+			["locals", locals()]
 		])("returns undefined range for numeric transform on %s", async (_label, s) => {
 
 			expect(transformRange(["sum"], s)).toBeUndefined();
@@ -911,7 +849,7 @@ describe("apply", () => {
 
 		it.each([
 			["local", local()],
-			["locals", locals()],
+			["locals", locals()]
 		])("returns undefined range for temporal transform on %s", async (_label, s) => {
 
 			expect(transformRange(["year"], s)).toBeUndefined();
@@ -920,7 +858,7 @@ describe("apply", () => {
 
 		it.each([
 			["local", local()],
-			["locals", locals()],
+			["locals", locals()]
 		])("returns undefined range for any-to-non-string transform on %s", async (_label, s) => {
 
 			expect(transformRange(["count"], s)).toBeUndefined();
@@ -1340,8 +1278,8 @@ describe("apply", () => {
 			const result = probeRange(probe(["value", "name"]), s);
 
 			expect(result?.shape).toHaveProperty("kind", "union");
-			expect(Object.values((result.shape as Union).variants)).toContainEqual(string());
-			expect(Object.values((result.shape as Union).variants)).toContainEqual(integer());
+			expect(Object.values((result!.shape as Union).variants)).toContainEqual(string());
+			expect(Object.values((result!.shape as Union).variants)).toContainEqual(integer());
 
 		});
 
@@ -1694,7 +1632,7 @@ describe("apply", () => {
 			["number", integer()],
 			["string", string()],
 			["local", local()],
-			["locals", locals()],
+			["locals", locals()]
 		])("resolves empty path for %s shape", async (_label, s) => {
 
 			const result = apply(probe([]), s);
@@ -1749,229 +1687,6 @@ describe("apply", () => {
 			const result = apply(probe([], ["avg", "floor"]), decimal());
 
 			expect(result?.shape).toEqual(decimal());
-
-		});
-
-	});
-
-});
-
-describe("collect", () => {
-
-	describe("validation", () => {
-
-		it("throws on non-array input", async () => {
-
-			expect(() => collect("invalid" as any)).toThrow(TypeError);
-
-		});
-
-		it("throws on non-trace elements", async () => {
-
-			expect(() => collect([123] as any)).toThrow(TypeError);
-
-		});
-
-		it("throws on traces with non-string non-object elements", async () => {
-
-			expect(() => collect([[123]] as any)).toThrow(TypeError);
-
-		});
-
-		it("accepts dictionary at any position (lenient)", async () => {
-
-			const result = collect([[{ name: ["error"] }, "message"]]);
-
-			expect(result).toEqual(["message", { name: ["error"] }]);
-
-		});
-
-	});
-
-	describe("empty input", () => {
-
-		it("returns empty trace for empty array", async () => {
-
-			const result = collect([]);
-
-			expect(result).toEqual([]);
-
-		});
-
-		it("returns empty trace for array of empty traces", async () => {
-
-			const result = collect([[], [], []]);
-
-			expect(result).toEqual([]);
-
-		});
-
-	});
-
-	describe("messages", () => {
-
-		it("collects messages from single trace", async () => {
-
-			const result = collect([["error1", "error2"]]);
-
-			expect(result).toEqual(["error1", "error2"]);
-
-		});
-
-		it("collects messages from multiple traces in order", async () => {
-
-			const result = collect([
-				["error1"],
-				["error2", "error3"],
-				["error4"]
-			]);
-
-			expect(result).toEqual(["error1", "error2", "error3", "error4"]);
-
-		});
-
-		it("deduplicates messages preserving encounter order", async () => {
-
-			const result = collect([
-				["error1", "error2"],
-				["error2", "error3"],
-				["error1", "error4"]
-			]);
-
-			expect(result).toEqual(["error1 (2)", "error2 (2)", "error3", "error4"]);
-
-		});
-
-		it("removes empty strings", async () => {
-
-			const result = collect([
-				["error1", ""],
-				["", "error2"],
-				[""]
-			]);
-
-			expect(result).toEqual(["error1", "error2"]);
-
-		});
-
-	});
-
-	describe("dictionaries", () => {
-
-		it("merges dictionaries from single trace", async () => {
-
-			const trace: Trace = ["error1", { name: ["invalid"] }];
-
-			const result = collect([trace]);
-
-			expect(result).toEqual(["error1", { name: ["invalid"] }]);
-
-		});
-
-		it("merges dictionaries from multiple traces", async () => {
-
-			const trace1: Trace = [{ name: ["invalid"] }];
-			const trace2: Trace = [{ age: ["required"] }];
-
-			const result = collect([trace1, trace2]);
-
-			expect(result).toEqual([{ name: ["invalid"], age: ["required"] }]);
-
-		});
-
-		it("preserves key order from encounter", async () => {
-
-			const trace1: Trace = [{ b: ["error"] }];
-			const trace2: Trace = [{ a: ["error"] }];
-			const trace3: Trace = [{ c: ["error"] }];
-
-			const result = collect([trace1, trace2, trace3]);
-
-			expect(Object.keys((result as any)[0])).toEqual(["b", "a", "c"]);
-
-		});
-
-		it("recursively merges overlapping keys", async () => {
-
-			const trace1: Trace = [{ name: ["error1"] }];
-			const trace2: Trace = [{ name: ["error2"] }];
-
-			const result = collect([trace1, trace2]);
-
-			expect(result).toEqual([{ name: ["error1", "error2"] }]);
-
-		});
-
-		it("recursively merges nested dictionaries", async () => {
-
-			const trace1: Trace = [{ address: ["msg1", { city: ["invalid"] }] }];
-			const trace2: Trace = [{ address: ["msg2", { street: ["required"] }] }];
-
-			const result = collect([trace1, trace2]);
-
-			expect(result).toEqual([{
-				address: ["msg1", "msg2", { city: ["invalid"], street: ["required"] }]
-			}]);
-
-		});
-
-		it("removes empty dictionaries", async () => {
-
-			const trace1: Trace = ["error1", {}];
-			const trace2: Trace = ["error2"];
-
-			const result = collect([trace1, trace2]);
-
-			expect(result).toEqual(["error1", "error2"]);
-
-		});
-
-		it("prunes keys with empty traces from dictionaries", async () => {
-
-			const result = collect([[{ name: [] }]]);
-
-			expect(result).toEqual([]);
-
-		});
-
-		it("prunes keys with empty traces while keeping non-empty keys", async () => {
-
-			const result = collect([[{ name: [], age: ["required"] }]]);
-
-			expect(result).toEqual([{ age: ["required"] }]);
-
-		});
-
-	});
-
-	describe("combined", () => {
-
-		it("combines messages and dictionaries", async () => {
-
-			const trace1: Trace = ["error1", { name: ["invalid"] }];
-			const trace2: Trace = ["error2", { age: ["required"] }];
-
-			const result = collect([trace1, trace2]);
-
-			expect(result).toEqual([
-				"error1", "error2",
-				{ name: ["invalid"], age: ["required"] }
-			]);
-
-		});
-
-		it("handles traces with only messages and traces with only dictionaries", async () => {
-
-			const trace1: Trace = ["error1", "error2"];
-			const trace2: Trace = [{ name: ["invalid"] }];
-			const trace3: Trace = ["error3"];
-
-			const result = collect([trace1, trace2, trace3]);
-
-			expect(result).toEqual([
-				"error1", "error2", "error3",
-				{ name: ["invalid"] }
-			]);
 
 		});
 

@@ -78,27 +78,28 @@
  *
  * **Custom Validators**
  *
- * Implement custom resource-level constraints using {@link Validator} functions. Use {@link collect}
- * to merge multiple facets into a single canonical trace:
+ * Implement custom resource-level constraints using {@link Validator} functions, returning keyed
+ * {@link Trace} reports:
  *
  * ```typescript
- * import { collect } from '@metreeca/blue';
- * import type { Trace } from '@metreeca/blue';
+ * import type { Validator } from '@metreeca/blue';
  *
  * interface Product { minPrice?: number; maxPrice?: number; startDate?: string; endDate?: string }
  *
- * function checkProduct(value: Product): Trace {
- *   return collect([
- *     value.minPrice !== undefined && value.maxPrice !== undefined
- *     		&& value.minPrice > value.maxPrice
- *       ? ["minPrice must not exceed maxPrice"]
- *       : [],
- *     value.startDate !== undefined && value.endDate !== undefined
- *     		&& value.startDate > value.endDate
- *       ? ["startDate must not follow endDate"]
- *       : []
- *   ]);
- * }
+ * const checkProduct: Validator<Product> = value => {
+ *
+ *   const priceIssue = value.minPrice !== undefined && value.maxPrice !== undefined
+ *       && value.minPrice > value.maxPrice
+ *       ? "minPrice must not exceed maxPrice" : undefined;
+ *
+ *   const dateIssue = value.startDate !== undefined && value.endDate !== undefined
+ *       && value.startDate > value.endDate
+ *       ? "startDate must not follow endDate" : undefined;
+ *
+ *   return priceIssue || dateIssue
+ *       ? { minPrice: priceIssue, startDate: dateIssue } : undefined;
+ *
+ * };
  *
  * const Product = resource({ validators: [checkProduct] }, {
  *   minPrice: optional(integer()),
@@ -126,14 +127,16 @@ import { createRelay, type Relay } from "@metreeca/core/relay";
 import { isModel, type Model } from "@metreeca/qest/model";
 import { isResource, type Resource, type Value } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
-import { apply, collect, isTrace, isValidator, isValueShape, materialize, validateValue } from "./index.core.js";
+import { apply, isValueShape, materialize, validateValue } from "./index.core.js";
 import type { LocalShape, LocalsShape } from "./local.js";
 import type { NumberShape } from "./number.js";
 import { validateModel, validateResource } from "./resource.core.js";
 import type { ReferenceShape, ResourceShape } from "./resource.js";
 import type { StringShape } from "./string.js";
+import { isTrace, isValidator } from "./trace.core.js";
+import type { Trace, Validator } from "./trace.js";
 
-export { collect, apply, isTrace, isValidator, isValueShape };
+export { apply, isTrace, isValidator, isValueShape, Trace, Validator };
 
 
 /**
@@ -153,37 +156,6 @@ const Validated = immutable({
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validation trace.
- *
- * Represents the result of validating a resource against a shape. An empty trace signals successful validation with
- * no issues. A non-empty trace is an array containing any combination of:
- *
- * - Violation messages (strings) describing value-level constraint failures
- * - Objects mapping keys to nested traces for key-level violations
- *
- * This recursive structure allows traces to represent both immediate violations and nested key violations,
- * providing a complete picture of validation failures throughout the resource structure.
- *
- * @see {@link https://www.w3.org/TR/shacl/#validation-report | SHACL § 3.6 Validation Report}
- */
-export type Trace =
-	readonly (string | { readonly [key: string]: Trace })[]
-
-/**
- * Value validator.
- *
- * A function that examines a value and returns a {@link Trace} describing any constraint violations:
- *
- * - An empty trace signals successful validation with no issues
- * - A non-empty trace contains violation messages describing constraint failures
- *
- * @typeParam T The value type being validated
- */
-export type Validator<T extends Value = Value> =
-	(value: T) => Trace;
-
 
 /**
  * Discriminated union of all concrete shape types for validating individual node values.
@@ -324,7 +296,7 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 	const {
 
 		mode,
-		depth=0
+		depth = 0
 
 	} = assert(opts, (v: unknown): v is typeof opts => isObject(v, {
 
@@ -346,9 +318,9 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 
 		} else { // non-resource shapes: validate value directly, ignoring mode (no model/state distinction)
 
-			const trace = collect([validateValue([value as Value], shape)]);
+			const trace = validateValue([value as Value], shape);
 
-			return trace.length === 0
+			return trace === undefined
 				? createRelay({ value: immutable(value as Value) })
 				: createRelay({ trace: immutable(trace, isTrace) });
 
@@ -356,7 +328,7 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 
 	} catch ( e ) {
 
-		return createRelay({ trace: immutable([message(e)], isTrace) });
+		return createRelay({ trace: immutable(message(e), isTrace) });
 
 	}
 
@@ -370,9 +342,9 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 		} else {
 
 			const $value = immutable(value, isResource);
-			const trace = collect([validateResource([$value], shape)]);
+			const trace = validateResource([$value], shape);
 
-			return trace.length === 0
+			return trace === undefined
 				? createRelay({ value: brand($value, Validated.State, shape) })
 				: createRelay({ trace: immutable(trace, isTrace) });
 
@@ -388,9 +360,9 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 		} else {
 
 			const $value = immutable(value, isModel);
-			const trace = collect([validateModel([$value], shape, depth)]);
+			const trace = validateModel([$value], shape, depth);
 
-			return trace.length === 0
+			return trace === undefined
 				? createRelay({ value: brand($value, Validated.Model, shape) })
 				: createRelay({ trace: immutable(trace, isTrace) });
 

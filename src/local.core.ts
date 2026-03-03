@@ -27,8 +27,9 @@ import { isArray, isNumber, isObject, isOptional, isString } from "@metreeca/cor
 import { isTagRange, matchTag } from "@metreeca/core/language";
 import { isLocale, isLocales } from "@metreeca/qest/model";
 import type { Local, Locals } from "@metreeca/qest/state";
-import type { Trace } from "./index.js";
 import type { LocalConstraints, LocalizedConstraints, LocalsConstraints, LocalShape, LocalsShape } from "./local.js";
+import { every, trace } from "./trace.core.js";
+import type { Trace } from "./trace.js";
 
 
 /**
@@ -147,13 +148,14 @@ export function isLocalizedConstraints(value: unknown): value is LocalizedConstr
 /**
  * Validates single-valued language-tagged maps against a shape.
  *
- * Enforces length constraints (minLength, maxLength) on string values and language tag constraints (languageIn) on
- * tags. Plain string values are normalised to `{ und: value }` before validation.
+ * Enforces length constraints (`minLength`, `maxLength`) on string values and language tag constraints (`languageIn`)
+ * on tags. Plain string values are normalised to `{ und: value }` before validation. Returns a keyed trace where outer
+ * keys are language tags and inner keys are constraint names, or `undefined` if all values pass validation.
  *
  * @param values The local values to validate
  * @param shape The local shape defining validation constraints
  *
- * @returns A trace of validation errors keyed by language tag, empty if all values are valid
+ * @returns A keyed trace of constraint violations per language tag, or `undefined` if all values are valid
  */
 export function validateLocal(values: readonly Local[], {
 
@@ -162,38 +164,37 @@ export function validateLocal(values: readonly Local[], {
 
 	languageIn
 
-}: LocalShape): Trace {
+}: LocalShape): undefined | Trace {
 
-	const entries = values
-		.map((value): Record<string, string> => typeof value === "string" ? { und: value } : value)
-		.flatMap(value => Object.entries(value))
-		.map(([tag, text]) => [tag, [
+	return trace(Object.fromEntries(values
+		.map(value => isString(value) ? { und: value } : value)
+		.flatMap(value => Object.entries(value)).map(([tag, text]) => [tag, trace({
 
-			minLength !== undefined && text.length < minLength
-			&& `expected string length >= ${minLength}`,
+			minLength: minLength === undefined || text.length >= minLength
+				|| `expected string length >= ${minLength}`,
 
-			maxLength !== undefined && text.length > maxLength
-			&& `expected string length <= ${maxLength}`,
+			maxLength: maxLength === undefined || text.length <= maxLength
+				|| `expected string length <= ${maxLength}`,
 
-			languageIn !== undefined && !languageIn.some(range => matchTag(tag, range))
-			&& `tag not in allowed languages [${languageIn.join(", ")}]`
+			languageIn: languageIn === undefined || languageIn.some(range => matchTag(tag, range))
+				|| `tag not in allowed languages [${languageIn.join(", ")}]`
 
-		].filter(isString)]);
-
-	return [Object.fromEntries(entries)];
+		})])
+	));
 
 }
 
 /**
  * Validates multi-valued language-tagged maps against a shape.
  *
- * Enforces length constraints (minLength, maxLength) on string values and language tag constraints (languageIn) on
- * tags. Plain string array values are normalised to `{ und: values }` before validation.
+ * Enforces length constraints (`minLength`, `maxLength`) on string values and language tag constraints (`languageIn`)
+ * on tags. Plain string array values are normalised to `{ und: values }` before validation. Returns a keyed trace
+ * where outer keys are language tags and inner keys are constraint names, or `undefined` if all values pass validation.
  *
  * @param values The locals values to validate
  * @param shape The locals shape defining validation constraints
  *
- * @returns A trace of validation errors keyed by language tag, empty if all values are valid
+ * @returns A keyed trace of constraint violations per language tag, or `undefined` if all values are valid
  */
 export function validateLocals(values: readonly Locals[], {
 
@@ -202,24 +203,26 @@ export function validateLocals(values: readonly Locals[], {
 
 	languageIn
 
-}: LocalsShape): Trace {
+}: LocalsShape): undefined | Trace {
 
-	const entries = values
-		.map(value => Array.isArray(value) ? { und: value } as const : value as Record<string, readonly string[]>)
-		.flatMap(value => Object.entries(value))
-		.map(([tag, texts]: [string, readonly string[]]) => [tag, [
+	return trace(Object.fromEntries(values
+		.map(value => isArray(value) ? { und: value } : value)
+		.flatMap(value => Object.entries(value)).map(([tag, texts]: [string, readonly string[]]) => [tag, trace({
 
-			...texts.flatMap(text => minLength !== undefined && text.length < minLength
-				? [`expected string length >= ${minLength}`] : []),
+			minLength: every(texts, text =>
+				minLength === undefined || text.length >= minLength
+				|| `expected string length >= ${minLength}`
+			),
 
-			...texts.flatMap(text => maxLength !== undefined && text.length > maxLength
-				? [`expected string length <= ${maxLength}`] : []),
+			maxLength: every(texts, text =>
+				maxLength === undefined || text.length <= maxLength
+				|| `expected string length <= ${maxLength}`
+			),
 
-			languageIn !== undefined && !languageIn.some(range => matchTag(tag, range))
-			&& `tag not in allowed languages [${languageIn.join(", ")}]`
+			languageIn: languageIn === undefined || languageIn.some(range => matchTag(tag, range))
+				|| `tag not in allowed languages [${languageIn.join(", ")}]`
 
-		].filter(isString)]);
-
-	return [Object.fromEntries(entries)];
+		})])
+	));
 
 }

@@ -483,21 +483,24 @@ describe("validators", () => {
 
 		describe("minLength constraint", () => {
 
-			it("returns empty trace when all strings meet minimum length", async () => {
+			it("returns undefined when all strings meet minimum length", async () => {
 
-				expect(validateLocal([{ en: "hello", fr: "bonjour" }], local({ minLength: 3 }))).toEqual([{ en: [], fr: [] }]);
+				expect(validateLocal([{ en: "hello", fr: "bonjour" }], local({ minLength: 3 }))).toBeUndefined();
 
 			});
 
 			it("returns trace when any string is below minimum length", async () => {
 
-				expect(validateLocal([{ en: "hi", fr: "bonjour" }], local({ minLength: 5 })).length).toBeGreaterThan(0);
+				const result = validateLocal([{ en: "hi", fr: "bonjour" }], local({ minLength: 5 }));
+
+				expect(result).toHaveProperty("en");
+				expect(result).not.toHaveProperty("fr");
 
 			});
 
 			it("returns trace for empty string when minLength > 0", async () => {
 
-				expect(validateLocal([{ en: "" }], local({ minLength: 1 })).length).toBeGreaterThan(0);
+				expect(validateLocal([{ en: "" }], local({ minLength: 1 }))).toHaveProperty("en");
 
 			});
 
@@ -505,18 +508,20 @@ describe("validators", () => {
 
 		describe("maxLength constraint", () => {
 
-			it("returns empty trace when all strings are within maximum length", async () => {
+			it("returns undefined when all strings are within maximum length", async () => {
 
-				expect(validateLocal([{ en: "hello", fr: "bonjour" }], local({ maxLength: 10 }))).toEqual([{ en: [], fr: [] }]);
+				expect(validateLocal([{ en: "hello", fr: "bonjour" }], local({ maxLength: 10 }))).toBeUndefined();
 
 			});
 
 			it("returns trace when any string exceeds maximum length", async () => {
 
-				expect(validateLocal([{
+				const result = validateLocal([{
 					en: "hello",
 					fr: "bonjour"
-				}], local({ maxLength: 5 })).length).toBeGreaterThan(0);
+				}], local({ maxLength: 5 }));
+
+				expect(result).toHaveProperty("fr");
 
 			});
 
@@ -524,21 +529,24 @@ describe("validators", () => {
 
 		describe("languageIn constraint", () => {
 
-			it("returns empty trace when all tags match allowed languages", async () => {
+			it("returns undefined when all tags match allowed languages", async () => {
 
 				expect(validateLocal([{
 					en: "hello",
 					fr: "bonjour"
-				}], local({ languageIn: ["en", "fr"] }))).toEqual([{ en: [], fr: [] }]);
+				}], local({ languageIn: ["en", "fr"] }))).toBeUndefined();
 
 			});
 
 			it("returns trace when tag is not in allowed languages", async () => {
 
-				expect(validateLocal([{
+				const result = validateLocal([{
 					en: "hello",
 					de: "hallo"
-				}], local({ languageIn: ["en", "fr"] })).length).toBeGreaterThan(0);
+				}], local({ languageIn: ["en", "fr"] }));
+
+				expect(result).toHaveProperty("de");
+				expect(result).not.toHaveProperty("en");
 
 			});
 
@@ -546,14 +554,14 @@ describe("validators", () => {
 
 				const shape = local({ languageIn: ["en-*"] });
 
-				expect(validateLocal([{ "en-US": "color" }], shape)).toEqual([{ "en-US": [] }]);
-				expect(validateLocal([{ "en-GB": "colour" }], shape)).toEqual([{ "en-GB": [] }]);
+				expect(validateLocal([{ "en-US": "color" }], shape)).toBeUndefined();
+				expect(validateLocal([{ "en-GB": "colour" }], shape)).toBeUndefined();
 
 			});
 
 			it("returns trace for base language when only subtag allowed", async () => {
 
-				expect(validateLocal([{ en: "hello" }], local({ languageIn: ["en-US"] })).length).toBeGreaterThan(0);
+				expect(validateLocal([{ en: "hello" }], local({ languageIn: ["en-US"] }))).toHaveProperty("en");
 
 			});
 
@@ -561,31 +569,35 @@ describe("validators", () => {
 
 		describe("combined constraints", () => {
 
-			it("returns empty trace when all constraints are satisfied", async () => {
+			it("returns undefined when all constraints are satisfied", async () => {
 
 				expect(validateLocal([{ en: "hello", fr: "bonjour" }], local({
 					minLength: 2,
 					maxLength: 10,
 					languageIn: ["en", "fr"]
-				}))).toEqual([{ en: [], fr: [] }]);
+				}))).toBeUndefined();
 
 			});
 
 			it("returns trace when length constraint fails", async () => {
 
-				expect(validateLocal([{ en: "hello" }], local({
+				const result = validateLocal([{ en: "hello" }], local({
 					minLength: 10,
 					languageIn: ["en"]
-				})).length).toBeGreaterThan(0);
+				}));
+
+				expect(result).toHaveProperty("en");
 
 			});
 
 			it("returns trace when language constraint fails", async () => {
 
-				expect(validateLocal([{ fr: "bonjour" }], local({
+				const result = validateLocal([{ fr: "bonjour" }], local({
 					minLength: 2,
 					languageIn: ["en"]
-				})).length).toBeGreaterThan(0);
+				}));
+
+				expect(result).toHaveProperty("fr");
 
 			});
 
@@ -595,25 +607,25 @@ describe("validators", () => {
 
 			it("validates plain string values as { und: value }", async () => {
 
-				expect(validateLocal(["hello"], local({ minLength: 3 }))).toEqual([{ und: [] }]);
+				expect(validateLocal(["hello"], local({ minLength: 3 }))).toBeUndefined();
 
 			});
 
 			it("returns trace when plain string fails length constraint", async () => {
 
-				expect(validateLocal(["hi"], local({ minLength: 5 })).length).toBeGreaterThan(0);
+				expect(validateLocal(["hi"], local({ minLength: 5 }))).toHaveProperty("und");
 
 			});
 
 			it("returns trace when plain string fails languageIn constraint", async () => {
 
-				expect(validateLocal(["hello"], local({ languageIn: ["en"] })).length).toBeGreaterThan(0);
+				expect(validateLocal(["hello"], local({ languageIn: ["en"] }))).toHaveProperty("und");
 
 			});
 
-			it("returns empty trace when plain string matches languageIn with und", async () => {
+			it("returns undefined when plain string matches languageIn with und", async () => {
 
-				expect(validateLocal(["hello"], local({ languageIn: ["und"] }))).toEqual([{ und: [] }]);
+				expect(validateLocal(["hello"], local({ languageIn: ["und"] }))).toBeUndefined();
 
 			});
 
@@ -623,43 +635,35 @@ describe("validators", () => {
 
 			it("includes tag key for length violation", async () => {
 
-				const trace = validateLocal([{ en: "hi" }], local({ minLength: 5 }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, unknown> | undefined;
+				const result = validateLocal([{ en: "hi" }], local({ minLength: 5 }));
 
-				expect(dict).toBeDefined();
-				expect(dict).toHaveProperty("en");
+				expect(result).toHaveProperty("en");
 
 			});
 
 			it("includes tag key for language constraint violation", async () => {
 
-				const trace = validateLocal([{ de: "hallo" }], local({ languageIn: ["en", "fr"] }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, unknown> | undefined;
+				const result = validateLocal([{ de: "hallo" }], local({ languageIn: ["en", "fr"] }));
 
-				expect(dict).toBeDefined();
-				expect(dict).toHaveProperty("de");
+				expect(result).toHaveProperty("de");
 
 			});
 
 			it("includes only violating tag keys", async () => {
 
-				const trace = validateLocal([{ en: "hi", fr: "bonjour" }], local({ minLength: 5 }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
+				const result = validateLocal([{ en: "hi", fr: "bonjour" }], local({ minLength: 5 }));
 
-				expect(dict).toBeDefined();
-				expect(dict!["en"].length).toBeGreaterThan(0);
-				expect(dict!["fr"]).toEqual([]);
+				expect(result).toHaveProperty("en");
+				expect(result).not.toHaveProperty("fr");
 
 			});
 
 			it("includes range key for subtag violation", async () => {
 
-				const trace = validateLocal([{ "en-US": "color", "de": "farbe" }], local({ languageIn: ["en-*"] }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
+				const result = validateLocal([{ "en-US": "color", "de": "farbe" }], local({ languageIn: ["en-*"] }));
 
-				expect(dict).toBeDefined();
-				expect(dict!["de"].length).toBeGreaterThan(0);
-				expect(dict!["en-US"]).toEqual([]);
+				expect(result).toHaveProperty("de");
+				expect(result).not.toHaveProperty("en-US");
 
 			});
 
@@ -671,18 +675,20 @@ describe("validators", () => {
 
 		describe("minLength constraint", () => {
 
-			it("returns empty trace when all strings meet minimum length", async () => {
+			it("returns undefined when all strings meet minimum length", async () => {
 
 				expect(validateLocals([{
 					en: ["hello", "world"],
 					fr: ["bonjour"]
-				}], locals({ minLength: 3 }))).toEqual([{ en: [], fr: [] }]);
+				}], locals({ minLength: 3 }))).toBeUndefined();
 
 			});
 
 			it("returns trace when any string is below minimum length", async () => {
 
-				expect(validateLocals([{ en: ["hello", "hi"] }], locals({ minLength: 5 })).length).toBeGreaterThan(0);
+				const result = validateLocals([{ en: ["hello", "hi"] }], locals({ minLength: 5 }));
+
+				expect(result).toHaveProperty("en");
 
 			});
 
@@ -690,18 +696,20 @@ describe("validators", () => {
 
 		describe("maxLength constraint", () => {
 
-			it("returns empty trace when all strings are within maximum length", async () => {
+			it("returns undefined when all strings are within maximum length", async () => {
 
 				expect(validateLocals([{
 					en: ["hello", "hi"],
 					fr: ["bonjour"]
-				}], locals({ maxLength: 10 }))).toEqual([{ en: [], fr: [] }]);
+				}], locals({ maxLength: 10 }))).toBeUndefined();
 
 			});
 
 			it("returns trace when any string exceeds maximum length", async () => {
 
-				expect(validateLocals([{ en: ["hello", "greetings"] }], locals({ maxLength: 5 })).length).toBeGreaterThan(0);
+				const result = validateLocals([{ en: ["hello", "greetings"] }], locals({ maxLength: 5 }));
+
+				expect(result).toHaveProperty("en");
 
 			});
 
@@ -709,27 +717,30 @@ describe("validators", () => {
 
 		describe("languageIn constraint", () => {
 
-			it("returns empty trace when all tags match allowed languages", async () => {
+			it("returns undefined when all tags match allowed languages", async () => {
 
 				expect(validateLocals([{
 					en: ["hello"],
 					fr: ["bonjour"]
-				}], locals({ languageIn: ["en", "fr"] }))).toEqual([{ en: [], fr: [] }]);
+				}], locals({ languageIn: ["en", "fr"] }))).toBeUndefined();
 
 			});
 
 			it("returns trace when tag is not in allowed languages", async () => {
 
-				expect(validateLocals([{
+				const result = validateLocals([{
 					en: ["hello"],
 					de: ["hallo"]
-				}], locals({ languageIn: ["en", "fr"] })).length).toBeGreaterThan(0);
+				}], locals({ languageIn: ["en", "fr"] }));
+
+				expect(result).toHaveProperty("de");
+				expect(result).not.toHaveProperty("en");
 
 			});
 
 			it("handles language range matching", async () => {
 
-				expect(validateLocals([{ "en-US": ["color"] }], locals({ languageIn: ["en-*"] }))).toEqual([{ "en-US": [] }]);
+				expect(validateLocals([{ "en-US": ["color"] }], locals({ languageIn: ["en-*"] }))).toBeUndefined();
 
 			});
 
@@ -737,22 +748,24 @@ describe("validators", () => {
 
 		describe("combined constraints", () => {
 
-			it("returns empty trace when all constraints are satisfied", async () => {
+			it("returns undefined when all constraints are satisfied", async () => {
 
 				expect(validateLocals([{ en: ["hello", "world"], fr: ["bonjour"] }], locals({
 					minLength: 2,
 					maxLength: 10,
 					languageIn: ["en", "fr"]
-				}))).toEqual([{ en: [], fr: [] }]);
+				}))).toBeUndefined();
 
 			});
 
 			it("returns trace when any constraint fails", async () => {
 
-				expect(validateLocals([{ en: ["hello"] }], locals({
+				const result = validateLocals([{ en: ["hello"] }], locals({
 					minLength: 10,
 					languageIn: ["en"]
-				})).length).toBeGreaterThan(0);
+				}));
+
+				expect(result).toHaveProperty("en");
 
 			});
 
@@ -762,25 +775,25 @@ describe("validators", () => {
 
 			it("validates plain string array values as { und: value }", async () => {
 
-				expect(validateLocals([["hello", "world"]], locals({ minLength: 3 }))).toEqual([{ und: [] }]);
+				expect(validateLocals([["hello", "world"]], locals({ minLength: 3 }))).toBeUndefined();
 
 			});
 
 			it("returns trace when plain string array fails length constraint", async () => {
 
-				expect(validateLocals([["hi"]], locals({ minLength: 5 })).length).toBeGreaterThan(0);
+				expect(validateLocals([["hi"]], locals({ minLength: 5 }))).toHaveProperty("und");
 
 			});
 
 			it("returns trace when plain string array fails languageIn constraint", async () => {
 
-				expect(validateLocals([["hello"]], locals({ languageIn: ["en"] })).length).toBeGreaterThan(0);
+				expect(validateLocals([["hello"]], locals({ languageIn: ["en"] }))).toHaveProperty("und");
 
 			});
 
-			it("returns empty trace when plain string array matches languageIn with und", async () => {
+			it("returns undefined when plain string array matches languageIn with und", async () => {
 
-				expect(validateLocals([["hello"]], locals({ languageIn: ["und"] }))).toEqual([{ und: [] }]);
+				expect(validateLocals([["hello"]], locals({ languageIn: ["und"] }))).toBeUndefined();
 
 			});
 
@@ -790,46 +803,38 @@ describe("validators", () => {
 
 			it("includes tag key for length violation", async () => {
 
-				const trace = validateLocals([{ en: ["hi"] }], locals({ minLength: 5 }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, unknown> | undefined;
+				const result = validateLocals([{ en: ["hi"] }], locals({ minLength: 5 }));
 
-				expect(dict).toBeDefined();
-				expect(dict).toHaveProperty("en");
+				expect(result).toHaveProperty("en");
 
 			});
 
 			it("includes tag key for language constraint violation", async () => {
 
-				const trace = validateLocals([{ de: ["hallo"] }], locals({ languageIn: ["en", "fr"] }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, unknown> | undefined;
+				const result = validateLocals([{ de: ["hallo"] }], locals({ languageIn: ["en", "fr"] }));
 
-				expect(dict).toBeDefined();
-				expect(dict).toHaveProperty("de");
+				expect(result).toHaveProperty("de");
 
 			});
 
 			it("includes only violating tag keys", async () => {
 
-				const trace = validateLocals([{ en: ["hi"], fr: ["bonjour"] }], locals({ minLength: 5 }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
+				const result = validateLocals([{ en: ["hi"], fr: ["bonjour"] }], locals({ minLength: 5 }));
 
-				expect(dict).toBeDefined();
-				expect(dict!["en"].length).toBeGreaterThan(0);
-				expect(dict!["fr"]).toEqual([]);
+				expect(result).toHaveProperty("en");
+				expect(result).not.toHaveProperty("fr");
 
 			});
 
 			it("includes range key for subtag violation", async () => {
 
-				const trace = validateLocals([{
+				const result = validateLocals([{
 					"en-US": ["color"],
 					"de": ["farbe"]
 				}], locals({ languageIn: ["en-*"] }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
 
-				expect(dict).toBeDefined();
-				expect(dict!["de"].length).toBeGreaterThan(0);
-				expect(dict!["en-US"]).toEqual([]);
+				expect(result).toHaveProperty("de");
+				expect(result).not.toHaveProperty("en-US");
 
 			});
 
@@ -837,33 +842,36 @@ describe("validators", () => {
 
 		describe("per-value errors", () => {
 
-			it("reports one error per failing text for minLength", async () => {
+			it("includes count prefix for multiple failing texts", async () => {
 
-				const trace = validateLocals([{ en: ["ab", "c", "d"] }], locals({ minLength: 3 }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
+				const result = validateLocals([{ en: ["ab", "c", "d"] }], locals({ minLength: 3 }));
 
-				expect(dict).toBeDefined();
-				expect(dict!["en"]).toHaveLength(3);
-
-			});
-
-			it("reports one error per failing text for maxLength", async () => {
-
-				const trace = validateLocals([{ en: ["toolong", "alsotoolong"] }], locals({ maxLength: 3 }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
-
-				expect(dict).toBeDefined();
-				expect(dict!["en"]).toHaveLength(2);
+				expect(result).toHaveProperty("en");
+				const en = (result as any).en;
+				expect(typeof en === "object" && typeof en.minLength === "string"
+					&& en.minLength.startsWith("(3/3)")).toBeTruthy();
 
 			});
 
-			it("reports errors only for failing texts", async () => {
+			it("includes count prefix for maxLength violations", async () => {
 
-				const trace = validateLocals([{ en: ["ab", "hello", "c"] }], locals({ minLength: 3 }));
-				const dict = trace.find(e => typeof e === "object") as Record<string, string[]> | undefined;
+				const result = validateLocals([{ en: ["toolong", "alsotoolong"] }], locals({ maxLength: 3 }));
 
-				expect(dict).toBeDefined();
-				expect(dict!["en"]).toHaveLength(2);
+				expect(result).toHaveProperty("en");
+				const en = (result as any).en;
+				expect(typeof en === "object" && typeof en.maxLength === "string"
+					&& en.maxLength.startsWith("(2/2)")).toBeTruthy();
+
+			});
+
+			it("counts only failing texts in prefix", async () => {
+
+				const result = validateLocals([{ en: ["ab", "hello", "c"] }], locals({ minLength: 3 }));
+
+				expect(result).toHaveProperty("en");
+				const en = (result as any).en;
+				expect(typeof en === "object" && typeof en.minLength === "string"
+					&& en.minLength.startsWith("(2/3)")).toBeTruthy();
 
 			});
 

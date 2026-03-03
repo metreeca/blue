@@ -23,22 +23,13 @@
  * @module
  */
 
-import {
-	type Identifier,
-	isArray,
-	isBoolean,
-	isFunction,
-	isNumber,
-	isObject,
-	isString,
-	type Lazy
-} from "@metreeca/core";
+import { type Identifier, isBoolean, isFunction, isNumber, isString, type Lazy } from "@metreeca/core";
 import { assert, error as report } from "@metreeca/core/error";
 import { immutable } from "@metreeca/core/nested";
 import { isProbe, type Probe, type Transform } from "@metreeca/qest/model";
 import { isLocal, isLocals, isReference, isResource, type Value } from "@metreeca/qest/state";
 import { isBooleanShape, validateBoolean } from "./boolean.core.js";
-import type { Trace, Validator, ValueShape } from "./index.js";
+import type { ValueShape } from "./index.js";
 import { isLocalShape, isLocalsShape, validateLocal, validateLocals } from "./local.core.js";
 import { isNumberShape, validateNumber } from "./number.core.js";
 import { decimal, integer } from "./number.js";
@@ -46,6 +37,8 @@ import { flatten, isReferenceShape, isResourceShape, validateReference, validate
 import type { Range, ResourceShape, Union } from "./resource.js";
 import { isStringShape, validateString } from "./string.core.js";
 import { date, duration, instant, string, time, timestamp, uri, year } from "./string.js";
+import { trace } from "./trace.core.js";
+import type { Trace } from "./trace.js";
 
 
 /**
@@ -122,35 +115,6 @@ const cache = new WeakMap<() => unknown, unknown>();
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Checks whether a value is a valid {@link Trace}.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` is an array of strings or nested trace dictionaries; false otherwise
- */
-export function isTrace(value: unknown): value is Trace {
-	return isArray(value, v => isString(v) || isObject(v, (v, k) =>
-			isString(k) && isTrace(v)
-		)
-	);
-}
-
-/**
- * Checks whether a value is a valid {@link Validator}.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` is a function; false otherwise
- */
-export function isValidator(value: unknown): value is Validator {
-	return isFunction(value);
-}
-
-/**
  * Checks whether a value is a valid {@link ValueShape}.
  *
  * @group Guards
@@ -179,9 +143,9 @@ export function isValueShape(value: unknown): value is ValueShape {
  * @param values The values to validate
  * @param shape The shape defining validation constraints
  *
- * @returns A trace of validation errors, empty if all values are valid
+ * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
-export function validateValue(values: readonly Value[], shape: ValueShape): Trace {
+export function validateValue(values: readonly Value[], shape: ValueShape): undefined | Trace {
 
 	switch ( shape.kind ) {
 
@@ -219,14 +183,25 @@ export function validateValue(values: readonly Value[], shape: ValueShape): Trac
 	function validate<T>(
 		values: readonly Value[],
 		guard: (v: unknown) => v is T,
-		check: (matched: readonly T[]) => Trace
-	): Trace {
+		check: (matched: readonly T[]) => undefined | Trace
+	): undefined | Trace {
 
 		const matched = values.filter(guard) as (Value & T)[];
-		return [
-			...Array<string>(values.length-matched.length).fill(`expected ${shape.kind} values`),
-			...check(matched)
-		];
+
+		const mismatched = values.length-matched.length;
+
+		return trace({
+
+			kind: mismatched > 0
+				? `expected ${shape.kind} values${mismatched > 1 ? ` (${mismatched}/${values.length})` : ""}`
+				: true,
+
+			...Object.fromEntries(
+				Object.entries(check(matched) ?? {})
+			)
+
+		});
+
 	}
 
 }
@@ -545,9 +520,6 @@ export function apply(probe: Probe, shape: ValueShape): Range | undefined {
 
 }
 
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /**
  * Resolves a lazy value, caching factory results for idempotent materialisation.
  *
@@ -583,93 +555,5 @@ export function materialize<T>(lazy: Lazy<T>): T {
 		return lazy;
 
 	}
-
-}
-
-/**
- * Collects multiple validation traces into a single canonical trace.
- *
- * Returns traces in canonical form: all messages first, followed by a single merged property dictionary (if any).
- * Input traces may contain messages and dictionaries in any order; the output normalises this structure.
- *
- * - Empty input yields an empty trace
- * - Messages deduplicated, empty strings removed, encounter order preserved
- * - Dictionaries merged, empty ones removed, key order preserved, overlapping keys recursively merged
- *
- * @param traces The traces to collect
- *
- * @returns An immutable canonical trace with messages followed by a merged key dictionary
- *
- * @throws {TypeError} If `traces` or any of its elements is not a valid {@link Trace}
- */
-export function collect(traces: readonly Trace[]): Trace {
-
-	// inline validation (mirrors isTrace but avoids double traversal on recursion)
-
-	if ( !isArray(traces) ) {
-		throw new TypeError(`invalid trace array <type ${typeof traces}>`);
-	}
-
-
-	// reduce traces: validate incrementally, collect issues, merge records
-
-	const { issues, records } = traces.reduce((accumulator, trace) => {
-
-		if ( !isArray(trace) ) {
-			throw new TypeError(`invalid trace object <type ${typeof trace}>`);
-		}
-
-		trace.forEach(entry => {
-
-			if ( isString(entry) ) {
-
-				if ( entry ) { accumulator.issues.set(entry, (accumulator.issues.get(entry) ?? 0)+1); }
-
-			} else if ( isObject(entry) ) {
-
-				Object.entries(entry).forEach(([key, trace]) => {
-
-					const merged = accumulator.records[key] === undefined
-						? collect([trace as Trace]) // merge singleton to validate
-						: collect([accumulator.records[key], trace as Trace]);
-
-					if ( merged.length > 0 ) {
-						accumulator.records[key] = merged;
-					} else {
-						delete accumulator.records[key];
-					}
-
-				});
-
-			} else {
-
-				throw new TypeError(`invalid nested trace <type ${typeof trace}>`);
-
-			}
-
-		});
-
-		return accumulator;
-
-	}, {
-
-		issues: new Map<string, number>(),
-		records: {}
-
-	} as {
-
-		readonly issues: Map<string, number>;
-		readonly records: Record<Identifier, Trace>
-
-	});
-
-	// combine: messages first, merged dictionary at end (if non-empty)
-
-	const deduplicated = [...issues].map(([issue, count]) => count > 1 ? `${issue} (${count})` : issue);
-
-	return immutable(
-		Object.keys(records).length > 0 ? [...deduplicated, records] : [...deduplicated],
-		isTrace
-	);
 
 }

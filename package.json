@@ -44,7 +44,6 @@
     "setup": "npm install && npm audit fix",
     "build": "rm -rf dist docs && tsc -p tsconfig.build.json && npx typedoc",
     "check": "npx vitest --typecheck run",
-    "watch": "npx tsc --watch",
     "proof": "npm run build && (npx typedoc --watch & npx five-server docs --open)"
   },
   "dependencies": {

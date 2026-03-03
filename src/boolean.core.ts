@@ -24,7 +24,8 @@
 
 import { isBoolean, isObject, isOptional } from "@metreeca/core";
 import type { BooleanConstraints, BooleanShape } from "./boolean.js";
-import type { Trace } from "./index.js";
+
+import type { Trace } from "./trace.js";
 
 
 /**
@@ -68,15 +69,15 @@ export function isBooleanConstraints(value: unknown): value is BooleanConstraint
 /**
  * Validates boolean values against a shape.
  *
- * Boolean values have no additional constraints beyond type checking, so this always returns an empty trace.
+ * Boolean values have no additional constraints beyond type checking, so this always returns `undefined`.
  *
  * @param values The boolean values to validate
  * @param shape The boolean shape (unused, as booleans have no constraints)
  *
- * @returns An empty trace (booleans have no value constraints)
+ * @returns `undefined` (booleans have no value constraints)
  */
-export function validateBoolean(values: readonly boolean[], {}: BooleanShape): Trace {
+export function validateBoolean(values: readonly boolean[], {}: BooleanShape): undefined | Trace {
 
-	return [];
+	return undefined;
 
 }

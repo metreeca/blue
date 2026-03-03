@@ -167,15 +167,15 @@ describe("validators", () => {
 
 	describe("validateBoolean", () => {
 
-		it("returns empty trace for valid boolean values", async () => {
+		it("returns undefined for valid boolean values", async () => {
 
-			expect(validateBoolean([true, false], boolean())).toEqual([]);
+			expect(validateBoolean([true, false], boolean())).toBeUndefined();
 
 		});
 
-		it("returns empty trace for empty values", async () => {
+		it("returns undefined for empty values", async () => {
 
-			expect(validateBoolean([], boolean())).toEqual([]);
+			expect(validateBoolean([], boolean())).toBeUndefined();
 
 		});
 

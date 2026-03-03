@@ -651,33 +651,39 @@ describe("validators", () => {
 
 		describe("minLength constraint", () => {
 
-			it("returns empty trace for strings at minimum length", async () => {
+			it("returns undefined for strings at minimum length", async () => {
 
-				expect(validateString(["abc"], string({ minLength: 3 }))).toEqual([]);
-
-			});
-
-			it("returns empty trace for strings above minimum length", async () => {
-
-				expect(validateString(["abcdef"], string({ minLength: 3 }))).toEqual([]);
+				expect(validateString(["abc"], string({ minLength: 3 }))).toBeUndefined();
 
 			});
 
-			it("returns trace for strings below minimum length", async () => {
+			it("returns undefined for strings above minimum length", async () => {
 
-				expect(validateString(["ab"], string({ minLength: 3 })).length).toBeGreaterThan(0);
-
-			});
-
-			it("returns trace for empty string when minLength > 0", async () => {
-
-				expect(validateString([""], string({ minLength: 1 })).length).toBeGreaterThan(0);
+				expect(validateString(["abcdef"], string({ minLength: 3 }))).toBeUndefined();
 
 			});
 
-			it("returns empty trace for empty string when minLength is 0", async () => {
+			it("returns keyed trace for strings below minimum length", async () => {
 
-				expect(validateString([""], string({ minLength: 0 }))).toEqual([]);
+				const trace = validateString(["ab"], string({ minLength: 3 }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("minLength");
+
+			});
+
+			it("returns keyed trace for empty string when minLength > 0", async () => {
+
+				const trace = validateString([""], string({ minLength: 1 }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("minLength");
+
+			});
+
+			it("returns undefined for empty string when minLength is 0", async () => {
+
+				expect(validateString([""], string({ minLength: 0 }))).toBeUndefined();
 
 			});
 
@@ -685,33 +691,39 @@ describe("validators", () => {
 
 		describe("maxLength constraint", () => {
 
-			it("returns empty trace for strings at maximum length", async () => {
+			it("returns undefined for strings at maximum length", async () => {
 
-				expect(validateString(["hello"], string({ maxLength: 5 }))).toEqual([]);
-
-			});
-
-			it("returns empty trace for strings below maximum length", async () => {
-
-				expect(validateString(["hi"], string({ maxLength: 5 }))).toEqual([]);
+				expect(validateString(["hello"], string({ maxLength: 5 }))).toBeUndefined();
 
 			});
 
-			it("returns trace for strings above maximum length", async () => {
+			it("returns undefined for strings below maximum length", async () => {
 
-				expect(validateString(["hello world"], string({ maxLength: 5 })).length).toBeGreaterThan(0);
-
-			});
-
-			it("returns empty trace for empty string with maxLength constraint", async () => {
-
-				expect(validateString([""], string({ maxLength: 5 }))).toEqual([]);
+				expect(validateString(["hi"], string({ maxLength: 5 }))).toBeUndefined();
 
 			});
 
-			it("returns trace when maxLength is 0 and string is non-empty", async () => {
+			it("returns keyed trace for strings above maximum length", async () => {
 
-				expect(validateString(["a"], string({ maxLength: 0 })).length).toBeGreaterThan(0);
+				const trace = validateString(["hello world"], string({ maxLength: 5 }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("maxLength");
+
+			});
+
+			it("returns undefined for empty string with maxLength constraint", async () => {
+
+				expect(validateString([""], string({ maxLength: 5 }))).toBeUndefined();
+
+			});
+
+			it("returns keyed trace when maxLength is 0 and string is non-empty", async () => {
+
+				const trace = validateString(["a"], string({ maxLength: 0 }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("maxLength");
 
 			});
 
@@ -719,27 +731,27 @@ describe("validators", () => {
 
 		describe("combined length constraints", () => {
 
-			it("returns empty trace for strings within length range", async () => {
+			it("returns undefined for strings within length range", async () => {
 
-				expect(validateString(["abc"], string({ minLength: 2, maxLength: 5 }))).toEqual([]);
-
-			});
-
-			it("returns empty trace for strings at length boundaries", async () => {
-
-				const shape = string({ minLength: 2, maxLength: 5 });
-
-				expect(validateString(["ab"], shape)).toEqual([]);
-				expect(validateString(["abcde"], shape)).toEqual([]);
+				expect(validateString(["abc"], string({ minLength: 2, maxLength: 5 }))).toBeUndefined();
 
 			});
 
-			it("returns trace for strings outside length range", async () => {
+			it("returns undefined for strings at length boundaries", async () => {
 
 				const shape = string({ minLength: 2, maxLength: 5 });
 
-				expect(validateString(["a"], shape).length).toBeGreaterThan(0);
-				expect(validateString(["abcdef"], shape).length).toBeGreaterThan(0);
+				expect(validateString(["ab"], shape)).toBeUndefined();
+				expect(validateString(["abcde"], shape)).toBeUndefined();
+
+			});
+
+			it("returns keyed trace for strings outside length range", async () => {
+
+				const shape = string({ minLength: 2, maxLength: 5 });
+
+				expect(validateString(["a"], shape)).toHaveProperty("minLength");
+				expect(validateString(["abcdef"], shape)).toHaveProperty("maxLength");
 
 			});
 
@@ -747,33 +759,42 @@ describe("validators", () => {
 
 		describe("pattern constraint", () => {
 
-			it("returns empty trace for strings matching pattern", async () => {
+			it("returns undefined for strings matching pattern", async () => {
 
-				expect(validateString(["hello"], string({ pattern: /^[a-z]+$/ }))).toEqual([]);
-
-			});
-
-			it("returns trace for strings not matching pattern", async () => {
-
-				expect(validateString(["Hello123"], string({ pattern: /^[a-z]+$/ })).length).toBeGreaterThan(0);
+				expect(validateString(["hello"], string({ pattern: /^[a-z]+$/ }))).toBeUndefined();
 
 			});
 
-			it("returns trace for empty string when pattern requires content", async () => {
+			it("returns keyed trace for strings not matching pattern", async () => {
 
-				expect(validateString([""], string({ pattern: /^[a-z]+$/ })).length).toBeGreaterThan(0);
+				const trace = validateString(["Hello123"], string({ pattern: /^[a-z]+$/ }));
 
-			});
-
-			it("returns empty trace for strings matching email pattern", async () => {
-
-				expect(validateString(["user@example.com"], string({ pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }))).toEqual([]);
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("pattern");
 
 			});
 
-			it("returns trace for invalid email pattern", async () => {
+			it("returns keyed trace for empty string when pattern requires content", async () => {
 
-				expect(validateString(["invalid-email"], string({ pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ })).length).toBeGreaterThan(0);
+				const trace = validateString([""], string({ pattern: /^[a-z]+$/ }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("pattern");
+
+			});
+
+			it("returns undefined for strings matching email pattern", async () => {
+
+				expect(validateString(["user@example.com"], string({ pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }))).toBeUndefined();
+
+			});
+
+			it("returns keyed trace for invalid email pattern", async () => {
+
+				const trace = validateString(["invalid-email"], string({ pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("pattern");
 
 			});
 
@@ -781,15 +802,15 @@ describe("validators", () => {
 
 				const shape = string({ pattern: /^ABC$/ });
 
-				expect(validateString(["ABC"], shape)).toEqual([]);
-				expect(validateString(["ABCD"], shape).length).toBeGreaterThan(0);
-				expect(validateString(["0ABC"], shape).length).toBeGreaterThan(0);
+				expect(validateString(["ABC"], shape)).toBeUndefined();
+				expect(validateString(["ABCD"], shape)).toHaveProperty("pattern");
+				expect(validateString(["0ABC"], shape)).toHaveProperty("pattern");
 
 			});
 
 			it("validates pattern as string", async () => {
 
-				expect(validateString(["12345"], string({ pattern: "^[0-9]+$" }))).toEqual([]);
+				expect(validateString(["12345"], string({ pattern: "^[0-9]+$" }))).toBeUndefined();
 
 			});
 
@@ -797,25 +818,31 @@ describe("validators", () => {
 
 		describe("in constraint", () => {
 
-			it("returns empty trace for strings in the enumeration", async () => {
+			it("returns undefined for strings in the enumeration", async () => {
 
 				const shape = string({ in: ["apple", "banana", "cherry"] });
 
-				expect(validateString(["apple"], shape)).toEqual([]);
-				expect(validateString(["banana"], shape)).toEqual([]);
-				expect(validateString(["cherry"], shape)).toEqual([]);
+				expect(validateString(["apple"], shape)).toBeUndefined();
+				expect(validateString(["banana"], shape)).toBeUndefined();
+				expect(validateString(["cherry"], shape)).toBeUndefined();
 
 			});
 
-			it("returns trace for strings not in the enumeration", async () => {
+			it("returns keyed trace for strings not in the enumeration", async () => {
 
-				expect(validateString(["orange"], string({ in: ["apple", "banana", "cherry"] })).length).toBeGreaterThan(0);
+				const trace = validateString(["orange"], string({ in: ["apple", "banana", "cherry"] }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("in");
 
 			});
 
-			it("returns trace for empty enumeration", async () => {
+			it("returns keyed trace for empty enumeration", async () => {
 
-				expect(validateString(["anything"], string({ in: [] })).length).toBeGreaterThan(0);
+				const trace = validateString(["anything"], string({ in: [] }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("in");
 
 			});
 
@@ -823,8 +850,8 @@ describe("validators", () => {
 
 				const shape = string({ in: ["only"] });
 
-				expect(validateString(["only"], shape)).toEqual([]);
-				expect(validateString(["other"], shape).length).toBeGreaterThan(0);
+				expect(validateString(["only"], shape)).toBeUndefined();
+				expect(validateString(["other"], shape)).toHaveProperty("in");
 
 			});
 
@@ -832,14 +859,14 @@ describe("validators", () => {
 
 				const shape = string({ in: ["Hello", "World"] });
 
-				expect(validateString(["Hello"], shape)).toEqual([]);
-				expect(validateString(["hello"], shape).length).toBeGreaterThan(0);
+				expect(validateString(["Hello"], shape)).toBeUndefined();
+				expect(validateString(["hello"], shape)).toHaveProperty("in");
 
 			});
 
-			it("returns empty trace for empty string in enumeration", async () => {
+			it("returns undefined for empty string in enumeration", async () => {
 
-				expect(validateString([""], string({ in: ["", "a", "b"] }))).toEqual([]);
+				expect(validateString([""], string({ in: ["", "a", "b"] }))).toBeUndefined();
 
 			});
 
@@ -847,39 +874,45 @@ describe("validators", () => {
 
 		describe("hasValue constraint", () => {
 
-			it("returns empty trace when all required values are present", async () => {
+			it("returns undefined when all required values are present", async () => {
 
-				expect(validateString(["apple", "banana", "cherry"], string({ hasValue: ["apple", "banana"] }))).toEqual([]);
-
-			});
-
-			it("returns empty trace when values exactly match required", async () => {
-
-				expect(validateString(["apple", "banana"], string({ hasValue: ["apple", "banana"] }))).toEqual([]);
+				expect(validateString(["apple", "banana", "cherry"], string({ hasValue: ["apple", "banana"] }))).toBeUndefined();
 
 			});
 
-			it("returns trace when required value is missing", async () => {
+			it("returns undefined when values exactly match required", async () => {
 
-				expect(validateString(["apple", "cherry"], string({ hasValue: ["apple", "banana"] })).length).toBeGreaterThan(0);
-
-			});
-
-			it("returns trace when values array is empty", async () => {
-
-				expect(validateString([], string({ hasValue: ["apple"] })).length).toBeGreaterThan(0);
+				expect(validateString(["apple", "banana"], string({ hasValue: ["apple", "banana"] }))).toBeUndefined();
 
 			});
 
-			it("returns empty trace when hasValue is empty array", async () => {
+			it("returns keyed trace when required value is missing", async () => {
 
-				expect(validateString(["apple", "banana"], string({ hasValue: [] }))).toEqual([]);
+				const trace = validateString(["apple", "cherry"], string({ hasValue: ["apple", "banana"] }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("hasValue");
 
 			});
 
-			it("returns empty trace for single required value present", async () => {
+			it("returns keyed trace when values array is empty", async () => {
 
-				expect(validateString(["hello"], string({ hasValue: ["hello"] }))).toEqual([]);
+				const trace = validateString([], string({ hasValue: ["apple"] }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("hasValue");
+
+			});
+
+			it("returns undefined when hasValue is empty array", async () => {
+
+				expect(validateString(["apple", "banana"], string({ hasValue: [] }))).toBeUndefined();
+
+			});
+
+			it("returns undefined for single required value present", async () => {
+
+				expect(validateString(["hello"], string({ hasValue: ["hello"] }))).toBeUndefined();
 
 			});
 
@@ -887,32 +920,40 @@ describe("validators", () => {
 
 		describe("combined constraints", () => {
 
-			it("returns empty trace when satisfying both length and pattern", async () => {
+			it("returns undefined when satisfying both length and pattern", async () => {
 
 				expect(validateString(["hello"], string({
 					minLength: 2,
 					maxLength: 10,
 					pattern: /^[a-z]+$/
-				}))).toEqual([]);
+				}))).toBeUndefined();
 
 			});
 
-			it("returns trace for valid pattern but invalid length", async () => {
+			it("returns keyed trace for valid pattern but invalid length", async () => {
 
-				expect(validateString(["ab"], string({ minLength: 5, pattern: /^[a-z]+$/ })).length).toBeGreaterThan(0);
+				const trace = validateString(["ab"], string({ minLength: 5, pattern: /^[a-z]+$/ }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("minLength");
+				expect(trace).not.toHaveProperty("pattern");
 
 			});
 
-			it("returns trace for valid length but invalid pattern", async () => {
+			it("returns keyed trace for valid length but invalid pattern", async () => {
 
-				expect(validateString(["Hello123"], string({
+				const trace = validateString(["Hello123"], string({
 					maxLength: 10,
 					pattern: /^[a-z]+$/
-				})).length).toBeGreaterThan(0);
+				}));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("pattern");
+				expect(trace).not.toHaveProperty("maxLength");
 
 			});
 
-			it("returns empty trace when satisfying length, pattern, and enumeration", async () => {
+			it("returns undefined when satisfying length, pattern, and enumeration", async () => {
 
 				const shape = string({
 					minLength: 3,
@@ -921,11 +962,11 @@ describe("validators", () => {
 					in: ["apple", "banana", "cherry"]
 				});
 
-				expect(validateString(["apple"], shape)).toEqual([]);
+				expect(validateString(["apple"], shape)).toBeUndefined();
 
 			});
 
-			it("returns trace when failing enumeration despite valid length and pattern", async () => {
+			it("returns keyed trace when failing enumeration despite valid length and pattern", async () => {
 
 				const shape = string({
 					minLength: 3,
@@ -934,7 +975,12 @@ describe("validators", () => {
 					in: ["apple", "banana", "cherry"]
 				});
 
-				expect(validateString(["grape"], shape).length).toBeGreaterThan(0);
+				const trace = validateString(["grape"], shape);
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("in");
+				expect(trace).not.toHaveProperty("minLength");
+				expect(trace).not.toHaveProperty("pattern");
 
 			});
 
@@ -942,14 +988,14 @@ describe("validators", () => {
 
 		describe("no constraints", () => {
 
-			it("returns empty trace for any string with no constraints", async () => {
+			it("returns undefined for any string with no constraints", async () => {
 
 				const shape = string();
 
-				expect(validateString([""], shape)).toEqual([]);
-				expect(validateString(["hello"], shape)).toEqual([]);
-				expect(validateString(["Hello World!"], shape)).toEqual([]);
-				expect(validateString(["123"], shape)).toEqual([]);
+				expect(validateString([""], shape)).toBeUndefined();
+				expect(validateString(["hello"], shape)).toBeUndefined();
+				expect(validateString(["Hello World!"], shape)).toBeUndefined();
+				expect(validateString(["123"], shape)).toBeUndefined();
 
 			});
 
@@ -959,26 +1005,22 @@ describe("validators", () => {
 
 			it("counts unicode characters correctly for length constraints", async () => {
 
-				expect(validateString(["héllo"], string({ minLength: 5, maxLength: 10 }))).toEqual([]);
+				expect(validateString(["héllo"], string({ minLength: 5, maxLength: 10 }))).toBeUndefined();
 
 			});
 
 			it("handles emoji in length constraints", async () => {
 
 				const shape = string({ maxLength: 3 });
-
-				// emoji may count as 2 chars (surrogate pair) depending on implementation
 				const trace = validateString(["a🌍b"], shape);
 
-				// test that validation runs without error
-				expect(Array.isArray(trace)).toBeTruthy();
+				expect(trace === undefined || typeof trace === "object").toBeTruthy();
 
 			});
 
 			it("handles unicode in pattern matching", async () => {
 
-				// pattern with explicit accented characters (flags not preserved in shape)
-				expect(validateString(["héllo"], string({ pattern: /^[a-zA-Zéö]+$/ }))).toEqual([]);
+				expect(validateString(["héllo"], string({ pattern: /^[a-zA-Zéö]+$/ }))).toBeUndefined();
 
 			});
 
@@ -986,33 +1028,33 @@ describe("validators", () => {
 
 		describe("per-value errors", () => {
 
-			it("reports one error per failing value for minLength", async () => {
+			it("reports failure with count prefix for multiple failing values", async () => {
 
-				expect(validateString(["ab", "c"], string({ minLength: 3 }))).toHaveLength(2);
+				const trace = validateString(["ab", "c"], string({ minLength: 3 }));
 
-			});
-
-			it("reports one error per failing value for maxLength", async () => {
-
-				expect(validateString(["toolong", "alsotoolong"], string({ maxLength: 3 }))).toHaveLength(2);
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("minLength");
+				expect((trace as Record<string, string>).minLength).toMatch(/^\(2\/2\)/);
 
 			});
 
-			it("reports one error per failing value for pattern", async () => {
+			it("reports failure with count prefix for partial failures", async () => {
 
-				expect(validateString(["123", "456"], string({ pattern: /^[a-z]+$/ }))).toHaveLength(2);
+				const trace = validateString(["ab", "hello", "c"], string({ minLength: 3 }));
 
-			});
-
-			it("reports one error per failing value for in", async () => {
-
-				expect(validateString(["x", "y"], string({ in: ["a", "b"] }))).toHaveLength(2);
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("minLength");
+				expect((trace as Record<string, string>).minLength).toMatch(/^\(2\/3\)/);
 
 			});
 
-			it("reports errors only for failing values", async () => {
+			it("reports failure without count prefix for single value", async () => {
 
-				expect(validateString(["ab", "hello", "c"], string({ minLength: 3 }))).toHaveLength(2);
+				const trace = validateString(["ab"], string({ minLength: 3 }));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("minLength");
+				expect((trace as Record<string, string>).minLength).not.toMatch(/^\(/);
 
 			});
 

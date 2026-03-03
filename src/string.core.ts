@@ -24,8 +24,9 @@
  */
 
 import { isArray, isNumber, isObject, isOptional, isRegExp, isString } from "@metreeca/core";
-import type { Trace } from "./index.js";
 import type { StringConstraints, StringShape, TextualConstraints } from "./string.js";
+import { every, group, trace } from "./trace.core.js";
+import type { Trace } from "./trace.js";
 
 
 /**
@@ -111,12 +112,14 @@ export function isTextualConstraints(value: unknown): value is TextualConstraint
 /**
  * Validates string values against a shape.
  *
- * Enforces length constraints (minLength, maxLength), pattern matching, and value constraints (in, hasValue).
+ * Enforces length constraints (`minLength`, `maxLength`), pattern matching, and value constraints (`in`, `hasValue`).
+ * Returns a keyed trace where each key is the SHACL-derived constraint name and the value is the violation message,
+ * or `undefined` if all values pass validation.
  *
  * @param values The string values to validate
  * @param shape The string shape defining validation constraints
  *
- * @returns A trace of validation errors, empty if all values are valid
+ * @returns A keyed trace of constraint violations, or `undefined` if all values are valid
  */
 export function validateString(values: readonly string[], {
 
@@ -128,29 +131,35 @@ export function validateString(values: readonly string[], {
 	in: allowed,
 	hasValue
 
-}: StringShape): Trace {
+}: StringShape): undefined | Trace {
 
-	return [
+	return trace({
 
-		...values.flatMap(value => [
+		minLength: every(values, value =>
+			minLength === undefined || value.length >= minLength
+			|| `expected string length >= ${minLength}`
+		),
 
-			(minLength === undefined || value.length >= minLength)
-			|| `expected string length >= ${minLength}`,
+		maxLength: every(values, value =>
+			maxLength === undefined || value.length <= maxLength
+			|| `expected string length <= ${maxLength}`
+		),
 
-			(maxLength === undefined || value.length <= maxLength)
-			|| `expected string length <= ${maxLength}`,
+		pattern: every(values, value =>
+			pattern === undefined || new RegExp(pattern).test(value)
+			|| `expected string matching /${pattern}/`
+		),
 
-			(pattern === undefined || new RegExp(pattern).test(value))
-			|| `expected string matching /${pattern}/`,
-
-			(allowed === undefined || allowed.includes(value))
+		in: every(values, value =>
+			allowed === undefined || allowed.includes(value)
 			|| `expected values in [${allowed.join(", ")}]`
+		),
 
-		].filter(isString)),
+		hasValue: group(values, group =>
+			hasValue === undefined || hasValue.every(v => group.includes(v))
+			|| `expected values to include [${hasValue.join(", ")}]`
+		)
 
-		(hasValue === undefined || hasValue.every(value => values.includes(value)))
-		|| `expected values to include [${hasValue?.join(", ")}]`
-
-	].filter(isString);
+	});
 
 }

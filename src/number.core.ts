@@ -23,9 +23,10 @@
  * @module
  */
 
-import { isArray, isNumber, isObject, isOptional, isString } from "@metreeca/core";
-import type { Trace } from "./index.js";
+import { isArray, isNumber, isObject, isOptional } from "@metreeca/core";
 import type { NumberConstraints, NumberShape, NumericConstraints } from "./number.js";
+import { every, group, trace } from "./trace.core.js";
+import type { Trace } from "./trace.js";
 
 
 /**
@@ -104,13 +105,14 @@ export function isNumericConstraints(value: unknown): value is NumericConstraint
 /**
  * Validates numeric values against a shape.
  *
- * Enforces range constraints (minExclusive, maxExclusive, minInclusive, maxInclusive) and value constraints (in,
- * hasValue).
+ * Enforces range constraints (`minExclusive`, `maxExclusive`, `minInclusive`, `maxInclusive`) and value constraints
+ * (`in`, `hasValue`). Returns a keyed trace where each key is the SHACL-derived constraint name and the value is the
+ * violation message, or `undefined` if all values pass validation.
  *
  * @param values The numeric values to validate
  * @param shape The number shape defining validation constraints
  *
- * @returns A trace of validation errors, empty if all values are valid
+ * @returns A keyed trace of constraint violations, or `undefined` if all values are valid
  */
 export function validateNumber(values: readonly number[], {
 
@@ -122,32 +124,40 @@ export function validateNumber(values: readonly number[], {
 	in: allowed,
 	hasValue
 
-}: NumberShape): Trace {
+}: NumberShape): undefined | Trace {
 
-	return [
+	return trace({
 
-		...values.flatMap(value => [
+		minExclusive: every(values, value =>
+			minExclusive === undefined || value > minExclusive
+			|| `expected values > ${minExclusive}`
+		),
 
-			(minExclusive === undefined || value > minExclusive)
-			|| `expected values > ${minExclusive}`,
+		maxExclusive: every(values, value =>
+			maxExclusive === undefined || value < maxExclusive
+			|| `expected values < ${maxExclusive}`
+		),
 
-			(maxExclusive === undefined || value < maxExclusive)
-			|| `expected values < ${maxExclusive}`,
+		minInclusive: every(values, value =>
+			minInclusive === undefined || value >= minInclusive
+			|| `expected values >= ${minInclusive}`
+		),
 
-			(minInclusive === undefined || value >= minInclusive)
-			|| `expected values >= ${minInclusive}`,
+		maxInclusive: every(values, value =>
+			maxInclusive === undefined || value <= maxInclusive
+			|| `expected values <= ${maxInclusive}`
+		),
 
-			(maxInclusive === undefined || value <= maxInclusive)
-			|| `expected values <= ${maxInclusive}`,
-
-			(allowed === undefined || allowed.includes(value))
+		in: every(values, value =>
+			allowed === undefined || allowed.includes(value)
 			|| `expected values in [${allowed.join(", ")}]`
+		),
 
-		].filter(isString)),
+		hasValue: group(values, group =>
+			hasValue === undefined || hasValue.every(v => group.includes(v))
+			|| `expected values to include [${hasValue.join(", ")}]`
+		)
 
-		(hasValue === undefined || hasValue.every(value => values.includes(value)))
-		|| `expected values to include [${hasValue?.join(", ")}]`
-
-	].filter(isString);
+	});
 
 }
