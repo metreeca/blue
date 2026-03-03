@@ -19,7 +19,7 @@
  *
  * Defines shapes and factories for validating textual values, mapping the
  * [JSON string](https://datatracker.ietf.org/doc/html/rfc8259#section-7) type to
- * [XSD 1.1](https://www.w3.org/TR/xmlschema11-2/#built-in-datatypes) string datatypes.
+ * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) string datatypes.
  *
  * > [!WARNING]
  * > Factories check structural integrity of constraints but not their logical consistency:
@@ -38,14 +38,14 @@
  * | [dateTimeStamp][] | {@link timestamp} ³ | [ISO 8601][iso-datetime] timestamp   | YYYY-MM-DDThh:mm:ss.sssZ      |
  * | [duration][]      | {@link duration}    | [ISO 8601][iso-duration] duration   | [-]PnYnMnDTnHnMnS             |
  *
- * [string]: https://www.w3.org/TR/xmlschema11-2/#string
- * [anyURI]: https://www.w3.org/TR/xmlschema11-2/#anyURI
- * [gYear]: https://www.w3.org/TR/xmlschema11-2/#gYear
- * [date]: https://www.w3.org/TR/xmlschema11-2/#date
- * [time]: https://www.w3.org/TR/xmlschema11-2/#time
- * [dateTime]: https://www.w3.org/TR/xmlschema11-2/#dateTime
+ * [string]: https://www.w3.org/TR/xmlschema-2/#string
+ * [anyURI]: https://www.w3.org/TR/xmlschema-2/#anyURI
+ * [gYear]: https://www.w3.org/TR/xmlschema-2/#gYear
+ * [date]: https://www.w3.org/TR/xmlschema-2/#date
+ * [time]: https://www.w3.org/TR/xmlschema-2/#time
+ * [dateTime]: https://www.w3.org/TR/xmlschema-2/#dateTime
  * [dateTimeStamp]: https://www.w3.org/TR/xmlschema11-2/#dateTimeStamp
- * [duration]: https://www.w3.org/TR/xmlschema11-2/#duration
+ * [duration]: https://www.w3.org/TR/xmlschema-2/#duration
  *
  * [RFC 5321]: https://datatracker.ietf.org/doc/html/rfc5321
  * [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
@@ -55,8 +55,9 @@
  * [iso-datetime]: https://en.wikipedia.org/wiki/ISO_8601#Combined_date_and_time_representations
  * [iso-duration]: https://en.wikipedia.org/wiki/ISO_8601#Durations
  *
- * ¹ XSD 1.1 datatypes are referenced by [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/) and
- * [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) as normative
+ * ¹ XSD 1.0 datatypes are referenced by [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/) and
+ * [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) as normative;
+ * `dateTimeStamp` is defined in [XSD 1.1](https://www.w3.org/TR/xmlschema11-2/#dateTimeStamp)
  *
  * ² [XSD 1.1 Part 2 § D.3.4](https://www.w3.org/TR/xmlschema11-2/#deviantformats) permits optional timezone indicators
  * for `gYear` as a deviation from ISO 8601
@@ -112,7 +113,7 @@
  * @module
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc8259#section-7 RFC 8259 § 7 Strings}
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#built-in-datatypes XSD 1.1 Part 2: Datatypes § 3 Built-in
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#built-in-datatypes XSD 1.0 Part 2: Datatypes § 3 Built-in
  *     Datatypes}
  */
 
@@ -128,9 +129,9 @@ export { isStringShape, isStringConstraints, isTextualConstraints };
  * Shape definition for textual values.
  *
  * Validates textual values with length constraints, lexical validation, language tag constraints,
- * and value constraints for strings. Supports XSD string datatypes and temporal formats.
+ * and value constraints for strings. Supports XSD 1.0 string datatypes and temporal formats.
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#string XSD 1.1 Part 2: Datatypes § 3.3.1 string}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#string XSD 1.0 Part 2: Datatypes § 3.2.1 string}
  */
 export interface StringShape extends StringConstraints {
 
@@ -357,7 +358,7 @@ export function url(constraints: TextualConstraints = {}): StringShape {
  *
  * @returns A shape for validating absolute URIs
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#anyURI XSD 1.1 Part 2: Datatypes § 3.3.17 anyURI}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#anyURI XSD 1.0 Part 2: Datatypes § 3.2.17 anyURI}
  */
 export function uri(constraints: TextualConstraints = {}): StringShape {
 	return string({
@@ -385,7 +386,7 @@ export function uri(constraints: TextualConstraints = {}): StringShape {
  *
  * XSD permits timezone indicators for gYear as a deviation from ISO 8601.
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#gYear XSD 1.1 Part 2: Datatypes § 3.3.11 gYear}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#gYear XSD 1.0 Part 2: Datatypes § 3.2.11 gYear}
  */
 export function year(constraints: TextualConstraints = {}): StringShape {
 	return string({
@@ -404,7 +405,7 @@ export function year(constraints: TextualConstraints = {}): StringShape {
  *
  * @returns A shape for validating ISO 8601 date strings
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#date XSD 1.1 Part 2: Datatypes § 3.3.9 date}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#date XSD 1.0 Part 2: Datatypes § 3.2.9 date}
  */
 export function date(constraints: TextualConstraints = {}): StringShape {
 	return string({
@@ -423,7 +424,7 @@ export function date(constraints: TextualConstraints = {}): StringShape {
  *
  * @returns A shape for validating ISO 8601 time strings
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#time XSD 1.1 Part 2: Datatypes § 3.3.8 time}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#time XSD 1.0 Part 2: Datatypes § 3.2.8 time}
  */
 export function time(constraints: TextualConstraints = {}): StringShape {
 	return string({
@@ -442,7 +443,7 @@ export function time(constraints: TextualConstraints = {}): StringShape {
  *
  * @returns A shape for validating ISO 8601 datetime strings
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#dateTime XSD 1.1 Part 2: Datatypes § 3.3.7 dateTime}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
 export function instant(constraints: TextualConstraints = {}): StringShape {
 	return string({
@@ -486,7 +487,7 @@ export function timestamp(constraints: TextualConstraints = {}): StringShape {
  *
  * @returns A shape for validating ISO 8601 duration strings
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#duration XSD 1.1 Part 2: Datatypes § 3.3.6 duration}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#duration XSD 1.0 Part 2: Datatypes § 3.2.6 duration}
  */
 export function duration(constraints: TextualConstraints = {}): StringShape {
 	return string({

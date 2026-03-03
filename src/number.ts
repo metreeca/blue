@@ -19,7 +19,7 @@
  *
  * Defines shapes and factories for validating numeric values, mapping the
  * [JSON number](https://datatracker.ietf.org/doc/html/rfc8259#section-6) type to
- * [XSD 1.1](https://www.w3.org/TR/xmlschema11-2/#built-in-datatypes) numeric datatypes.
+ * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) numeric datatypes.
  *
  * > [!WARNING]
  * > Factories check structural integrity of constraints but not their logical consistency:
@@ -36,16 +36,16 @@
  * | [integer][]     | {@link integer} ² | arbitrary-precision integer  | ±#                         |
  * | [decimal][]     | {@link decimal} ² | arbitrary-precision decimal  | ±#.#                       |
  *
- * [byte]: https://www.w3.org/TR/xmlschema11-2/#byte
- * [short]: https://www.w3.org/TR/xmlschema11-2/#short
- * [int]: https://www.w3.org/TR/xmlschema11-2/#int
- * [long]: https://www.w3.org/TR/xmlschema11-2/#long
- * [float]: https://www.w3.org/TR/xmlschema11-2/#float
- * [double]: https://www.w3.org/TR/xmlschema11-2/#double
- * [integer]: https://www.w3.org/TR/xmlschema11-2/#integer
- * [decimal]: https://www.w3.org/TR/xmlschema11-2/#decimal
+ * [byte]: https://www.w3.org/TR/xmlschema-2/#byte
+ * [short]: https://www.w3.org/TR/xmlschema-2/#short
+ * [int]: https://www.w3.org/TR/xmlschema-2/#int
+ * [long]: https://www.w3.org/TR/xmlschema-2/#long
+ * [float]: https://www.w3.org/TR/xmlschema-2/#float
+ * [double]: https://www.w3.org/TR/xmlschema-2/#double
+ * [integer]: https://www.w3.org/TR/xmlschema-2/#integer
+ * [decimal]: https://www.w3.org/TR/xmlschema-2/#decimal
  *
- * ¹ XSD 1.1 datatypes are referenced by [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/) and
+ * ¹ XSD 1.0 datatypes are referenced by [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/) and
  * [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) as normative
  *
  * ² Numeric types with ranges exceeding JavaScript's safe integer range (±2⁵³-1) or requiring
@@ -102,7 +102,7 @@
  * @module
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc8259#section-6 RFC 8259 § 6 Numbers}
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#built-in-datatypes XSD 1.1 Part 2: Datatypes § 3 Built-in
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#built-in-datatypes XSD 1.0 Part 2: Datatypes § 3 Built-in
  *     Datatypes}
  */
 
@@ -117,10 +117,10 @@ export { isNumberShape, isNumberConstraints, isNumericConstraints };
 /**
  * Shape definition for numeric values.
  *
- * Validates numeric values with range and value constraints. Supports XSD 1.1 numeric
+ * Validates numeric values with range and value constraints. Supports XSD 1.0 numeric
  * datatypes including integers, decimals, and floating-point values.
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#built-in-datatypes XSD 1.1 Part 2: Datatypes § 3 Built-in Datatypes}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#built-in-datatypes XSD 1.0 Part 2: Datatypes § 3 Built-in Datatypes}
  */
 export interface NumberShape extends NumberConstraints {
 
@@ -299,7 +299,7 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
  *
  * @returns A shape for validating 8-bit signed integers
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#byte XSD 1.1 Part 2: Datatypes § 3.4.24 byte}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#byte XSD 1.0 Part 2: Datatypes § 3.3.19 byte}
  */
 export function byte(constraints: NumericConstraints = {}): NumberShape {
 
@@ -316,7 +316,7 @@ export function byte(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns A shape for validating 16-bit signed integers
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#short XSD 1.1 Part 2: Datatypes § 3.4.22 short}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#short XSD 1.0 Part 2: Datatypes § 3.3.18 short}
  */
 export function short(constraints: NumericConstraints = {}): NumberShape {
 
@@ -333,7 +333,7 @@ export function short(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns A shape for validating 32-bit signed integers
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#int XSD 1.1 Part 2: Datatypes § 3.4.21 int}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#int XSD 1.0 Part 2: Datatypes § 3.3.17 int}
  */
 export function int(constraints: NumericConstraints = {}): NumberShape {
 
@@ -350,7 +350,7 @@ export function int(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns A shape for validating 64-bit signed integers
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#long XSD 1.1 Part 2: Datatypes § 3.4.20 long}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#long XSD 1.0 Part 2: Datatypes § 3.3.16 long}
  */
 export function long(constraints: NumericConstraints = {}): NumberShape {
 
@@ -367,7 +367,7 @@ export function long(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns A shape for validating single-precision floats
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#float XSD 1.1 Part 2: Datatypes § 3.3.4 float}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#float XSD 1.0 Part 2: Datatypes § 3.2.4 float}
  */
 export function float(constraints: NumericConstraints = {}): NumberShape {
 
@@ -384,7 +384,7 @@ export function float(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns A shape for validating double-precision floats
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#double XSD 1.1 Part 2: Datatypes § 3.3.5 double}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#double XSD 1.0 Part 2: Datatypes § 3.2.5 double}
  */
 export function double(constraints: NumericConstraints = {}): NumberShape {
 
@@ -401,7 +401,7 @@ export function double(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns A shape for validating arbitrary-precision integers
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#integer XSD 1.1 Part 2: Datatypes § 3.4.13 integer}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#integer XSD 1.0 Part 2: Datatypes § 3.3.13 integer}
  */
 export function integer(constraints: NumericConstraints = {}): NumberShape {
 
@@ -418,7 +418,7 @@ export function integer(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns A shape for validating arbitrary-precision decimals
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#decimal XSD 1.1 Part 2: Datatypes § 3.3.3 decimal}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#decimal XSD 1.0 Part 2: Datatypes § 3.2.3 decimal}
  */
 export function decimal(constraints: NumericConstraints = {}): NumberShape {
 

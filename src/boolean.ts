@@ -19,15 +19,15 @@
  *
  * Defines shapes and factories for validating boolean values, mapping the
  * [JSON boolean](https://datatracker.ietf.org/doc/html/rfc8259#section-3) type to the
- * [XSD 1.1](https://www.w3.org/TR/xmlschema11-2/#built-in-datatypes) boolean datatype.
+ * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) boolean datatype.
  *
  * | XSD Datatype ¹ | Factory         | Description         | Range         |
  * | -------------- | --------------- | ------------------- | ------------- |
  * | [boolean][]    | {@link boolean} | binary-valued logic | {true, false} |
  *
- * [boolean]: https://www.w3.org/TR/xmlschema11-2/#boolean
+ * [boolean]: https://www.w3.org/TR/xmlschema-2/#boolean
  *
- * ¹ XSD 1.1 datatypes are referenced by [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/) and
+ * ¹ XSD 1.0 datatypes are referenced by [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/) and
  * [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) as normative *
  * **Compatibility**
  *
@@ -60,7 +60,7 @@
  * @module
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc8259#section-3 RFC 8259 § 3 Values}
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#boolean XSD 1.1 Part 2: Datatypes § 3.3.2 boolean}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#boolean XSD 1.0 Part 2: Datatypes § 3.2.2 boolean}
  */
 
 import { isBoolean } from "@metreeca/core";
@@ -77,7 +77,7 @@ export { isBooleanShape, isBooleanConstraints };
  * Validates boolean literals. Boolean shapes accept only `true` or `false` values
  * and do not support additional constraints.
  *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#boolean | XSD 1.1 Part 2: Datatypes § 3.3.2 boolean}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#boolean | XSD 1.0 Part 2: Datatypes § 3.2.2 boolean}
  */
 export interface BooleanShape {
 
