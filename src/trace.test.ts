@@ -15,422 +15,298 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { every, group, isTrace, isValidator, normalise, trace } from "./trace.core.js";
+import { every, group, normalise, trace } from "./trace.core.js";
 
 
-describe("guards", () => {
+describe("trace", () => {
 
-	describe("isTrace", () => {
+	it("returns undefined when all entries are undefined", async () => {
 
-		it("accepts string traces", async () => {
+		expect(trace({ minLength: undefined, maxLength: undefined })).toBeUndefined();
 
-			expect(isTrace("error message")).toBeTruthy();
+	});
 
-		});
+	it("returns undefined for empty entries", async () => {
 
-		it("accepts empty string traces", async () => {
+		expect(trace({})).toBeUndefined();
 
-			expect(isTrace("")).toBeTruthy();
+	});
 
-		});
+	it("filters out undefined entries", async () => {
 
-		it("accepts keyed record traces", async () => {
+		const result = trace({ minLength: "too short", maxLength: undefined });
 
-			expect(isTrace({ minLength: "too short" })).toBeTruthy();
+		expect(result).toEqual({ minLength: "too short" });
 
-		});
+	});
 
-		it("accepts nested record traces", async () => {
+	it("preserves all failed entries", async () => {
 
-			expect(isTrace({ name: { minLength: "too short" } })).toBeTruthy();
+		const result = trace({ minLength: "too short", pattern: "no match" });
 
-		});
+		expect(result).toEqual({ minLength: "too short", pattern: "no match" });
 
-		it("accepts deeply nested traces", async () => {
+	});
 
-			expect(isTrace({ address: { city: { minLength: "too short" } } })).toBeTruthy();
+	it("filters out empty string entries", async () => {
 
-		});
+		expect(trace({ minLength: "" })).toBeUndefined();
 
-		it("accepts empty record traces", async () => {
+	});
 
-			expect(isTrace({})).toBeTruthy();
+	it("filters out empty object entries", async () => {
 
-		});
+		expect(trace({ minLength: {} })).toBeUndefined();
 
-		it("rejects null", async () => {
+	});
 
-			expect(isTrace(null)).toBeFalsy();
+	it("preserves nested trace entries", async () => {
 
-		});
+		const result = trace({ name: { minLength: "too short" } });
 
-		it("rejects undefined", async () => {
+		expect(result).toEqual({ name: { minLength: "too short" } });
 
-			expect(isTrace(undefined)).toBeFalsy();
+	});
 
-		});
+});
 
-		it("rejects numbers", async () => {
+describe("every", () => {
 
-			expect(isTrace(42)).toBeFalsy();
+	it("returns undefined when all values pass", async () => {
 
-		});
+		expect(every([1, 2, 3], () => true)).toBeUndefined();
 
-		it("rejects booleans", async () => {
+	});
 
-			expect(isTrace(true)).toBeFalsy();
+	it("returns undefined when validator returns undefined", async () => {
 
-		});
+		expect(every([1, 2, 3], () => undefined)).toBeUndefined();
 
-		it("rejects arrays", async () => {
+	});
 
-			expect(isTrace(["error"])).toBeFalsy();
+	it("returns violation message for single failing value", async () => {
 
-		});
+		const result = every(["ab"], () => "too short");
 
-		it("rejects records with non-trace values", async () => {
+		expect(result).toBe("too short");
 
-			expect(isTrace({ minLength: 42 })).toBeFalsy();
+	});
 
+	it("returns message without count prefix for single value", async () => {
+
+		const result = every(["ab"], () => "too short");
+
+		expect(typeof result === "string" && !result.startsWith("(")).toBeTruthy();
+
+	});
+
+	it("returns message with count prefix for multiple failing values", async () => {
+
+		const result = every(["a", "b", "c"], () => "too short");
+
+		expect(result).toMatch(/^\(3\/3\)/);
+
+	});
+
+	it("counts only failing values in prefix", async () => {
+
+		const result = every(
+			["ab", "hello", "c"],
+			v => v.length >= 3 || "too short"
+		);
+
+		expect(result).toMatch(/^\(2\/3\)/);
+
+	});
+
+	it("returns undefined for empty values array", async () => {
+
+		expect(every([], () => "error")).toBeUndefined();
+
+	});
+
+	it("normalises true results from validator", async () => {
+
+		const result = every([1, 2], v => v > 0 || "must be positive");
+
+		expect(result).toBeUndefined();
+
+	});
+
+	it("returns keyed trace directly for single failing value", async () => {
+
+		const keyed = { name: "required" };
+
+		const result = every([1], () => keyed);
+
+		expect(result).toEqual(keyed);
+
+	});
+
+	it("wraps single keyed failure in index key for multi-element array", async () => {
+
+		const keyed = { name: "required" };
+
+		const result = every([1, 2], v => v === 1 ? keyed : undefined);
+
+		expect(result).toEqual({ "0": keyed });
+
+	});
+
+	it("applies count prefix only to string traces", async () => {
+
+		const result = every([1, 2, 3], () => "bad");
+
+		expect(result).toMatch(/^\(3\/3\)/);
+
+	});
+
+	it("wraps multiple keyed failures in index keys", async () => {
+
+		const result = every([1, 2], () => ({ name: "required" }));
+
+		expect(result).toEqual({
+			"0": { name: "required" },
+			"1": { name: "required" }
 		});
 
 	});
 
-	describe("isValidator", () => {
+	it("wraps mixed failures in index keys when any is keyed", async () => {
 
-		it("accepts functions", async () => {
+		const result = every([1, 2, 3], v =>
+			v === 1 ? "bad" : { name: "required" }
+		);
 
-			expect(isValidator(() => undefined)).toBeTruthy();
-
+		expect(result).toEqual({
+			"0": "bad",
+			"1": { name: "required" },
+			"2": { name: "required" }
 		});
 
-		it("accepts arrow functions", async () => {
+	});
 
-			expect(isValidator((v: unknown) => `error: ${v}`)).toBeTruthy();
+	it("applies count prefix when all failures are strings", async () => {
 
-		});
+		const result = every(["a", "b", "c"], () => "too short");
 
-		it("rejects strings", async () => {
+		expect(result).toMatch(/^\(3\/3\) too short$/);
 
-			expect(isValidator("not a function")).toBeFalsy();
+	});
 
-		});
+	it("omits passing values from index-keyed trace", async () => {
 
-		it("rejects objects", async () => {
+		const result = every([1, 2, 3], v =>
+			v === 2 ? undefined : { name: "required" }
+		);
 
-			expect(isValidator({})).toBeFalsy();
-
-		});
-
-		it("rejects null", async () => {
-
-			expect(isValidator(null)).toBeFalsy();
-
-		});
-
-		it("rejects undefined", async () => {
-
-			expect(isValidator(undefined)).toBeFalsy();
-
+		expect(result).toEqual({
+			"0": { name: "required" },
+			"2": { name: "required" }
 		});
 
 	});
 
 });
 
-describe("trace utilities", () => {
+describe("group", () => {
 
-	describe("trace", () => {
+	it("returns undefined when validator returns true", async () => {
 
-		it("returns undefined when all entries are undefined", async () => {
-
-			expect(trace({ minLength: undefined, maxLength: undefined })).toBeUndefined();
-
-		});
-
-		it("returns undefined for empty entries", async () => {
-
-			expect(trace({})).toBeUndefined();
-
-		});
-
-		it("filters out undefined entries", async () => {
-
-			const result = trace({ minLength: "too short", maxLength: undefined });
-
-			expect(result).toEqual({ minLength: "too short" });
-
-		});
-
-		it("preserves all failed entries", async () => {
-
-			const result = trace({ minLength: "too short", pattern: "no match" });
-
-			expect(result).toEqual({ minLength: "too short", pattern: "no match" });
-
-		});
-
-		it("filters out empty string entries", async () => {
-
-			expect(trace({ minLength: "" })).toBeUndefined();
-
-		});
-
-		it("filters out empty object entries", async () => {
-
-			expect(trace({ minLength: {} })).toBeUndefined();
-
-		});
-
-		it("preserves nested trace entries", async () => {
-
-			const result = trace({ name: { minLength: "too short" } });
-
-			expect(result).toEqual({ name: { minLength: "too short" } });
-
-		});
+		expect(group([1, 2, 3], () => true)).toBeUndefined();
 
 	});
 
-	describe("every", () => {
+	it("returns undefined when validator returns undefined", async () => {
 
-		it("returns undefined when all values pass", async () => {
-
-			expect(every([1, 2, 3], () => true)).toBeUndefined();
-
-		});
-
-		it("returns undefined when validator returns undefined", async () => {
-
-			expect(every([1, 2, 3], () => undefined)).toBeUndefined();
-
-		});
-
-		it("returns violation message for single failing value", async () => {
-
-			const result = every(["ab"], () => "too short");
-
-			expect(result).toBe("too short");
-
-		});
-
-		it("returns message without count prefix for single value", async () => {
-
-			const result = every(["ab"], () => "too short");
-
-			expect(typeof result === "string" && !result.startsWith("(")).toBeTruthy();
-
-		});
-
-		it("returns message with count prefix for multiple failing values", async () => {
-
-			const result = every(["a", "b", "c"], () => "too short");
-
-			expect(result).toMatch(/^\(3\/3\)/);
-
-		});
-
-		it("counts only failing values in prefix", async () => {
-
-			const result = every(
-				["ab", "hello", "c"],
-				v => v.length >= 3 || "too short"
-			);
-
-			expect(result).toMatch(/^\(2\/3\)/);
-
-		});
-
-		it("returns undefined for empty values array", async () => {
-
-			expect(every([], () => "error")).toBeUndefined();
-
-		});
-
-		it("normalises true results from validator", async () => {
-
-			const result = every([1, 2], v => v > 0 || "must be positive");
-
-			expect(result).toBeUndefined();
-
-		});
-
-		it("returns keyed trace directly for single failing value", async () => {
-
-			const keyed = { name: "required" };
-
-			const result = every([1], () => keyed);
-
-			expect(result).toEqual(keyed);
-
-		});
-
-		it("wraps single keyed failure in index key for multi-element array", async () => {
-
-			const keyed = { name: "required" };
-
-			const result = every([1, 2], v => v === 1 ? keyed : undefined);
-
-			expect(result).toEqual({ "0": keyed });
-
-		});
-
-		it("applies count prefix only to string traces", async () => {
-
-			const result = every([1, 2, 3], () => "bad");
-
-			expect(result).toMatch(/^\(3\/3\)/);
-
-		});
-
-		it("wraps multiple keyed failures in index keys", async () => {
-
-			const result = every([1, 2], () => ({ name: "required" }));
-
-			expect(result).toEqual({
-				"0": { name: "required" },
-				"1": { name: "required" }
-			});
-
-		});
-
-		it("wraps mixed failures in index keys when any is keyed", async () => {
-
-			const result = every([1, 2, 3], v =>
-				v === 1 ? "bad" : { name: "required" }
-			);
-
-			expect(result).toEqual({
-				"0": "bad",
-				"1": { name: "required" },
-				"2": { name: "required" }
-			});
-
-		});
-
-		it("applies count prefix when all failures are strings", async () => {
-
-			const result = every(["a", "b", "c"], () => "too short");
-
-			expect(result).toMatch(/^\(3\/3\) too short$/);
-
-		});
-
-		it("omits passing values from index-keyed trace", async () => {
-
-			const result = every([1, 2, 3], v =>
-				v === 2 ? undefined : { name: "required" }
-			);
-
-			expect(result).toEqual({
-				"0": { name: "required" },
-				"2": { name: "required" }
-			});
-
-		});
+		expect(group([1, 2, 3], () => undefined)).toBeUndefined();
 
 	});
 
-	describe("group", () => {
+	it("returns trace when validator returns string", async () => {
 
-		it("returns undefined when validator returns true", async () => {
-
-			expect(group([1, 2, 3], () => true)).toBeUndefined();
-
-		});
-
-		it("returns undefined when validator returns undefined", async () => {
-
-			expect(group([1, 2, 3], () => undefined)).toBeUndefined();
-
-		});
-
-		it("returns trace when validator returns string", async () => {
-
-			expect(group([1, 2], () => "missing required value")).toBe("missing required value");
-
-		});
-
-		it("returns trace when validator returns keyed object", async () => {
-
-			const result = group([1, 2], () => ({ hasValue: "missing 3" }));
-
-			expect(result).toEqual({ hasValue: "missing 3" });
-
-		});
-
-		it("passes entire collection to validator", async () => {
-
-			const result = group(
-				["apple", "cherry"],
-				vs => ["apple", "banana"].every(v => vs.includes(v)) || "missing banana"
-			);
-
-			expect(result).toBe("missing banana");
-
-		});
-
-		it("normalises empty string from validator to undefined", async () => {
-
-			expect(group([1], () => "")).toBeUndefined();
-
-		});
-
-		it("normalises empty object from validator to undefined", async () => {
-
-			expect(group([1], () => ({}))).toBeUndefined();
-
-		});
+		expect(group([1, 2], () => "missing required value")).toBe("missing required value");
 
 	});
 
-	describe("normalise", () => {
+	it("returns trace when validator returns keyed object", async () => {
 
-		it("returns undefined for undefined", async () => {
+		const result = group([1, 2], () => ({ hasValue: "missing 3" }));
 
-			expect(normalise(undefined)).toBeUndefined();
+		expect(result).toEqual({ hasValue: "missing 3" });
 
-		});
+	});
 
-		it("returns undefined for true", async () => {
+	it("passes entire collection to validator", async () => {
 
-			expect(normalise(true)).toBeUndefined();
+		const result = group(
+			["apple", "cherry"],
+			vs => ["apple", "banana"].every(v => vs.includes(v)) || "missing banana"
+		);
 
-		});
+		expect(result).toBe("missing banana");
 
-		it("returns undefined for empty string", async () => {
+	});
 
-			expect(normalise("")).toBeUndefined();
+	it("normalises empty string from validator to undefined", async () => {
 
-		});
+		expect(group([1], () => "")).toBeUndefined();
 
-		it("returns undefined for empty object", async () => {
+	});
 
-			expect(normalise({})).toBeUndefined();
+	it("normalises empty object from validator to undefined", async () => {
 
-		});
+		expect(group([1], () => ({}))).toBeUndefined();
 
-		it("passes through non-empty string", async () => {
+	});
 
-			expect(normalise("error message")).toBe("error message");
+});
 
-		});
+describe("normalise", () => {
 
-		it("passes through non-empty object", async () => {
+	it("returns undefined for undefined", async () => {
 
-			const result = normalise({ minLength: "too short" });
+		expect(normalise(undefined)).toBeUndefined();
 
-			expect(result).toEqual({ minLength: "too short" });
+	});
 
-		});
+	it("returns undefined for true", async () => {
 
-		it("passes through nested trace object", async () => {
+		expect(normalise(true)).toBeUndefined();
 
-			const nested = { name: { minLength: "too short" } };
+	});
 
-			expect(normalise(nested)).toEqual(nested);
+	it("returns undefined for empty string", async () => {
 
-		});
+		expect(normalise("")).toBeUndefined();
+
+	});
+
+	it("returns undefined for empty object", async () => {
+
+		expect(normalise({})).toBeUndefined();
+
+	});
+
+	it("passes through non-empty string", async () => {
+
+		expect(normalise("error message")).toBe("error message");
+
+	});
+
+	it("passes through non-empty object", async () => {
+
+		const result = normalise({ minLength: "too short" });
+
+		expect(result).toEqual({ minLength: "too short" });
+
+	});
+
+	it("passes through nested trace object", async () => {
+
+		const nested = { name: { minLength: "too short" } };
+
+		expect(normalise(nested)).toEqual(nested);
 
 	});
 

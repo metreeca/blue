@@ -64,11 +64,7 @@
  */
 
 import { isBoolean } from "@metreeca/core";
-import { assert } from "@metreeca/core/error";
 import { immutable } from "@metreeca/core/nested";
-import { isBooleanConstraints, isBooleanShape } from "./boolean.core.js";
-
-export { isBooleanShape, isBooleanConstraints };
 
 
 /**
@@ -158,9 +154,7 @@ export function boolean(constraints?: BooleanConstraints): BooleanShape;
  */
 export function boolean(constraints: boolean | BooleanConstraints = {}): BooleanShape {
 
-	const $constraints = isBoolean(constraints) ? { model: constraints } : constraints;
-
-	const { model, ...rest } = assert($constraints, isBooleanConstraints);
+	const { model, ...rest } = isBoolean(constraints) ? { model: constraints } : constraints;
 
 	return immutable({
 
@@ -169,6 +163,6 @@ export function boolean(constraints: boolean | BooleanConstraints = {}): Boolean
 
 		...rest
 
-	}, isBooleanShape);
+	});
 
 }

@@ -23,39 +23,9 @@
  * @module
  */
 
-import { isFunction, isObject, isString } from "@metreeca/core";
+import { isObject, isString } from "@metreeca/core";
 import type { Trace, Validator } from "./trace.js";
 
-
-/**
- * Checks whether a value is a valid {@link Trace}.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` is a string or a record mapping string keys to nested traces; false otherwise
- */
-export function isTrace(value: unknown): value is Trace {
-	return isString(value)
-		|| isObject(value, (v, k) => isString(k) && isTrace(v));
-}
-
-/**
- * Checks whether a value is a valid {@link Validator}.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` is a function; false otherwise
- */
-export function isValidator(value: unknown): value is Validator {
-	return isFunction(value);
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Builds a keyed {@link Trace} from named entries.
@@ -151,7 +121,21 @@ export function group<T>(values: readonly T[], validator: Validator<readonly T[]
  */
 export function normalise(trace: undefined | true | Trace): undefined | Trace {
 	return trace === undefined || trace === true ? undefined
-		: typeof trace === "string" ? (trace.length > 0 ? trace : undefined)
-			: typeof trace === "object" && Object.keys(trace).length > 0 ? trace
+		: isString(trace) ? (trace.length > 0 ? trace : undefined)
+			: isObject(trace) && Object.keys(trace).length > 0 ? trace
 				: undefined;
+}
+
+/**
+ * Converts an optional {@link Trace} into a spreadable record.
+ *
+ * Returns the trace entries as-is when the trace is a keyed object; wraps bare string traces under a `"{}"` key;
+ * returns an empty record for `undefined`.
+ *
+ * @param value The trace to convert
+ *
+ * @returns A record suitable for spreading into a {@link trace} entries argument
+ */
+export function wrap(value: undefined | Trace): Record<string, Trace> {
+	return isString(value) ? { "{}": value } : value ?? {};
 }

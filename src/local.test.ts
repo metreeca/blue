@@ -15,206 +15,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-	isLocalConstraints,
-	isLocalizedConstraints,
-	isLocalsConstraints,
-	isLocalShape,
-	isLocalsShape,
-	validateLocal,
-	validateLocals
-} from "./local.core.js";
+import { validateLocal, validateLocals } from "./local.core.js";
 import { local, locals } from "./local.js";
 
-
-describe("guards", () => {
-
-	describe("isLocalShape", () => {
-
-		it("returns true for valid local shape", async () => {
-
-			expect(isLocalShape(local())).toBe(true);
-			expect(isLocalShape(local({ "*": "example" }))).toBe(true);
-
-		});
-
-		it("returns false for object with wrong kind", async () => {
-
-			expect(isLocalShape({ kind: "string", model: { "*": "" } })).toBe(false);
-
-		});
-
-		it("returns true for object with string model shorthand", async () => {
-
-			expect(isLocalShape({ kind: "local", model: "text" })).toBe(true);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isLocalShape(null)).toBe(false);
-			expect(isLocalShape(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isLocalsShape", () => {
-
-		it("returns true for valid locals shape", async () => {
-
-			expect(isLocalsShape(locals())).toBe(true);
-
-		});
-
-		it("returns false for object with wrong kind", async () => {
-
-			expect(isLocalsShape({ kind: "local", model: { "*": [""] } })).toBe(false);
-
-		});
-
-		it("returns false for object with non-locals model", async () => {
-
-			expect(isLocalsShape({ kind: "locals", model: { "*": "" } })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isLocalsShape(null)).toBe(false);
-			expect(isLocalsShape(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isLocalConstraints", () => {
-
-		it("returns true for empty object", async () => {
-
-			expect(isLocalConstraints({})).toBe(true);
-
-		});
-
-		it("returns true for object with valid constraints", async () => {
-
-			expect(isLocalConstraints({ minLength: 1, maxLength: 100 })).toBe(true);
-			expect(isLocalConstraints({ languageIn: ["en", "fr"] })).toBe(true);
-
-		});
-
-		it("returns true for object with model", async () => {
-
-			expect(isLocalConstraints({ model: { "*": "" } })).toBe(true);
-			expect(isLocalConstraints({ model: { en: "hello" }, minLength: 1 })).toBe(true);
-
-		});
-
-		it("returns true for object with string model shorthand", async () => {
-
-			expect(isLocalConstraints({ model: "text" })).toBe(true);
-
-		});
-
-		it("returns false for object with invalid model", async () => {
-
-			expect(isLocalConstraints({ model: { en: 42 } })).toBe(false);
-
-		});
-
-		it("returns false for object with non-number length constraints", async () => {
-
-			expect(isLocalConstraints({ minLength: "1" })).toBe(false);
-			expect(isLocalConstraints({ maxLength: "100" })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isLocalConstraints(null)).toBe(false);
-			expect(isLocalConstraints(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isLocalsConstraints", () => {
-
-		it("returns true for empty object", async () => {
-
-			expect(isLocalsConstraints({})).toBe(true);
-
-		});
-
-		it("returns true for object with valid constraints", async () => {
-
-			expect(isLocalsConstraints({ minLength: 1, maxLength: 100 })).toBe(true);
-			expect(isLocalsConstraints({ languageIn: ["en", "fr"] })).toBe(true);
-
-		});
-
-		it("returns true for object with model", async () => {
-
-			expect(isLocalsConstraints({ model: { "*": [""] } })).toBe(true);
-			expect(isLocalsConstraints({ model: { en: ["hello"] }, minLength: 1 })).toBe(true);
-
-		});
-
-		it("returns false for object with invalid model", async () => {
-
-			expect(isLocalsConstraints({ model: "text" })).toBe(false);
-			expect(isLocalsConstraints({ model: { en: "hello" } })).toBe(false);
-
-		});
-
-		it("returns false for object with non-number length constraints", async () => {
-
-			expect(isLocalsConstraints({ minLength: "1" })).toBe(false);
-			expect(isLocalsConstraints({ maxLength: "100" })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isLocalsConstraints(null)).toBe(false);
-			expect(isLocalsConstraints(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isLocalizedConstraints", () => {
-
-		it("returns true for empty object", async () => {
-
-			expect(isLocalizedConstraints({})).toBe(true);
-
-		});
-
-		it("returns true for object with valid constraints", async () => {
-
-			expect(isLocalizedConstraints({ minLength: 1, maxLength: 100 })).toBe(true);
-			expect(isLocalizedConstraints({ languageIn: ["en", "fr"] })).toBe(true);
-
-		});
-
-		it("returns false for object with non-number length constraints", async () => {
-
-			expect(isLocalizedConstraints({ minLength: "1" })).toBe(false);
-			expect(isLocalizedConstraints({ maxLength: "100" })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isLocalizedConstraints(null)).toBe(false);
-			expect(isLocalizedConstraints(undefined)).toBe(false);
-
-		});
-
-	});
-
-});
 
 describe("factories", () => {
 
@@ -246,14 +49,14 @@ describe("factories", () => {
 
 			it("normalizes string model shorthand to { und: value }", async () => {
 
-				expect(local("example").model).toEqual({ und: "example" });
-				expect(local("").model).toEqual({ und: "" });
+				expect(local("example").model).toEqual({ "*": "example" });
+				expect(local("").model).toEqual({ "*": "" });
 
 			});
 
-			it("normalizes string model in constraints to { und: value }", async () => {
+			it("normalizes string model in constraints to { *: value }", async () => {
 
-				expect(local({ model: "example" }).model).toEqual({ und: "example" });
+				expect(local({ model: "example" }).model).toEqual({ "*": "example" });
 
 			});
 
@@ -278,12 +81,6 @@ describe("factories", () => {
 
 				});
 
-				it("rejects non-number value", async () => {
-
-					expect(() => local({ minLength: "1" } as any)).toThrow(TypeError);
-
-				});
-
 			});
 
 			describe("maxLength", () => {
@@ -294,12 +91,6 @@ describe("factories", () => {
 
 				});
 
-				it("rejects non-number value", async () => {
-
-					expect(() => local({ maxLength: "100" } as any)).toThrow(TypeError);
-
-				});
-
 			});
 
 			describe("languageIn", () => {
@@ -307,18 +98,6 @@ describe("factories", () => {
 				it("accepts constraint", async () => {
 
 					expect(local({ languageIn: ["en", "fr"] }).languageIn).toEqual(["en", "fr"]);
-
-				});
-
-				it("rejects non-array value", async () => {
-
-					expect(() => local({ languageIn: "en" } as any)).toThrow(TypeError);
-
-				});
-
-				it("rejects non-string array elements", async () => {
-
-					expect(() => local({ languageIn: ["en", 42] } as any)).toThrow(TypeError);
 
 				});
 
@@ -338,13 +117,7 @@ describe("factories", () => {
 
 				it("includes only provided properties", async () => {
 
-					expect(Object.keys(local()).sort()).toEqual(["kind", "languageIn", "model"]);
-
-				});
-
-				it("rejects extra properties", async () => {
-
-					expect(() => local({ _extra: "ignored" } as any)).toThrow(TypeError);
+					expect(Object.keys(local()).sort()).toEqual(["kind", "model"]);
 
 				});
 
@@ -372,9 +145,9 @@ describe("factories", () => {
 
 			});
 
-			it("normalizes string array model shorthand to { und: value }", async () => {
+			it("normalizes string array model shorthand to { *: value }", async () => {
 
-				expect(locals({ model: ["example"] }).model).toEqual({ und: ["example"] });
+				expect(locals({ model: ["example"] }).model).toEqual({ "*": ["example"] });
 
 			});
 
@@ -399,12 +172,6 @@ describe("factories", () => {
 
 				});
 
-				it("rejects non-number value", async () => {
-
-					expect(() => locals({ minLength: "1" } as any)).toThrow(TypeError);
-
-				});
-
 			});
 
 			describe("maxLength", () => {
@@ -415,12 +182,6 @@ describe("factories", () => {
 
 				});
 
-				it("rejects non-number value", async () => {
-
-					expect(() => locals({ maxLength: "100" } as any)).toThrow(TypeError);
-
-				});
-
 			});
 
 			describe("languageIn", () => {
@@ -428,18 +189,6 @@ describe("factories", () => {
 				it("accepts constraint", async () => {
 
 					expect(locals({ languageIn: ["en", "fr"] }).languageIn).toEqual(["en", "fr"]);
-
-				});
-
-				it("rejects non-array value", async () => {
-
-					expect(() => locals({ languageIn: "en" } as any)).toThrow(TypeError);
-
-				});
-
-				it("rejects non-string array elements", async () => {
-
-					expect(() => locals({ languageIn: ["en", 42] } as any)).toThrow(TypeError);
 
 				});
 
@@ -459,13 +208,7 @@ describe("factories", () => {
 
 				it("includes only provided properties", async () => {
 
-					expect(Object.keys(locals()).sort()).toEqual(["kind", "languageIn", "model"]);
-
-				});
-
-				it("rejects extra properties", async () => {
-
-					expect(() => locals({ extra: "ignored" } as any)).toThrow(TypeError);
+					expect(Object.keys(locals()).sort()).toEqual(["kind", "model"]);
 
 				});
 
@@ -480,6 +223,118 @@ describe("factories", () => {
 describe("validators", () => {
 
 	describe("validateLocal", () => {
+
+		describe("type filtering", () => {
+
+			it("returns undefined for valid local values", async () => {
+
+				expect(validateLocal([{ "en": "hello" }], local())).toBeUndefined();
+
+			});
+
+			it("returns undefined for plain string shorthand", async () => {
+
+				expect(validateLocal(["hello"], local())).toBeUndefined();
+
+			});
+
+			it("returns undefined for empty values array", async () => {
+
+				expect(validateLocal([], local())).toBeUndefined();
+
+			});
+
+			it("returns trace with kind key for non-object non-string value", async () => {
+
+				const trace = validateLocal([42], local());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+			it("returns trace with kind key for multiple non-object non-string values", async () => {
+
+				const trace = validateLocal([42, true], local());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
+
+			});
+
+			it("returns trace with kind key for mixed valid and non-object values", async () => {
+
+				const trace = validateLocal([{ "en": "hello" }, 42], local());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+		});
+
+		describe("structural validation", () => {
+
+			it("returns undefined for empty object", async () => {
+
+				expect(validateLocal([{}], local())).toBeUndefined();
+
+			});
+
+			it("returns trace for object with invalid tag key", async () => {
+
+				const result = validateLocal([{ "123": "hello" }], local());
+
+				expect(result).toBeDefined();
+				expect(result).toHaveProperty("123");
+
+			});
+
+			it("returns trace for object with non-string value", async () => {
+
+				const result = validateLocal([{ en: 42 }], local());
+
+				expect(result).toBeDefined();
+				expect(result).toHaveProperty("en");
+
+			});
+
+			it("reports only invalid entries in mixed object", async () => {
+
+				const result = validateLocal([{ en: "hello", "123": "bad tag", fr: 42 }], local());
+
+				expect(result).toBeDefined();
+				expect(result).toHaveProperty("123");
+				expect(result).toHaveProperty("fr");
+				expect(result).not.toHaveProperty("en");
+
+			});
+
+			it("validates structural issues alongside constraint violations", async () => {
+
+				const result = validateLocal([{ en: "hi", "123": "bad" }], local({ minLength: 5 }));
+
+				expect(result).toBeDefined();
+				expect(result).toHaveProperty("123"); // invalid tag
+				expect(result).toHaveProperty("en"); // valid tag but fails minLength
+
+			});
+
+			it("does not apply constraints to structurally invalid entries", async () => {
+
+				const result = validateLocal([{ en: 42 }], local({ minLength: 5 }));
+
+				expect(result).toBeDefined();
+				expect(result).toHaveProperty("en");
+
+				// structural error, not a constraint error
+				const en = (result as any).en;
+				expect(typeof en === "string" || (typeof en === "object" && !en["{minLength}"])).toBeTruthy();
+
+			});
+
+		});
 
 		describe("minLength constraint", () => {
 
@@ -673,6 +528,113 @@ describe("validators", () => {
 
 	describe("validateLocals", () => {
 
+		describe("type filtering", () => {
+
+			it("returns undefined for valid locals values", async () => {
+
+				expect(validateLocals([{ "en": ["hello"] }], locals())).toBeUndefined();
+
+			});
+
+			it("returns undefined for plain string array shorthand", async () => {
+
+				expect(validateLocals([["hello"]], locals())).toBeUndefined();
+
+			});
+
+			it("returns undefined for empty values array", async () => {
+
+				expect(validateLocals([], locals())).toBeUndefined();
+
+			});
+
+			it("returns trace with kind key for non-object non-array value", async () => {
+
+				const trace = validateLocals([42], locals());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+			it("returns trace with kind key for multiple non-object non-array values", async () => {
+
+				const trace = validateLocals([42, true], locals());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
+
+			});
+
+			it("returns trace with kind key for mixed valid and non-object values", async () => {
+
+				const trace = validateLocals([{ "en": ["hello"] }, 42], locals());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+			it("rejects local value for locals shape", async () => {
+
+				expect(validateLocals([{ "en": "hello" }], locals())).toBeDefined();
+
+			});
+
+		});
+
+		describe("structural validation", () => {
+
+			it("returns undefined for empty object", async () => {
+
+				expect(validateLocals([{}], locals())).toBeUndefined();
+
+			});
+
+			it("returns trace for object with invalid tag key", async () => {
+
+				const result = validateLocals([{ "123": ["hello"] }], locals());
+
+				expect(result).toBeDefined();
+				expect(result).toHaveProperty("123");
+
+			});
+
+			it("returns trace for object with non-string-array value", async () => {
+
+				const result = validateLocals([{ en: "hello" }], locals());
+
+				expect(result).toBeDefined();
+				expect(result).toHaveProperty("en");
+
+			});
+
+			it("reports only invalid entries in mixed object", async () => {
+
+				const result = validateLocals([{ en: ["hello"], "123": ["bad tag"], fr: "not array" }], locals());
+
+				expect(result).toBeDefined();
+				expect(result).toHaveProperty("123");
+				expect(result).toHaveProperty("fr");
+				expect(result).not.toHaveProperty("en");
+
+			});
+
+			it("does not apply constraints to structurally invalid entries", async () => {
+
+				const result = validateLocals([{ en: "hello" }], locals({ minLength: 5 }));
+
+				expect(result).toBeDefined();
+				expect(result).toHaveProperty("en");
+
+				const en = (result as any).en;
+				expect(typeof en === "string" || (typeof en === "object" && !en["{minLength}"])).toBeTruthy();
+
+			});
+
+		});
+
 		describe("minLength constraint", () => {
 
 			it("returns undefined when all strings meet minimum length", async () => {
@@ -848,8 +810,8 @@ describe("validators", () => {
 
 				expect(result).toHaveProperty("en");
 				const en = (result as any).en;
-				expect(typeof en === "object" && typeof en.minLength === "string"
-					&& en.minLength.startsWith("(3/3)")).toBeTruthy();
+				expect(typeof en === "object" && typeof en["{minLength}"] === "string"
+					&& en["{minLength}"].startsWith("(3/3)")).toBeTruthy();
 
 			});
 
@@ -859,8 +821,8 @@ describe("validators", () => {
 
 				expect(result).toHaveProperty("en");
 				const en = (result as any).en;
-				expect(typeof en === "object" && typeof en.maxLength === "string"
-					&& en.maxLength.startsWith("(2/2)")).toBeTruthy();
+				expect(typeof en === "object" && typeof en["{maxLength}"] === "string"
+					&& en["{maxLength}"].startsWith("(2/2)")).toBeTruthy();
 
 			});
 
@@ -870,8 +832,8 @@ describe("validators", () => {
 
 				expect(result).toHaveProperty("en");
 				const en = (result as any).en;
-				expect(typeof en === "object" && typeof en.minLength === "string"
-					&& en.minLength.startsWith("(2/3)")).toBeTruthy();
+				expect(typeof en === "object" && typeof en["{minLength}"] === "string"
+					&& en["{minLength}"].startsWith("(2/3)")).toBeTruthy();
 
 			});
 

@@ -62,20 +62,11 @@
  * @see {@link https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string RDF 1.1 § 3.3 Literals}
  */
 
-import { assert } from "@metreeca/core/error";
+import { isObject, isString } from "@metreeca/core";
 import { type TagRange } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/nested";
-import { isLocale, type Locale, type Locales } from "@metreeca/qest/model";
+import { type Locale, type Locales } from "@metreeca/qest/model";
 import { type Local, type Locals } from "@metreeca/qest/state";
-import {
-	isLocalConstraints,
-	isLocalizedConstraints,
-	isLocalsConstraints,
-	isLocalShape,
-	isLocalsShape
-} from "./local.core.js";
-
-export { isLocalShape, isLocalsShape, isLocalConstraints, isLocalsConstraints, isLocalizedConstraints };
 
 
 /**
@@ -202,7 +193,7 @@ export interface LocalizedConstraints {
  *
  * @group Factories
  *
- * @typeParam M The literal type for the model
+ * @typeParam M The `Locale` type of the {@link Local} model
  *
  * @param model Prototype value for runtime model assembly
  *
@@ -215,7 +206,7 @@ export interface LocalizedConstraints {
  * const name = local("Default");  // shorthand for { und: "Default" }
  * ```
  */
-export function local<M extends Local>(model: M): LocalShape & { readonly model: M };
+export function local<M extends Locale>(model: M): LocalShape & { readonly model: M };
 
 /**
  * Creates a single-valued language-tagged map shape with optional validation constraints.
@@ -243,26 +234,29 @@ export function local(constraints?: LocalConstraints): LocalShape;
  *
  * @group Factories
  */
-export function local(constraints: Local | LocalConstraints = {}): LocalShape {
+export function local(constraints: Locale | LocalConstraints = {}): LocalShape {
 
-	const $constraints = typeof constraints === "string"
-		? { model: { und: constraints } as Local }
-		: !isLocalConstraints(constraints) && isLocale(constraints) && Object.keys(constraints).length > 0
-			? { model: constraints as Local }
-			: constraints;
-
-	const { model, languageIn, ...rest } = assert($constraints, isLocalConstraints);
+	const { model, ...rest } =
+		isString(constraints) ? { model: { "*": constraints } }
+			: isLocalConstraints(constraints) ? constraints
+				: { model: constraints };
 
 	return immutable({
 
 		kind: "local",
-		model: typeof model === "string" ? { und: model } : model ?? { "*": "" },
-
-		languageIn,
+		model: isString(model) ? { "*": model } : model ?? { "*": "" },
 
 		...rest
 
-	}, isLocalShape);
+	});
+
+
+	function isLocalConstraints(value: unknown): value is LocalConstraints {
+		return isObject(value, (v, k) =>
+			["minLength", "maxLength", "languageIn", "model"].includes(k)
+		);
+	}
+
 }
 
 
@@ -279,16 +273,14 @@ export function local(constraints: Local | LocalConstraints = {}): LocalShape {
  */
 export function locals(constraints: LocalsConstraints = {}): LocalsShape {
 
-	const { model, languageIn, ...rest } = assert(constraints, isLocalsConstraints);
+	const { model, ...rest } = constraints;
 
 	return immutable({
 
 		kind: "locals",
-		model: Array.isArray(model) ? { und: model } : model ?? { "*": [""] },
-
-		languageIn,
+		model: Array.isArray(model) ? { "*": model } : model ?? { "*": [""] },
 
 		...rest
 
-	}, isLocalsShape);
+	});
 }

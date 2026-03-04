@@ -13,6 +13,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Always key per-resource validation traces by `@id` or blank node in `validateResource`, removing the flat-trace
+	special case for single-resource arrays
 - Redesign `Trace` type as a recursive `string | { readonly [key: string]: Trace }` union, replacing the mixed-array
 	representation with keyed reports at every level (collection, resource, property, constraint)
 - Widen `validate()` model overload type parameter from `T extends Model` to `T extends Value`, accepting any value
@@ -21,6 +23,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+- Remove `is*Shape` and `is*Constraints` type guard exports from all shape modules — structural validation is now
+	integrated into the functional validators (`validateResource`, `validateModel`, etc.) and produces path-specific traces
+	instead of boolean results
+- Remove runtime `assert()` validation from shape factory arguments and return values — factories now trust TypeScript
+	types; structural mismatches are caught by the validation pipeline
 - Remove `Binding` from `ResourceShape.properties` and `Entries` key types — resource shape property keys are now
 	`Identifier` only; bindings belong exclusively to model projections
 - Remove `Projection` type utility — no longer needed without binding keys in entries

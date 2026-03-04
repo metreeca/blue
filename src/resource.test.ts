@@ -20,28 +20,11 @@ import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { local, locals } from "./local.js";
 import { integer } from "./number.js";
-import {
-	flatten,
-	isReferenceShape,
-	match,
-	validateModel,
-	validateReference,
-	validateResource
-} from "./resource.core.js";
+import { flatten, match, validateModel, validateReference, validateResource } from "./resource.core.js";
 import {
 	backlink,
 	cardinality,
 	id,
-	isEntries,
-	isEntry,
-	isId,
-	isProperty,
-	isPropertyConstraints,
-	isRange,
-	isResourceConstraints,
-	isResourceShape,
-	isType,
-	isUnion,
 	multiple,
 	optional,
 	property,
@@ -58,365 +41,6 @@ import {
 import { string, year } from "./string.js";
 import type { Trace, Validator } from "./trace.js";
 
-
-describe("guards", () => {
-
-	describe("isResourceShape", () => {
-
-		it("returns true for valid resource shape", async () => {
-
-			expect(isResourceShape(resource({ name: property(required(string())) }))).toBe(true);
-
-		});
-
-		it("returns false for object with wrong kind", async () => {
-
-			expect(isResourceShape({ kind: "string", model: {}, properties: {} })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isResourceShape(null)).toBe(false);
-			expect(isResourceShape(undefined)).toBe(false);
-
-		});
-
-		it("returns false for multiple id entries", async () => {
-
-			expect(isResourceShape({
-				kind: "resource",
-				model: {},
-				properties: {
-					id1: { kind: "id" },
-					id2: { kind: "id" }
-				}
-			})).toBe(false);
-
-		});
-
-		it("returns false for multiple type entries", async () => {
-
-			expect(isResourceShape({
-				kind: "resource",
-				model: {},
-				properties: {
-					type1: { kind: "type" },
-					type2: { kind: "type" }
-				}
-			})).toBe(false);
-
-		});
-
-		it("returns true for single id and single type entry", async () => {
-
-			expect(isResourceShape({
-				kind: "resource",
-				model: {},
-				properties: {
-					id: { kind: "id" },
-					type: { kind: "type" }
-				}
-			})).toBe(true);
-
-		});
-
-	});
-
-	describe("isResourceConstraints", () => {
-
-		it("returns true for empty object", async () => {
-
-			expect(isResourceConstraints({})).toBe(true);
-
-		});
-
-		it("returns true for object with valid constraints", async () => {
-
-			expect(isResourceConstraints({ virtual: true })).toBe(true);
-			expect(isResourceConstraints({ pattern: "/users/{id}" })).toBe(true);
-			expect(isResourceConstraints({ validators: [() => []] })).toBe(true);
-
-		});
-
-		it("returns false for object with invalid validators", async () => {
-
-			expect(isResourceConstraints({ validators: "not-array" })).toBe(false);
-			expect(isResourceConstraints({ validators: ["not-function"] })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isResourceConstraints(null)).toBe(false);
-			expect(isResourceConstraints(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isId", () => {
-
-		it("returns true for valid id", async () => {
-
-			expect(isId({ kind: "id" })).toBe(true);
-			expect(isId({ kind: "id", hidden: true })).toBe(true);
-			expect(isId({ kind: "id", hidden: false })).toBe(true);
-
-		});
-
-		it("returns false for object with wrong kind", async () => {
-
-			expect(isId({ kind: "type" })).toBe(false);
-			expect(isId({ kind: "property" })).toBe(false);
-
-		});
-
-		it("returns false for object with invalid hidden", async () => {
-
-			expect(isId({ kind: "id", hidden: "true" })).toBe(false);
-
-		});
-
-		it("returns false for unknown fields", async () => {
-
-			expect(isId({ kind: "id", computed: true })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isId(null)).toBe(false);
-			expect(isId(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isType", () => {
-
-		it("returns true for valid type", async () => {
-
-			expect(isType({ kind: "type" })).toBe(true);
-			expect(isType({ kind: "type", hidden: true })).toBe(true);
-			expect(isType({ kind: "type", hidden: false })).toBe(true);
-
-		});
-
-		it("returns false for object with wrong kind", async () => {
-
-			expect(isType({ kind: "id" })).toBe(false);
-			expect(isType({ kind: "property" })).toBe(false);
-
-		});
-
-		it("returns false for object with invalid hidden", async () => {
-
-			expect(isType({ kind: "type", hidden: "true" })).toBe(false);
-
-		});
-
-		it("returns false for unknown fields", async () => {
-
-			expect(isType({ kind: "type", computed: true })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isType(null)).toBe(false);
-			expect(isType(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isEntries", () => {
-
-		it("returns true for empty object", async () => {
-
-			expect(isEntries({})).toBe(true);
-
-		});
-
-		it("returns true for object with valid entries", async () => {
-
-			expect(isEntries({ name: required(string()) })).toBe(true);
-			expect(isEntries({ name: property(required(string())) })).toBe(true);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isEntries(null)).toBe(false);
-			expect(isEntries(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isEntry", () => {
-
-		it("returns true for valid Range", async () => {
-
-			expect(isEntry(required(string()))).toBe(true);
-			expect(isEntry(optional(integer()))).toBe(true);
-
-		});
-
-		it("returns true for Range with union shape", async () => {
-
-			expect(isEntry(optional(union({ string: string(), number: integer() })))).toBe(true);
-
-		});
-
-		it("returns true for valid Property", async () => {
-
-			expect(isEntry(property(required(string())))).toBe(true);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isEntry(null)).toBe(false);
-			expect(isEntry(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isProperty", () => {
-
-		it("returns true for valid property", async () => {
-
-			expect(isProperty(property(required(string())))).toBe(true);
-
-		});
-
-		it("returns true for property with computed flag", async () => {
-
-			expect(isProperty(property({ computed: true }, required(string())))).toBe(true);
-			expect(isProperty(property({ computed: false }, required(string())))).toBe(true);
-
-		});
-
-		it("returns false for range without range wrapper", async () => {
-
-			expect(isProperty(required(string()))).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isProperty(null)).toBe(false);
-			expect(isProperty(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isPropertyConstraints", () => {
-
-		it("returns true for empty object", async () => {
-
-			expect(isPropertyConstraints({})).toBe(true);
-
-		});
-
-		it("returns true for object with valid constraints", async () => {
-
-			expect(isPropertyConstraints({ hidden: true })).toBe(true);
-			expect(isPropertyConstraints({ name: { en: "Name" } })).toBe(true);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isPropertyConstraints(null)).toBe(false);
-			expect(isPropertyConstraints(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isRange", () => {
-
-		it("returns true for valid range", async () => {
-
-			expect(isRange(required(string()))).toBe(true);
-			expect(isRange(optional(integer()))).toBe(true);
-			expect(isRange(multiple(boolean()))).toBe(true);
-
-		});
-
-		it("returns false for object with wrong kind", async () => {
-
-			expect(isRange({ kind: "union", variants: {} })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isRange(null)).toBe(false);
-			expect(isRange(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isUnion", () => {
-
-		it("returns true for valid union", async () => {
-
-			expect(isUnion(union({ string: string(), number: integer() }))).toBe(true);
-
-		});
-
-		it("returns false for object with wrong kind", async () => {
-
-			expect(isUnion({ kind: "range", shape: string() })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isUnion(null)).toBe(false);
-			expect(isUnion(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isReferenceShape", () => {
-
-		it("returns true for valid reference shape", async () => {
-
-			expect(isReferenceShape(reference(resource({})))).toBe(true);
-
-		});
-
-		it("returns false for object with wrong kind", async () => {
-
-			expect(isReferenceShape({ kind: "string", model: "/" })).toBe(false);
-
-		});
-
-		it("returns false for object with non-IRI model", async () => {
-
-			expect(isReferenceShape({ kind: "reference", model: 42 })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isReferenceShape(null)).toBe(false);
-			expect(isReferenceShape(undefined)).toBe(false);
-
-		});
-
-	});
-
-});
 
 describe("factories", () => {
 
@@ -750,14 +374,6 @@ describe("factories", () => {
 
 			});
 
-			it("rejects extra properties", async () => {
-
-				expect(() => resource({ extra: "ignored" } as any, {
-					name: property(required(string()))
-				})).toThrow(TypeError);
-
-			});
-
 		});
 
 		describe("type conformance", () => {
@@ -799,14 +415,6 @@ describe("factories", () => {
 
 				expect(() => resource({}, {
 					name: { invalid: "structure" } as any
-				})).toThrow(TypeError);
-
-			});
-
-			it("throws on extra properties in property", async () => {
-
-				expect(() => resource({
-					name: { ...property(required(string())), extra: "ignored" }
 				})).toThrow(TypeError);
 
 			});
@@ -1346,46 +954,6 @@ describe("factories", () => {
 
 			});
 
-			it("rejects extra properties", async () => {
-
-				expect(() => property({ extra: "ignored" } as any, required(string()))).toThrow(TypeError);
-
-			});
-
-		});
-
-		describe("type conformance", () => {
-
-			it("throws on non-boolean hidden", async () => {
-
-				expect(() => property({ hidden: "true" } as any, required(string()))).toThrow(TypeError);
-
-			});
-
-			it("throws on non-string forward", async () => {
-
-				expect(() => property({ forward: 123 } as any, required(string()))).toThrow(TypeError);
-
-			});
-
-			it("throws on non-string reverse", async () => {
-
-				expect(() => property({ reverse: 123 } as any, required(string()))).toThrow(TypeError);
-
-			});
-
-			it("throws on invalid range", async () => {
-
-				expect(() => property("not-a-range" as any)).toThrow(TypeError);
-
-			});
-
-			it("throws on extra properties in range", async () => {
-
-				expect(() => property({ ...required(string()), extra: "ignored" })).toThrow(TypeError);
-
-			});
-
 		});
 
 	});
@@ -1433,16 +1001,6 @@ describe("factories", () => {
 
 		});
 
-		describe("type conformance", () => {
-
-			it("throws on non-object/function shape", async () => {
-
-				expect(() => multiple("not-a-shape" as any)).toThrow(TypeError);
-
-			});
-
-		});
-
 	});
 
 	describe("repeatable", () => {
@@ -1474,16 +1032,6 @@ describe("factories", () => {
 				const range = repeatable(string());
 
 				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "shape"]);
-
-			});
-
-		});
-
-		describe("type conformance", () => {
-
-			it("throws on non-object/function shape", async () => {
-
-				expect(() => repeatable("not-a-shape" as any)).toThrow(TypeError);
 
 			});
 
@@ -1525,16 +1073,6 @@ describe("factories", () => {
 
 		});
 
-		describe("type conformance", () => {
-
-			it("throws on non-object/function shape", async () => {
-
-				expect(() => optional("not-a-shape" as any)).toThrow(TypeError);
-
-			});
-
-		});
-
 	});
 
 	describe("required", () => {
@@ -1566,16 +1104,6 @@ describe("factories", () => {
 				const range = required(string());
 
 				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "shape"]);
-
-			});
-
-		});
-
-		describe("type conformance", () => {
-
-			it("throws on non-object/function shape", async () => {
-
-				expect(() => required("not-a-shape" as any)).toThrow(TypeError);
 
 			});
 
@@ -1649,30 +1177,6 @@ describe("factories", () => {
 
 		});
 
-		describe("type conformance", () => {
-
-			it("throws on non-number lower bound", async () => {
-
-				expect(() => cardinality("2" as any, 5)).toThrow(TypeError);
-
-			});
-
-			it("throws on non-number upper bound", async () => {
-
-				expect(() => cardinality(2, "5" as any)).toThrow(TypeError);
-
-			});
-
-			it("throws on non-object/function shape in returned factory", async () => {
-
-				const twoToFive = cardinality(2, 5);
-
-				expect(() => twoToFive("not-a-shape" as any)).toThrow(TypeError);
-
-			});
-
-		});
-
 	});
 
 	describe("reference", () => {
@@ -1735,12 +1239,6 @@ describe("factories", () => {
 
 			});
 
-			it("throws on invalid shape argument", async () => {
-
-				expect(() => backlink("not-a-shape" as any)).toThrow(TypeError);
-
-			});
-
 		});
 
 	});
@@ -1750,6 +1248,50 @@ describe("factories", () => {
 describe("validators", () => {
 
 	describe("validateReference", () => {
+
+		describe("type filtering", () => {
+
+			it("returns undefined for valid reference values", async () => {
+
+				expect(validateReference(["app:/users/123"], reference(resource({})))).toBeUndefined();
+
+			});
+
+			it("returns undefined for empty values array", async () => {
+
+				expect(validateReference([], reference(resource({})))).toBeUndefined();
+
+			});
+
+			it("returns trace with kind key for non-reference value", async () => {
+
+				const trace = validateReference([42], reference(resource({})));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+			it("returns trace with kind key for multiple non-reference values", async () => {
+
+				const trace = validateReference([42, true], reference(resource({})));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
+
+			});
+
+			it("returns trace with kind key for mixed values", async () => {
+
+				const trace = validateReference(["app:/users/123", 42], reference(resource({})));
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+		});
 
 		describe("no constraints", () => {
 
@@ -1789,7 +1331,7 @@ describe("validators", () => {
 				const target = resource({ pattern: "/users/{id}" }, {});
 				const shape = reference(target);
 
-				expect(validateReference(["app:/products/123"], shape)).toHaveProperty("pattern");
+				expect(validateReference(["app:/products/123"], shape)).toHaveProperty("{pattern}");
 
 			});
 
@@ -1811,7 +1353,7 @@ describe("validators", () => {
 				const target = resource({ in: ["app:/users/1", "app:/users/2"] }, {});
 				const shape = reference(target);
 
-				expect(validateReference(["app:/users/99"], shape)).toHaveProperty("in");
+				expect(validateReference(["app:/users/99"], shape)).toHaveProperty("{in}");
 
 			});
 
@@ -1833,7 +1375,7 @@ describe("validators", () => {
 				const target = resource({ hasValue: ["app:/users/1"] }, {});
 				const shape = reference(target);
 
-				expect(validateReference(["app:/users/2"], shape)).toHaveProperty("hasValue");
+				expect(validateReference(["app:/users/2"], shape)).toHaveProperty("{hasValue}");
 
 			});
 
@@ -1847,7 +1389,7 @@ describe("validators", () => {
 				const shape = reference(() => target);
 
 				expect(validateReference(["app:/users/123"], shape)).toBeUndefined();
-				expect(validateReference(["app:/products/123"], shape)).toHaveProperty("pattern");
+				expect(validateReference(["app:/products/123"], shape)).toHaveProperty("{pattern}");
 
 			});
 
@@ -1920,9 +1462,9 @@ describe("validators", () => {
 
 				it("rejects unknown property", async () => {
 
-					const trace = validateResource([{ name: "Alice", extra: "value" }], named);
+					const trace = validateResource([{ name: "Alice", extra: "value" }], named) as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("extra");
+					expect(trace["[0]"]).toHaveProperty("extra");
 
 				});
 
@@ -2008,9 +1550,9 @@ describe("validators", () => {
 						age: required(integer({ minInclusive: 0 }))
 					});
 
-					const trace = validateResource([{ age: -5 }], shape);
+					const trace = validateResource([{ age: -5 }], shape) as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("age");
+					expect(trace["[0]"]).toHaveProperty("age");
 
 				});
 
@@ -2025,12 +1567,13 @@ describe("validators", () => {
 					});
 
 					const trace = validateResource([{ address: { city: "" } }], Person) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("address");
+					expect(inner).toHaveProperty("address");
 
-					const address = trace["address"] as Record<string, Trace>;
+					const address = inner["address"] as Record<string, Trace>;
 
-					expect(address).toHaveProperty("value");
+					expect(address).toHaveProperty(["[0]", "city"]);
 
 				});
 
@@ -2044,10 +1587,10 @@ describe("validators", () => {
 						address: required(Address)
 					});
 
-					const trace = validateResource([{ address: { city: "" }, extra: "value" }], shape);
+					const trace = validateResource([{ address: { city: "" }, extra: "value" }], shape) as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("extra");
-					expect(trace).toHaveProperty("address");
+					expect(trace["[0]"]).toHaveProperty("extra");
+					expect(trace["[0]"]).toHaveProperty("address");
 
 				});
 
@@ -2070,9 +1613,10 @@ describe("validators", () => {
 				const shape = resource({ id: id() });
 
 				const trace = validateResource([{}], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("id");
-				expect(trace["id"]).toHaveProperty("format");
+				expect(inner).toHaveProperty("id");
+				expect(inner["id"]).toHaveProperty("{kind}");
 
 			});
 
@@ -2081,9 +1625,10 @@ describe("validators", () => {
 				const shape = resource({ id: id() });
 
 				const trace = validateResource([{ "id": "not an iri" }], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("id");
-				expect(trace["id"]).toHaveProperty("format");
+				expect(inner).toHaveProperty("id");
+				expect(inner["id"]).toHaveProperty("{kind}");
 
 			});
 
@@ -2092,9 +1637,10 @@ describe("validators", () => {
 				const shape = resource({ id: id() });
 
 				const trace = validateResource([{ "id": ["/users/1", "/users/2"] }], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("id");
-				expect(trace["id"]).toHaveProperty("format");
+				expect(inner).toHaveProperty("id");
+				expect(inner["id"]).toHaveProperty("{kind}");
 
 			});
 
@@ -2121,9 +1667,10 @@ describe("validators", () => {
 					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
 					const trace = validateResource([{ "id": "/products/123" }], shape) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("id");
-					expect(trace["id"]).toHaveProperty("pattern");
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{pattern}");
 
 				});
 
@@ -2132,9 +1679,10 @@ describe("validators", () => {
 					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
 					const trace = validateResource([{}], shape) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("id");
-					expect(trace["id"]).toHaveProperty("format");
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{kind}");
 
 				});
 
@@ -2155,9 +1703,10 @@ describe("validators", () => {
 					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
 
 					const trace = validateResource([{ "id": "app:/users/charlie" }], shape) as Record<string, Trace>;
+					const inner = trace["<app:/users/charlie>"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("id");
-					expect(trace["id"]).toHaveProperty("in");
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{in}");
 
 				});
 
@@ -2166,9 +1715,10 @@ describe("validators", () => {
 					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
 
 					const trace = validateResource([{}], shape) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("id");
-					expect(trace["id"]).toHaveProperty("format");
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{kind}");
 
 				});
 
@@ -2177,9 +1727,10 @@ describe("validators", () => {
 					const shape = resource({ in: [] }, { id: id() });
 
 					const trace = validateResource([{ "id": "app:/users/alice" }], shape) as Record<string, Trace>;
+					const inner = trace["<app:/users/alice>"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("id");
-					expect(trace["id"]).toHaveProperty("in");
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{in}");
 
 				});
 
@@ -2200,9 +1751,10 @@ describe("validators", () => {
 					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
 
 					const trace = validateResource([{ "id": "app:/users/guest" }], shape) as Record<string, Trace>;
+					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("id");
-					expect(trace["id"]).toHaveProperty("hasValue");
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{hasValue}");
 
 				});
 
@@ -2211,9 +1763,10 @@ describe("validators", () => {
 					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
 
 					const trace = validateResource([{}], shape) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("id");
-					expect(trace["id"]).toHaveProperty("format");
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{kind}");
 
 				});
 
@@ -2244,9 +1797,10 @@ describe("validators", () => {
 				const shape = resource({ type: type() });
 
 				const trace = validateResource([{ "type": "not an iri" }], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("type");
-				expect(trace["type"]).toHaveProperty("format");
+				expect(inner).toHaveProperty("type");
+				expect(inner["type"]).toHaveProperty("{kind}");
 
 			});
 
@@ -2255,9 +1809,10 @@ describe("validators", () => {
 				const shape = resource({ type: type() });
 
 				const trace = validateResource([{ "type": ["/types/A", "/types/B"] }], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("type");
-				expect(trace["type"]).toHaveProperty("format");
+				expect(inner).toHaveProperty("type");
+				expect(inner["type"]).toHaveProperty("{kind}");
 
 			});
 
@@ -2281,18 +1836,20 @@ describe("validators", () => {
 				it("rejects missing required property", async () => {
 
 					const trace = validateResource([{}], named) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("name");
-					expect(trace["name"]).toHaveProperty("minCount");
+					expect(inner).toHaveProperty("name");
+					expect(inner["name"]).toHaveProperty("{minCount}");
 
 				});
 
 				it("rejects array value", async () => {
 
 					const trace = validateResource([{ name: ["Alice"] }], named) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("name");
-					expect(trace["name"]).toHaveProperty("shape");
+					expect(inner).toHaveProperty("name");
+					expect(inner["name"]).toHaveProperty("{kind}");
 
 				});
 
@@ -2320,9 +1877,10 @@ describe("validators", () => {
 				it("rejects array value", async () => {
 
 					const trace = validateResource([{ age: [30] }], aged) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("age");
-					expect(trace["age"]).toHaveProperty("shape");
+					expect(inner).toHaveProperty("age");
+					expect(inner["age"]).toHaveProperty("{kind}");
 
 				});
 
@@ -2350,27 +1908,30 @@ describe("validators", () => {
 				it("rejects empty array", async () => {
 
 					const trace = validateResource([{ tags: [] }], tagged) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("tags");
-					expect(trace["tags"]).toHaveProperty("minCount");
+					expect(inner).toHaveProperty("tags");
+					expect(inner["tags"]).toHaveProperty("{minCount}");
 
 				});
 
 				it("rejects missing repeatable property", async () => {
 
 					const trace = validateResource([{}], tagged) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("tags");
-					expect(trace["tags"]).toHaveProperty("minCount");
+					expect(inner).toHaveProperty("tags");
+					expect(inner["tags"]).toHaveProperty("{minCount}");
 
 				});
 
 				it("rejects scalar value", async () => {
 
 					const trace = validateResource([{ tags: "a" }], tagged) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("tags");
-					expect(trace["tags"]).toHaveProperty("shape");
+					expect(inner).toHaveProperty("tags");
+					expect(inner["tags"]).toHaveProperty("{kind}");
 
 				});
 
@@ -2410,9 +1971,10 @@ describe("validators", () => {
 				it("rejects scalar value", async () => {
 
 					const trace = validateResource([{ aliases: "x" }], aliased) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("aliases");
-					expect(trace["aliases"]).toHaveProperty("shape");
+					expect(inner).toHaveProperty("aliases");
+					expect(inner["aliases"]).toHaveProperty("{kind}");
 
 				});
 
@@ -2438,9 +2000,10 @@ describe("validators", () => {
 					});
 
 					const trace = validateResource([{ tags: ["a"] }], shape) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("tags");
-					expect(trace["tags"]).toHaveProperty("minCount");
+					expect(inner).toHaveProperty("tags");
+					expect(inner["tags"]).toHaveProperty("{minCount}");
 
 				});
 
@@ -2462,9 +2025,10 @@ describe("validators", () => {
 					});
 
 					const trace = validateResource([{ tags: ["a", "b", "c", "d"] }], shape) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
 
-					expect(trace).toHaveProperty("tags");
-					expect(trace["tags"]).toHaveProperty("maxCount");
+					expect(inner).toHaveProperty("tags");
+					expect(inner["tags"]).toHaveProperty("{maxCount}");
 
 				});
 
@@ -2485,8 +2049,8 @@ describe("validators", () => {
 						tags: cardinality(2, 4)(string())
 					});
 
-					expect(validateResource([{ tags: ["a"] }], shape)).toHaveProperty("tags");
-					expect(validateResource([{ tags: ["a", "b", "c", "d", "e"] }], shape)).toHaveProperty("tags");
+					expect(validateResource([{ tags: ["a"] }], shape)).toHaveProperty(["[0]", "tags"]);
+					expect(validateResource([{ tags: ["a", "b", "c", "d", "e"] }], shape)).toHaveProperty(["[0]", "tags"]);
 
 				});
 
@@ -2503,7 +2067,7 @@ describe("validators", () => {
 				});
 
 				expect(validateResource([{ name: "Alice" }], Derived)).toBeUndefined();
-				expect(validateResource([{}], Derived)).toHaveProperty("name");
+				expect(validateResource([{}], Derived)).toHaveProperty(["[0]", "name"]);
 
 			});
 
@@ -2522,8 +2086,8 @@ describe("validators", () => {
 				});
 
 				expect(validateResource([{ name: "Alice", age: 30 }], Person)).toBeUndefined();
-				expect(validateResource([{ name: "Alice" }], Person)).toHaveProperty("age");
-				expect(validateResource([{ age: 30 }], Person)).toHaveProperty("name");
+				expect(validateResource([{ name: "Alice" }], Person)).toHaveProperty(["[0]", "age"]);
+				expect(validateResource([{ age: 30 }], Person)).toHaveProperty(["[0]", "name"]);
 
 			});
 
@@ -2543,11 +2107,11 @@ describe("validators", () => {
 
 				// violates parent's minLength: 3 even though it matches child's pattern
 
-				expect(validateResource([{ name: "A" }], Derived)).toHaveProperty("name");
+				expect(validateResource([{ name: "A" }], Derived)).toHaveProperty(["[0]", "name"]);
 
 				// violates child's pattern even though it satisfies parent's minLength
 
-				expect(validateResource([{ name: "alice" }], Derived)).toHaveProperty("name");
+				expect(validateResource([{ name: "alice" }], Derived)).toHaveProperty(["[0]", "name"]);
 
 			});
 
@@ -2569,11 +2133,11 @@ describe("validators", () => {
 
 				// satisfies child's relaxed minLength: 1 but violates parent's minLength: 3
 
-				expect(validateResource([{ name: "AB" }], Derived)).toHaveProperty("name");
+				expect(validateResource([{ name: "AB" }], Derived)).toHaveProperty(["[0]", "name"]);
 
 				// satisfies child's relaxed maxLength: 100 but violates parent's maxLength: 50
 
-				expect(validateResource([{ name: "A".repeat(51) }], Derived)).toHaveProperty("name");
+				expect(validateResource([{ name: "A".repeat(51) }], Derived)).toHaveProperty(["[0]", "name"]);
 
 			});
 
@@ -2601,11 +2165,11 @@ describe("validators", () => {
 
 				// violates grandparent's minLength: 3
 
-				expect(validateResource([{ name: "AB" }], Child)).toHaveProperty("name");
+				expect(validateResource([{ name: "AB" }], Child)).toHaveProperty(["[0]", "name"]);
 
 				// violates last parent's maxLength: 50
 
-				expect(validateResource([{ name: "A".repeat(51) }], Child)).toHaveProperty("name");
+				expect(validateResource([{ name: "A".repeat(51) }], Child)).toHaveProperty(["[0]", "name"]);
 
 			});
 
@@ -2632,7 +2196,7 @@ describe("validators", () => {
 						active: required(boolean())
 					});
 
-					expect(validateResource([{ active: "true" }], shape)).toHaveProperty("active");
+					expect(validateResource([{ active: "true" }], shape)).toHaveProperty(["[0]", "active"]);
 
 				});
 
@@ -2656,7 +2220,7 @@ describe("validators", () => {
 						age: required(integer())
 					});
 
-					expect(validateResource([{ age: "forty-two" }], shape)).toHaveProperty("age");
+					expect(validateResource([{ age: "forty-two" }], shape)).toHaveProperty(["[0]", "age"]);
 
 				});
 
@@ -2680,7 +2244,7 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateResource([{ name: 42 }], shape)).toHaveProperty("name");
+					expect(validateResource([{ name: 42 }], shape)).toHaveProperty(["[0]", "name"]);
 
 				});
 
@@ -2691,7 +2255,7 @@ describe("validators", () => {
 					});
 
 					expect(validateResource([{ tags: ["abc", "de", "fgh"] }], shape)).toBeUndefined();
-					expect(validateResource([{ tags: ["abc", "x", "fgh"] }], shape)).toHaveProperty("tags");
+					expect(validateResource([{ tags: ["abc", "x", "fgh"] }], shape)).toHaveProperty(["[0]", "tags"]);
 
 				});
 
@@ -2715,7 +2279,7 @@ describe("validators", () => {
 						label: required(local())
 					});
 
-					expect(validateResource([{ label: 42 }], shape)).toHaveProperty("label");
+					expect(validateResource([{ label: 42 }], shape)).toHaveProperty(["[0]", "label"]);
 
 				});
 
@@ -2744,7 +2308,7 @@ describe("validators", () => {
 						labels: required(locals())
 					});
 
-					expect(validateResource([{ labels: "Hello" }], shape)).toHaveProperty("labels");
+					expect(validateResource([{ labels: "Hello" }], shape)).toHaveProperty(["[0]", "labels"]);
 
 				});
 
@@ -2776,7 +2340,7 @@ describe("validators", () => {
 						address: required(Address)
 					});
 
-					expect(validateResource([{ address: {} }], Person)).toHaveProperty("address");
+					expect(validateResource([{ address: {} }], Person)).toHaveProperty(["[0]", "address"]);
 
 				});
 
@@ -2796,7 +2360,7 @@ describe("validators", () => {
 
 					expect(validateResource([{
 						address: { street: { name: "" } }
-					}], Person)).toHaveProperty("address");
+					}], Person)).toHaveProperty(["[0]", "address"]);
 
 				});
 
@@ -2828,7 +2392,7 @@ describe("validators", () => {
 
 				it("rejects scalar matching no variant type", async () => {
 
-					expect(validateResource([{ value: true }], textOrCount)).toHaveProperty("value");
+					expect(validateResource([{ value: true }], textOrCount)).toHaveProperty(["[0]", "value"]);
 
 				});
 
@@ -2842,13 +2406,13 @@ describe("validators", () => {
 				it("rejects array for scalar union range", async () => {
 
 					// textOrCount has maxCount=1: array is rejected
-					expect(validateResource([{ value: ["a", "b"] }], textOrCount)).toHaveProperty("value");
+					expect(validateResource([{ value: ["a", "b"] }], textOrCount)).toHaveProperty(["[0]", "value"]);
 
 				});
 
 				it("rejects missing union property", async () => {
 
-					expect(validateResource([{}], textOrCount)).toHaveProperty("value");
+					expect(validateResource([{}], textOrCount)).toHaveProperty(["[0]", "value"]);
 
 				});
 
@@ -2859,7 +2423,10 @@ describe("validators", () => {
 					});
 
 					expect(validateResource([{ value: "hello", name: "Alice" }], Derived)).toBeUndefined();
-					expect(validateResource([{ value: true, name: "Alice" }], Derived)).toHaveProperty("value");
+					expect(validateResource([{
+						value: true,
+						name: "Alice"
+					}], Derived)).toHaveProperty(["[0]", "value"]);
 
 				});
 
@@ -2898,9 +2465,10 @@ describe("validators", () => {
 					"id": "/products/123",
 					name: "Alice"
 				}], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("id");
-				expect(trace["id"]).toHaveProperty("pattern");
+				expect(inner).toHaveProperty("id");
+				expect(inner["id"]).toHaveProperty("{pattern}");
 
 			});
 
@@ -2909,7 +2477,7 @@ describe("validators", () => {
 				expect(validateResource([{
 					"id": "app:/users/123",
 					name: ""
-				}], shape)).toHaveProperty("name");
+				}], shape)).toHaveProperty(["<app:/users/123>", "name"]);
 
 			});
 
@@ -2936,14 +2504,12 @@ describe("validators", () => {
 			});
 
 
-			it("preserves flat trace for single resource", async () => {
+			it("wraps single resource trace under id key", async () => {
 
-				// single-element array: no per-resource wrapping
+				const trace = validateResource([{ "id": "app:/users/1", name: "" }], shape) as Record<string, Trace>;
 
-				const trace = validateResource([{ "id": "app:/users/1", name: "" }], shape);
-
-				expect(trace).toHaveProperty("name");
-				expect(trace).not.toHaveProperty("app:/users/1");
+				expect(trace).toHaveProperty("<app:/users/1>");
+				expect(trace["<app:/users/1>"]).toHaveProperty("name");
 
 			});
 
@@ -2954,11 +2520,11 @@ describe("validators", () => {
 					{ "id": "app:/users/2", name: "" }
 				], shape) as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("app:/users/1");
-				expect(trace).toHaveProperty("app:/users/2");
+				expect(trace).toHaveProperty("<app:/users/1>");
+				expect(trace).toHaveProperty("<app:/users/2>");
 
-				expect(trace["app:/users/1"]).toHaveProperty("name");
-				expect(trace["app:/users/2"]).toHaveProperty("name");
+				expect(trace["<app:/users/1>"]).toHaveProperty("name");
+				expect(trace["<app:/users/2>"]).toHaveProperty("name");
 
 			});
 
@@ -2969,8 +2535,8 @@ describe("validators", () => {
 					{ name: "" }
 				], shapeWithoutId) as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("_:0");
-				expect(trace).toHaveProperty("_:1");
+				expect(trace).toHaveProperty("[0]");
+				expect(trace).toHaveProperty("[1]");
 
 			});
 
@@ -2981,8 +2547,8 @@ describe("validators", () => {
 					{ "id": "app:/users/2", name: "" }
 				], shape) as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("_:0");
-				expect(trace).toHaveProperty("app:/users/2");
+				expect(trace).toHaveProperty("[0]");
+				expect(trace).toHaveProperty("<app:/users/2>");
 
 			});
 
@@ -2994,7 +2560,7 @@ describe("validators", () => {
 				], shape) as Record<string, Trace>;
 
 				expect(trace).not.toHaveProperty("app:/users/1");
-				expect(trace).toHaveProperty("app:/users/2");
+				expect(trace).toHaveProperty("<app:/users/2>");
 
 			});
 
@@ -3218,7 +2784,7 @@ describe("validators", () => {
 					const trace = validateModel([{ address: { city: ["Rome"] } as any }], shape, null);
 
 					expect(trace).toBeDefined();
-					expect(trace).toHaveProperty("address");
+					expect(trace).toHaveProperty(["[0]", "address"]);
 
 				});
 
@@ -3371,6 +2937,64 @@ describe("validators", () => {
 					});
 
 					expect(validateModel([{ tags: "a" }], shape, 0)).toBeDefined();
+
+				});
+
+			});
+
+			describe("undefined template rejected", () => {
+
+				it("rejects undefined template on scalar property", async () => {
+
+					const shape = resource({
+						name: required(string())
+					});
+
+					expect(validateModel([{ name: undefined } as any], shape, 0)).toBeDefined();
+
+				});
+
+				it("rejects undefined template on array property", async () => {
+
+					const shape = resource({
+						tags: repeatable(string())
+					});
+
+					expect(validateModel([{ tags: undefined } as any], shape, 0)).toBeDefined();
+
+				});
+
+			});
+
+			describe("tuple arity enforced", () => {
+
+				it("rejects empty tuple on array property", async () => {
+
+					const shape = resource({
+						tags: repeatable(string())
+					});
+
+					expect(validateModel([{ tags: [] }], shape, 0)).toBeDefined();
+
+				});
+
+				it("rejects multi-element tuple on array property", async () => {
+
+					const shape = resource({
+						tags: repeatable(string())
+					});
+
+					expect(validateModel([{ tags: ["a", "b"] } as any], shape, 0)).toBeDefined();
+
+				});
+
+				it("accepts singleton tuple on array property", async () => {
+
+					const shape = resource({
+						tags: repeatable(string())
+					});
+
+					expect(validateModel([{ tags: ["a"] }], shape, 0)).toBeUndefined();
 
 				});
 
@@ -3555,7 +3179,7 @@ describe("validators", () => {
 					members: multiple(reference(Target))
 				});
 
-				expect(validateModel([{ members: ["app:/users/1", "app:/users/2"] } as any], shape, 0)).toBeUndefined();
+				expect(validateModel([{ members: ["app:/users/1"] }], shape, 0)).toBeUndefined();
 
 			});
 
@@ -3579,7 +3203,7 @@ describe("validators", () => {
 					members: multiple(reference(Target))
 				});
 
-				expect(validateModel([{ members: [{ name: "Alice" }, { name: "Bob" }] } as any], shape, null)).toBeUndefined();
+				expect(validateModel([{ members: [{ name: "Alice" }] } as any], shape, null)).toBeUndefined();
 
 			});
 
@@ -3591,7 +3215,7 @@ describe("validators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateModel([{ supervisor: 42 }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ supervisor: 42 }], shape, 0)).toBeDefined();
 
 			});
 
@@ -3659,7 +3283,7 @@ describe("validators", () => {
 					children: multiple(backlink(Target))
 				});
 
-				expect(validateModel([{ children: ["app:/items/1", "app:/items/2"] } as any], shape, 0)).toBeUndefined();
+				expect(validateModel([{ children: ["app:/items/1"] } as any], shape, 0)).toBeUndefined();
 
 			});
 
@@ -3823,6 +3447,45 @@ describe("validators", () => {
 
 			});
 
+			it("rejects collection resource query when depth is 0", async () => {
+
+				const Target = resource({ name: required(string()) });
+
+				const Outer = resource({
+					items: multiple(reference(Target))
+				});
+
+				expect(validateModel([{ items: [{ name: "x" }] }], Outer, 0)).toBeDefined();
+
+			});
+
+			it("accepts collection resource query when depth is 1", async () => {
+
+				const Target = resource({ name: required(string()) });
+
+				const Outer = resource({
+					items: multiple(reference(Target))
+				});
+
+				expect(validateModel([{ items: [{ name: "x" }] }], Outer, 1)).toBeUndefined();
+
+			});
+
+			it("reports malformed query key under the offending key", async () => {
+
+				const Target = resource({ name: required(string()) });
+
+				const Outer = resource({
+					items: multiple(reference(Target))
+				});
+
+				const trace = validateModel([{ items: [{ "===invalid": "x" }] }], Outer, 1);
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty(["[0]", "items", "===invalid"]);
+
+			});
+
 		});
 
 		describe("bindings", () => {
@@ -3856,7 +3519,7 @@ describe("validators", () => {
 				const trace = validateModel([{ "releaseYear=year:released": "" }], Target, 0);
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("releaseYear=year:released");
+				expect(trace).toHaveProperty(["[0]", "releaseYear=year:released"]);
 
 			});
 
@@ -4121,6 +3784,22 @@ describe("validators", () => {
 
 				});
 
+				it("rejects local shape in collections", async () => {
+
+					const Wrapper = resource({ label: multiple(local()) });
+
+					expect(validateModel([{ label: [{ "en": "Hello" }] }], Wrapper, 0)).toBeDefined();
+
+				});
+
+				it("rejects locals shape in collections", async () => {
+
+					const Wrapper = resource({ labels: multiple(locals()) });
+
+					expect(validateModel([{ labels: [{ "en": ["Hello"] as const }] }], Wrapper, 0)).toBeDefined();
+
+				});
+
 			});
 
 			describe("deep path criteria", () => {
@@ -4357,7 +4036,7 @@ describe("validators", () => {
 					it("rejects identity binding on reference property with wrong type", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=link": 0 }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=link": 0 }] }], Wrapper, null)).toBeDefined();
 
 					});
 
@@ -4383,10 +4062,10 @@ describe("validators", () => {
 
 					});
 
-					it("accepts identity binding on embedded resource with non-object", async () => {
+					it("rejects identity binding on embedded resource with non-object", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=child": "not-an-object" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=child": 42 }] }], Wrapper, null)).toBeDefined();
 
 					});
 
@@ -4404,10 +4083,10 @@ describe("validators", () => {
 
 					});
 
-					it("accepts aggregate binding on embedded resource with non-object", async () => {
+					it("rejects aggregate binding on embedded resource with non-object", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=min:child": "not-an-object" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=min:child": 42 }] }], Wrapper, null)).toBeDefined();
 
 					});
 
@@ -4689,16 +4368,16 @@ describe("validators", () => {
 
 				const trace = validateModel([{ items: [{ name: 42 }] } as any], shape, null) as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("items");
+				expect(trace).toHaveProperty(["[0]", "items"]);
 
-				const items = trace["items"] as Record<string, Trace>;
+				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
 
-				expect(items).toHaveProperty("template");
-				expect(items).not.toHaveProperty("_:0");
+				expect(items).toHaveProperty("name");
+				expect(items).not.toHaveProperty("[0]");
 
 			});
 
-			it("keys violations by @id for multiple nested models", async () => {
+			it("keys violations by @id for single nested model", async () => {
 
 				const shape = resource({
 					items: multiple(reference(Target))
@@ -4706,25 +4385,19 @@ describe("validators", () => {
 
 				const trace = validateModel([{
 					items: [
-						{ "id": "app:/items/1", name: 42 },
-						{ "id": "app:/items/2", name: 42 }
+						{ "id": "app:/items/1", name: 42 }
 					]
 				} as any], shape, null) as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("items");
+				expect(trace).toHaveProperty(["[0]", "items"]);
 
-				const items = trace["items"] as Record<string, Trace>;
+				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
 
-				expect(items).toHaveProperty("template");
-
-				const template = items["template"] as Record<string, Trace>;
-
-				expect(template).toHaveProperty("app:/items/1");
-				expect(template).toHaveProperty("app:/items/2");
+				expect(items).toHaveProperty("name");
 
 			});
 
-			it("keys violations by blank node for multiple nested models without id property", async () => {
+			it("keys violations by blank node for single nested model without id property", async () => {
 
 				const shape = resource({
 					items: multiple(reference(TargetWithoutId))
@@ -4732,21 +4405,15 @@ describe("validators", () => {
 
 				const trace = validateModel([{
 					items: [
-						{ name: 42 },
 						{ name: 42 }
 					]
 				} as any], shape, null) as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("items");
+				expect(trace).toHaveProperty(["[0]", "items"]);
 
-				const items = trace["items"] as Record<string, Trace>;
+				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
 
-				expect(items).toHaveProperty("template");
-
-				const template = items["template"] as Record<string, Trace>;
-
-				expect(template).toHaveProperty("_:0");
-				expect(template).toHaveProperty("_:1");
+				expect(items).toHaveProperty("name");
 
 			});
 
@@ -4758,21 +4425,15 @@ describe("validators", () => {
 
 				const trace = validateModel([{
 					items: [
-						{ "id": "app:/items/1", name: "Valid" },
 						{ "id": "app:/items/2", name: 42 }
 					]
 				} as any], shape, null) as Record<string, Trace>;
 
-				expect(trace).toHaveProperty("items");
+				expect(trace).toHaveProperty(["[0]", "items"]);
 
-				const items = trace["items"] as Record<string, Trace>;
+				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
 
-				expect(items).toHaveProperty("template");
-
-				const template = items["template"] as Record<string, Trace>;
-
-				expect(template).not.toHaveProperty("app:/items/1");
-				expect(template).toHaveProperty("app:/items/2");
+				expect(items).toHaveProperty("name");
 
 			});
 
@@ -4784,8 +4445,7 @@ describe("validators", () => {
 
 				expect(validateModel([{
 					items: [
-						{ "id": "app:/items/1", name: "Alice" },
-						{ "id": "app:/items/2", name: "Bob" }
+						{ "id": "app:/items/1", name: "Alice" }
 					] as any
 				}], shape, null)).toBeUndefined();
 

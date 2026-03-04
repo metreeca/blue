@@ -161,7 +161,7 @@
  *
  * Use {@link union} for properties accepting multiple value types. Unions are pure type discriminators — cardinality
  * constraints belong on the enclosing {@link Range}, not on individual variants. At runtime, union values are
- * represented as {@link @metreeca/qest!Indexed Indexed} records mapping variant names to their values, corresponding
+ * represented as `Indexed` records mapping variant names to their values, corresponding
  * to JSON-LD [indexed containers](https://www.w3.org/TR/json-ld11/#data-indexing) (`@container: @index`):
  *
  * ```typescript
@@ -209,56 +209,14 @@
  * @see {@link https://www.w3.org/TR/shacl/#ClosedConstraintComponent SHACL § 4.8.1 sh:closed}
  */
 
-import {
-	type Identifier,
-	isBoolean,
-	isIdentifier,
-	isLazy,
-	isNumber,
-	isObject,
-	isOptional,
-	isString,
-	type Lazy,
-	type Some
-} from "@metreeca/core";
-import { assert } from "@metreeca/core/error";
+import { type Identifier, isString, type Lazy, type Some } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
 import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
 import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
-import { isValueShape, materialize } from "./index.core.js";
+import { materialize } from "./index.core.js";
 import type { Infer, ValueShape } from "./index.js";
-import {
-	isEntries,
-	isEntry,
-	isId,
-	isProperty,
-	isPropertyConstraints,
-	isRange,
-	isReferenceShape,
-	isResourceConstraints,
-	isResourceShape,
-	isType,
-	isUnion
-} from "./resource.core.js";
 import type { Validator } from "./trace.js";
 
-
-export {
-	isReferenceShape,
-	isResourceShape,
-	isResourceConstraints,
-	isId,
-	isType,
-	isProperty,
-	isPropertyConstraints,
-	isRange,
-	isUnion,
-	isEntries,
-	isEntry
-};
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Default application namespace for property IRI resolution (`app:/#`).
@@ -678,7 +636,7 @@ export interface Range<
 /**
  * Discriminated type alternatives for polymorphic property values.
  *
- * Values for union properties are represented as {@link @metreeca/qest!Indexed Indexed} records mapping variant
+ * Values for union properties are represented as `Indexed` records mapping variant
  * identifiers to values. In JSON-LD, this maps to an indexed container (`@container: @index`), where variant keys
  * serve as type discriminators.
  *
@@ -862,9 +820,9 @@ export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
 		kind: "reference",
 		model: "app:/",
 
-		shape: assert(shape, v => isLazy(v, isResourceShape))
+		shape
 
-	}, isReferenceShape);
+	});
 
 }
 
@@ -893,9 +851,9 @@ export function backlink(shape: Lazy<ResourceShape>): ReferenceShape {
 		model: "app:/",
 
 		backlink: true,
-		shape: assert(shape, v => isLazy(v, isResourceShape))
+		shape
 
-	}, isReferenceShape);
+	});
 
 }
 
@@ -989,7 +947,7 @@ export function resource(
 
 	if ( b === undefined ) {
 
-		const properties = assert(a, isEntries);
+		const properties = a as Entries;
 		const namespace = identify({});
 		const resolved = resolve(normalize(properties), namespace);
 
@@ -1000,12 +958,12 @@ export function resource(
 
 			properties: resolved
 
-		}, isResourceShape);
+		});
 
 	} else {
 
-		const constraints = assert(a, isResourceConstraints);
-		const properties = assert(b, isEntries);
+		const constraints = a as ResourceConstraints;
+		const properties = b;
 
 		const namespace = identify(constraints);
 		const resolved = resolve(normalize(properties), namespace);
@@ -1019,7 +977,7 @@ export function resource(
 
 			properties: resolved
 
-		}, isResourceShape);
+		});
 
 	}
 
@@ -1042,7 +1000,7 @@ export function resource(
 		} else if ( parents !== undefined ) {
 
 			const namespaces = (Array.isArray(parents) ? parents : [parents])
-				.map((parent: Lazy<ResourceShape>) => assert(materialize(parent), isResourceShape).namespace);
+				.map((parent: Lazy<ResourceShape>) => materialize(parent).namespace);
 
 			if ( new Set(namespaces.map(ns => ns?.())).size > 1 ) {
 				throw new TypeError("inconsistent namespaces in parent shapes: must define a default namespace");
@@ -1140,7 +1098,7 @@ export function resource(
 	function build(properties: ResourceShape["properties"], { extends: parents }: ResourceConstraints = {}): Resource {
 
 		const inherited = parents === undefined ? {} : (Array.isArray(parents) ? parents : [parents])
-			.map((parent: Lazy<ResourceShape>) => assert(materialize(parent), isResourceShape).model)
+			.map((parent: Lazy<ResourceShape>) => materialize(parent).model)
 			.reduce((inherited, model) => ({ ...model, ...inherited }), {});
 
 		return immutable({
@@ -1195,11 +1153,7 @@ export function id(constraints: {
 
 } = {}): Id {
 
-	const $constraints = assert(constraints, (v: unknown): v is typeof constraints => isObject(v, {
-		hidden: (v: unknown) => isOptional(v, isBoolean)
-	}));
-
-	return { kind: "id", hidden: $constraints.hidden };
+	return { kind: "id", hidden: constraints.hidden };
 
 }
 
@@ -1223,11 +1177,7 @@ export function type(constraints: {
 
 } = {}): Type {
 
-	const $constraints = assert(constraints, (v: unknown): v is typeof constraints => isObject(v, {
-		hidden: (v: unknown) => isOptional(v, isBoolean)
-	}));
-
-	return { kind: "type", hidden: $constraints.hidden };
+	return { kind: "type", hidden: constraints.hidden };
 
 }
 
@@ -1276,14 +1226,14 @@ export function property<V extends Range>(
  */
 export function property(a: Range | PropertyConstraints, b?: Range): Property {
 
-	const constraints = assert(b !== undefined ? a : {}, isPropertyConstraints);
-	const range = assert(b !== undefined ? b : a, isRange);
+	const constraints = (b !== undefined ? a : {}) as PropertyConstraints;
+	const range = (b !== undefined ? b : a) as Range;
 
 	return immutable({
 		kind: "property",
 		...constraints,
 		range
-	}, isProperty);
+	});
 
 }
 
@@ -1324,7 +1274,7 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
 ): Union<{ readonly [K in keyof V]: V[K] extends Lazy<infer S extends ValueShape> ? S : never }> {
 
 	const materialized = Object.fromEntries(
-		Object.entries(assert(variants, v => isObject(v, (v, k) => isIdentifier(k) && isLazy(v, isValueShape))))
+		Object.entries(variants)
 			.map(([k, v]) => [k, materialize(v as Lazy<ValueShape>)])
 	);
 
@@ -1338,7 +1288,7 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
 
 		variants: materialized
 
-	}, isUnion) as Union<{ readonly [K in keyof V]: V[K] extends Lazy<infer S extends ValueShape> ? S : never }>;
+	}) as Union<{ readonly [K in keyof V]: V[K] extends Lazy<infer S extends ValueShape> ? S : never }>;
 
 }
 
@@ -1449,8 +1399,8 @@ export function cardinality<
 	upper?: U
 ): <S extends ValueShape | Union>(shape: Lazy<S>) => Range<S["model"], L, U> {
 
-	const $lower = assert(lower, v => isOptional(v, isNumber)) as L;
-	const $upper = assert(upper, v => isOptional(v, isNumber)) as U;
+	const $lower = lower as L;
+	const $upper = upper as U;
 
 	if ( $lower !== undefined && $lower < 0 ) {
 		throw new TypeError(`minCount (${$lower}) cannot be negative`);
@@ -1464,14 +1414,14 @@ export function cardinality<
 		throw new TypeError(`minCount (${$lower}) cannot exceed maxCount (${$upper})`);
 	}
 
-	return <S extends ValueShape | Union>(shape: Lazy<S>): Range<S["model"], L, U> => immutable({
+	return shape => immutable({
 
 		kind: "range",
 
 		minCount: $lower,
 		maxCount: $upper,
 
-		shape: assert(materialize(shape), v => isValueShape(v) || isUnion(v))
+		shape: materialize(shape)
 
-	}, isRange) as Range<S["model"], L, U>;
+	});
 }

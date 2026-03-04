@@ -22,62 +22,27 @@
  * @module
  */
 
-import { isBoolean, isObject, isOptional } from "@metreeca/core";
+import { isBoolean } from "@metreeca/core";
 import type { BooleanConstraints, BooleanShape } from "./boolean.js";
-
+import { trace } from "./trace.core.js";
 import type { Trace } from "./trace.js";
 
 
 /**
- * Checks whether a value is a {@link BooleanShape}.
+ * Validates values against a boolean shape.
  *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` is a valid {@link BooleanShape}; false otherwise
+ * Filters input values by type, reporting non-boolean values under the `kind` key.
  */
-export function isBooleanShape(value: unknown): value is BooleanShape {
-	return isObject(value, {
+export function validateBoolean(values: readonly unknown[], { kind }: BooleanShape): undefined | Trace {
 
-		kind: v => v === "boolean",
-		model: isBoolean
+	const matching = values.filter(isBoolean);
+	const mistyped = values.length-matching.length;
+
+	return trace({
+
+		"{kind}": mistyped === 0
+			|| `expected ${kind} values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`
 
 	});
-}
-
-/**
- * Checks whether a value is a valid {@link BooleanConstraints} object.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` is a valid {@link BooleanConstraints}; false otherwise
- */
-export function isBooleanConstraints(value: unknown): value is BooleanConstraints {
-	return isObject(value, {
-
-		model: (v: unknown) => isOptional(v, isBoolean)
-
-	});
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates boolean values against a shape.
- *
- * Boolean values have no additional constraints beyond type checking, so this always returns `undefined`.
- *
- * @param values The boolean values to validate
- * @param shape The boolean shape (unused, as booleans have no constraints)
- *
- * @returns `undefined` (booleans have no value constraints)
- */
-export function validateBoolean(values: readonly boolean[], {}: BooleanShape): undefined | Trace {
-
-	return undefined;
 
 }

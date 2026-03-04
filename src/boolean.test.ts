@@ -15,75 +15,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { isBooleanConstraints, isBooleanShape, validateBoolean } from "./boolean.core.js";
+import { validateBoolean } from "./boolean.core.js";
 import { boolean } from "./boolean.js";
 
-
-describe("guards", () => {
-
-	describe("isBooleanShape", () => {
-
-		it("returns true for valid boolean shape", async () => {
-
-			expect(isBooleanShape(boolean())).toBe(true);
-			expect(isBooleanShape(boolean(true))).toBe(true);
-
-		});
-
-		it("returns false for object with wrong kind", async () => {
-
-			expect(isBooleanShape({ kind: "string", model: false })).toBe(false);
-
-		});
-
-		it("returns false for object with non-boolean model", async () => {
-
-			expect(isBooleanShape({ kind: "boolean", model: "false" })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isBooleanShape(null)).toBe(false);
-			expect(isBooleanShape(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isBooleanConstraints", () => {
-
-		it("returns true for empty object", async () => {
-
-			expect(isBooleanConstraints({})).toBe(true);
-
-		});
-
-		it("returns true for object with boolean model", async () => {
-
-			expect(isBooleanConstraints({ model: true })).toBe(true);
-			expect(isBooleanConstraints({ model: false })).toBe(true);
-
-		});
-
-		it("returns false for object with non-boolean model", async () => {
-
-			expect(isBooleanConstraints({ model: "true" })).toBe(false);
-			expect(isBooleanConstraints({ model: 1 })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isBooleanConstraints(null)).toBe(false);
-			expect(isBooleanConstraints(undefined)).toBe(false);
-			expect(isBooleanConstraints("string")).toBe(false);
-
-		});
-
-	});
-
-});
 
 describe("factories", () => {
 
@@ -131,27 +65,11 @@ describe("factories", () => {
 
 		describe("constraints", () => {
 
-			describe("model", () => {
-
-				it("rejects non-boolean value", async () => {
-
-					expect(() => boolean({ model: "true" } as any)).toThrow(TypeError);
-
-				});
-
-			});
-
 			describe("combined", () => {
 
 				it("includes only provided properties", async () => {
 
 					expect(Object.keys(boolean()).sort()).toEqual(["kind", "model"]);
-
-				});
-
-				it("rejects extra properties", async () => {
-
-					expect(() => boolean({ extra: "ignored" } as any)).toThrow(TypeError);
 
 				});
 
@@ -167,15 +85,55 @@ describe("validators", () => {
 
 	describe("validateBoolean", () => {
 
-		it("returns undefined for valid boolean values", async () => {
+		describe("type filtering", () => {
 
-			expect(validateBoolean([true, false], boolean())).toBeUndefined();
+			it("returns undefined for valid boolean values", async () => {
 
-		});
+				expect(validateBoolean([true, false], boolean())).toBeUndefined();
 
-		it("returns undefined for empty values", async () => {
+			});
 
-			expect(validateBoolean([], boolean())).toBeUndefined();
+			it("returns undefined for empty values", async () => {
+
+				expect(validateBoolean([], boolean())).toBeUndefined();
+
+			});
+
+			it("returns trace with kind key for non-boolean value", async () => {
+
+				const trace = validateBoolean([42], boolean());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+			it("returns trace with kind key for multiple non-boolean values", async () => {
+
+				const trace = validateBoolean([42, "hello"], boolean());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
+
+			});
+
+			it("returns trace with kind key for mixed values", async () => {
+
+				const trace = validateBoolean([true, 42, "hello"], boolean());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+			it("returns undefined when non-boolean values filtered and booleans pass", async () => {
+
+				const trace = validateBoolean([true, 42], boolean());
+
+				expect(trace).toHaveProperty("{kind}");
+
+			});
 
 		});
 

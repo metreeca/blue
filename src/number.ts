@@ -107,11 +107,7 @@
  */
 
 import { isNumber } from "@metreeca/core";
-import { assert } from "@metreeca/core/error";
 import { immutable } from "@metreeca/core/nested";
-import { isNumberConstraints, isNumberShape, isNumericConstraints } from "./number.core.js";
-
-export { isNumberShape, isNumberConstraints, isNumericConstraints };
 
 
 /**
@@ -272,9 +268,7 @@ export function number(constraints?: NumberConstraints): NumberShape;
  */
 export function number(constraints: number | NumberConstraints = {}): NumberShape {
 
-	const $constraints = isNumber(constraints) ? { model: constraints } : constraints;
-
-	const { model, ...rest } = assert($constraints, isNumberConstraints);
+	const { model, ...rest } = isNumber(constraints) ? { model: constraints } : constraints;
 
 	return immutable({
 
@@ -283,7 +277,7 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
 
 		...rest
 
-	}, isNumberShape);
+	});
 
 }
 
@@ -303,7 +297,7 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
  */
 export function byte(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 8, ...assert(constraints, isNumericConstraints) });
+	return number({ model: 8, ...constraints });
 
 }
 
@@ -320,7 +314,7 @@ export function byte(constraints: NumericConstraints = {}): NumberShape {
  */
 export function short(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 16, ...assert(constraints, isNumericConstraints) });
+	return number({ model: 16, ...constraints });
 
 }
 
@@ -337,7 +331,7 @@ export function short(constraints: NumericConstraints = {}): NumberShape {
  */
 export function int(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 32, ...assert(constraints, isNumericConstraints) });
+	return number({ model: 32, ...constraints });
 
 }
 
@@ -354,7 +348,7 @@ export function int(constraints: NumericConstraints = {}): NumberShape {
  */
 export function long(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 64, ...assert(constraints, isNumericConstraints) });
+	return number({ model: 64, ...constraints });
 
 }
 
@@ -371,7 +365,7 @@ export function long(constraints: NumericConstraints = {}): NumberShape {
  */
 export function float(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 0.32, ...assert(constraints, isNumericConstraints) });
+	return number({ model: 0.32, ...constraints });
 
 }
 
@@ -388,7 +382,7 @@ export function float(constraints: NumericConstraints = {}): NumberShape {
  */
 export function double(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 0.64, ...assert(constraints, isNumericConstraints) });
+	return number({ model: 0.64, ...constraints });
 
 }
 
@@ -405,7 +399,7 @@ export function double(constraints: NumericConstraints = {}): NumberShape {
  */
 export function integer(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 1, ...assert(constraints, isNumericConstraints) });
+	return number({ model: 1, ...constraints });
 
 }
 
@@ -422,6 +416,6 @@ export function integer(constraints: NumericConstraints = {}): NumberShape {
  */
 export function decimal(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 1.1, ...assert(constraints, isNumericConstraints) });
+	return number({ model: 1.1, ...constraints });
 
 }

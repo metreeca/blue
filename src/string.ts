@@ -117,12 +117,8 @@
  *     Datatypes}
  */
 
-import { isString } from "@metreeca/core";
-import { assert } from "@metreeca/core/error";
+import { isRegExp, isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
-import { isStringConstraints, isStringShape, isTextualConstraints } from "./string.core.js";
-
-export { isStringShape, isStringConstraints, isTextualConstraints };
 
 
 /**
@@ -291,20 +287,18 @@ export function string(constraints?: StringConstraints): StringShape;
  */
 export function string(constraints: string | StringConstraints = {}): StringShape {
 
-	const $constraints = isString(constraints) ? { model: constraints } : constraints;
-
-	const { model, pattern, ...rest } = assert($constraints, isStringConstraints);
+	const { model, pattern, ...rest } = isString(constraints) ? { model: constraints } : constraints;
 
 	return immutable({
 
 		kind: "string",
 		model: model ?? "",
 
-		pattern: pattern instanceof RegExp ? pattern.source : pattern,
+		pattern: isRegExp(pattern) ? pattern.source : pattern,
 
 		...rest
 
-	}, isStringShape);
+	});
 
 }
 
@@ -326,7 +320,7 @@ export function email(constraints: TextualConstraints = {}): StringShape {
 	return string({
 		model: "user@example.net",
 		pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-		...assert(constraints, isTextualConstraints)
+		...constraints
 	});
 }
 
@@ -345,7 +339,7 @@ export function url(constraints: TextualConstraints = {}): StringShape {
 	return string({
 		model: "https://example.net/",
 		pattern: /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/\S+$/,
-		...assert(constraints, isTextualConstraints)
+		...constraints
 	});
 }
 
@@ -364,7 +358,7 @@ export function uri(constraints: TextualConstraints = {}): StringShape {
 	return string({
 		model: "urn:example:resource",
 		pattern: /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/,
-		...assert(constraints, isTextualConstraints)
+		...constraints
 	});
 }
 
@@ -392,7 +386,7 @@ export function year(constraints: TextualConstraints = {}): StringShape {
 	return string({
 		model: "1970",
 		pattern: /^\d{4}(?:Z|[+-]\d{2}:\d{2})?$/,
-		...assert(constraints, isTextualConstraints)
+		...constraints
 	});
 }
 
@@ -411,7 +405,7 @@ export function date(constraints: TextualConstraints = {}): StringShape {
 	return string({
 		model: "1970-01-01",
 		pattern: /^\d{4}-\d{2}-\d{2}(?:Z|[+-]\d{2}:\d{2})?$/,
-		...assert(constraints, isTextualConstraints)
+		...constraints
 	});
 }
 
@@ -430,7 +424,7 @@ export function time(constraints: TextualConstraints = {}): StringShape {
 	return string({
 		model: "00:00:00",
 		pattern: /^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
-		...assert(constraints, isTextualConstraints)
+		...constraints
 	});
 }
 
@@ -449,7 +443,7 @@ export function instant(constraints: TextualConstraints = {}): StringShape {
 	return string({
 		model: "1970-01-01T00:00:00",
 		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
-		...assert(constraints, isTextualConstraints)
+		...constraints
 	});
 }
 
@@ -474,7 +468,7 @@ export function timestamp(constraints: TextualConstraints = {}): StringShape {
 	return string({
 		model: "1970-01-01T00:00:00.000Z",
 		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
-		...assert(constraints, isTextualConstraints)
+		...constraints
 	});
 }
 
@@ -493,6 +487,6 @@ export function duration(constraints: TextualConstraints = {}): StringShape {
 	return string({
 		model: "PT0S",
 		pattern: /^-?P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/,
-		...assert(constraints, isTextualConstraints)
+		...constraints
 	});
 }

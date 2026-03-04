@@ -15,111 +15,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { isStringConstraints, isStringShape, isTextualConstraints, validateString } from "./string.core.js";
+import { validateString } from "./string.core.js";
 import { date, duration, email, instant, string, time, timestamp, uri, url, year } from "./string.js";
 
-
-describe("guards", () => {
-
-	describe("isStringShape", () => {
-
-		it("returns true for valid string shape", async () => {
-
-			expect(isStringShape(string())).toBe(true);
-			expect(isStringShape(string("example"))).toBe(true);
-
-		});
-
-		it("returns false for object with wrong kind", async () => {
-
-			expect(isStringShape({ kind: "boolean", model: "" })).toBe(false);
-
-		});
-
-		it("returns false for object with non-string model", async () => {
-
-			expect(isStringShape({ kind: "string", model: 42 })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isStringShape(null)).toBe(false);
-			expect(isStringShape(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isStringConstraints", () => {
-
-		it("returns true for empty object", async () => {
-
-			expect(isStringConstraints({})).toBe(true);
-
-		});
-
-		it("returns true for object with string model", async () => {
-
-			expect(isStringConstraints({ model: "example" })).toBe(true);
-
-		});
-
-		it("returns true for object with valid constraints", async () => {
-
-			expect(isStringConstraints({ minLength: 1, maxLength: 100 })).toBe(true);
-			expect(isStringConstraints({ pattern: "^[A-Z]+$" })).toBe(true);
-			expect(isStringConstraints({ pattern: /^[A-Z]+$/ })).toBe(true);
-
-		});
-
-		it("returns false for object with non-string model", async () => {
-
-			expect(isStringConstraints({ model: 42 })).toBe(false);
-
-		});
-
-		it("returns false for object with non-number length constraints", async () => {
-
-			expect(isStringConstraints({ minLength: "1" })).toBe(false);
-			expect(isStringConstraints({ maxLength: "100" })).toBe(false);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isStringConstraints(null)).toBe(false);
-			expect(isStringConstraints(undefined)).toBe(false);
-
-		});
-
-	});
-
-	describe("isTextualConstraints", () => {
-
-		it("returns true for empty object", async () => {
-
-			expect(isTextualConstraints({})).toBe(true);
-
-		});
-
-		it("returns true for object with valid textual constraints", async () => {
-
-			expect(isTextualConstraints({ in: ["a", "b"] })).toBe(true);
-			expect(isTextualConstraints({ hasValue: ["required"] })).toBe(true);
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isTextualConstraints(null)).toBe(false);
-			expect(isTextualConstraints(undefined)).toBe(false);
-
-		});
-
-	});
-
-});
 
 describe("factories", () => {
 
@@ -167,27 +65,12 @@ describe("factories", () => {
 
 		describe("constraints", () => {
 
-			describe("model", () => {
-
-				it("rejects non-string value", async () => {
-
-					expect(() => string({ model: 42 } as any)).toThrow(TypeError);
-
-				});
-
-			});
 
 			describe("minLength", () => {
 
 				it("accepts constraint", async () => {
 
 					expect(string({ minLength: 1 }).minLength).toBe(1);
-
-				});
-
-				it("rejects non-number value", async () => {
-
-					expect(() => string({ minLength: "1" } as any)).toThrow(TypeError);
 
 				});
 
@@ -198,12 +81,6 @@ describe("factories", () => {
 				it("accepts constraint", async () => {
 
 					expect(string({ maxLength: 100 }).maxLength).toBe(100);
-
-				});
-
-				it("rejects non-number value", async () => {
-
-					expect(() => string({ maxLength: "100" } as any)).toThrow(TypeError);
 
 				});
 
@@ -223,38 +100,6 @@ describe("factories", () => {
 
 				});
 
-				it("rejects non-string/RegExp value", async () => {
-
-					expect(() => string({ pattern: 42 } as any)).toThrow(TypeError);
-
-				});
-
-			});
-
-			describe("uniqueLang", () => {
-
-				it("rejects non-boolean value", async () => {
-
-					expect(() => string({ uniqueLang: "true" } as any)).toThrow(TypeError);
-
-				});
-
-			});
-
-			describe("languageIn", () => {
-
-				it("rejects non-array value", async () => {
-
-					expect(() => string({ languageIn: "en" } as any)).toThrow(TypeError);
-
-				});
-
-				it("rejects non-string array elements", async () => {
-
-					expect(() => string({ languageIn: ["en", 42] } as any)).toThrow(TypeError);
-
-				});
-
 			});
 
 			describe("in", () => {
@@ -265,18 +110,6 @@ describe("factories", () => {
 
 				});
 
-				it("rejects non-array value", async () => {
-
-					expect(() => string({ in: "a,b,c" } as any)).toThrow(TypeError);
-
-				});
-
-				it("rejects non-string array elements", async () => {
-
-					expect(() => string({ in: ["a", 42, "c"] } as any)).toThrow(TypeError);
-
-				});
-
 			});
 
 			describe("hasValue", () => {
@@ -284,18 +117,6 @@ describe("factories", () => {
 				it("accepts constraint", async () => {
 
 					expect(string({ hasValue: ["required"] }).hasValue).toEqual(["required"]);
-
-				});
-
-				it("rejects non-array value", async () => {
-
-					expect(() => string({ hasValue: "required" } as any)).toThrow(TypeError);
-
-				});
-
-				it("rejects non-string array elements", async () => {
-
-					expect(() => string({ hasValue: ["a", 42] } as any)).toThrow(TypeError);
 
 				});
 
@@ -320,12 +141,6 @@ describe("factories", () => {
 				it("includes only provided properties", async () => {
 
 					expect(Object.keys(string()).sort()).toEqual(["kind", "model", "pattern"]);
-
-				});
-
-				it("rejects extra properties", async () => {
-
-					expect(() => string({ extra: "ignored" } as any)).toThrow(TypeError);
 
 				});
 
@@ -363,18 +178,6 @@ describe("factories", () => {
 
 		});
 
-		it("rejects model in constraints", async () => {
-
-			expect(() => email({ model: "override" } as any)).toThrow(TypeError);
-
-		});
-
-		it("rejects pattern in constraints", async () => {
-
-			expect(() => email({ pattern: "override" } as any)).toThrow(TypeError);
-
-		});
-
 	});
 
 	describe("url", () => {
@@ -396,18 +199,6 @@ describe("factories", () => {
 
 		});
 
-		it("rejects model in constraints", async () => {
-
-			expect(() => url({ model: "override" } as any)).toThrow(TypeError);
-
-		});
-
-		it("rejects pattern in constraints", async () => {
-
-			expect(() => url({ pattern: "override" } as any)).toThrow(TypeError);
-
-		});
-
 	});
 
 	describe("uri", () => {
@@ -426,18 +217,6 @@ describe("factories", () => {
 			const shape = uri();
 
 			expect(shape.pattern).toBe("^[a-zA-Z][a-zA-Z0-9+.-]*:\\S+$");
-
-		});
-
-		it("rejects model in constraints", async () => {
-
-			expect(() => uri({ model: "override" } as any)).toThrow(TypeError);
-
-		});
-
-		it("rejects pattern in constraints", async () => {
-
-			expect(() => uri({ pattern: "override" } as any)).toThrow(TypeError);
 
 		});
 
@@ -463,18 +242,6 @@ describe("factories", () => {
 
 		});
 
-		it("rejects model in constraints", async () => {
-
-			expect(() => year({ model: "override" } as any)).toThrow(TypeError);
-
-		});
-
-		it("rejects pattern in constraints", async () => {
-
-			expect(() => year({ pattern: "override" } as any)).toThrow(TypeError);
-
-		});
-
 	});
 
 	describe("date", () => {
@@ -493,18 +260,6 @@ describe("factories", () => {
 			const shape = date();
 
 			expect(shape.pattern).toBe("^\\d{4}-\\d{2}-\\d{2}(?:Z|[+-]\\d{2}:\\d{2})?$");
-
-		});
-
-		it("rejects model in constraints", async () => {
-
-			expect(() => date({ model: "override" } as any)).toThrow(TypeError);
-
-		});
-
-		it("rejects pattern in constraints", async () => {
-
-			expect(() => date({ pattern: "override" } as any)).toThrow(TypeError);
 
 		});
 
@@ -529,18 +284,6 @@ describe("factories", () => {
 
 		});
 
-		it("rejects model in constraints", async () => {
-
-			expect(() => time({ model: "override" } as any)).toThrow(TypeError);
-
-		});
-
-		it("rejects pattern in constraints", async () => {
-
-			expect(() => time({ pattern: "override" } as any)).toThrow(TypeError);
-
-		});
-
 	});
 
 	describe("instant", () => {
@@ -559,18 +302,6 @@ describe("factories", () => {
 			const shape = instant();
 
 			expect(shape.pattern).toBe("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$");
-
-		});
-
-		it("rejects model in constraints", async () => {
-
-			expect(() => instant({ model: "override" } as any)).toThrow(TypeError);
-
-		});
-
-		it("rejects pattern in constraints", async () => {
-
-			expect(() => instant({ pattern: "override" } as any)).toThrow(TypeError);
 
 		});
 
@@ -595,18 +326,6 @@ describe("factories", () => {
 
 		});
 
-		it("rejects model in constraints", async () => {
-
-			expect(() => timestamp({ model: "override" } as any)).toThrow(TypeError);
-
-		});
-
-		it("rejects pattern in constraints", async () => {
-
-			expect(() => timestamp({ pattern: "override" } as any)).toThrow(TypeError);
-
-		});
-
 	});
 
 	describe("duration", () => {
@@ -628,18 +347,6 @@ describe("factories", () => {
 
 		});
 
-		it("rejects model in constraints", async () => {
-
-			expect(() => duration({ model: "override" } as any)).toThrow(TypeError);
-
-		});
-
-		it("rejects pattern in constraints", async () => {
-
-			expect(() => duration({ pattern: "override" } as any)).toThrow(TypeError);
-
-		});
-
 	});
 
 
@@ -648,6 +355,68 @@ describe("factories", () => {
 describe("validators", () => {
 
 	describe("validateString", () => {
+
+		describe("type filtering", () => {
+
+			it("returns undefined for valid string values", async () => {
+
+				expect(validateString(["hello"], string())).toBeUndefined();
+
+			});
+
+			it("returns undefined for empty values array", async () => {
+
+				expect(validateString([], string())).toBeUndefined();
+
+			});
+
+			it("returns trace with kind key for non-string value", async () => {
+
+				const trace = validateString([42], string());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+			it("returns trace with kind key for multiple non-string values", async () => {
+
+				const trace = validateString([42, true], string());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
+
+			});
+
+			it("returns trace with kind key for mixed values", async () => {
+
+				const trace = validateString([42, "hello", true], string());
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+			it("validates only matched string values against constraints", async () => {
+
+				const trace = validateString(["ab", 42, "c"], string({ minLength: 3 }));
+
+				expect(trace).toHaveProperty("{kind}");
+				expect(trace).toHaveProperty("{minLength}");
+
+			});
+
+			it("returns undefined when non-string values filtered and strings pass", async () => {
+
+				const trace = validateString(["hello", 42], string({ minLength: 3 }));
+
+				expect(trace).toHaveProperty("{kind}");
+				expect(trace).not.toHaveProperty("{minLength}");
+
+			});
+
+		});
 
 		describe("minLength constraint", () => {
 
@@ -668,7 +437,7 @@ describe("validators", () => {
 				const trace = validateString(["ab"], string({ minLength: 3 }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("minLength");
+				expect(trace).toHaveProperty("{minLength}");
 
 			});
 
@@ -677,7 +446,7 @@ describe("validators", () => {
 				const trace = validateString([""], string({ minLength: 1 }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("minLength");
+				expect(trace).toHaveProperty("{minLength}");
 
 			});
 
@@ -708,7 +477,7 @@ describe("validators", () => {
 				const trace = validateString(["hello world"], string({ maxLength: 5 }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("maxLength");
+				expect(trace).toHaveProperty("{maxLength}");
 
 			});
 
@@ -723,7 +492,7 @@ describe("validators", () => {
 				const trace = validateString(["a"], string({ maxLength: 0 }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("maxLength");
+				expect(trace).toHaveProperty("{maxLength}");
 
 			});
 
@@ -750,8 +519,8 @@ describe("validators", () => {
 
 				const shape = string({ minLength: 2, maxLength: 5 });
 
-				expect(validateString(["a"], shape)).toHaveProperty("minLength");
-				expect(validateString(["abcdef"], shape)).toHaveProperty("maxLength");
+				expect(validateString(["a"], shape)).toHaveProperty("{minLength}");
+				expect(validateString(["abcdef"], shape)).toHaveProperty("{maxLength}");
 
 			});
 
@@ -770,7 +539,7 @@ describe("validators", () => {
 				const trace = validateString(["Hello123"], string({ pattern: /^[a-z]+$/ }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("pattern");
+				expect(trace).toHaveProperty("{pattern}");
 
 			});
 
@@ -779,7 +548,7 @@ describe("validators", () => {
 				const trace = validateString([""], string({ pattern: /^[a-z]+$/ }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("pattern");
+				expect(trace).toHaveProperty("{pattern}");
 
 			});
 
@@ -794,7 +563,7 @@ describe("validators", () => {
 				const trace = validateString(["invalid-email"], string({ pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("pattern");
+				expect(trace).toHaveProperty("{pattern}");
 
 			});
 
@@ -803,8 +572,8 @@ describe("validators", () => {
 				const shape = string({ pattern: /^ABC$/ });
 
 				expect(validateString(["ABC"], shape)).toBeUndefined();
-				expect(validateString(["ABCD"], shape)).toHaveProperty("pattern");
-				expect(validateString(["0ABC"], shape)).toHaveProperty("pattern");
+				expect(validateString(["ABCD"], shape)).toHaveProperty("{pattern}");
+				expect(validateString(["0ABC"], shape)).toHaveProperty("{pattern}");
 
 			});
 
@@ -833,7 +602,7 @@ describe("validators", () => {
 				const trace = validateString(["orange"], string({ in: ["apple", "banana", "cherry"] }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("in");
+				expect(trace).toHaveProperty("{in}");
 
 			});
 
@@ -842,7 +611,7 @@ describe("validators", () => {
 				const trace = validateString(["anything"], string({ in: [] }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("in");
+				expect(trace).toHaveProperty("{in}");
 
 			});
 
@@ -851,7 +620,7 @@ describe("validators", () => {
 				const shape = string({ in: ["only"] });
 
 				expect(validateString(["only"], shape)).toBeUndefined();
-				expect(validateString(["other"], shape)).toHaveProperty("in");
+				expect(validateString(["other"], shape)).toHaveProperty("{in}");
 
 			});
 
@@ -860,7 +629,7 @@ describe("validators", () => {
 				const shape = string({ in: ["Hello", "World"] });
 
 				expect(validateString(["Hello"], shape)).toBeUndefined();
-				expect(validateString(["hello"], shape)).toHaveProperty("in");
+				expect(validateString(["hello"], shape)).toHaveProperty("{in}");
 
 			});
 
@@ -891,7 +660,7 @@ describe("validators", () => {
 				const trace = validateString(["apple", "cherry"], string({ hasValue: ["apple", "banana"] }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("hasValue");
+				expect(trace).toHaveProperty("{hasValue}");
 
 			});
 
@@ -900,7 +669,7 @@ describe("validators", () => {
 				const trace = validateString([], string({ hasValue: ["apple"] }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("hasValue");
+				expect(trace).toHaveProperty("{hasValue}");
 
 			});
 
@@ -935,8 +704,8 @@ describe("validators", () => {
 				const trace = validateString(["ab"], string({ minLength: 5, pattern: /^[a-z]+$/ }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("minLength");
-				expect(trace).not.toHaveProperty("pattern");
+				expect(trace).toHaveProperty("{minLength}");
+				expect(trace).not.toHaveProperty("{pattern}");
 
 			});
 
@@ -948,8 +717,8 @@ describe("validators", () => {
 				}));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("pattern");
-				expect(trace).not.toHaveProperty("maxLength");
+				expect(trace).toHaveProperty("{pattern}");
+				expect(trace).not.toHaveProperty("{maxLength}");
 
 			});
 
@@ -978,9 +747,9 @@ describe("validators", () => {
 				const trace = validateString(["grape"], shape);
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("in");
-				expect(trace).not.toHaveProperty("minLength");
-				expect(trace).not.toHaveProperty("pattern");
+				expect(trace).toHaveProperty("{in}");
+				expect(trace).not.toHaveProperty("{minLength}");
+				expect(trace).not.toHaveProperty("{pattern}");
 
 			});
 
@@ -1033,8 +802,8 @@ describe("validators", () => {
 				const trace = validateString(["ab", "c"], string({ minLength: 3 }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("minLength");
-				expect((trace as Record<string, string>).minLength).toMatch(/^\(2\/2\)/);
+				expect(trace).toHaveProperty("{minLength}");
+				expect((trace as Record<string, string>)["{minLength}"]).toMatch(/^\(2\/2\)/);
 
 			});
 
@@ -1043,8 +812,8 @@ describe("validators", () => {
 				const trace = validateString(["ab", "hello", "c"], string({ minLength: 3 }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("minLength");
-				expect((trace as Record<string, string>).minLength).toMatch(/^\(2\/3\)/);
+				expect(trace).toHaveProperty("{minLength}");
+				expect((trace as Record<string, string>)["{minLength}"]).toMatch(/^\(2\/3\)/);
 
 			});
 
@@ -1053,8 +822,8 @@ describe("validators", () => {
 				const trace = validateString(["ab"], string({ minLength: 3 }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("minLength");
-				expect((trace as Record<string, string>).minLength).not.toMatch(/^\(/);
+				expect(trace).toHaveProperty("{minLength}");
+				expect((trace as Record<string, string>)["{minLength}"]).not.toMatch(/^\(/);
 
 			});
 

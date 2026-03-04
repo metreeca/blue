@@ -23,105 +23,21 @@
  * @module
  */
 
-import { isArray, isNumber, isObject, isOptional, isRegExp, isString } from "@metreeca/core";
+import { isString } from "@metreeca/core";
 import type { StringConstraints, StringShape, TextualConstraints } from "./string.js";
 import { every, group, trace } from "./trace.core.js";
 import type { Trace } from "./trace.js";
 
 
 /**
- * Validation template for {@link TextualConstraints} fields.
+ * Validates values against a string shape.
+ *
+ * Filters input values by type, reporting non-string values under the `kind` key, then enforces
+ * string constraints on matched values.
  */
-const TextualConstraintsTemplate = {
+export function validateString(values: readonly unknown[], {
 
-	in: (v: unknown) => isOptional(v, v => isArray(v, isString)),
-	hasValue: (v: unknown) => isOptional(v, v => isArray(v, isString))
-
-};
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Checks whether a value is a {@link StringShape}.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` has `kind: "string"`, a required `model` string, and valid optional constraints
- *     (`minLength`, `maxLength`, `pattern`, `in`, `hasValue`); false otherwise
- */
-export function isStringShape(value: unknown): value is StringShape {
-	return isObject(value, {
-
-		kind: v => v === "string",
-		model: isString,
-
-		minLength: (v: unknown) => isOptional(v, isNumber),
-		maxLength: (v: unknown) => isOptional(v, isNumber),
-
-		pattern: (v: unknown) => isOptional(v, isString),
-
-		...TextualConstraintsTemplate
-
-	});
-}
-
-/**
- * Checks whether a value is a valid {@link StringConstraints} object.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` has valid optional constraints (`model`, `minLength`, `maxLength`, `pattern`, `in`,
- *     `hasValue`); false otherwise
- */
-export function isStringConstraints(value: unknown): value is StringConstraints {
-	return isObject(value, {
-
-		model: (v: unknown) => isOptional(v, isString),
-
-		minLength: (v: unknown) => isOptional(v, isNumber),
-		maxLength: (v: unknown) => isOptional(v, isNumber),
-
-		pattern: (v: unknown) => isOptional(v, v => isString(v) || isRegExp(v)),
-
-		...TextualConstraintsTemplate
-
-	});
-}
-
-/**
- * Checks whether a value is a valid {@link TextualConstraints} object.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` has valid optional constraints (`in`, `hasValue`); false otherwise
- */
-export function isTextualConstraints(value: unknown): value is TextualConstraints {
-	return isObject(value, TextualConstraintsTemplate);
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates string values against a shape.
- *
- * Enforces length constraints (`minLength`, `maxLength`), pattern matching, and value constraints (`in`, `hasValue`).
- * Returns a keyed trace where each key is the SHACL-derived constraint name and the value is the violation message,
- * or `undefined` if all values pass validation.
- *
- * @param values The string values to validate
- * @param shape The string shape defining validation constraints
- *
- * @returns A keyed trace of constraint violations, or `undefined` if all values are valid
- */
-export function validateString(values: readonly string[], {
+	kind,
 
 	minLength,
 	maxLength,
@@ -133,29 +49,35 @@ export function validateString(values: readonly string[], {
 
 }: StringShape): undefined | Trace {
 
+	const matching = values.filter(isString);
+	const mistyped = values.length-matching.length;
+
 	return trace({
 
-		minLength: every(values, value =>
+		"{kind}": mistyped === 0
+			|| `expected ${kind} values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+
+		"{minLength}": every(matching, value =>
 			minLength === undefined || value.length >= minLength
 			|| `expected string length >= ${minLength}`
 		),
 
-		maxLength: every(values, value =>
+		"{maxLength}": every(matching, value =>
 			maxLength === undefined || value.length <= maxLength
 			|| `expected string length <= ${maxLength}`
 		),
 
-		pattern: every(values, value =>
+		"{pattern}": every(matching, value =>
 			pattern === undefined || new RegExp(pattern).test(value)
 			|| `expected string matching /${pattern}/`
 		),
 
-		in: every(values, value =>
+		"{in}": every(matching, value =>
 			allowed === undefined || allowed.includes(value)
 			|| `expected values in [${allowed.join(", ")}]`
 		),
 
-		hasValue: group(values, group =>
+		"{hasValue}": group(matching, group =>
 			hasValue === undefined || hasValue.every(v => group.includes(v))
 			|| `expected values to include [${hasValue.join(", ")}]`
 		)

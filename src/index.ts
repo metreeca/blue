@@ -120,23 +120,22 @@
  * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
  */
 
-import { isNumber, isObject, type Lazy } from "@metreeca/core";
-import { assert, error, message } from "@metreeca/core/error";
+import { isObject, type Lazy } from "@metreeca/core";
+import { error, message } from "@metreeca/core/error";
 import { immutable } from "@metreeca/core/nested";
 import { createRelay, type Relay } from "@metreeca/core/relay";
-import { isModel, type Model } from "@metreeca/qest/model";
-import { isResource, type Resource, type Value } from "@metreeca/qest/state";
+import type { Model } from "@metreeca/qest/model";
+import type { Resource, Value } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
-import { apply, isValueShape, materialize, validateValue } from "./index.core.js";
+import { apply, materialize, validateValue } from "./index.core.js";
 import type { LocalShape, LocalsShape } from "./local.js";
 import type { NumberShape } from "./number.js";
 import { validateModel, validateResource } from "./resource.core.js";
 import type { ReferenceShape, ResourceShape } from "./resource.js";
 import type { StringShape } from "./string.js";
-import { isTrace, isValidator } from "./trace.core.js";
 import type { Trace, Validator } from "./trace.js";
 
-export { apply, isTrace, isValidator, isValueShape, Trace, Validator };
+export { apply, Trace, Validator };
 
 
 /**
@@ -195,14 +194,13 @@ export type Infer<S extends Lazy<{ readonly model: unknown }>> =
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Validates a {@link @metreeca/qest!Value | Value} against a shape.
+ * Validates a `Value` against a shape.
  *
- * - **{@link ResourceShape}**: validates a {@link @metreeca/qest!Resource | Resource} state using {@link isResource},
- *   then enforces all shape constraints including cardinality, closed-shape checks, and custom validators — unknown
- *   and missing properties are both rejected
- * - **Other shapes**: validates the {@link @metreeca/qest!Value | Value} directly using the type-specific validator
+ * - **{@link ResourceShape}**: validates a `Resource` state, then enforces all shape constraints including
+ *   cardinality, closed-shape checks, and custom validators — unknown and missing properties are both rejected
+ * - **Other shapes**: validates the `Value` directly using the type-specific validator
  *
- * @typeParam T The {@link @metreeca/qest!Value | Value} type inferred from `shape`
+ * @typeParam T The `Value` type inferred from `shape`
  *
  * @param value The value to validate
  * @param shape The {@link ValueShape} defining validation constraints; may be a {@link Lazy} factory
@@ -213,7 +211,7 @@ export type Infer<S extends Lazy<{ readonly model: unknown }>> =
  *
  * @remarks
  *
- * Idempotent for {@link @metreeca/qest!Resource | Resource} values: calling multiple times on the same branded
+ * Idempotent for `Resource` values: calling multiple times on the same branded
  * object with the same mode returns the same reference.
  */
 export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape & { readonly model: T }>, opts?: {
@@ -228,38 +226,38 @@ export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape
 }>;
 
 /**
- * Validates a {@link @metreeca/qest!Value | Value} as a projection model against a shape.
+ * Validates a `Value` as a projection model against a shape.
  *
- * - **{@link ResourceShape}**: validates a {@link @metreeca/qest!Model | Model} projection using {@link isModel};
- *   {@link @metreeca/qest!Value | Value} constraints and custom validators are skipped as a
- *   {@link @metreeca/qest!Model | Model} describes a projection shape rather than actual data; cardinality is
+ * - **{@link ResourceShape}**: validates a `Model` projection;
+ *   `Value` constraints and custom validators are skipped as a
+ *   `Model` describes a projection shape rather than actual data; cardinality is
  *   checked only for shape consistency (scalar if `maxCount` is 1, singleton tuple otherwise); unknown properties
  *   are rejected, but missing properties are accepted as not requested
- * - **Other shapes**: validates the {@link @metreeca/qest!Value | Value} directly using the type-specific validator
+ * - **Other shapes**: validates the `Value` directly using the type-specific validator
  *   (shared with state validation)
  *
  * > [!NOTE]
  * > For {@link ResourceShape resource shapes}, wherever a property specifies a resource (either directly or via a
- * > {@link @metreeca/qest!Reference | Reference}), the value may be either a
- * > {@link @metreeca/qest!Reference | Reference} (retrieving just the id) or a nested
- * > {@link @metreeca/qest!Model | Model}, subject to `depth` limits.
+ * > `Reference`), the value may be either a
+ * > `Reference` (retrieving just the id) or a nested
+ * > `Model`, subject to `depth` limits.
  *
- * @typeParam T The {@link @metreeca/qest!Value | Value} type inferred from `shape`
+ * @typeParam T The `Value` type inferred from `shape`
  *
  * @param value The value to validate
  * @param shape The {@link ValueShape} defining validation constraints; may be a {@link Lazy} factory
  * @param opts Validation options
  * @param opts.mode Must be `"model"`
- * @param opts.depth Maximum nesting depth for {@link @metreeca/qest!Reference | Reference} and embedded
- *     {@link @metreeca/qest!Resource | Resource} expansion; `0` rejects any nested
- *     {@link @metreeca/qest!Model | Model} while still accepting IRI references; `null` for unlimited; defaults
+ * @param opts.depth Maximum nesting depth for `Reference` and embedded
+ *     `Resource` expansion; `0` rejects any nested
+ *     `Model` while still accepting IRI references; `null` for unlimited; defaults
  *     to `0`
  *
  * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure
  *
  * @remarks
  *
- * Idempotent for {@link @metreeca/qest!Resource | Resource} values: calling multiple times on the same branded
+ * Idempotent for `Resource` values: calling multiple times on the same branded
  * object with the same mode returns the same reference.
  */
 export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape & { readonly model: T }>, opts: {
@@ -277,7 +275,12 @@ export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape
 /**
  * Validates a value state or projection model against a shape.
  */
-export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
+export function validate(value: unknown, lazy: Lazy<ValueShape>, {
+
+	mode,
+	depth = 0
+
+}: {
 
 	readonly mode: "state" | "model"
 	readonly depth?: null | number
@@ -293,22 +296,10 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 
 }> {
 
-	const {
-
-		mode,
-		depth = 0
-
-	} = assert(opts, (v: unknown): v is typeof opts => isObject(v, {
-
-		mode: v => v === "state" || v === "model",
-		depth: v => v === undefined || v === null || isNumber(v) && Number.isInteger(v) && v >= 0
-
-	}));
-
 
 	try {
 
-		const shape = assert(materialize(lazy), isValueShape);
+		const shape = materialize(lazy);
 
 		if ( shape.kind === "resource" ) { // resource shapes: dispatch by mode with branding
 
@@ -321,14 +312,14 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 			const trace = validateValue([value as Value], shape);
 
 			return trace === undefined
-				? createRelay({ value: immutable(value as Value) })
-				: createRelay({ trace: immutable(trace, isTrace) });
+				? createRelay({ value: value as Value })
+				: createRelay({ trace });
 
 		}
 
 	} catch ( e ) {
 
-		return createRelay({ trace: immutable(message(e), isTrace) });
+		return createRelay({ trace: message(e) });
 
 	}
 
@@ -341,12 +332,11 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 
 		} else {
 
-			const $value = immutable(value, isResource);
-			const trace = validateResource([$value], shape);
+			const trace = validateResource([value as Resource], shape);
 
 			return trace === undefined
-				? createRelay({ value: brand($value, Validated.State, shape) })
-				: createRelay({ trace: immutable(trace, isTrace) });
+				? createRelay({ value: brand(value as Resource, Validated.State, shape) })
+				: createRelay({ trace });
 
 		}
 	}
@@ -359,12 +349,11 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, opts: {
 
 		} else {
 
-			const $value = immutable(value, isModel);
-			const trace = validateModel([$value], shape, depth);
+			const trace = validateModel([value as Model], shape, depth);
 
 			return trace === undefined
-				? createRelay({ value: brand($value, Validated.Model, shape) })
-				: createRelay({ trace: immutable(trace, isTrace) });
+				? createRelay({ value: brand(value as Model, Validated.Model, shape) })
+				: createRelay({ trace });
 
 		}
 	}

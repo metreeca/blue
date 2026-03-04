@@ -17,7 +17,7 @@
 import type { Probe, Transform } from "@metreeca/qest/model";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
-import { apply, isValueShape, materialize, validateValue } from "./index.core.js";
+import { apply, materialize, validateValue } from "./index.core.js";
 import { validate, type ValueShape } from "./index.js";
 import { local, locals } from "./local.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
@@ -106,37 +106,10 @@ describe("validate", () => {
 
 		});
 
-		it("returns trace for number", async () => {
-
-			const shape = resource({});
-			const result = validate(42, shape);
-
-			expect(result({ trace: t => t })).toBeDefined();
-
-		});
-
-		it("returns trace for boolean", async () => {
-
-			const shape = resource({});
-			const result = validate(true, shape);
-
-			expect(result({ trace: t => t })).toBeDefined();
-
-		});
-
 		it("returns trace for array", async () => {
 
 			const shape = resource({});
 			const result = validate([{ name: "Alice" }], shape);
-
-			expect(result({ trace: t => t })).toBeDefined();
-
-		});
-
-		it("returns trace for function", async () => {
-
-			const shape = resource({});
-			const result = validate(() => {}, shape);
 
 			expect(result({ trace: t => t })).toBeDefined();
 
@@ -275,15 +248,6 @@ describe("validate", () => {
 
 			const result = validate({}, shape, { mode: "model" });
 			expect(result({ value: v => v })).toEqual({});
-
-		});
-
-		it("returns trace for non-object value", async () => {
-
-			const shape = resource({});
-			const result = validate(42, shape, { mode: "model" });
-
-			expect(result({ trace: t => t })).toBeDefined();
 
 		});
 
@@ -473,132 +437,11 @@ describe("validate", () => {
 
 	});
 
-	describe("invalid mode", () => {
-
-		it("throws for unsupported mode", async () => {
-
-			const shape = resource({});
-
-			expect(() => validate({}, shape, { mode: "invalid" as any })).toThrow(TypeError);
-
-		});
-
-	});
-
-	describe("invalid depth", () => {
-
-		it("throws for negative depth", async () => {
-
-			const shape = resource({});
-
-			expect(() => validate({}, shape, { mode: "model", depth: -1 })).toThrow(TypeError);
-
-		});
-
-		it("throws for non-integer depth", async () => {
-
-			const shape = resource({});
-
-			expect(() => validate({}, shape, { mode: "model", depth: 1.5 })).toThrow(TypeError);
-
-		});
-
-	});
-
-});
-
-describe("guards", () => {
-
-	describe("isValueShape", () => {
-
-		it("returns true for boolean shape", async () => {
-
-			expect(isValueShape({ kind: "boolean", model: false })).toBeTruthy();
-
-		});
-
-		it("returns true for number shape", async () => {
-
-			expect(isValueShape(number())).toBeTruthy();
-
-		});
-
-		it("returns true for string shape", async () => {
-
-			expect(isValueShape(string())).toBeTruthy();
-
-		});
-
-		it("returns true for local shape", async () => {
-
-			expect(isValueShape(local())).toBeTruthy();
-
-		});
-
-		it("returns true for locals shape", async () => {
-
-			expect(isValueShape(locals())).toBeTruthy();
-
-		});
-
-		it("returns true for reference shape", async () => {
-
-			expect(isValueShape(reference(resource({})))).toBeTruthy();
-
-		});
-
-		it("returns true for resource shape", async () => {
-
-			expect(isValueShape(resource({}))).toBeTruthy();
-
-		});
-
-		it("returns false for non-object values", async () => {
-
-			expect(isValueShape(null)).toBeFalsy();
-			expect(isValueShape(undefined)).toBeFalsy();
-			expect(isValueShape("string")).toBeFalsy();
-			expect(isValueShape(42)).toBeFalsy();
-
-		});
-
-		it("returns false for object with unknown kind", async () => {
-
-			expect(isValueShape({ kind: "unknown", model: "" })).toBeFalsy();
-
-		});
-
-	});
-
 });
 
 describe("validators", () => {
 
 	describe("validateValue", () => {
-
-		it("returns undefined for valid string", async () => {
-
-			expect(validateValue(["hello"], string())).toBeUndefined();
-
-		});
-
-		it("returns undefined for valid number", async () => {
-
-			expect(validateValue([42], number())).toBeUndefined();
-
-		});
-
-		it("returns trace for type mismatch against string shape", async () => {
-
-			expect(validateValue([42], string())).toHaveProperty("kind");
-
-		});
-
-		it("returns trace for type mismatch against number shape", async () => {
-
-			expect(validateValue(["hello"], number())).toHaveProperty("kind");
-
-		});
 
 		it("returns undefined for valid local value", async () => {
 
@@ -618,43 +461,27 @@ describe("validators", () => {
 
 		});
 
+		it("rejects non-local value for local shape", async () => {
+
+			expect(validateValue([42], local())).toBeDefined();
+
+		});
+
 		it("returns undefined for valid locals value", async () => {
 
 			expect(validateValue([{ "en": ["hello"] }], locals())).toBeUndefined();
 
 		});
 
-		it("rejects local value for locals shape", async () => {
+		it("rejects non-locals value for locals shape", async () => {
 
-			expect(validateValue([{ "en": "hello" }], locals())).toBeDefined();
+			expect(validateValue([42], locals())).toBeDefined();
 
 		});
 
-		describe("per-value errors", () => {
+		it("rejects local value for locals shape", async () => {
 
-			it("reports type mismatch", async () => {
-
-				expect(validateValue([42, true] as any[], string())).toHaveProperty("kind");
-
-			});
-
-			it("reports type mismatch only for mismatched values", async () => {
-
-				const trace = validateValue([42, "hello", true] as any[], string());
-
-				expect(trace).toHaveProperty("kind");
-
-			});
-
-			it("reports both type mismatch and constraint violations", async () => {
-
-				const trace = validateValue(["ab", 42, "c"] as any[], string({ minLength: 3 }));
-
-				// type mismatch (42) + constraint errors ("ab", "c" too short)
-				expect(trace).toHaveProperty("kind");
-				expect(trace).toHaveProperty("minLength");
-
-			});
+			expect(validateValue([{ "en": "hello" }], locals())).toBeDefined();
 
 		});
 

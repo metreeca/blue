@@ -23,21 +23,19 @@
  * @module
  */
 
-import { type Identifier, isBoolean, isFunction, isNumber, isString, type Lazy } from "@metreeca/core";
-import { assert, error as report } from "@metreeca/core/error";
+import { type Identifier, isFunction, type Lazy } from "@metreeca/core";
+import { error as report } from "@metreeca/core/error";
 import { immutable } from "@metreeca/core/nested";
-import { isProbe, type Probe, type Transform } from "@metreeca/qest/model";
-import { isLocal, isLocals, isReference, isResource, type Value } from "@metreeca/qest/state";
-import { isBooleanShape, validateBoolean } from "./boolean.core.js";
+import { type Probe, type Transform } from "@metreeca/qest/model";
+import { validateBoolean } from "./boolean.core.js";
 import type { ValueShape } from "./index.js";
-import { isLocalShape, isLocalsShape, validateLocal, validateLocals } from "./local.core.js";
-import { isNumberShape, validateNumber } from "./number.core.js";
+import { validateLocal, validateLocals } from "./local.core.js";
+import { validateNumber } from "./number.core.js";
 import { decimal, integer } from "./number.js";
-import { flatten, isReferenceShape, isResourceShape, validateReference, validateResource } from "./resource.core.js";
-import type { Range, ResourceShape, Union } from "./resource.js";
-import { isStringShape, validateString } from "./string.core.js";
+import { flatten, validateReference, validateResource } from "./resource.core.js";
+import type { Range, ReferenceShape, ResourceShape, Union } from "./resource.js";
+import { validateString } from "./string.core.js";
 import { date, duration, instant, string, time, timestamp, uri, year } from "./string.js";
-import { trace } from "./trace.core.js";
 import type { Trace } from "./trace.js";
 
 
@@ -115,29 +113,6 @@ const cache = new WeakMap<() => unknown, unknown>();
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Checks whether a value is a valid {@link ValueShape}.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` is any concrete shape type (boolean, number, string, local, locals, reference, or
- *     resource); false otherwise
- */
-export function isValueShape(value: unknown): value is ValueShape {
-	return isBooleanShape(value)
-		|| isNumberShape(value)
-		|| isStringShape(value)
-		|| isLocalShape(value)
-		|| isLocalsShape(value)
-		|| isReferenceShape(value)
-		|| isResourceShape(value);
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
  * Validates values against a shape, dispatching to the appropriate type-specific validator.
  *
  * @param values The values to validate
@@ -145,62 +120,37 @@ export function isValueShape(value: unknown): value is ValueShape {
  *
  * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
-export function validateValue(values: readonly Value[], shape: ValueShape): undefined | Trace {
+export function validateValue(values: readonly unknown[], shape: ValueShape): undefined | Trace {
 
 	switch ( shape.kind ) {
 
 		case "boolean":
 
-			return validate(values, isBoolean, v => validateBoolean(v, shape));
+			return validateBoolean(values, shape);
 
 		case "number":
 
-			return validate(values, isNumber, v => validateNumber(v, shape));
+			return validateNumber(values, shape);
 
 		case "string":
 
-			return validate(values, isString, v => validateString(v, shape));
+			return validateString(values, shape);
 
 		case "local":
 
-			return validate(values, isLocal, v => validateLocal(v, shape));
+			return validateLocal(values, shape);
 
 		case "locals":
 
-			return validate(values, isLocals, v => validateLocals(v, shape));
+			return validateLocals(values, shape);
 
 		case "reference":
 
-			return validate(values, isReference, v => validateReference(v, shape));
+			return validateReference(values, shape);
 
 		case "resource":
 
-			return validate(values, isResource, v => validateResource(v, shape));
-
-	}
-
-
-	function validate<T>(
-		values: readonly Value[],
-		guard: (v: unknown) => v is T,
-		check: (matched: readonly T[]) => undefined | Trace
-	): undefined | Trace {
-
-		const matched = values.filter(guard) as (Value & T)[];
-
-		const mismatched = values.length-matched.length;
-
-		return trace({
-
-			kind: mismatched > 0
-				? `expected ${shape.kind} values${mismatched > 1 ? ` (${mismatched}/${values.length})` : ""}`
-				: true,
-
-			...Object.fromEntries(
-				Object.entries(check(matched) ?? {})
-			)
-
-		});
+			return validateResource(values, shape);
 
 	}
 
@@ -262,14 +212,13 @@ export function apply(probe: Probe, shape: ValueShape): Range | undefined {
 	}
 
 
-	const { pipe, path } = assert(probe, isProbe);
-	const $shape = assert(shape, isValueShape);
+	const { pipe, path } = probe;
 
 
 	return transform(traverse(
-		$shape.kind === "reference" // materialise reference shapes to their target resource shape
-			? materialize($shape.shape)
-			: $shape
+		shape.kind === "reference" // materialise reference shapes to their target resource shape
+			? materialize(shape.shape)
+			: shape
 	));
 
 

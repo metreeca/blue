@@ -23,98 +23,21 @@
  * @module
  */
 
-import { isArray, isNumber, isObject, isOptional } from "@metreeca/core";
+import { isNumber } from "@metreeca/core";
 import type { NumberConstraints, NumberShape, NumericConstraints } from "./number.js";
 import { every, group, trace } from "./trace.core.js";
 import type { Trace } from "./trace.js";
 
 
 /**
- * Validation template for {@link NumericConstraints} fields.
+ * Validates values against a number shape.
+ *
+ * Filters input values by type, reporting non-numeric values under the `kind` key, then enforces
+ * numeric constraints on matching values.
  */
-const NumericConstraintsTemplate = {
+export function validateNumber(values: readonly unknown[], {
 
-	minExclusive: (v: unknown) => isOptional(v, isNumber),
-	maxExclusive: (v: unknown) => isOptional(v, isNumber),
-	minInclusive: (v: unknown) => isOptional(v, isNumber),
-	maxInclusive: (v: unknown) => isOptional(v, isNumber),
-
-	in: (v: unknown) => isOptional(v, v => isArray(v, isNumber)),
-	hasValue: (v: unknown) => isOptional(v, v => isArray(v, isNumber))
-
-};
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Checks whether a value is a {@link NumberShape}.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` is a valid {@link NumberShape}; false otherwise
- */
-export function isNumberShape(value: unknown): value is NumberShape {
-	return isObject(value, {
-
-		kind: v => v === "number",
-		model: isNumber,
-
-		...NumericConstraintsTemplate
-
-	});
-}
-
-/**
- * Checks whether a value is a valid {@link NumberConstraints} object.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` is a valid {@link NumberConstraints}; false otherwise
- */
-export function isNumberConstraints(value: unknown): value is NumberConstraints {
-	return isObject(value, {
-
-		model: v => isOptional(v, isNumber),
-
-		...NumericConstraintsTemplate
-
-	});
-}
-
-/**
- * Checks whether a value is a valid {@link NumericConstraints} object.
- *
- * @group Guards
- *
- * @param value The value to check
- *
- * @returns true if `value` is a valid {@link NumericConstraints}; false otherwise
- */
-export function isNumericConstraints(value: unknown): value is NumericConstraints {
-	return isObject(value, NumericConstraintsTemplate);
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates numeric values against a shape.
- *
- * Enforces range constraints (`minExclusive`, `maxExclusive`, `minInclusive`, `maxInclusive`) and value constraints
- * (`in`, `hasValue`). Returns a keyed trace where each key is the SHACL-derived constraint name and the value is the
- * violation message, or `undefined` if all values pass validation.
- *
- * @param values The numeric values to validate
- * @param shape The number shape defining validation constraints
- *
- * @returns A keyed trace of constraint violations, or `undefined` if all values are valid
- */
-export function validateNumber(values: readonly number[], {
+	kind,
 
 	minExclusive,
 	maxExclusive,
@@ -126,34 +49,40 @@ export function validateNumber(values: readonly number[], {
 
 }: NumberShape): undefined | Trace {
 
+	const matching = values.filter(isNumber);
+	const mistyped = values.length-matching.length;
+
 	return trace({
 
-		minExclusive: every(values, value =>
+		"{kind}": mistyped === 0
+			|| `expected ${kind} values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+
+		"{minExclusive}": every(matching, value =>
 			minExclusive === undefined || value > minExclusive
 			|| `expected values > ${minExclusive}`
 		),
 
-		maxExclusive: every(values, value =>
+		"{maxExclusive}": every(matching, value =>
 			maxExclusive === undefined || value < maxExclusive
 			|| `expected values < ${maxExclusive}`
 		),
 
-		minInclusive: every(values, value =>
+		"{minInclusive}": every(matching, value =>
 			minInclusive === undefined || value >= minInclusive
 			|| `expected values >= ${minInclusive}`
 		),
 
-		maxInclusive: every(values, value =>
+		"{maxInclusive}": every(matching, value =>
 			maxInclusive === undefined || value <= maxInclusive
 			|| `expected values <= ${maxInclusive}`
 		),
 
-		in: every(values, value =>
+		"{in}": every(matching, value =>
 			allowed === undefined || allowed.includes(value)
 			|| `expected values in [${allowed.join(", ")}]`
 		),
 
-		hasValue: group(values, group =>
+		"{hasValue}": group(matching, group =>
 			hasValue === undefined || hasValue.every(v => group.includes(v))
 			|| `expected values to include [${hasValue.join(", ")}]`
 		)
