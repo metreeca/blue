@@ -200,7 +200,7 @@ export function validateValue(values: readonly unknown[], shape: ValueShape): un
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function apply(probe: Probe, shape: ValueShape): Range | undefined {
+export function apply(probe: Probe, shape: ValueShape): undefined | Range  {
 
 	type Focus = {
 

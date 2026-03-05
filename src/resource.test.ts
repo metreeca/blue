@@ -1587,7 +1587,10 @@ describe("validators", () => {
 						address: required(Address)
 					});
 
-					const trace = validateResource([{ address: { city: "" }, extra: "value" }], shape) as Record<string, Trace>;
+					const trace = validateResource([{
+						address: { city: "" },
+						extra: "value"
+					}], shape) as Record<string, Trace>;
 
 					expect(trace["[0]"]).toHaveProperty("extra");
 					expect(trace["[0]"]).toHaveProperty("address");
@@ -3693,13 +3696,51 @@ describe("validators", () => {
 
 			describe("pagination", () => {
 
+				const Target = resource({ name: required(string()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
 				it("accepts offset and limit", async () => {
-
-					const Target = resource({ name: required(string()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
 					expect(validateModel([{ items: [{ "@": 10, "#": 25 }] }], Wrapper, null)).toBeUndefined();
+				});
 
+				it("accepts zero offset", async () => {
+					expect(validateModel([{ items: [{ "@": 0 }] }], Wrapper, null)).toBeUndefined();
+				});
+
+				it("accepts zero limit", async () => {
+					expect(validateModel([{ items: [{ "#": 0 }] }], Wrapper, null)).toBeUndefined();
+				});
+
+				it("rejects negative offset", async () => {
+					expect(validateModel([{ items: [{ "@": -1 }] }], Wrapper, null)).toBeDefined();
+				});
+
+				it("rejects negative limit", async () => {
+					expect(validateModel([{ items: [{ "#": -1 }] }], Wrapper, null)).toBeDefined();
+				});
+
+				it("rejects fractional offset", async () => {
+					expect(validateModel([{ items: [{ "@": 1.5 }] }], Wrapper, null)).toBeDefined();
+				});
+
+				it("rejects fractional limit", async () => {
+					expect(validateModel([{ items: [{ "#": 2.5 }] }], Wrapper, null)).toBeDefined();
+				});
+
+				it("rejects string offset", async () => {
+					expect(validateModel([{ items: [{ "@": "10" }] }], Wrapper, null)).toBeDefined();
+				});
+
+				it("rejects string limit", async () => {
+					expect(validateModel([{ items: [{ "#": "25" }] }], Wrapper, null)).toBeDefined();
+				});
+
+				it("rejects boolean offset", async () => {
+					expect(validateModel([{ items: [{ "@": true }] }], Wrapper, null)).toBeDefined();
+				});
+
+				it("rejects null limit", async () => {
+					expect(validateModel([{ items: [{ "#": null }] }], Wrapper, null)).toBeDefined();
 				});
 
 			});
@@ -4336,6 +4377,501 @@ describe("validators", () => {
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateModel([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, null)).toBeUndefined();
+
+				});
+
+			});
+
+			describe("operator semantics", () => {
+
+				// operator/type compatibility must be evaluated against the effective shape
+				// computed by apply(binding, shape), which accounts for transform pipelines
+
+				const Target = resource({
+					name: required(string()),
+					age: optional(integer()),
+					active: optional(boolean()),
+					label: required(local()),
+					labels: required(locals()),
+					link: optional(reference(resource({ id: id(), label: required(string()) })))
+				});
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+
+				describe("text search operator (~)", () => {
+
+					it("accepts text search on string property", async () => {
+						expect(validateModel([{ items: [{ "~name": "alice" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts text search on local property", async () => {
+						expect(validateModel([{ items: [{ "~label": "hello" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts text search on locals property", async () => {
+						expect(validateModel([{ items: [{ "~labels": "hello" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("rejects text search on number property", async () => {
+						expect(validateModel([{ items: [{ "~age": "42" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects text search on boolean property", async () => {
+						expect(validateModel([{ items: [{ "~active": "true" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects text search on reference property", async () => {
+						expect(validateModel([{ items: [{ "~link": "test" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("accepts text search on undefined property", async () => {
+
+						// apply() returns undefined → lenient
+
+						expect(validateModel([{ items: [{ "~missing": "x" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("rejects number keywords on string property", async () => {
+						expect(validateModel([{ items: [{ "~name": 42 }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects boolean keywords on string property", async () => {
+						expect(validateModel([{ items: [{ "~name": true }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects null keywords on local property", async () => {
+						expect(validateModel([{ items: [{ "~label": null }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects array keywords on string property", async () => {
+						expect(validateModel([{ items: [{ "~name": ["a", "b"] }] }], Wrapper, null)).toBeDefined();
+					});
+
+				});
+
+				describe("union keyword validation", () => {
+
+					const UnionTarget = resource({
+						value: required(union({
+							text: string(),
+							count: integer()
+						}))
+					});
+					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
+
+					it("accepts text search matching string union variant", async () => {
+						expect(validateModel([{ items: [{ "~value": "hello" }] }], UnionWrapper, null)).toBeUndefined();
+					});
+
+					it("rejects text search matching no textual union variant", async () => {
+
+						const NumericUnion = resource({
+							value: required(union({
+								count: integer(),
+								flag: boolean()
+							}))
+						});
+						const NumericWrapper = resource({ items: multiple(reference(NumericUnion)) });
+
+						expect(validateModel([{ items: [{ "~value": "hello" }] }], NumericWrapper, null)).toBeDefined();
+
+					});
+
+				});
+
+				describe("range operators (<, >, <=, >=)", () => {
+
+					it("accepts range operator on string property", async () => {
+						expect(validateModel([{ items: [{ ">=name": "alice" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts range operator on boolean property", async () => {
+						expect(validateModel([{ items: [{ ">=active": true }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("rejects range operator on local property", async () => {
+						expect(validateModel([{ items: [{ ">=label": "x" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects range operator on locals property", async () => {
+						expect(validateModel([{ items: [{ ">=labels": "x" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects range operator on reference property", async () => {
+						expect(validateModel([{ items: [{ ">=link": "x" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("accepts range operator on undefined property", async () => {
+
+						// apply() returns undefined → lenient
+
+						expect(validateModel([{ items: [{ ">=missing": 0 }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it.each([
+						["<", "<age"],
+						[">", ">age"],
+						["<=", "<=age"],
+						[">=", ">=age"]
+					])("accepts %s operator on number property", async (_op, key) => {
+						expect(validateModel([{ items: [{ [key]: 18 }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("rejects string limit on number property", async () => {
+						expect(validateModel([{ items: [{ ">=age": "alice" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects number limit on string property", async () => {
+						expect(validateModel([{ items: [{ ">=name": 42 }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects boolean limit on number property", async () => {
+						expect(validateModel([{ items: [{ ">=age": true }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects null limit on string property", async () => {
+						expect(validateModel([{ items: [{ ">=name": null }] }], Wrapper, null)).toBeDefined();
+					});
+
+				});
+
+				describe("union limit validation", () => {
+
+					const UnionTarget = resource({
+						value: required(union({
+							text: string(),
+							count: integer()
+						}))
+					});
+					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
+
+					it("accepts range limit matching first union variant", async () => {
+						expect(validateModel([{ items: [{ ">=value": "hello" }] }], UnionWrapper, null)).toBeUndefined();
+					});
+
+					it("accepts range limit matching second union variant", async () => {
+						expect(validateModel([{ items: [{ ">=value": 42 }] }], UnionWrapper, null)).toBeUndefined();
+					});
+
+					it("rejects range limit matching no union variant", async () => {
+						expect(validateModel([{ items: [{ ">=value": true }] }], UnionWrapper, null)).toBeDefined();
+					});
+
+					it.each([
+						["<", "<value"],
+						[">", ">value"],
+						["<=", "<=value"],
+						[">=", ">=value"]
+					])("accepts %s operator on union property with matching variant", async (_op, key) => {
+						expect(validateModel([{ items: [{ [key]: 42 }] }], UnionWrapper, null)).toBeUndefined();
+					});
+
+				});
+
+				describe("disjunctive/conjunctive operators (?, !)", () => {
+
+					// single option values
+
+					it("accepts disjunctive filter on string property", async () => {
+						expect(validateModel([{ items: [{ "?name": "alice" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts disjunctive filter on number property", async () => {
+						expect(validateModel([{ items: [{ "?age": 18 }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts disjunctive filter on boolean property", async () => {
+						expect(validateModel([{ items: [{ "?active": true }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts conjunctive filter on string property", async () => {
+						expect(validateModel([{ items: [{ "!name": "alice" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts conjunctive filter on number property", async () => {
+						expect(validateModel([{ items: [{ "!age": 18 }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts conjunctive filter on boolean property", async () => {
+						expect(validateModel([{ items: [{ "!active": true }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts null option on any property", async () => {
+						expect(validateModel([{ items: [{ "?name": null }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts reference option on reference property", async () => {
+						expect(validateModel([{ items: [{ "?link": "app:/items/1" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					// array of options
+
+					it("accepts array of options on string property", async () => {
+						expect(validateModel([{ items: [{ "?name": ["alice", "bob"] }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts array of options on number property", async () => {
+						expect(validateModel([{ items: [{ "?age": [18, 25] }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts array with null option", async () => {
+						expect(validateModel([{ items: [{ "?name": ["alice", null] }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					// local/locals options
+
+					it("accepts local option on local property", async () => {
+						expect(validateModel([{ items: [{ "?label": { "en": "hello" } }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts string option on local property", async () => {
+						expect(validateModel([{ items: [{ "?label": "hello" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts locals option on locals property", async () => {
+						expect(validateModel([{ items: [{ "?labels": { "en": ["hello"] as const } }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					// type mismatch rejections
+
+					it("rejects string option on number property", async () => {
+						expect(validateModel([{ items: [{ "?age": "alice" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects number option on string property", async () => {
+						expect(validateModel([{ items: [{ "?name": 42 }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects boolean option on number property", async () => {
+						expect(validateModel([{ items: [{ "?age": true }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects array with mismatched option on number property", async () => {
+						expect(validateModel([{ items: [{ "?age": [18, "wrong"] }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects number option on local property", async () => {
+						expect(validateModel([{ items: [{ "?label": 42 }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects number option on locals property", async () => {
+						expect(validateModel([{ items: [{ "?labels": 42 }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects non-IRI string option on reference property", async () => {
+						expect(validateModel([{ items: [{ "?link": "not-an-iri" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects conjunctive string option on number property", async () => {
+						expect(validateModel([{ items: [{ "!age": "alice" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					// undefined property
+
+					it("accepts option on undefined property", async () => {
+
+						// apply() returns undefined → lenient
+
+						expect(validateModel([{ items: [{ "?missing": "x" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+				});
+
+				describe("focus operator (*)", () => {
+
+					it("accepts focus on string property", async () => {
+						expect(validateModel([{ items: [{ "*name": ["alice"] }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts focus on number property", async () => {
+						expect(validateModel([{ items: [{ "*age": [18] }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts focus on boolean property", async () => {
+						expect(validateModel([{ items: [{ "*active": [true] }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts focus with null option", async () => {
+						expect(validateModel([{ items: [{ "*name": [null, "alice"] }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts focus with reference option on reference property", async () => {
+						expect(validateModel([{ items: [{ "*link": "app:/items/1" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts focus with local option on local property", async () => {
+						expect(validateModel([{ items: [{ "*label": { "en": "hello" } }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("rejects focus with string option on number property", async () => {
+						expect(validateModel([{ items: [{ "*age": "alice" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects focus with number option on string property", async () => {
+						expect(validateModel([{ items: [{ "*name": 42 }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects focus with non-IRI string on reference property", async () => {
+						expect(validateModel([{ items: [{ "*link": "not-an-iri" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects focus with mismatched array element on number property", async () => {
+						expect(validateModel([{ items: [{ "*age": [18, "wrong"] }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("accepts focus on undefined property", async () => {
+						expect(validateModel([{ items: [{ "*missing": "x" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+				});
+
+				describe("union option validation", () => {
+
+					const UnionTarget = resource({
+						value: required(union({
+							text: string(),
+							count: integer()
+						})),
+						link: optional(reference(resource({ id: id() })))
+					});
+					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
+
+					// disjunctive filter
+
+					it("accepts disjunctive filter matching first union variant", async () => {
+						expect(validateModel([{ items: [{ "?value": "hello" }] }], UnionWrapper, null)).toBeUndefined();
+					});
+
+					it("accepts disjunctive filter matching second union variant", async () => {
+						expect(validateModel([{ items: [{ "?value": 42 }] }], UnionWrapper, null)).toBeUndefined();
+					});
+
+					it("accepts null option on union property", async () => {
+						expect(validateModel([{ items: [{ "?value": null }] }], UnionWrapper, null)).toBeUndefined();
+					});
+
+					it("rejects option matching no union variant", async () => {
+						expect(validateModel([{ items: [{ "?value": true }] }], UnionWrapper, null)).toBeDefined();
+					});
+
+					// conjunctive filter
+
+					it("accepts conjunctive filter matching one union variant", async () => {
+						expect(validateModel([{ items: [{ "!value": "hello" }] }], UnionWrapper, null)).toBeUndefined();
+					});
+
+					it("rejects conjunctive filter matching no union variant", async () => {
+						expect(validateModel([{ items: [{ "!value": true }] }], UnionWrapper, null)).toBeDefined();
+					});
+
+					// focus operator
+
+					it("accepts focus option matching one union variant", async () => {
+						expect(validateModel([{ items: [{ "*value": ["hello"] }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "*value": [42] }] }], UnionWrapper, null)).toBeUndefined();
+					});
+
+					it("rejects focus option matching no union variant", async () => {
+						expect(validateModel([{ items: [{ "*value": [true] }] }], UnionWrapper, null)).toBeDefined();
+					});
+
+					// array of options
+
+					it("accepts array of options each matching some union variant", async () => {
+						expect(validateModel([{ items: [{ "?value": ["hello", 42] }] }], UnionWrapper, null)).toBeUndefined();
+					});
+
+					it("rejects array with option matching no union variant", async () => {
+						expect(validateModel([{ items: [{ "?value": ["hello", true] }] }], UnionWrapper, null)).toBeDefined();
+					});
+
+				});
+
+				describe("sort operator (^)", () => {
+
+					it("accepts 'asc' sort value", async () => {
+						expect(validateModel([{ items: [{ "^name": "asc" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts 'desc' sort value", async () => {
+						expect(validateModel([{ items: [{ "^name": "desc" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts positive number sort value", async () => {
+						expect(validateModel([{ items: [{ "^name": 1 }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts negative number sort value", async () => {
+						expect(validateModel([{ items: [{ "^name": -1 }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts zero sort value", async () => {
+						expect(validateModel([{ items: [{ "^name": 0 }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("rejects boolean sort value", async () => {
+						expect(validateModel([{ items: [{ "^name": true }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects null sort value", async () => {
+						expect(validateModel([{ items: [{ "^name": null }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("rejects arbitrary string sort value", async () => {
+						expect(validateModel([{ items: [{ "^name": "ascending" }] }], Wrapper, null)).toBeDefined();
+					});
+
+					it("accepts sort on number property", async () => {
+						expect(validateModel([{ items: [{ "^age": "asc" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+					it("accepts sort on undefined property", async () => {
+						expect(validateModel([{ items: [{ "^missing": "asc" }] }], Wrapper, null)).toBeUndefined();
+					});
+
+				});
+
+				describe("effective shape with transforms", () => {
+
+					it("accepts range operator on transform-derived number", async () => {
+
+						// year transform on year property → effective kind is "number"
+
+						const T = resource({ released: optional(year()) });
+						const W = resource({ items: multiple(reference(T)) });
+
+						expect(validateModel([{ items: [{ ">=year:released": 2020 }] }], W, null)).toBeUndefined();
+					});
+
+					it("rejects text search on transform-derived number", async () => {
+
+						// count transform → effective kind is "number"
+
+						const T = resource({ name: required(string()), price: optional(integer()) });
+						const W = resource({ items: multiple(reference(T)) });
+
+						expect(validateModel([{ items: [{ "~count:price": "x" }] }], W, null)).toBeDefined();
+					});
+
+					it("accepts text search on transform-preserving string", async () => {
+
+						// lower transform on string → effective kind is "string"
+
+						const T = resource({ name: required(string()) });
+						const W = resource({ items: multiple(reference(T)) });
+
+						expect(validateModel([{ items: [{ "~lower:name": "alice" }] }], W, null)).toBeUndefined();
+					});
+
+					it("accepts operator when transform makes apply() return undefined", async () => {
+
+						// sum on string property → apply() returns undefined → lenient
+
+						const T = resource({ name: required(string()) });
+						const W = resource({ items: multiple(reference(T)) });
+
+						expect(validateModel([{ items: [{ "~sum:name": "x" }] }], W, null)).toBeUndefined();
+					});
 
 				});
 

@@ -10,6 +10,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Add `Validator<T>` type for custom value validators returning `undefined | true | Trace`
+- Validate constraint operator semantics against property value types in model validation — range, text search,
+	disjunctive/conjunctive, focus, sort, and pagination operators are checked against the effective shape computed by
+	`apply()`, including recursive validation against union variant types
 
 ### Changed
 
@@ -24,8 +27,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Removed
 
 - Remove `is*Shape` and `is*Constraints` type guard exports from all shape modules — structural validation is now
-	integrated into the functional validators (`validateResource`, `validateModel`, etc.) and produces path-specific traces
-	instead of boolean results
+	integrated into the functional validators (`validateResource`, `validateModel`, etc.) and produces path-specific
+	traces instead of boolean results
 - Remove runtime `assert()` validation from shape factory arguments and return values — factories now trust TypeScript
 	types; structural mismatches are caught by the validation pipeline
 - Remove `Binding` from `ResourceShape.properties` and `Entries` key types — resource shape property keys are now

@@ -340,7 +340,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 		const effective = apply(binding, shape);
 
-		// undefined range means the binding cannot be populated at runtime; accept any template as immaterial
+		// undefined effective range means the binding cannot be populated at runtime; template is immaterial
 
 		return effective === undefined ? undefined : validateRange(value, effective, depth);
 
@@ -370,7 +370,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateScalar(value: unknown, shape: Union | ValueShape, depth: null | number): undefined | Trace {
+	function validateScalar(value: unknown, shape: ValueShape | Union, depth: null | number): undefined | Trace {
 
 		switch ( shape.kind ) {
 
@@ -416,7 +416,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateCollection(value: unknown, shape: Union | ValueShape, depth: null | number): undefined | Trace {
+	function validateCollection(value: unknown, shape: ValueShape | Union, depth: null | number): undefined | Trace {
 
 		switch ( shape.kind ) {
 
@@ -535,32 +535,39 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 				try {
 
 					const probe = decodeProbe(key);
-					const { target } = probe;
 
-					switch ( target ) {
-
-						case "@":
-						case "#":
-
-							return [key, undefined]; // !!! validate paging parameters
+					switch ( probe.target ) {
 
 						case "<":
 						case ">":
 						case "<=":
 						case ">=":
 
-							return [key, undefined]; // !!! validate comparison operators
+							return [key, validateLimit(v, apply(probe, shape)?.shape)];
 
 						case "~":
+
+							return [key, validateKeywords(v, apply(probe, shape)?.shape)];
+
 						case "?":
 						case "!":
 						case "*":
 
-							return [key, undefined]; // !!! validate filter operators
+							return [key, validateOptions(v, apply(probe, shape)?.shape)];
 
 						case "^":
 
-							return [key, undefined]; // !!! validate sort operator
+							return [key, v === "asc" || v === "desc" || isNumber(v) ? undefined
+								: "expected 'asc', 'desc', or number value"
+							];
+
+						case "@":
+						case "#":
+
+							return [key, !isNumber(v) ? "expected number value"
+								: !Number.isInteger(v) || v < 0 ? "expected non-negative integer"
+									: undefined
+							];
 
 						default:
 
@@ -575,8 +582,157 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 				}
 
 			}))
-
 		);
+
+	}
+
+
+	function validateLimit(value: unknown, shape: undefined | ValueShape | Union ): undefined | Trace {
+
+		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
+
+		if ( shape === undefined ) {
+
+			return undefined;
+
+		} else {
+
+			switch ( shape.kind ) {
+
+				case "boolean":
+
+					return validateBoolean(value, shape);
+
+				case "number":
+
+					return validateNumber(value, shape);
+
+				case "string":
+
+					return validateString(value, shape);
+
+				case "local":
+				case "locals":
+				case "reference":
+				case "resource":
+
+					return `unsupported constraint for ${shape.kind} value`;
+
+				case "union":
+
+					return Object.values(shape.variants)
+						.some(variant => validateLimit(value, variant) === undefined)
+						? undefined : "limit does not match any union variant";
+
+			}
+
+		}
+
+	}
+
+	function validateKeywords(value: unknown, shape: ValueShape | Union | undefined): undefined | Trace {
+
+		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
+
+		if ( shape === undefined ) {
+
+			return undefined;
+
+		} else {
+
+			switch ( shape.kind ) {
+
+				case "string":
+				case "local":
+				case "locals":
+
+					return isString(value) ? undefined : "expected string value";
+
+				case "boolean":
+				case "number":
+				case "reference":
+				case "resource":
+
+					return `unsupported constraint for ${shape.kind} value`;
+
+				case "union":
+
+					return Object.values(shape.variants)
+						.some(variant => validateKeywords(value, variant) === undefined)
+						? undefined : "keywords do not match any union variant";
+
+			}
+
+		}
+
+	}
+
+	function validateOptions(value: unknown, shape: undefined | ValueShape | Union ): undefined | Trace {
+
+		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
+
+		if ( shape === undefined ) {
+
+			return undefined;
+
+		} else if ( Array.isArray(value) ) {
+
+			return trace(Object.fromEntries(value.map((element, index) =>
+				[`[${index}]`, validateOption(element, shape)]
+			)));
+
+		} else {
+
+			return validateOption(value, shape);
+
+		}
+
+	}
+
+	function validateOption(value: unknown, shape: ValueShape | Union): undefined | Trace {
+
+		if ( value === null ) { // null is a valid option for any value type
+
+			return undefined;
+
+		} else {
+
+			switch ( shape.kind ) {
+
+				case "boolean":
+
+					return validateBoolean(value, shape);
+
+				case "number":
+
+					return validateNumber(value, shape);
+
+				case "string":
+
+					return validateString(value, shape);
+
+				case "local":
+
+					return validateLocale(value, shape);
+
+				case "locals":
+
+					return validateLocales(value, shape);
+
+				case "reference":
+				case "resource":
+
+					return isReference(value) ? undefined : `expected ${shape.kind} value`;
+
+				case "union":
+
+					return Object.values(shape.variants)
+						.some(variant => validateOption(value, variant) === undefined)
+						? undefined : "option does not match any union variant";
+
+			}
+
+		}
 
 	}
 
