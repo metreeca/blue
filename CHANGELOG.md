@@ -14,6 +14,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	disjunctive/conjunctive, focus, sort, and pagination operators are checked against the effective shape computed by
 	`apply()`, including recursive validation against union variant types
 
+### Fixed
+
+- Reject IRI strings for embedded `ResourceShape` properties in model validation — only nested models are accepted;
+	IRI references are exclusive to `ReferenceShape` properties
+
 ### Changed
 
 - Always key per-resource validation traces by `@id` or blank node in `validateResource`, removing the flat-trace

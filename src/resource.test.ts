@@ -3203,13 +3203,13 @@ describe("validators", () => {
 
 		describe("resource properties", () => {
 
-			it("accepts reference for inline resource property", async () => {
+			it("rejects IRI reference for inline resource property", async () => {
 
 				const shape = resource({
 					child: optional(resource({ name: required(string()) }))
 				});
 
-				expect(validateModel([{ child: "app:/children/1" }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ child: "app:/children/1" }], shape, 0)).toBeDefined();
 
 			});
 

@@ -402,9 +402,8 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 			case "resource":
 
-				return isString(value) || isReference(value) ? undefined
-					: depth !== null && depth <= 0 ? "exceeded maximum nesting depth"
-						: validateModel([value], shape, depth === null ? depth : depth-1);
+				return depth !== null && depth <= 0 ? "exceeded maximum nesting depth"
+					: validateModel([value], shape, depth === null ? depth : depth-1);
 
 			case "union":
 
