@@ -659,36 +659,12 @@ describe("apply", () => {
 		it.each([
 			["local", local()],
 			["locals", locals()]
-		])("returns undefined range for non-string-to-string transform on %s", async (_label, s) => {
+		] as const)("returns undefined range for incompatible transforms on %s", async (_label, s) => {
 
-			expect(transformRange(["length"], s)).toBeUndefined();
-
-		});
-
-		it.each([
-			["local", local()],
-			["locals", locals()]
-		])("returns undefined range for numeric transform on %s", async (_label, s) => {
-
-			expect(transformRange(["sum"], s)).toBeUndefined();
-
-		});
-
-		it.each([
-			["local", local()],
-			["locals", locals()]
-		])("returns undefined range for temporal transform on %s", async (_label, s) => {
-
-			expect(transformRange(["year"], s)).toBeUndefined();
-
-		});
-
-		it.each([
-			["local", local()],
-			["locals", locals()]
-		])("returns undefined range for any-to-non-string transform on %s", async (_label, s) => {
-
-			expect(transformRange(["count"], s)).toBeUndefined();
+			expect(transformRange(["length"], s)).toBeUndefined(); // non-string-to-string
+			expect(transformRange(["sum"], s)).toBeUndefined(); // numeric
+			expect(transformRange(["year"], s)).toBeUndefined(); // temporal
+			expect(transformRange(["count"], s)).toBeUndefined(); // any-to-non-string
 
 		});
 
@@ -783,56 +759,18 @@ describe("apply", () => {
 
 		});
 
-		it("aggregate transform sets maxCount to 1 and minCount to undefined", async () => {
+		it.each([
+			["count", ["count"], repeatable(integer())],
+			["sum", ["sum"], repeatable(integer())],
+			["avg", ["avg"], repeatable(integer())],
+			["min", ["min"], repeatable(string())],
+			["max", ["max"], repeatable(string())],
+			["avg+floor", ["avg", "floor"], repeatable(decimal())]
+		] as const)("%s aggregate sets maxCount to 1 and minCount to undefined", async (_label, pipe, range) => {
 
-			const result = apply(probe(["value"], ["count"]), resource({ value: repeatable(integer()) }));
+			const result = apply(probe(["value"], [...pipe]), resource({ value: range }));
 
 			// aggregate collapses to single value; minCount undefined (empty sets → undefined)
-
-			expect(result?.minCount).toBeUndefined();
-			expect(result?.maxCount).toBe(1);
-
-		});
-
-		it("sum aggregate sets maxCount to 1 and minCount to undefined", async () => {
-
-			const result = apply(probe(["value"], ["sum"]), resource({ value: repeatable(integer()) }));
-
-			expect(result?.minCount).toBeUndefined();
-			expect(result?.maxCount).toBe(1);
-
-		});
-
-		it("avg aggregate sets maxCount to 1 and minCount to undefined", async () => {
-
-			const result = apply(probe(["value"], ["avg"]), resource({ value: repeatable(integer()) }));
-
-			expect(result?.minCount).toBeUndefined();
-			expect(result?.maxCount).toBe(1);
-
-		});
-
-		it("min aggregate sets maxCount to 1 and minCount to undefined", async () => {
-
-			const result = apply(probe(["value"], ["min"]), resource({ value: repeatable(string()) }));
-
-			expect(result?.minCount).toBeUndefined();
-			expect(result?.maxCount).toBe(1);
-
-		});
-
-		it("max aggregate sets maxCount to 1 and minCount to undefined", async () => {
-
-			const result = apply(probe(["value"], ["max"]), resource({ value: repeatable(string()) }));
-
-			expect(result?.minCount).toBeUndefined();
-			expect(result?.maxCount).toBe(1);
-
-		});
-
-		it("chained aggregate + scalar sets maxCount to 1 and minCount to undefined", async () => {
-
-			const result = apply(probe(["value"], ["avg", "floor"]), resource({ value: repeatable(decimal()) }));
 
 			expect(result?.minCount).toBeUndefined();
 			expect(result?.maxCount).toBe(1);
@@ -848,120 +786,26 @@ describe("apply", () => {
 		}
 
 
-		it("accumulates required through required (1×1=1, 1×1=1)", async () => {
+		it.each([
+			["required×required", required, required, 1, 1],
+			["required×optional", required, optional, undefined, 1],
+			["required×repeatable", required, repeatable, 1, undefined],
+			["optional×required", optional, required, undefined, 1],
+			["optional×optional", optional, optional, undefined, 1],
+			["optional×repeatable", optional, repeatable, undefined, undefined],
+			["repeatable×required", repeatable, required, 1, undefined],
+			["repeatable×optional", repeatable, optional, undefined, undefined],
+			["repeatable×repeatable", repeatable, repeatable, 1, undefined]
+		] as const)("accumulates %s", async (_label, outer, inner, expectedMin, expectedMax) => {
 
 			const s = resource({
-				child: required(resource({ name: required(string()) }))
+				child: outer(resource({ name: inner(string()) }))
 			});
 
 			const result = pathRange(probe(["child", "name"]), s);
 
-			expect(result?.minCount).toBe(1);
-			expect(result?.maxCount).toBe(1);
-
-		});
-
-		it("accumulates required through optional (1×undef=undef, 1×1=1)", async () => {
-
-			const s = resource({
-				child: required(resource({ name: optional(string()) }))
-			});
-
-			const result = pathRange(probe(["child", "name"]), s);
-
-			expect(result?.minCount).toBeUndefined();
-			expect(result?.maxCount).toBe(1);
-
-		});
-
-		it("accumulates required through repeatable (1×1=1, 1×undef=undef)", async () => {
-
-			const s = resource({
-				child: required(resource({ name: repeatable(string()) }))
-			});
-
-			const result = pathRange(probe(["child", "name"]), s);
-
-			expect(result?.minCount).toBe(1);
-			expect(result?.maxCount).toBeUndefined();
-
-		});
-
-		it("accumulates optional through required (undef×1=undef, 1×1=1)", async () => {
-
-			const s = resource({
-				child: optional(resource({ name: required(string()) }))
-			});
-
-			const result = pathRange(probe(["child", "name"]), s);
-
-			expect(result?.minCount).toBeUndefined();
-			expect(result?.maxCount).toBe(1);
-
-		});
-
-		it("accumulates optional through optional (undef×undef=undef, 1×1=1)", async () => {
-
-			const s = resource({
-				child: optional(resource({ name: optional(string()) }))
-			});
-
-			const result = pathRange(probe(["child", "name"]), s);
-
-			expect(result?.minCount).toBeUndefined();
-			expect(result?.maxCount).toBe(1);
-
-		});
-
-		it("accumulates repeatable through required (1×1=1, undef×1=undef)", async () => {
-
-			const s = resource({
-				child: repeatable(resource({ name: required(string()) }))
-			});
-
-			const result = pathRange(probe(["child", "name"]), s);
-
-			expect(result?.minCount).toBe(1);
-			expect(result?.maxCount).toBeUndefined();
-
-		});
-
-		it("accumulates repeatable through repeatable (1×1=1, undef×undef=undef)", async () => {
-
-			const s = resource({
-				child: repeatable(resource({ name: repeatable(string()) }))
-			});
-
-			const result = pathRange(probe(["child", "name"]), s);
-
-			expect(result?.minCount).toBe(1);
-			expect(result?.maxCount).toBeUndefined();
-
-		});
-
-		it("accumulates repeatable through optional (1×undef=undef, undef×1=undef)", async () => {
-
-			const s = resource({
-				child: repeatable(resource({ name: optional(string()) }))
-			});
-
-			const result = pathRange(probe(["child", "name"]), s);
-
-			expect(result?.minCount).toBeUndefined();
-			expect(result?.maxCount).toBeUndefined();
-
-		});
-
-		it("accumulates optional through repeatable (undef×1=undef, 1×undef=undef)", async () => {
-
-			const s = resource({
-				child: optional(resource({ name: repeatable(string()) }))
-			});
-
-			const result = pathRange(probe(["child", "name"]), s);
-
-			expect(result?.minCount).toBeUndefined();
-			expect(result?.maxCount).toBeUndefined();
+			expect(result?.minCount).toBe(expectedMin);
+			expect(result?.maxCount).toBe(expectedMax);
 
 		});
 
@@ -1485,21 +1329,13 @@ describe("apply", () => {
 
 		});
 
-		it("returns undefined range for non-empty path on number shape", async () => {
+		it.each([
+			["number", integer()],
+			["string", string()],
+			["boolean", boolean()]
+		])("returns undefined range for non-empty path on %s shape", async (_label, s) => {
 
-			expect(apply(probe(["missing"]), integer())).toBeUndefined();
-
-		});
-
-		it("returns undefined range for non-empty path on string shape", async () => {
-
-			expect(apply(probe(["missing"]), string())).toBeUndefined();
-
-		});
-
-		it("returns undefined range for non-empty path on boolean shape", async () => {
-
-			expect(apply(probe(["missing"]), boolean())).toBeUndefined();
+			expect(apply(probe(["missing"]), s)).toBeUndefined();
 
 		});
 

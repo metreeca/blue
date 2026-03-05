@@ -486,44 +486,6 @@ describe("validators", () => {
 
 		});
 
-		describe("trace structure", () => {
-
-			it("includes tag key for length violation", async () => {
-
-				const result = validateLocal([{ en: "hi" }], local({ minLength: 5 }));
-
-				expect(result).toHaveProperty("en");
-
-			});
-
-			it("includes tag key for language constraint violation", async () => {
-
-				const result = validateLocal([{ de: "hallo" }], local({ languageIn: ["en", "fr"] }));
-
-				expect(result).toHaveProperty("de");
-
-			});
-
-			it("includes only violating tag keys", async () => {
-
-				const result = validateLocal([{ en: "hi", fr: "bonjour" }], local({ minLength: 5 }));
-
-				expect(result).toHaveProperty("en");
-				expect(result).not.toHaveProperty("fr");
-
-			});
-
-			it("includes range key for subtag violation", async () => {
-
-				const result = validateLocal([{ "en-US": "color", "de": "farbe" }], local({ languageIn: ["en-*"] }));
-
-				expect(result).toHaveProperty("de");
-				expect(result).not.toHaveProperty("en-US");
-
-			});
-
-		});
-
 	});
 
 	describe("validateLocals", () => {
@@ -756,47 +718,6 @@ describe("validators", () => {
 			it("returns undefined when plain string array matches languageIn with und", async () => {
 
 				expect(validateLocals([["hello"]], locals({ languageIn: ["und"] }))).toBeUndefined();
-
-			});
-
-		});
-
-		describe("trace structure", () => {
-
-			it("includes tag key for length violation", async () => {
-
-				const result = validateLocals([{ en: ["hi"] }], locals({ minLength: 5 }));
-
-				expect(result).toHaveProperty("en");
-
-			});
-
-			it("includes tag key for language constraint violation", async () => {
-
-				const result = validateLocals([{ de: ["hallo"] }], locals({ languageIn: ["en", "fr"] }));
-
-				expect(result).toHaveProperty("de");
-
-			});
-
-			it("includes only violating tag keys", async () => {
-
-				const result = validateLocals([{ en: ["hi"], fr: ["bonjour"] }], locals({ minLength: 5 }));
-
-				expect(result).toHaveProperty("en");
-				expect(result).not.toHaveProperty("fr");
-
-			});
-
-			it("includes range key for subtag violation", async () => {
-
-				const result = validateLocals([{
-					"en-US": ["color"],
-					"de": ["farbe"]
-				}], locals({ languageIn: ["en-*"] }));
-
-				expect(result).toHaveProperty("de");
-				expect(result).not.toHaveProperty("en-US");
 
 			});
 

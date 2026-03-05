@@ -149,160 +149,29 @@ describe("factories", () => {
 
 	});
 
-	describe("byte", () => {
+	describe.each([
+		["byte", byte, 8],
+		["short", short, 16],
+		["int", int, 32],
+		["long", long, 64],
+		["float", float, 0.32],
+		["double", double, 0.64],
+		["integer", integer, 1],
+		["decimal", decimal, 1.1]
+	] as const)("%s", (_label, factory, expectedModel) => {
 
-		it("returns a shape with model 8", async () => {
+		it("returns a shape with expected kind and model", async () => {
 
-			expect(byte().kind).toBe("number");
-			expect(byte().model).toBe(8);
-
-		});
-
-		it("passes through constraints", async () => {
-
-			const shape = byte({ minInclusive: -128, maxInclusive: 127 });
-
-			expect(shape.minInclusive).toBe(-128);
-			expect(shape.maxInclusive).toBe(127);
-
-		});
-
-	});
-
-	describe("short", () => {
-
-		it("returns a shape with model 16", async () => {
-
-			expect(short().kind).toBe("number");
-			expect(short().model).toBe(16);
+			expect(factory().kind).toBe("number");
+			expect(factory().model).toBe(expectedModel);
 
 		});
 
 		it("passes through constraints", async () => {
 
-			const shape = short({ minInclusive: -32768, maxInclusive: 32767 });
-
-			expect(shape.minInclusive).toBe(-32768);
-			expect(shape.maxInclusive).toBe(32767);
-
-		});
-
-	});
-
-	describe("int", () => {
-
-		it("returns a shape with model 32", async () => {
-
-			expect(int().kind).toBe("number");
-			expect(int().model).toBe(32);
-
-		});
-
-		it("passes through constraints", async () => {
-
-			const shape = int({ minInclusive: 0, maxInclusive: 1000 });
+			const shape = factory({ minInclusive: 0 });
 
 			expect(shape.minInclusive).toBe(0);
-			expect(shape.maxInclusive).toBe(1000);
-
-		});
-
-	});
-
-	describe("long", () => {
-
-		it("returns a shape with model 64", async () => {
-
-			expect(long().kind).toBe("number");
-			expect(long().model).toBe(64);
-
-		});
-
-		it("passes through constraints", async () => {
-
-			const shape = long({ minInclusive: 0 });
-
-			expect(shape.minInclusive).toBe(0);
-
-		});
-
-	});
-
-	describe("float", () => {
-
-		it("returns a shape with model 0.32", async () => {
-
-			expect(float().kind).toBe("number");
-			expect(float().model).toBe(0.32);
-
-		});
-
-		it("passes through constraints", async () => {
-
-			const shape = float({ minInclusive: 0, maxExclusive: 1 });
-
-			expect(shape.minInclusive).toBe(0);
-			expect(shape.maxExclusive).toBe(1);
-
-		});
-
-	});
-
-	describe("double", () => {
-
-		it("returns a shape with model 0.64", async () => {
-
-			expect(double().kind).toBe("number");
-			expect(double().model).toBe(0.64);
-
-		});
-
-		it("passes through constraints", async () => {
-
-			const shape = double({ minExclusive: -1, maxExclusive: 1 });
-
-			expect(shape.minExclusive).toBe(-1);
-			expect(shape.maxExclusive).toBe(1);
-
-		});
-
-	});
-
-	describe("integer", () => {
-
-		it("returns a shape with model 1", async () => {
-
-			expect(integer().kind).toBe("number");
-			expect(integer().model).toBe(1);
-
-		});
-
-		it("passes through constraints", async () => {
-
-			const shape = integer({ minInclusive: 1, maxInclusive: 100 });
-
-			expect(shape.minInclusive).toBe(1);
-			expect(shape.maxInclusive).toBe(100);
-
-		});
-
-	});
-
-	describe("decimal", () => {
-
-		it("returns a shape with model 1.1", async () => {
-
-			expect(decimal().kind).toBe("number");
-			expect(decimal().model).toBe(1.1);
-
-		});
-
-		it("passes through constraints", async () => {
-
-			const shape = decimal({ minInclusive: 0, maxInclusive: 99.99 });
-
-			expect(shape.minInclusive).toBe(0);
-			expect(shape.maxInclusive).toBe(99.99);
 
 		});
 

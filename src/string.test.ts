@@ -223,127 +223,27 @@ describe("factories", () => {
 	});
 
 
-	describe("year", () => {
+	describe.each([
+		["year", year, "1970", "^\\d{4}(?:Z|[+-]\\d{2}:\\d{2})?$"],
+		["date", date, "1970-01-01", "^\\d{4}-\\d{2}-\\d{2}(?:Z|[+-]\\d{2}:\\d{2})?$"],
+		["time", time, "00:00:00", "^\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$"],
+		["instant", instant, "1970-01-01T00:00:00", "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$"],
+		["timestamp", timestamp, "1970-01-01T00:00:00.000Z", "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"],
+		["duration", duration, "PT0S", "^-?P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"]
+	] as const)("%s", (_label, factory, expectedModel, expectedPattern) => {
 
-		it("returns a shape with year model", async () => {
+		it("returns a shape with expected kind and model", async () => {
 
-			const shape = year();
-
-			expect(shape.kind).toBe("string");
-			expect(shape.model).toBe("1970");
-
-		});
-
-		it("returns a shape with year pattern", async () => {
-
-			const shape = year();
-
-			expect(shape.pattern).toBe("^\\d{4}(?:Z|[+-]\\d{2}:\\d{2})?$");
-
-		});
-
-	});
-
-	describe("date", () => {
-
-		it("returns a shape with date model", async () => {
-
-			const shape = date();
+			const shape = factory();
 
 			expect(shape.kind).toBe("string");
-			expect(shape.model).toBe("1970-01-01");
+			expect(shape.model).toBe(expectedModel);
 
 		});
 
-		it("returns a shape with date pattern", async () => {
+		it("returns a shape with expected pattern", async () => {
 
-			const shape = date();
-
-			expect(shape.pattern).toBe("^\\d{4}-\\d{2}-\\d{2}(?:Z|[+-]\\d{2}:\\d{2})?$");
-
-		});
-
-	});
-
-	describe("time", () => {
-
-		it("returns a shape with time model", async () => {
-
-			const shape = time();
-
-			expect(shape.kind).toBe("string");
-			expect(shape.model).toBe("00:00:00");
-
-		});
-
-		it("returns a shape with time pattern", async () => {
-
-			const shape = time();
-
-			expect(shape.pattern).toBe("^\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$");
-
-		});
-
-	});
-
-	describe("instant", () => {
-
-		it("returns a shape with instant model", async () => {
-
-			const shape = instant();
-
-			expect(shape.kind).toBe("string");
-			expect(shape.model).toBe("1970-01-01T00:00:00");
-
-		});
-
-		it("returns a shape with instant pattern", async () => {
-
-			const shape = instant();
-
-			expect(shape.pattern).toBe("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$");
-
-		});
-
-	});
-
-	describe("timestamp", () => {
-
-		it("returns a shape with timestamp model", async () => {
-
-			const shape = timestamp();
-
-			expect(shape.kind).toBe("string");
-			expect(shape.model).toBe("1970-01-01T00:00:00.000Z");
-
-		});
-
-		it("returns a shape with timestamp pattern", async () => {
-
-			const shape = timestamp();
-
-			expect(shape.pattern).toBe("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$");
-
-		});
-
-	});
-
-	describe("duration", () => {
-
-		it("returns a shape with duration model", async () => {
-
-			const shape = duration();
-
-			expect(shape.kind).toBe("string");
-			expect(shape.model).toBe("PT0S");
-
-		});
-
-		it("returns a shape with duration pattern", async () => {
-
-			const shape = duration();
-
-			expect(shape.pattern).toBe("^-?P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$");
+			expect(factory().pattern).toBe(expectedPattern);
 
 		});
 

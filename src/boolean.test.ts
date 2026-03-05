@@ -127,7 +127,7 @@ describe("validators", () => {
 
 			});
 
-			it("returns undefined when non-boolean values filtered and booleans pass", async () => {
+			it("returns trace with kind key for mixed values with passing booleans", async () => {
 
 				const trace = validateBoolean([true, 42], boolean());
 

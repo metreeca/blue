@@ -959,153 +959,50 @@ describe("factories", () => {
 	});
 
 
-	describe("multiple", () => {
+	describe.each([
+		["multiple", multiple, undefined, undefined],
+		["repeatable", repeatable, 1, undefined],
+		["optional", optional, undefined, 1],
+		["required", required, 1, 1]
+	] as const)("%s", (_label, factory, expectedMin, expectedMax) => {
 
-		it("returns a range with no cardinality constraints", async () => {
+		it("returns a range with expected cardinality", async () => {
 
-			const range = multiple(string());
+			const range = factory(string());
 
-			expect(range.minCount).toBeUndefined();
-			expect(range.maxCount).toBeUndefined();
+			expect(range.minCount).toBe(expectedMin);
+			expect(range.maxCount).toBe(expectedMax);
 			expect(range.shape.kind).toBe("string");
 
 		});
 
 		it("returns an immutable range", async () => {
 
-			const range = multiple(string());
+			const range = factory(string());
 
 			expect(() => {
-				(range as any).minCount = 1;
+				(range as any).minCount = 99;
 			}).toThrow();
 
 		});
+
+		it("includes only expected properties", async () => {
+
+			const range = factory(string());
+
+			expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "shape"]);
+
+		});
+
+	});
+
+	describe("multiple", () => {
 
 		it("accepts lazy shape", async () => {
 
 			const range = multiple(() => string());
 
 			expect(range.shape.kind).toBe("string");
-
-		});
-
-		describe("structural integrity", () => {
-
-			it("includes only expected properties", async () => {
-
-				const range = multiple(string());
-
-				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "shape"]);
-
-			});
-
-		});
-
-	});
-
-	describe("repeatable", () => {
-
-		it("returns a range with minCount=1", async () => {
-
-			const range = repeatable(string());
-
-			expect(range.minCount).toBe(1);
-			expect(range.maxCount).toBeUndefined();
-			expect(range.shape.kind).toBe("string");
-
-		});
-
-		it("returns an immutable range", async () => {
-
-			const range = repeatable(string());
-
-			expect(() => {
-				(range as any).minCount = 0;
-			}).toThrow();
-
-		});
-
-		describe("structural integrity", () => {
-
-			it("includes only expected properties", async () => {
-
-				const range = repeatable(string());
-
-				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "shape"]);
-
-			});
-
-		});
-
-	});
-
-	describe("optional", () => {
-
-		it("returns a range with maxCount=1", async () => {
-
-			const range = optional(string());
-
-			expect(range.minCount).toBeUndefined();
-			expect(range.maxCount).toBe(1);
-			expect(range.shape.kind).toBe("string");
-
-		});
-
-		it("returns an immutable range", async () => {
-
-			const range = optional(string());
-
-			expect(() => {
-				(range as any).maxCount = 2;
-			}).toThrow();
-
-		});
-
-		describe("structural integrity", () => {
-
-			it("includes only expected properties", async () => {
-
-				const range = optional(string());
-
-				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "shape"]);
-
-			});
-
-		});
-
-	});
-
-	describe("required", () => {
-
-		it("returns a range with minCount=1 and maxCount=1", async () => {
-
-			const range = required(string());
-
-			expect(range.minCount).toBe(1);
-			expect(range.maxCount).toBe(1);
-			expect(range.shape.kind).toBe("string");
-
-		});
-
-		it("returns an immutable range", async () => {
-
-			const range = required(string());
-
-			expect(() => {
-				(range as any).minCount = 0;
-			}).toThrow();
-
-		});
-
-		describe("structural integrity", () => {
-
-			it("includes only expected properties", async () => {
-
-				const range = required(string());
-
-				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "shape"]);
-
-			});
 
 		});
 
