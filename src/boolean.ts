@@ -73,17 +73,34 @@ import { immutable } from "@metreeca/core/nested";
  * Validates boolean literals. Boolean shapes accept only `true` or `false` values
  * and do not support additional constraints.
  *
- * @see {@link https://www.w3.org/TR/xmlschema-2/#boolean | XSD 1.0 Part 2: Datatypes § 3.2.2 boolean}
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, boolean-valued
+ * properties are merged according to the following rules. The *child* is the extending shape; the *parent* is the
+ * inherited shape.
+ *
+ * | Field   | Override Rule                                                    |
+ * | ------- | --------------------------------------------------------------- |
+ * | `kind`  | Cannot be overridden                                            |
+ * | `model` | Must be strictly equal — mismatch signals incompatible shapes   |
+ *
+ * No user-facing constraints — nothing to narrow or validate beyond `kind` and `model` match.
+ *
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#boolean XSD 1.0 Part 2: Datatypes § 3.2.2 boolean}
  */
 export interface BooleanShape {
 
 	/**
 	 * Discriminator identifying this as a boolean shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "boolean";
 
 	/**
 	 * Prototype value for runtime model assembly.
+	 *
+	 * **Inheritance** — must be strictly equal between parent and child.
 	 *
 	 * @defaultValue `false`
 	 */
@@ -111,13 +128,12 @@ export interface BooleanConstraints {
 /**
  * Creates a boolean shape with a typed model value and no other constraints.
  *
- * @group Factories
  *
  * @typeParam M The literal boolean type for the model
  *
  * @param model Prototype value for runtime model assembly
  *
- * @returns A shape with `model` typed as `M`
+ * @returns An immutable shape with `model` typed as `M`
  *
  * @example
  *
@@ -130,11 +146,10 @@ export function boolean<M extends boolean>(model: M): BooleanShape & { readonly 
 /**
  * Creates a boolean shape with optional model constraint.
  *
- * @group Factories
  *
  * @param constraints Optional shape constraints
  *
- * @returns A shape with `model` typed as `boolean`
+ * @returns An immutable shape with `model` typed as `boolean`
  *
  * @throws {TypeError} If `constraints` is not a valid {@link BooleanConstraints}
  *
@@ -150,7 +165,6 @@ export function boolean(constraints?: BooleanConstraints): BooleanShape;
 /**
  * Creates a boolean shape.
  *
- * @group Factories
  */
 export function boolean(constraints: boolean | BooleanConstraints = {}): BooleanShape {
 

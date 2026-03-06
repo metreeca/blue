@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { validateNumber } from "./number.core.js";
+import { checkNumber, mergeNumber, validateNumber } from "./number.core.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 
 
@@ -65,63 +65,16 @@ describe("factories", () => {
 
 		describe("constraints", () => {
 
-			describe("minExclusive", () => {
+			it.each<[string, Record<string, unknown>, string, unknown]>([
+				["minExclusive", { minExclusive: 0 }, "minExclusive", 0],
+				["maxExclusive", { maxExclusive: 100 }, "maxExclusive", 100],
+				["minInclusive", { minInclusive: 0 }, "minInclusive", 0],
+				["maxInclusive", { maxInclusive: 100 }, "maxInclusive", 100],
+				["in", { in: [1, 2, 3] }, "in", [1, 2, 3]],
+				["hasValue", { hasValue: [1, 2] }, "hasValue", [1, 2]]
+			])("accepts %s constraint", async (_name, constraints, field, expected) => {
 
-				it("accepts constraint", async () => {
-
-					expect(number({ minExclusive: 0 }).minExclusive).toBe(0);
-
-				});
-
-			});
-
-			describe("maxExclusive", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(number({ maxExclusive: 100 }).maxExclusive).toBe(100);
-
-				});
-
-			});
-
-			describe("minInclusive", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(number({ minInclusive: 0 }).minInclusive).toBe(0);
-
-				});
-
-			});
-
-			describe("maxInclusive", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(number({ maxInclusive: 100 }).maxInclusive).toBe(100);
-
-				});
-
-			});
-
-			describe("in", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(number({ in: [1, 2, 3] }).in).toEqual([1, 2, 3]);
-
-				});
-
-			});
-
-			describe("hasValue", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(number({ hasValue: [1, 2] }).hasValue).toEqual([1, 2]);
-
-				});
+				expect((number(constraints as any) as any)[field]).toEqual(expected);
 
 			});
 
@@ -179,7 +132,7 @@ describe("factories", () => {
 
 });
 
-describe("validators", () => {
+describe("operators", () => {
 
 	describe("validateNumber", () => {
 
@@ -245,101 +198,57 @@ describe("validators", () => {
 
 		});
 
-		describe("minExclusive constraint", () => {
+		describe.each([
+			["minExclusive", { minExclusive: 0 }, "{minExclusive}", 1, 0, -1, 0.0001],
+			["maxExclusive", { maxExclusive: 100 }, "{maxExclusive}", 99, 100, 101, 99.9999]
+		])("%s constraint", (_name, constraints, traceKey, passingValue, boundaryValue, failingValue, fractionalValue) => {
 
-			it("returns undefined for values strictly greater than minimum", async () => {
+			it("returns undefined for values strictly within bound", async () => {
 
-				expect(validateNumber([1], number({ minExclusive: 0 }))).toBeUndefined();
-
-			});
-
-			it("returns trace for values equal to minimum", async () => {
-
-				expect(validateNumber([0], number({ minExclusive: 0 }))).toHaveProperty("{minExclusive}");
+				expect(validateNumber([passingValue], number(constraints))).toBeUndefined();
 
 			});
 
-			it("returns trace for values less than minimum", async () => {
+			it("returns trace for values equal to bound", async () => {
 
-				expect(validateNumber([-1], number({ minExclusive: 0 }))).toHaveProperty("{minExclusive}");
-
-			});
-
-			it("returns undefined for fractional values above boundary", async () => {
-
-				expect(validateNumber([0.0001], number({ minExclusive: 0 }))).toBeUndefined();
+				expect(validateNumber([boundaryValue], number(constraints))).toHaveProperty(traceKey);
 
 			});
 
-		});
+			it("returns trace for values beyond bound", async () => {
 
-		describe("maxExclusive constraint", () => {
-
-			it("returns undefined for values strictly less than maximum", async () => {
-
-				expect(validateNumber([99], number({ maxExclusive: 100 }))).toBeUndefined();
+				expect(validateNumber([failingValue], number(constraints))).toHaveProperty(traceKey);
 
 			});
 
-			it("returns trace for values equal to maximum", async () => {
+			it("returns undefined for fractional values within bound", async () => {
 
-				expect(validateNumber([100], number({ maxExclusive: 100 }))).toHaveProperty("{maxExclusive}");
-
-			});
-
-			it("returns trace for values greater than maximum", async () => {
-
-				expect(validateNumber([101], number({ maxExclusive: 100 }))).toHaveProperty("{maxExclusive}");
-
-			});
-
-			it("returns undefined for fractional values below boundary", async () => {
-
-				expect(validateNumber([99.9999], number({ maxExclusive: 100 }))).toBeUndefined();
+				expect(validateNumber([fractionalValue], number(constraints))).toBeUndefined();
 
 			});
 
 		});
 
-		describe("minInclusive constraint", () => {
+		describe.each([
+			["minInclusive", { minInclusive: 0 }, "{minInclusive}", 1, 0, -1],
+			["maxInclusive", { maxInclusive: 100 }, "{maxInclusive}", 99, 100, 101]
+		])("%s constraint", (_name, constraints, traceKey, passingValue, boundaryValue, failingValue) => {
 
-			it("returns undefined for values greater than minimum", async () => {
+			it("returns undefined for values within bound", async () => {
 
-				expect(validateNumber([1], number({ minInclusive: 0 }))).toBeUndefined();
-
-			});
-
-			it("returns undefined for values equal to minimum", async () => {
-
-				expect(validateNumber([0], number({ minInclusive: 0 }))).toBeUndefined();
+				expect(validateNumber([passingValue], number(constraints))).toBeUndefined();
 
 			});
 
-			it("returns trace for values less than minimum", async () => {
+			it("returns undefined for values equal to bound", async () => {
 
-				expect(validateNumber([-1], number({ minInclusive: 0 }))).toHaveProperty("{minInclusive}");
-
-			});
-
-		});
-
-		describe("maxInclusive constraint", () => {
-
-			it("returns undefined for values less than maximum", async () => {
-
-				expect(validateNumber([99], number({ maxInclusive: 100 }))).toBeUndefined();
+				expect(validateNumber([boundaryValue], number(constraints))).toBeUndefined();
 
 			});
 
-			it("returns undefined for values equal to maximum", async () => {
+			it("returns trace for values beyond bound", async () => {
 
-				expect(validateNumber([100], number({ maxInclusive: 100 }))).toBeUndefined();
-
-			});
-
-			it("returns trace for values greater than maximum", async () => {
-
-				expect(validateNumber([101], number({ maxInclusive: 100 }))).toHaveProperty("{maxInclusive}");
+				expect(validateNumber([failingValue], number(constraints))).toHaveProperty(traceKey);
 
 			});
 
@@ -423,12 +332,6 @@ describe("validators", () => {
 
 			});
 
-			it("returns trace for empty enumeration", async () => {
-
-				expect(validateNumber([1], number({ in: [] }))).toHaveProperty("{in}");
-
-			});
-
 			it("validates single-value enumeration", async () => {
 
 				const shape = number({ in: [42] });
@@ -478,12 +381,6 @@ describe("validators", () => {
 			it("returns trace when values array is empty", async () => {
 
 				expect(validateNumber([], number({ hasValue: [1] }))).toHaveProperty("{hasValue}");
-
-			});
-
-			it("returns undefined when hasValue is empty array", async () => {
-
-				expect(validateNumber([1, 2], number({ hasValue: [] }))).toBeUndefined();
 
 			});
 
@@ -573,6 +470,297 @@ describe("validators", () => {
 					&& !(result as any)["{minInclusive}"].startsWith("(")).toBeTruthy();
 
 			});
+
+		});
+
+	});
+
+	describe("mergeNumber", () => {
+
+		describe("kind", () => {
+
+			it("preserves kind as 'number'", async () => {
+
+				const merged = mergeNumber(number(), number());
+
+				expect(merged.kind).toBe("number");
+
+			});
+
+		});
+
+		describe("model", () => {
+
+			it("merges shapes with equal models", async () => {
+
+				const merged = mergeNumber(number(), number());
+
+				expect(merged.model).toBe(0);
+
+			});
+
+			it("merges shapes with equal non-default models", async () => {
+
+				const merged = mergeNumber(number(42), number(42));
+
+				expect(merged.model).toBe(42);
+
+			});
+
+			it("rejects shapes with different models", async () => {
+
+				expect(() => mergeNumber(number(32), number(64))).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe.each([
+			["minExclusive", "minExclusive", 0, 10, 5, 3] as const,
+			["maxExclusive", "maxExclusive", 100, 50, 100, 150] as const,
+			["minInclusive", "minInclusive", 0, 10, 5, 3] as const,
+			["maxInclusive", "maxInclusive", 100, 50, 100, 150] as const
+		])("%s", (_name, field, inheritValue, tighterTarget, tighterSource, rejectedTarget) => {
+
+			it(`inherits source ${field} when target has none`, async () => {
+
+				const merged = mergeNumber(number(), number({ [field]: inheritValue }));
+
+				expect((merged as any)[field]).toBe(inheritValue);
+
+			});
+
+			it(`keeps target ${field} when source has none`, async () => {
+
+				const merged = mergeNumber(number({ [field]: inheritValue }), number());
+
+				expect((merged as any)[field]).toBe(inheritValue);
+
+			});
+
+			it(`keeps tighter target ${field}`, async () => {
+
+				const merged = mergeNumber(number({ [field]: tighterTarget }), number({ [field]: tighterSource }));
+
+				expect((merged as any)[field]).toBe(tighterTarget);
+
+			});
+
+			it(`rejects incompatible target ${field}`, async () => {
+
+				expect(() => mergeNumber(number({ [field]: rejectedTarget }), number({ [field]: tighterSource }))).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("in", () => {
+
+			it("inherits source in when target has none", async () => {
+
+				const merged = mergeNumber(number(), number({ in: [1, 2, 3] }));
+
+				expect(merged.in).toEqual([1, 2, 3]);
+
+			});
+
+			it("keeps target in when source has none", async () => {
+
+				const merged = mergeNumber(number({ in: [1, 2] }), number());
+
+				expect(merged.in).toEqual([1, 2]);
+
+			});
+
+			it("intersects target and source in", async () => {
+
+				const merged = mergeNumber(
+					number({ in: [1, 2, 3] }),
+					number({ in: [2, 3, 4] })
+				);
+
+				expect(merged.in).toEqual([2, 3]);
+
+			});
+
+			it("rejects empty intersection", async () => {
+
+				expect(() => mergeNumber(
+					number({ in: [1, 2] }),
+					number({ in: [3, 4] })
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("hasValue", () => {
+
+			it("inherits source hasValue when target has none", async () => {
+
+				const merged = mergeNumber(number(), number({ hasValue: [1] }));
+
+				expect(merged.hasValue).toEqual([1]);
+
+			});
+
+			it("keeps target hasValue when source has none", async () => {
+
+				const merged = mergeNumber(number({ hasValue: [1] }), number());
+
+				expect(merged.hasValue).toEqual([1]);
+
+			});
+
+			it("unions target and source hasValue", async () => {
+
+				const merged = mergeNumber(
+					number({ hasValue: [1, 2] }),
+					number({ hasValue: [2, 3] })
+				);
+
+				expect(merged.hasValue).toEqual(expect.arrayContaining([1, 2, 3]));
+				expect(merged.hasValue).toHaveLength(3);
+
+			});
+
+		});
+
+		describe("post-merge validation", () => {
+
+			it("rejects merged minExclusive >= merged maxExclusive", async () => {
+
+				expect(() => mergeNumber(
+					number({ minExclusive: 10 }),
+					number({ maxExclusive: 10 })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects merged minInclusive > merged maxInclusive", async () => {
+
+				expect(() => mergeNumber(
+					number({ minInclusive: 10 }),
+					number({ maxInclusive: 5 })
+				)).toThrow(RangeError);
+
+			});
+
+			it("accepts merged minInclusive equal to merged maxInclusive", async () => {
+
+				const merged = mergeNumber(
+					number({ minInclusive: 5 }),
+					number({ maxInclusive: 5 })
+				);
+
+				expect(merged.minInclusive).toBe(5);
+				expect(merged.maxInclusive).toBe(5);
+
+			});
+
+			it("rejects merged minExclusive >= merged maxInclusive", async () => {
+
+				expect(() => mergeNumber(
+					number({ minExclusive: 10 }),
+					number({ maxInclusive: 10 })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects merged minInclusive >= merged maxExclusive", async () => {
+
+				expect(() => mergeNumber(
+					number({ minInclusive: 10 }),
+					number({ maxExclusive: 10 })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects hasValue entries not in merged in set", async () => {
+
+				expect(() => mergeNumber(
+					number({ hasValue: [5] }),
+					number({ in: [1, 2, 3] })
+				)).toThrow(RangeError);
+
+			});
+
+			it("accepts hasValue entries that are in merged in set", async () => {
+
+				const merged = mergeNumber(
+					number({ hasValue: [1] }),
+					number({ in: [1, 2, 3] })
+				);
+
+				expect(merged.hasValue).toEqual([1]);
+
+			});
+
+		});
+
+	});
+
+	describe("checkNumber", () => {
+
+		it("returns undefined for consistent constraints", async () => {
+
+			expect(checkNumber({ minInclusive: 0, maxInclusive: 100 })).toBeUndefined();
+			expect(checkNumber({ minExclusive: 0, maxExclusive: 100 })).toBeUndefined();
+			expect(checkNumber({ minInclusive: 5, maxInclusive: 5 })).toBeUndefined();
+			expect(checkNumber({ hasValue: [1], in: [1, 2, 3] })).toBeUndefined();
+			expect(checkNumber({})).toBeUndefined();
+
+		});
+
+		it("returns trace for minExclusive >= maxExclusive", async () => {
+
+			expect(checkNumber({ minExclusive: 10, maxExclusive: 10 })).toHaveProperty("{minExclusive/maxExclusive}");
+			expect(checkNumber({ minExclusive: 10, maxExclusive: 5 })).toHaveProperty("{minExclusive/maxExclusive}");
+
+		});
+
+		it("returns trace for minInclusive > maxInclusive", async () => {
+
+			expect(checkNumber({ minInclusive: 10, maxInclusive: 5 })).toHaveProperty("{minInclusive/maxInclusive}");
+
+		});
+
+		it("returns undefined for minInclusive equal to maxInclusive", async () => {
+
+			expect(checkNumber({ minInclusive: 5, maxInclusive: 5 })).toBeUndefined();
+
+		});
+
+		it("returns trace for minExclusive >= maxInclusive", async () => {
+
+			expect(checkNumber({ minExclusive: 10, maxInclusive: 10 })).toHaveProperty("{minExclusive/maxInclusive}");
+			expect(checkNumber({ minExclusive: 10, maxInclusive: 5 })).toHaveProperty("{minExclusive/maxInclusive}");
+
+		});
+
+		it("returns trace for minInclusive >= maxExclusive", async () => {
+
+			expect(checkNumber({ minInclusive: 10, maxExclusive: 10 })).toHaveProperty("{minInclusive/maxExclusive}");
+			expect(checkNumber({ minInclusive: 10, maxExclusive: 5 })).toHaveProperty("{minInclusive/maxExclusive}");
+
+		});
+
+		it("returns trace for hasValue entries not in the in set", async () => {
+
+			expect(checkNumber({ hasValue: [5], in: [1, 2, 3] })).toHaveProperty("{hasValue/in}");
+
+		});
+
+		it("returns undefined when hasValue entries are in the in set", async () => {
+
+			expect(checkNumber({ hasValue: [1], in: [1, 2, 3] })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only one bound is specified", async () => {
+
+			expect(checkNumber({ minInclusive: 5 })).toBeUndefined();
+			expect(checkNumber({ maxExclusive: 10 })).toBeUndefined();
 
 		});
 

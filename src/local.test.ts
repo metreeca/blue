@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { validateLocal, validateLocals } from "./local.core.js";
+import { checkLocalized, mergeLocal, mergeLocals, validateLocal, validateLocals } from "./local.core.js";
 import { local, locals } from "./local.js";
 
 
@@ -71,60 +71,6 @@ describe("factories", () => {
 
 		});
 
-		describe("constraints", () => {
-
-			describe("minLength", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(local({ minLength: 1 }).minLength).toBe(1);
-
-				});
-
-			});
-
-			describe("maxLength", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(local({ maxLength: 100 }).maxLength).toBe(100);
-
-				});
-
-			});
-
-			describe("languageIn", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(local({ languageIn: ["en", "fr"] }).languageIn).toEqual(["en", "fr"]);
-
-				});
-
-			});
-
-			describe("combined", () => {
-
-				it("accepts multiple constraints", async () => {
-
-					const shape = local({ minLength: 1, maxLength: 100, languageIn: ["en", "fr"] });
-
-					expect(shape.minLength).toBe(1);
-					expect(shape.maxLength).toBe(100);
-					expect(shape.languageIn).toEqual(["en", "fr"]);
-
-				});
-
-				it("includes only provided properties", async () => {
-
-					expect(Object.keys(local()).sort()).toEqual(["kind", "model"]);
-
-				});
-
-			});
-
-		});
-
 	});
 
 	describe("locals", () => {
@@ -162,55 +108,60 @@ describe("factories", () => {
 
 		});
 
-		describe("constraints", () => {
+	});
 
-			describe("minLength", () => {
+	describe.each([
 
-				it("accepts constraint", async () => {
+		["local", local],
+		["locals", locals]
 
-					expect(locals({ minLength: 1 }).minLength).toBe(1);
+	] as const)("%s constraints", (_name, factory) => {
 
-				});
+		describe("minLength", () => {
 
-			});
+			it("accepts constraint", async () => {
 
-			describe("maxLength", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(locals({ maxLength: 100 }).maxLength).toBe(100);
-
-				});
+				expect(factory({ minLength: 1 } as any).minLength).toBe(1);
 
 			});
 
-			describe("languageIn", () => {
+		});
 
-				it("accepts constraint", async () => {
+		describe("maxLength", () => {
 
-					expect(locals({ languageIn: ["en", "fr"] }).languageIn).toEqual(["en", "fr"]);
+			it("accepts constraint", async () => {
 
-				});
+				expect(factory({ maxLength: 100 } as any).maxLength).toBe(100);
 
 			});
 
-			describe("combined", () => {
+		});
 
-				it("accepts multiple constraints", async () => {
+		describe("languageIn", () => {
 
-					const shape = locals({ minLength: 1, maxLength: 100, languageIn: ["en", "fr"] });
+			it("accepts constraint", async () => {
 
-					expect(shape.minLength).toBe(1);
-					expect(shape.maxLength).toBe(100);
-					expect(shape.languageIn).toEqual(["en", "fr"]);
+				expect(factory({ languageIn: ["en", "fr"] } as any).languageIn).toEqual(["en", "fr"]);
 
-				});
+			});
 
-				it("includes only provided properties", async () => {
+		});
 
-					expect(Object.keys(locals()).sort()).toEqual(["kind", "model"]);
+		describe("combined", () => {
 
-				});
+			it("accepts multiple constraints", async () => {
+
+				const shape = factory({ minLength: 1, maxLength: 100, languageIn: ["en", "fr"] } as any);
+
+				expect(shape.minLength).toBe(1);
+				expect(shape.maxLength).toBe(100);
+				expect(shape.languageIn).toEqual(["en", "fr"]);
+
+			});
+
+			it("includes only provided properties", async () => {
+
+				expect(Object.keys(factory()).sort()).toEqual(["kind", "model"]);
 
 			});
 
@@ -220,7 +171,7 @@ describe("factories", () => {
 
 });
 
-describe("validators", () => {
+describe("operators", () => {
 
 	describe("validateLocal", () => {
 
@@ -757,6 +708,241 @@ describe("validators", () => {
 					&& en["{minLength}"].startsWith("(2/3)")).toBeTruthy();
 
 			});
+
+		});
+
+	});
+
+	describe.each([
+
+		["mergeLocal", mergeLocal, local, "local", { "*": "" },
+			{ target: { en: "hello", fr: "bonjour" }, source: { en: "hello", fr: "bonjour" } },
+			{ equal: { en: "hello", fr: "bonjour" } },
+			{ target: { en: "hello" }, source: { fr: "bonjour" } }
+		],
+
+		["mergeLocals", mergeLocals, locals, "locals", { "*": [""] },
+			{
+				target: { model: { en: ["hello"], fr: ["bonjour"] } },
+				source: { model: { en: ["hello"], fr: ["bonjour"] } }
+			},
+			{ equal: { en: ["hello"], fr: ["bonjour"] } },
+			{ target: { model: { en: ["hello"] } }, source: { model: { fr: ["bonjour"] } } }
+		]
+
+	] as const)("%s", (_name, merge, factory, kind, defaultModel, nonDefaultModels, equalModel, differentModels) => {
+
+		describe("kind", () => {
+
+			it(`preserves kind as '${kind}'`, async () => {
+
+				const merged = merge(factory() as any, factory() as any);
+
+				expect(merged.kind).toBe(kind);
+
+			});
+
+		});
+
+		describe("model", () => {
+
+			it("merges shapes with equal models", async () => {
+
+				const merged = merge(factory() as any, factory() as any);
+
+				expect(merged.model).toEqual(defaultModel);
+
+			});
+
+			it("merges shapes with equal non-default models", async () => {
+
+				const merged = merge(
+					factory(nonDefaultModels.target as any) as any,
+					factory(nonDefaultModels.source as any) as any
+				);
+
+				expect(merged.model).toEqual(equalModel.equal);
+
+			});
+
+			it("rejects shapes with different models", async () => {
+
+				expect(() => merge(
+					factory(differentModels.target as any) as any,
+					factory(differentModels.source as any) as any
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("minLength", () => {
+
+			it("inherits source minLength when target has none", async () => {
+
+				const merged = merge(factory() as any, factory({ minLength: 5 } as any) as any);
+
+				expect(merged.minLength).toBe(5);
+
+			});
+
+			it("keeps target minLength when source has none", async () => {
+
+				const merged = merge(factory({ minLength: 5 } as any) as any, factory() as any);
+
+				expect(merged.minLength).toBe(5);
+
+			});
+
+			it("accepts target minLength >= source minLength", async () => {
+
+				const merged = merge(factory({ minLength: 10 } as any) as any, factory({ minLength: 5 } as any) as any);
+
+				expect(merged.minLength).toBe(10);
+
+			});
+
+			it("rejects target minLength < source minLength", async () => {
+
+				expect(() => merge(
+					factory({ minLength: 3 } as any) as any,
+					factory({ minLength: 5 } as any) as any
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("maxLength", () => {
+
+			it("inherits source maxLength when target has none", async () => {
+
+				const merged = merge(factory() as any, factory({ maxLength: 100 } as any) as any);
+
+				expect(merged.maxLength).toBe(100);
+
+			});
+
+			it("keeps target maxLength when source has none", async () => {
+
+				const merged = merge(factory({ maxLength: 100 } as any) as any, factory() as any);
+
+				expect(merged.maxLength).toBe(100);
+
+			});
+
+			it("accepts target maxLength <= source maxLength", async () => {
+
+				const merged = merge(factory({ maxLength: 50 } as any) as any, factory({ maxLength: 100 } as any) as any);
+
+				expect(merged.maxLength).toBe(50);
+
+			});
+
+			it("rejects target maxLength > source maxLength", async () => {
+
+				expect(() => merge(
+					factory({ maxLength: 200 } as any) as any,
+					factory({ maxLength: 100 } as any) as any
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("languageIn", () => {
+
+			it("inherits source languageIn when target has none", async () => {
+
+				const merged = merge(factory() as any, factory({ languageIn: ["en", "fr"] } as any) as any);
+
+				expect(merged.languageIn).toEqual(["en", "fr"]);
+
+			});
+
+			it("keeps target languageIn when source has none", async () => {
+
+				const merged = merge(factory({ languageIn: ["en", "fr"] } as any) as any, factory() as any);
+
+				expect(merged.languageIn).toEqual(["en", "fr"]);
+
+			});
+
+			it("computes intersection of both languageIn", async () => {
+
+				const merged = merge(
+					factory({ languageIn: ["en", "fr", "de"] } as any) as any,
+					factory({ languageIn: ["en", "de", "it"] } as any) as any
+				);
+
+				expect(merged.languageIn).toEqual(["en", "de"]);
+
+			});
+
+			it("rejects empty intersection", async () => {
+
+				expect(() => merge(
+					factory({ languageIn: ["en"] } as any) as any,
+					factory({ languageIn: ["fr"] } as any) as any
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("post-merge validation", () => {
+
+			it("rejects merged minLength > maxLength", async () => {
+
+				expect(() => merge(
+					factory({ minLength: 10 } as any) as any,
+					factory({ maxLength: 5 } as any) as any
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+	});
+
+	describe("checkLocalized", () => {
+
+		it("returns undefined for consistent constraints", async () => {
+
+			expect(checkLocalized({ minLength: 1, maxLength: 10 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when minLength equals maxLength", async () => {
+
+			expect(checkLocalized({ minLength: 5, maxLength: 5 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only minLength is provided", async () => {
+
+			expect(checkLocalized({ minLength: 5 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only maxLength is provided", async () => {
+
+			expect(checkLocalized({ maxLength: 5 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when no constraints are provided", async () => {
+
+			expect(checkLocalized({})).toBeUndefined();
+
+		});
+
+		it("returns trace when minLength > maxLength", async () => {
+
+			const trace = checkLocalized({ minLength: 10, maxLength: 5 });
+
+			expect(trace).toBeDefined();
+			expect(trace).toHaveProperty("{minLength/maxLength}");
 
 		});
 

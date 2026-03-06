@@ -15,16 +15,15 @@
  */
 
 /**
- * Boolean shape type guards and validation.
- *
- * Provides type guards for {@link BooleanShape} and {@link BooleanConstraints}, plus the boolean value validator.
+ * Boolean shape operators.
  *
  * @module
  */
 
 import { isBoolean } from "@metreeca/core";
-import type { BooleanConstraints, BooleanShape } from "./boolean.js";
-import { trace } from "./trace.core.js";
+import { immutable } from "@metreeca/core/nested";
+import type { BooleanShape } from "./boolean.js";
+import { collect } from "./trace.core.js";
 import type { Trace } from "./trace.js";
 
 
@@ -38,10 +37,47 @@ export function validateBoolean(values: readonly unknown[], { kind }: BooleanSha
 	const matching = values.filter(isBoolean);
 	const mistyped = values.length-matching.length;
 
-	return trace({
+	return collect({
 
 		"{kind}": mistyped === 0
-			|| `expected ${kind} values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`
+			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`
+
+	});
+
+}
+
+
+/**
+ * Merges an overriding boolean shape with an inherited base shape.
+ *
+ * Validates that `kind` and `model` match between target and source.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns The merged shape
+ *
+ * @throws {RangeError} On incompatible overrides
+ */
+export function mergeBoolean(target: BooleanShape, source: BooleanShape): BooleanShape {
+
+	const trace = collect({
+
+		// structural: model must be strictly equal
+
+		"{model}": target.model === source.model
+			|| `mismatched types <${target.model}> and <${source.model}>`
+
+	});
+
+	if ( trace !== undefined ) {
+		throw Object.assign(new RangeError("incompatible boolean shape override"), { trace });
+	}
+
+	return immutable({
+
+		kind: target.kind,
+		model: target.model
 
 	});
 

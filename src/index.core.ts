@@ -15,26 +15,27 @@
  */
 
 /**
- * Core validation utilities and type guards.
- *
- * Provides validation infrastructure including type guards, lazy value materialisation, probe resolution,
- * value validation, and trace collection.
+ * Value shape operators.
  *
  * @module
  */
 
-import { type Identifier, isFunction, type Lazy } from "@metreeca/core";
+import { type Identifier, isFunction, isObject, type Lazy } from "@metreeca/core";
 import { error as report } from "@metreeca/core/error";
 import { immutable } from "@metreeca/core/nested";
 import { type Probe, type Transform } from "@metreeca/qest/model";
-import { validateBoolean } from "./boolean.core.js";
+import { mergeBoolean, validateBoolean } from "./boolean.core.js";
+import type { BooleanShape } from "./boolean.js";
 import type { ValueShape } from "./index.js";
-import { validateLocal, validateLocals } from "./local.core.js";
-import { validateNumber } from "./number.core.js";
+import { mergeLocal, mergeLocals, validateLocal, validateLocals } from "./local.core.js";
+import type { LocalShape, LocalsShape } from "./local.js";
+import { mergeNumber, validateNumber } from "./number.core.js";
+import type { NumberShape } from "./number.js";
 import { decimal, integer } from "./number.js";
-import { validateReference, validateResource, walk } from "./resource.core.js";
+import { flatten, mergeReference, mergeResource, validateReference, validateResource } from "./resource.core.js";
 import type { Range, ReferenceShape, ResourceShape, Union } from "./resource.js";
-import { validateString } from "./string.core.js";
+import { mergeString, validateString } from "./string.core.js";
+import type { StringShape } from "./string.js";
 import { date, duration, instant, string, time, timestamp, uri, year } from "./string.js";
 import type { Trace } from "./trace.js";
 
@@ -156,6 +157,55 @@ export function validateValue(values: readonly unknown[], shape: ValueShape): un
 
 }
 
+/**
+ * Merges an overriding value shape with an inherited base shape.
+ *
+ * Dispatches to the appropriate shape-specific merge function based on the `kind` discriminator.
+ * Both shapes must have the same `kind`; a mismatch throws a `RangeError`.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns The merged shape
+ *
+ * @throws {RangeError} On kind mismatch or incompatible overrides
+ */
+export function mergeValue<T extends ValueShape>(target: T, source: T): T {
+
+	switch ( target.kind ) {
+
+		case "boolean":
+
+			return mergeBoolean(target, source as BooleanShape) as T;
+
+		case "number":
+
+			return mergeNumber(target, source as NumberShape) as T;
+
+		case "string":
+
+			return mergeString(target, source as StringShape) as T;
+
+		case "local":
+
+			return mergeLocal(target, source as LocalShape) as T;
+
+		case "locals":
+
+			return mergeLocals(target, source as LocalsShape) as T;
+
+		case "reference":
+
+			return mergeReference(target, source as ReferenceShape) as T;
+
+		case "resource":
+
+			return mergeResource(target, source as ResourceShape) as T;
+
+	}
+
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -195,12 +245,12 @@ export function validateValue(values: readonly unknown[], shape: ValueShape): un
  * @param probe The probe containing path and transform pipe
  *
  * @param shape The input value shape to resolve
- * @returns The resolved output {@link Range} with accumulated cardinality, or `undefined` when the probe is
+ * @returns An immutable output {@link Range} with accumulated cardinality, or `undefined` when the probe is
  *     demonstrated to never produce a valid value at runtime
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function apply(probe: Probe, shape: ValueShape): undefined | Range  {
+export function apply(probe: Probe, shape: ValueShape): undefined | Range {
 
 	type Focus = {
 
@@ -277,12 +327,12 @@ export function apply(probe: Probe, shape: ValueShape): undefined | Range  {
 	 */
 	function resolve(shape: ValueShape, property: Identifier): Focus | undefined {
 
-		const chain = shape.kind === "resource" ? walk(shape)
-			: shape.kind === "reference" ? walk(materialize(shape.shape))
+		const resolved = shape.kind === "resource" ? flatten(shape)
+			: shape.kind === "reference" ? flatten(materialize(shape.shape))
 				: undefined;
 
-		const properties = chain !== undefined
-			? Object.fromEntries(chain.flatMap(s => Object.entries(s.properties)))
+		const properties = resolved !== undefined
+			? resolved.properties
 			: undefined;
 
 		if ( properties === undefined ) {
@@ -508,5 +558,47 @@ export function materialize<T>(lazy: Lazy<T>): T {
 		return lazy;
 
 	}
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Checks whether a value carries a brand matching a given symbol and payload.
+ *
+ * Supports idempotency patterns where repeated operations can be skipped on already-processed values.
+ *
+ * @param value The value to check
+ * @param symbol The brand symbol
+ * @param payload The expected brand payload (defaults to `null`)
+ *
+ * @returns `true` if `value` is an object branded with the matching symbol and payload; `false` otherwise
+ */
+export function branded(value: unknown, symbol: symbol, payload: unknown = null): boolean {
+	return isObject(value) && value[symbol] === payload;
+}
+
+/**
+ * Attaches a brand to a value using the given symbol and payload.
+ *
+ * Supports idempotency patterns where repeated operations can be skipped on already-processed values.
+ *
+ * @param value The value to brand
+ * @param symbol The brand symbol
+ * @param payload The brand payload to attach (defaults to `null`)
+ *
+ * @returns The branded and immutable value
+ */
+export function brand<V extends object>(value: V, symbol: symbol, payload: unknown = null): V {
+
+	return immutable(Object.defineProperty(Object.isExtensible(value) ? value : { ...value }, symbol, {
+
+		enumerable: false,
+		configurable: true,
+
+		value: payload
+
+	}));
 
 }

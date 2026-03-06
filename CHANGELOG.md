@@ -13,6 +13,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Validate constraint operator semantics against property value types in model validation — range, text search,
 	disjunctive/conjunctive, focus, sort, and pagination operators are checked against the effective shape computed by
 	`apply()`, including recursive validation against union variant types
+- Add `classes` constraint on `ResourceShape` for accumulating parent class IRIs across inheritance
 
 ### Fixed
 
@@ -20,11 +21,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	only local entries were checked; inherited duplicates are now detected via lineage traversal
 - Enforce class-level constraints (`pattern`, `in`, `hasValue`) conjunctively across the inheritance chain in resource
 	validation — child shapes can only restrict, never bypass, inherited constraints
-- Reject IRI strings for embedded `ResourceShape` properties in model validation — only nested models are accepted;
-	IRI references are exclusive to `ReferenceShape` properties
+- Reject IRI strings for embedded `ResourceShape` properties in model validation — only nested models are accepted; IRI
+	references are exclusive to `ReferenceShape` properties
 
 ### Changed
 
+- Replace `Some<Lazy<ResourceShape>>` with inline non-empty tuple for `ResourceConstraints.extends`
+- Shape factories now validate constraint consistency on construction via check functions — contradictory constraints
+	(e.g. `minLength > maxLength`, `hasValue` entries outside `in` set) are rejected with `RangeError`
+- Standardize all trace messages — wrap scalar parameters in `<>` and list parameters in `[]`, start checker messages
+	with adjectives, include offending values in checker diagnostics
+- Replace internal `walk` with `flatten` for validation and probe resolution
 - Always key per-resource validation traces by `@id` or blank node in `validateResource`, removing the flat-trace
 	special case for single-resource arrays
 - Redesign `Trace` type as a recursive `string | { readonly [key: string]: Trace }` union, replacing the mixed-array

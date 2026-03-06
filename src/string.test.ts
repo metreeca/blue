@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { validateString } from "./string.core.js";
+import { checkString, mergeString, validateString } from "./string.core.js";
 import { date, duration, email, instant, string, time, timestamp, uri, url, year } from "./string.js";
 
 
@@ -65,24 +65,16 @@ describe("factories", () => {
 
 		describe("constraints", () => {
 
+			it.each([
+				["minLength", { minLength: 1 }, "minLength", 1],
+				["maxLength", { maxLength: 100 }, "maxLength", 100],
+				["in", { in: ["a", "b", "c"] }, "in", ["a", "b", "c"]],
+				["hasValue", { hasValue: ["required"] }, "hasValue", ["required"]]
+			] as const)("accepts %s constraint", async (_label, constraints, key, expected) => {
 
-			describe("minLength", () => {
+				const shape = string(constraints as any);
 
-				it("accepts constraint", async () => {
-
-					expect(string({ minLength: 1 }).minLength).toBe(1);
-
-				});
-
-			});
-
-			describe("maxLength", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(string({ maxLength: 100 }).maxLength).toBe(100);
-
-				});
+				expect((shape as any)[key]).toEqual(expected);
 
 			});
 
@@ -102,39 +94,19 @@ describe("factories", () => {
 
 			});
 
-			describe("in", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(string({ in: ["a", "b", "c"] }).in).toEqual(["a", "b", "c"]);
-
-				});
-
-			});
-
-			describe("hasValue", () => {
-
-				it("accepts constraint", async () => {
-
-					expect(string({ hasValue: ["required"] }).hasValue).toEqual(["required"]);
-
-				});
-
-			});
-
 			describe("combined", () => {
 
 				it("accepts multiple constraints", async () => {
 
 					const shape = string({
-						minLength: 1, maxLength: 100, pattern: "^[A-Z]+$", in: ["A", "B"], hasValue: ["required"]
+						minLength: 1, maxLength: 100, pattern: "^[A-Z]+$", in: ["A", "B"], hasValue: ["A"]
 					});
 
 					expect(shape.minLength).toBe(1);
 					expect(shape.maxLength).toBe(100);
 					expect(shape.pattern).toBe("^[A-Z]+$");
 					expect(shape.in).toEqual(["A", "B"]);
-					expect(shape.hasValue).toEqual(["required"]);
+					expect(shape.hasValue).toEqual(["A"]);
 
 				});
 
@@ -249,10 +221,9 @@ describe("factories", () => {
 
 	});
 
-
 });
 
-describe("validators", () => {
+describe("operators", () => {
 
 	describe("validateString", () => {
 
@@ -318,28 +289,37 @@ describe("validators", () => {
 
 		});
 
-		describe("minLength constraint", () => {
+		describe.each([
 
-			it("returns undefined for strings at minimum length", async () => {
+			["minLength", "minLength", 3, "abc", "abcdef", "ab"] as const,
+			["maxLength", "maxLength", 5, "hello", "hi", "hello world"] as const
 
-				expect(validateString(["abc"], string({ minLength: 3 }))).toBeUndefined();
+		])("%s constraint", (_label, constraint, limit, atBoundary, withinBoundary, beyondBoundary) => {
+
+			it("returns undefined for strings at boundary", async () => {
+
+				expect(validateString([atBoundary], string({ [constraint]: limit }))).toBeUndefined();
 
 			});
 
-			it("returns undefined for strings above minimum length", async () => {
+			it("returns undefined for strings within boundary", async () => {
 
-				expect(validateString(["abcdef"], string({ minLength: 3 }))).toBeUndefined();
+				expect(validateString([withinBoundary], string({ [constraint]: limit }))).toBeUndefined();
 
 			});
 
-			it("returns keyed trace for strings below minimum length", async () => {
+			it("returns keyed trace for strings beyond boundary", async () => {
 
-				const trace = validateString(["ab"], string({ minLength: 3 }));
+				const trace = validateString([beyondBoundary], string({ [constraint]: limit }));
 
 				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{minLength}");
+				expect(trace).toHaveProperty(`{${constraint}}`);
 
 			});
+
+		});
+
+		describe("minLength edge cases", () => {
 
 			it("returns keyed trace for empty string when minLength > 0", async () => {
 
@@ -358,28 +338,7 @@ describe("validators", () => {
 
 		});
 
-		describe("maxLength constraint", () => {
-
-			it("returns undefined for strings at maximum length", async () => {
-
-				expect(validateString(["hello"], string({ maxLength: 5 }))).toBeUndefined();
-
-			});
-
-			it("returns undefined for strings below maximum length", async () => {
-
-				expect(validateString(["hi"], string({ maxLength: 5 }))).toBeUndefined();
-
-			});
-
-			it("returns keyed trace for strings above maximum length", async () => {
-
-				const trace = validateString(["hello world"], string({ maxLength: 5 }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{maxLength}");
-
-			});
+		describe("maxLength edge cases", () => {
 
 			it("returns undefined for empty string with maxLength constraint", async () => {
 
@@ -506,15 +465,6 @@ describe("validators", () => {
 
 			});
 
-			it("returns keyed trace for empty enumeration", async () => {
-
-				const trace = validateString(["anything"], string({ in: [] }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{in}");
-
-			});
-
 			it("validates single-value enumeration", async () => {
 
 				const shape = string({ in: ["only"] });
@@ -570,12 +520,6 @@ describe("validators", () => {
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{hasValue}");
-
-			});
-
-			it("returns undefined when hasValue is empty array", async () => {
-
-				expect(validateString(["apple", "banana"], string({ hasValue: [] }))).toBeUndefined();
 
 			});
 
@@ -726,6 +670,298 @@ describe("validators", () => {
 				expect((trace as Record<string, string>)["{minLength}"]).not.toMatch(/^\(/);
 
 			});
+
+		});
+
+	});
+
+	describe("mergeString", () => {
+
+		describe("kind", () => {
+
+			it("preserves kind as 'string'", async () => {
+
+				const merged = mergeString(string(), string());
+
+				expect(merged.kind).toBe("string");
+
+			});
+
+		});
+
+		describe("model", () => {
+
+			it("merges shapes with equal models", async () => {
+
+				const merged = mergeString(string(), string());
+
+				expect(merged.model).toBe("");
+
+			});
+
+			it("merges shapes with equal non-default models", async () => {
+
+				const merged = mergeString(string("example"), string("example"));
+
+				expect(merged.model).toBe("example");
+
+			});
+
+			it("rejects shapes with different models", async () => {
+
+				expect(() => mergeString(string("abc"), string("xyz"))).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("pattern", () => {
+
+			it("inherits source pattern when target has none", async () => {
+
+				const merged = mergeString(string(), string({ pattern: "^[a-z]+$" }));
+
+				expect(merged.pattern).toBe("^[a-z]+$");
+
+			});
+
+			it("keeps target pattern when source has none", async () => {
+
+				const merged = mergeString(string({ pattern: "^[a-z]+$" }), string());
+
+				expect(merged.pattern).toBe("^[a-z]+$");
+
+			});
+
+			it("combines patterns using lookaheads", async () => {
+
+				const merged = mergeString(
+					string({ pattern: "^[a-z]+$" }),
+					string({ pattern: "^.{3,}$" })
+				);
+
+				expect(merged.pattern).toBe("(?=^.{3,}$)^[a-z]+$");
+
+			});
+
+			it("returns undefined when neither has a pattern", async () => {
+
+				const merged = mergeString(string(), string());
+
+				expect(merged.pattern).toBeUndefined();
+
+			});
+
+		});
+
+		describe.each([
+
+			["minLength", 5, 10, 3] as const,
+			["maxLength", 10, 5, 15] as const
+
+		])("%s", (constraint, sourceValue, tighterValue, incompatibleValue) => {
+
+			it("inherits source value when target has none", async () => {
+
+				const merged = mergeString(string(), string({ [constraint]: sourceValue }));
+
+				expect((merged as any)[constraint]).toBe(sourceValue);
+
+			});
+
+			it("keeps target value when source has none", async () => {
+
+				const merged = mergeString(string({ [constraint]: sourceValue }), string());
+
+				expect((merged as any)[constraint]).toBe(sourceValue);
+
+			});
+
+			it("keeps tighter target value", async () => {
+
+				const merged = mergeString(string({ [constraint]: tighterValue }), string({ [constraint]: sourceValue }));
+
+				expect((merged as any)[constraint]).toBe(tighterValue);
+
+			});
+
+			it("rejects incompatible target value", async () => {
+
+				expect(() => mergeString(string({ [constraint]: incompatibleValue }), string({ [constraint]: sourceValue }))).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("in", () => {
+
+			it("inherits source in when target has none", async () => {
+
+				const merged = mergeString(string(), string({ in: ["a", "b", "c"] }));
+
+				expect(merged.in).toEqual(["a", "b", "c"]);
+
+			});
+
+			it("keeps target in when source has none", async () => {
+
+				const merged = mergeString(string({ in: ["a", "b"] }), string());
+
+				expect(merged.in).toEqual(["a", "b"]);
+
+			});
+
+			it("intersects target and source in", async () => {
+
+				const merged = mergeString(
+					string({ in: ["a", "b", "c"] }),
+					string({ in: ["b", "c", "d"] })
+				);
+
+				expect(merged.in).toEqual(["b", "c"]);
+
+			});
+
+			it("rejects empty intersection", async () => {
+
+				expect(() => mergeString(
+					string({ in: ["a", "b"] }),
+					string({ in: ["c", "d"] })
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("hasValue", () => {
+
+			it("inherits source hasValue when target has none", async () => {
+
+				const merged = mergeString(string(), string({ hasValue: ["a"] }));
+
+				expect(merged.hasValue).toEqual(["a"]);
+
+			});
+
+			it("keeps target hasValue when source has none", async () => {
+
+				const merged = mergeString(string({ hasValue: ["a"] }), string());
+
+				expect(merged.hasValue).toEqual(["a"]);
+
+			});
+
+			it("unions target and source hasValue", async () => {
+
+				const merged = mergeString(
+					string({ hasValue: ["a", "b"] }),
+					string({ hasValue: ["b", "c"] })
+				);
+
+				expect(merged.hasValue).toEqual(expect.arrayContaining(["a", "b", "c"]));
+				expect(merged.hasValue).toHaveLength(3);
+
+			});
+
+		});
+
+		describe("post-merge validation", () => {
+
+			it("rejects merged minLength > merged maxLength", async () => {
+
+				expect(() => mergeString(
+					string({ minLength: 10 }),
+					string({ maxLength: 5 })
+				)).toThrow(RangeError);
+
+			});
+
+			it("accepts merged minLength equal to merged maxLength", async () => {
+
+				const merged = mergeString(
+					string({ minLength: 5 }),
+					string({ maxLength: 5 })
+				);
+
+				expect(merged.minLength).toBe(5);
+				expect(merged.maxLength).toBe(5);
+
+			});
+
+			it("rejects hasValue entries not in merged in set", async () => {
+
+				expect(() => mergeString(
+					string({ hasValue: ["x"] }),
+					string({ in: ["a", "b"] })
+				)).toThrow(RangeError);
+
+			});
+
+			it("accepts hasValue entries that are in merged in set", async () => {
+
+				const merged = mergeString(
+					string({ hasValue: ["a"] }),
+					string({ in: ["a", "b", "c"] })
+				);
+
+				expect(merged.hasValue).toEqual(["a"]);
+
+			});
+
+		});
+
+	});
+
+	describe("checkString", () => {
+
+		it("returns undefined for consistent constraints", async () => {
+
+			expect(checkString({ minLength: 3, maxLength: 10 })).toBeUndefined();
+			expect(checkString({ minLength: 5, maxLength: 5 })).toBeUndefined();
+			expect(checkString({ hasValue: ["a"], in: ["a", "b", "c"] })).toBeUndefined();
+			expect(checkString({})).toBeUndefined();
+
+		});
+
+		it("returns trace for minLength > maxLength", async () => {
+
+			const trace = checkString({ minLength: 10, maxLength: 5 });
+
+			expect(trace).toBeDefined();
+			expect(trace).toHaveProperty("{minLength/maxLength}");
+
+		});
+
+		it("returns undefined for minLength equal to maxLength", async () => {
+
+			expect(checkString({ minLength: 5, maxLength: 5 })).toBeUndefined();
+
+		});
+
+		it("returns trace for hasValue entries not in the in set", async () => {
+
+			const trace = checkString({ hasValue: ["x"], in: ["a", "b"] });
+
+			expect(trace).toBeDefined();
+			expect(trace).toHaveProperty("{hasValue/in}");
+
+		});
+
+		it("returns undefined when hasValue entries are in the in set", async () => {
+
+			expect(checkString({ hasValue: ["a"], in: ["a", "b", "c"] })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only minLength is specified", async () => {
+
+			expect(checkString({ minLength: 5 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only maxLength is specified", async () => {
+
+			expect(checkString({ maxLength: 10 })).toBeUndefined();
 
 		});
 

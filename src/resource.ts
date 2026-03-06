@@ -21,10 +21,6 @@
  * inheritance. Resource shapes define the expected structure of linked data resources using a SHACL-based model with
  * compile-time type inference.
  *
- * > [!WARNING]
- * > Factories rely only on TypeScript's static types for structural integrity and do not check logical consistency:
- * > contradictory constraint combinations and type mismatches in property overrides won't be rejected.
- *
  * > [!IMPORTANT]
  * > Resource shapes are **closed**: validated resources may only contain properties explicitly defined in the shape.
  * > Any additional properties will cause validation to fail.
@@ -156,6 +152,10 @@
  * > both the child's constraints and all inherited constraints. Overrides can restrict inherited constraints but never
  * > relax them.
  *
+ * > [!WARNING]
+ * > Constraints that can be expressed in the type system — such as non-empty set requirements on `in`, `hasValue`,
+ * > `languageIn`, and `validators` — are enforced at compile time and not re-validated at runtime.
+ *
  * **Polymorphic Properties**
  *
  * Use {@link union} for properties accepting multiple value types. Unions are pure type discriminators — cardinality
@@ -201,20 +201,18 @@
  *
  * @module
  *
- * @groupDescription Factories
- * Factory functions for creating resource shapes, property definitions, and value ranges.
  *
  * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  * @see {@link https://www.w3.org/TR/shacl/#ClosedConstraintComponent SHACL § 4.8.1 sh:closed}
  */
 
-import { type Identifier, isString, type Lazy, type Some } from "@metreeca/core";
+import { type Identifier, isString, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
 import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
 import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
 import { materialize } from "./index.core.js";
 import type { Infer, ValueShape } from "./index.js";
-import { walk } from "./resource.core.js";
+import { checkSingletons, flatten } from "./resource.core.js";
 import type { Validator } from "./trace.js";
 
 
@@ -231,17 +229,34 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
 /**
  * Shape definition for resource references.
  *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, reference-valued
+ * properties are merged according to the following rules. The *child* is the extending shape; the *parent* is the
+ * inherited shape.
+ *
+ * | Field      | Override Rule                                                             |
+ * | ---------- | ------------------------------------------------------------------------ |
+ * | `kind`     | Cannot be overridden                                                     |
+ * | `model`    | Must be strictly equal — mismatch signals incompatible shapes            |
+ * | `backlink` | Cannot be overridden                                                     |
+ * | `shape`    | Cannot be overridden                                                     |
+ *
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
  */
 export interface ReferenceShape {
 
 	/**
 	 * Discriminator identifying this as a reference shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "reference";
 
 	/**
 	 * Prototype value for runtime model assembly.
+	 *
+	 * **Inheritance** — must be strictly equal between parent and child.
 	 *
 	 * @defaultValue `"/"`
 	 */
@@ -254,6 +269,8 @@ export interface ReferenceShape {
 	 * Backlinks are read-only from the source resource perspective: included in responses but rejected in state
 	 * updates. The forward link is owned by the target resource, not by the source resource declaring the backlink.
 	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
 	readonly backlink?: boolean;
@@ -262,6 +279,8 @@ export interface ReferenceShape {
 	 * Target {@link ResourceShape resource shape} for the referenced resource.
 	 *
 	 * Accepts a lazy value to support circular and self-referential definitions.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly shape: Lazy<ResourceShape>;
 
@@ -279,6 +298,35 @@ export interface ReferenceShape {
  * > Resource shapes are **closed**: validated resources may only contain properties explicitly defined in the shape.
  * > Any additional properties will cause validation to fail.
  *
+ * **Inheritance**
+ *
+ * When a resource shape extends a parent via {@link ResourceConstraints.extends | extends}, fields are merged
+ * according to the following rules. The *child* is the extending shape; the *parent* is the inherited shape.
+ *
+ * | Field        | Override Rule                                                                          |
+ * | ------------ | ------------------------------------------------------------------------------------- |
+ * | `kind`       | Cannot be overridden                                                                  |
+ * | `model`      | Computed from properties, not user-defined                                            |
+ * | `virtual`    | Inherited; conflicting parents without child override are reported as an error          |
+ * | `name`       | Cannot be overridden                                                                  |
+ * | `description`| Cannot be overridden                                                                  |
+ * | `namespace`  | Inherited; conflicting parents without child override are reported as an error          |
+ * | `extends`    | Structural; outside inheritance scope                                                  |
+ * | `class`      | Shape-specific target class; outside inheritance scope                                 |
+ * | `classes`    | Union of parent `class` and child/parent `classes`                                       |
+ * | `pattern`    | Child may replace trailing `/*` wildcard with more specific segments                    |
+ * | `in`         | Intersection of parent and child sets; empty result is reported as an error       |
+ * | `hasValue`   | Union of parent and child required values; child must require all parent values  |
+ * | `validators` | Union of parent and child validators; all apply                                        |
+ * | `properties` | Union; clashing keys merged per property rules; `kind` mismatch is reported as an error|
+ *
+ * **Cross-Field Validation**
+ *
+ * - all merged `hasValue` entries must be members of the merged `in` set (if defined)
+ * - `forward` predicate IRIs must be unique across all properties
+ * - `reverse` predicate IRIs must be unique across all properties
+ * - `forward` and `reverse` are independent sets: the same IRI may appear in both
+ *
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
  * @see {@link https://www.w3.org/TR/shacl/#ClosedConstraintComponent SHACL § 4.8.1 sh:closed}
  */
@@ -286,14 +334,18 @@ export interface ResourceShape extends ResourceConstraints {
 
 	/**
 	 * Discriminator identifying this as a resource shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "resource";
 
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
-	 * Provides a deeply immutable model of the expected TypeScript type for resources matching this shape. When a shape
+	 * Provides an immutable model of the expected TypeScript type for resources matching this shape. When a shape
 	 * extends parent shapes, inherited properties are merged into the model; local definitions override inherited ones.
+	 *
+	 * **Inheritance** — computed from properties, not user-defined.
 	 */
 	readonly model: Resource;
 
@@ -301,18 +353,24 @@ export interface ResourceShape extends ResourceConstraints {
 	/**
 	 * Custom resource validators.
 	 *
+	 * When specified, all validators are applied during validation. Must be non-empty.
+	 *
+	 * **Inheritance** — parent and child validators are merged; all apply.
+	 *
 	 * @remarks
 	 *
 	 * SHACL defines custom constraints via SPARQL; this library uses programmatic validators.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#constraint-components-overview SHACL § 3 Constraint Components}
 	 */
-	readonly validators?: readonly Validator<Resource>[];
+	readonly validators?: readonly [Validator<Resource>, ...Validator<Resource>[]];
 
 	/**
 	 * Property shapes defining the expected structure.
 	 *
 	 * At most one {@link Id} and one {@link Type} entry are allowed.
+	 *
+	 * **Inheritance** — parent and child properties are merged; clashing keys are merged per property rules.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
 	 */
@@ -332,6 +390,8 @@ export interface ResourceConstraints {
 	 *
 	 * When `true`, indicates the resource is at least partially computed rather than stored.
 	 *
+	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
+	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
 	readonly virtual?: boolean;
@@ -339,6 +399,8 @@ export interface ResourceConstraints {
 
 	/**
 	 * Human-readable name for the shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 *
 	 * @remarks
 	 *
@@ -351,6 +413,8 @@ export interface ResourceConstraints {
 	/**
 	 * Human-readable description of the shape.
 	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
 	 * @remarks
 	 *
 	 * SHACL defines sh:description only for property shapes; extended here to node shapes.
@@ -359,28 +423,17 @@ export interface ResourceConstraints {
 	 */
 	readonly description?: Local;
 
+
 	/**
 	 * Default namespace for converting property names to IRIs.
 	 *
 	 * Property names without explicit IRI mappings are resolved relative to this namespace.
 	 *
+	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
+	 *
 	 * @defaultValue {@link defaultNamespace}
 	 */
 	readonly namespace?: Namespace;
-
-
-	/**
-	 * Class constraint for resource instances.
-	 *
-	 * The absolute IRI identifying the class that resource instances must belong to. If defined, this value is exposed
-	 * through the property mapped to `@type` using {@link type}.
-	 *
-	 * > [!NOTE]
-	 * > Restricted to a single optional class, unlike SHACL which allows multiple sh:class values.
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#ClassConstraintComponent SHACL § 4.2.1 sh:class}
-	 */
-	readonly class?: IRI;
 
 	/**
 	 * Parent shape(s) this shape inherits from.
@@ -392,18 +445,48 @@ export interface ResourceConstraints {
 	 * > [!WARNING]
 	 * > When inheriting from multiple shapes with different {@link namespace} values, an overriding namespace must be
 	 * > declared in this shape.
+	 *
+	 * **Inheritance** — structural; outside inheritance scope.
 	 */
-	readonly extends?: Some<Lazy<ResourceShape>>;
+	readonly extends?: Lazy<ResourceShape> | readonly [Lazy<ResourceShape>, ...Lazy<ResourceShape>[]];
+
+
+	/**
+	 * Target class for resource instances.
+	 *
+	 * The absolute IRI identifying the primary class that resource instances must belong to. Shape-specific and not
+	 * inherited. If defined, this value is exposed through the property mapped to `@type` using {@link type}.
+	 *
+	 * **Inheritance** — shape-specific target class; outside inheritance scope.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#targetClass SHACL § 2.1.1 sh:targetClass}
+	 */
+	readonly class?: IRI;
+
+	/**
+	 * Ancillary class constraints for resource instances.
+	 *
+	 * Additional class IRIs that resource instances must conform to. Must be non-empty.
+	 *
+	 * **Inheritance** — union of parent `class` and child/parent `classes`.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#ClassConstraintComponent SHACL § 4.2.1 sh:class}
+	 */
+	readonly classes?: readonly [IRI, ...IRI[]];
 
 
 	/**
 	 * IRI path pattern that resource {@link Id identifiers} must match.
 	 *
-	 * @defaultValue `undefined` (no pattern constraint)
-	 *
 	 * Patterns are IRI-like templates using `{name}` placeholders for single path segments and `/*` for trailing
 	 * wildcards. Patterns may be absolute or root-relative; root-relative patterns match absolute IRIs, ignoring the
 	 * origin.
+	 *
+	 * **Inheritance** — only the trailing `/*` wildcard admits narrowing: a child may replace `/*` with more specific
+	 * segments (for example, `/products/*` to `/products/{id}/reviews/{rid}`), provided the fixed prefix matches.
+	 * All other cases require exact equality; a mismatch is reported as an error.
+	 *
+	 * @defaultValue `undefined` (no pattern constraint)
 	 *
 	 * @example
 	 * ```
@@ -416,28 +499,31 @@ export interface ResourceConstraints {
 	 */
 	readonly pattern?: string;
 
-
 	/**
 	 * Allowed resource {@link Id identifiers} (closed enumeration).
 	 *
-	 * When specified, resource identifiers must be members of this list. IRIs must be absolute.
+	 * When specified, resource identifiers must be members of this list. IRIs must be absolute. Must be non-empty.
+	 *
+	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.5.1 sh:in}
 	 */
-	readonly in?: readonly IRI[];
+	readonly in?: readonly [IRI, ...IRI[]];
 
 	/**
 	 * Required resource {@link Id identifiers} that must be present.
 	 *
-	 * When specified, all listed resource identifiers must appear. IRIs must be absolute.
+	 * When specified, all listed resource identifiers must appear. IRIs must be absolute. Must be non-empty.
+	 *
+	 * **Inheritance** — union of parent and child required values; child must require all parent values.
 	 *
 	 * @defaultValue `undefined` (no required values)
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.5.2 sh:hasValue}
 	 */
-	readonly hasValue?: readonly IRI[];
+	readonly hasValue?: readonly [IRI, ...IRI[]];
 
 }
 
@@ -448,17 +534,33 @@ export interface ResourceConstraints {
  * Tags a resource property as mapping to JSON-LD `@id`. Created by the {@link id} factory. At most one per
  * resource shape.
  *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, identifier
+ * properties are subject to the following rules.
+ *
+ * | Field    | Override Rule                                                        |
+ * | -------- | ------------------------------------------------------------------- |
+ * | `kind`   | Cannot be overridden                                                |
+ * | `hidden` | At most one per inheritance hierarchy; conflicts cannot arise       |
+ *
+ * At most one `id` entry is allowed per inheritance hierarchy.
+ *
  * @see {@link https://www.w3.org/TR/json-ld11/#node-identifiers JSON-LD 1.1 § 3.3 Node Identifiers}
  */
 export interface Id {
 
 	/**
 	 * Discriminator identifying this as a resource identifier property.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "id";
 
 	/**
 	 * Excludes the property from default serialization.
+	 *
+	 * **Inheritance** — inherited from the single entry in the hierarchy.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -472,17 +574,37 @@ export interface Id {
  * Tags a resource property as mapping to JSON-LD `@type`. Created by the {@link type} factory. At most one per
  * resource shape.
  *
+ * > [!WARNING]
+ * > This property is system-managed: its value is derived from the {@link ResourceConstraints.class | class}
+ * > constraint defined in the shape. Client-supplied values, for in state updates, are silently ignored.
+ *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, type
+ * properties are subject to the following rules.
+ *
+ * | Field    | Override Rule                                                        |
+ * | -------- | ------------------------------------------------------------------- |
+ * | `kind`   | Cannot be overridden                                                |
+ * | `hidden` | At most one per inheritance hierarchy; conflicts cannot arise       |
+ *
+ * At most one `type` entry is allowed per inheritance hierarchy.
+ *
  * @see {@link https://www.w3.org/TR/json-ld11/#specifying-the-type JSON-LD 1.1 § 3.5 Specifying the Type}
  */
 export interface Type {
 
 	/**
 	 * Discriminator identifying this as a resource type property.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "type";
 
 	/**
 	 * Excludes the property from default serialization.
+	 *
+	 * **Inheritance** — inherited from the single entry in the hierarchy.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -493,18 +615,38 @@ export interface Type {
 /**
  * Shape definition for a resource property.
  *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, properties
+ * with matching keys are merged according to the following rules.
+ *
+ * | Field         | Override Rule                                                                          |
+ * | ------------- | ------------------------------------------------------------------------------------- |
+ * | `kind`        | Cannot be overridden                                                                  |
+ * | `range`       | Delegated to {@link Range} merge rules                                                |
+ * | `hidden`      | Inherited; conflicting parents without child override are reported as an error         |
+ * | `computed`    | Inherited; conflicting parents without child override are reported as an error         |
+ * | `name`        | Cannot be overridden                                                                  |
+ * | `description` | Cannot be overridden                                                                  |
+ * | `forward`     | Cannot be overridden                                                                  |
+ * | `reverse`     | Cannot be overridden                                                                  |
+ *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
  */
 export interface Property<R extends Range = Range> extends PropertyConstraints {
 
 	/**
 	 * Discriminator identifying this as a property shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "property";
 
 
 	/**
 	 * Value range for this property.
+	 *
+	 * **Inheritance** — delegated to {@link Range} merge rules.
 	 */
 	readonly range: R;
 
@@ -527,6 +669,8 @@ export interface PropertyConstraints {
 	/**
 	 * Excludes the property from default serialization.
 	 *
+	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
+	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
 	readonly hidden?: boolean;
@@ -538,6 +682,8 @@ export interface PropertyConstraints {
 	 * > Computed properties are populated by the system and may be silently overwritten on mutation operations.
 	 * > Client-supplied values must still be present in mutation payloads but carry no guarantees of being preserved.
 	 *
+	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
+	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
 	readonly computed?: boolean;
@@ -545,6 +691,8 @@ export interface PropertyConstraints {
 
 	/**
 	 * Human-readable name for the property.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 *
 	 * @defaultValue `undefined` (no label)
 	 *
@@ -554,6 +702,8 @@ export interface PropertyConstraints {
 
 	/**
 	 * Human-readable description of the property.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 *
 	 * @defaultValue `undefined` (no description)
 	 *
@@ -568,6 +718,8 @@ export interface PropertyConstraints {
 	 * Accepts either an absolute IRI string or a {@link Namespace} function that resolves the property name to an
 	 * absolute IRI (for instance, `{ forward: schema }` on property `name` yields `http://schema.org/name`).
 	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
 	 * @see {@link https://www.w3.org/TR/json-ld11/#iris JSON-LD 1.1 § 3.2 IRIs}
 	 */
 	readonly forward?: IRI | Namespace;
@@ -577,6 +729,8 @@ export interface PropertyConstraints {
 	 *
 	 * Accepts either an absolute IRI string or a {@link Namespace} function that resolves the property name to an
 	 * absolute IRI (for instance, `{ reverse: schema }` on property `employee` yields `http://schema.org/employee`).
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 *
 	 * @defaultValue `undefined` (no inverse mapping)
 	 *
@@ -593,6 +747,22 @@ export interface PropertyConstraints {
  * Combines a value shape with cardinality constraints to define how many values of a given type
  * a property may have.
  *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, each
+ * property's range is merged according to the following rules.
+ *
+ * | Field      | Override Rule                                                                |
+ * | ---------- | --------------------------------------------------------------------------- |
+ * | `kind`     | Cannot be overridden                                                        |
+ * | `minCount` | Child ≥ parent, narrowing the minimum cardinality                           |
+ * | `maxCount` | Child ≤ parent, narrowing the maximum cardinality                           |
+ * | `shape`    | `kind` must match; delegated to value shape or {@link Union} merge rules    |
+ *
+ * **Cross-Field Validation**
+ *
+ * - merged `minCount` must be ≤ merged `maxCount`
+ *
  * @typeParam T The type for all values in the linked set
  * @typeParam L The minimum count constraint type
  * @typeParam U The maximum count constraint type
@@ -607,12 +777,16 @@ export interface Range<
 
 	/**
 	 * Discriminator identifying this as a range.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "range";
 
 
 	/**
 	 * Minimum number of values in the linked set.
+	 *
+	 * **Inheritance** — child value must be ≥ parent value, narrowing the minimum cardinality.
 	 *
 	 * @defaultValue `undefined` (no minimum constraint, equivalent to 0)
 	 *
@@ -623,6 +797,8 @@ export interface Range<
 	/**
 	 * Maximum number of values in the linked set.
 	 *
+	 * **Inheritance** — child value must be ≤ parent value, narrowing the maximum cardinality.
+	 *
 	 * @defaultValue `undefined` (no maximum constraint)
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.1.2 sh:maxCount}
@@ -632,6 +808,8 @@ export interface Range<
 
 	/**
 	 * Shape for all values in the linked set, or a union of value shapes for polymorphic values.
+	 *
+	 * **Inheritance** — `kind` must match; delegated to value shape or {@link Union} merge rules.
 	 */
 	readonly shape: (ValueShape | Union) & { readonly model: T };
 
@@ -651,6 +829,20 @@ export interface Range<
  * > Indexed containers are designed exactly to provide JSON structure without affecting JSON-LD graph semantics,
  * > making unions unambiguous and manageable while preserving interoperability with linked data systems.
  *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, union-typed
+ * properties are merged according to the following rules.
+ *
+ * | Field      | Override Rule                                                                   |
+ * | ---------- | ------------------------------------------------------------------------------ |
+ * | `kind`     | Cannot be overridden                                                           |
+ * | `model`    | Computed from variants, not user-defined                                       |
+ * | `variants` | Variant keys must match parent's; each variant delegated to value shape merge  |
+ *
+ * Adding or removing variant keys changes the discriminated union structure and is always rejected. Within each
+ * matched variant, the corresponding value shape merge rules apply.
+ *
  * @typeParam V The variants record type mapping names to value shapes
  *
  * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.2 sh:or}
@@ -662,6 +854,8 @@ export interface Union<
 
 	/**
 	 * Discriminator identifying this as a union.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "union";
 
@@ -670,6 +864,8 @@ export interface Union<
 	 *
 	 * An indexed record mapping variant keys to their model types. Each variant key is individually optional since
 	 * union values provide one variant at a time.
+	 *
+	 * **Inheritance** — computed from variants, not user-defined.
 	 */
 	readonly model: { readonly [K in keyof DeclaredProperties<V>]?: V[K] extends ValueShape ? V[K]["model"] : never };
 
@@ -678,6 +874,8 @@ export interface Union<
 	 * Named value shape variants.
 	 *
 	 * Each key serves as a type discriminator for polymorphic property values.
+	 *
+	 * **Inheritance** — variant keys must match parent's; each variant delegated to value shape merge rules.
 	 */
 	readonly variants: V;
 
@@ -723,7 +921,11 @@ export type Overrides<E extends Entries, I> = {
  * Extracts inherited model types from {@link ResourceConstraints.extends}.
  */
 export type Inheritance<C> =
-	C extends { readonly extends: infer E extends Some<Lazy<ResourceShape>> }
+	C extends {
+			readonly extends: infer E extends
+				| Lazy<ResourceShape>
+				| readonly [Lazy<ResourceShape>, ...Lazy<ResourceShape>[]]
+		}
 		? DeclaredProperties<Intersection<
 			E extends readonly (infer S extends Lazy<ValueShape>)[] ? Infer<S>
 				: E extends Lazy<ValueShape> ? Infer<E>
@@ -808,12 +1010,11 @@ export type Cardinality<V, L extends undefined | number, U extends undefined | n
  * > The target shape must include an {@link Id} property. This constraint is checked at runtime but not at compile
  * > time due to limitations with recursive type inference.
  *
- * @group Factories
  *
  * @param shape The target resource shape, either directly or as a lazy function to support circular and
  *     self-referential definitions
  *
- * @returns A shape for validating resource references
+ * @returns An immutable shape for validating resource references
  *
  * @throws {TypeError} If `shape` is not a valid {@link ResourceShape}
  */
@@ -836,12 +1037,11 @@ export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
  * Backlinks are reverse links managed by the target resource. They are read-only from the source resource perspective:
  * included in responses but rejected in state updates.
  *
- * @group Factories
  *
  * @param shape The target resource shape, either directly or as a lazy function to support circular and
  *     self-referential definitions
  *
- * @returns A backlink reference shape with `backlink` set to `true`
+ * @returns An immutable backlink reference shape with `backlink` set to `true`
  *
  * @throws {TypeError} If `shape` is not a valid {@link ResourceShape}
  *
@@ -866,19 +1066,19 @@ export function backlink(shape: Lazy<ResourceShape>): ReferenceShape {
  * Creates a resource shape from property definitions.
  *
  * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link Range} values for concise
- * syntax, and {@link Id}/{@link Type} markers:
+ * syntax, and {@link Id}/{@link Type} markers.
  *
- * - `name: required(string())` is equivalent to `name: property(required(string()))`
+ * > [!TIP]
+ * > `name: required(string())` is equivalent to `name: property(required(string()))`
  *
- * @group Factories
  *
  * @typeParam E The entries record type
  *
- * @param entries The property definitions
+ * @param entries The property definitions mapping property names to entries
  *
- * @returns A shape for validating resources with the specified properties
+ * @returns An immutable resource shape with the specified properties
  *
- * @throws {TypeError} If entries contain more than one {@link Id} or more than one {@link Type} definition
+ * @throws {TypeError} If entry definitions are invalid (e.g., duplicate id/type markers)
  *
  * @example
  *
@@ -896,17 +1096,18 @@ export function resource<E extends Entries>(
 /**
  * Creates a resource shape with constraints.
  *
- * When `constraints` includes `extends`, the returned shape type includes inherited properties from the parent
- * shape(s). Otherwise, the shape type includes only the own properties.
- *
  * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link Range} values for concise
  * syntax, and {@link Id}/{@link Type} markers.
  *
- * > [!WARNING]
- * > When inheriting from multiple shapes, namespaces are inconsistent if some parents define a namespace while others
- * > don't, or if parents define different namespace IRIs. In such cases, an overriding `namespace` must be declared.
+ * > [!TIP]
+ * > When `constraints` includes `extends`, parent shapes are recursively flattened and merged into the returned shape.
+ * > Consumers can work with the result directly without traversing the inheritance chain. The `extends` field is
+ * > retained for reference, but all inherited constraints are already resolved.
  *
- * @group Factories
+ * > [!NOTE]
+ * > This function is idempotent: the returned shape is branded and won't be re-flattened if passed to the factory
+ * > again or used as a parent in another shape.
+ *
  *
  * @typeParam C The constraints type (used to infer inheritance)
  * @typeParam E The entries record type
@@ -914,11 +1115,10 @@ export function resource<E extends Entries>(
  * @param constraints Shape constraints including namespace, name, validators, and optionally `extends`
  * @param entries The property definitions
  *
- * @returns A shape for validating resources, including inherited properties if `extends` is specified
+ * @returns An immutable resource shape with all inherited constraints resolved
  *
- * @throws {TypeError} If entries contain more than one {@link Id} or more than one {@link Type} definition
- * @throws {TypeError} If `namespace` is not a function
- * @throws {TypeError} If multiple parents have inconsistent namespaces and no overriding `namespace` is declared
+ * @throws {TypeError} If entry definitions are invalid (e.g., duplicate id/type markers, non-function namespace)
+ * @throws {RangeError} If inherited constraints are incompatible with overrides
  *
  * @example
  *
@@ -936,16 +1136,16 @@ export function resource<E extends Entries>(
  */
 export function resource<
 	const C extends ResourceConstraints,
-	E extends Entries
+	E extends Entries,
+	M extends Composition<E> & Inheritance<C> = Composition<E> & Inheritance<C>
 >(
-	constraints: C & { readonly validators?: readonly Validator<Composition<E> & Inheritance<C>>[] },
+	constraints: C & { readonly validators?: readonly [Validator<M>, ...Validator<M>[]] },
 	entries: E & Overrides<E, Inheritance<C>>
-): ResourceShape & { readonly model: Composition<E> & Inheritance<C> };
+): ResourceShape & { readonly model: M };
 
 /**
  * Creates resource shapes.
  *
- * @group Factories
  */
 export function resource(
 	a: Entries | ResourceConstraints,
@@ -958,7 +1158,7 @@ export function resource(
 		const namespace = identify({});
 		const resolved = resolve(normalize(properties), namespace);
 
-		return immutable({
+		return flatten({
 
 			kind: "resource",
 			model: build(resolved),
@@ -975,7 +1175,7 @@ export function resource(
 		const namespace = identify(constraints);
 		const resolved = resolve(normalize(properties, constraints.extends), namespace);
 
-		return immutable({
+		return flatten({
 
 			kind: "resource",
 			model: build(resolved, constraints),
@@ -995,8 +1195,6 @@ export function resource(
 	 * @param constraints The resource constraints containing namespace and extends
 	 *
 	 * @returns The effective namespace, resolved in order: declared → inherited → app
-	 *
-	 * @throws {TypeError} If multiple parents have inconsistent namespaces
 	 */
 	function identify({ namespace, extends: parents }: ResourceConstraints): Namespace {
 
@@ -1006,12 +1204,11 @@ export function resource(
 
 		} else if ( parents !== undefined ) {
 
-			const namespaces = (Array.isArray(parents) ? parents : [parents])
-				.map((parent: Lazy<ResourceShape>) => materialize(parent).namespace);
+			const namespaces = (Array.isArray(parents) ? parents : [parents]).map(parent =>
+				materialize(parent).namespace
+			);
 
-			if ( new Set(namespaces.map(ns => ns?.())).size > 1 ) {
-				throw new TypeError("inconsistent namespaces in parent shapes: must define a default namespace");
-			}
+			// conflicts validated later by flatten() using flattened parent namespaces
 
 			return namespaces[0] ?? defaultNamespace;
 
@@ -1032,25 +1229,20 @@ export function resource(
 	 *
 	 * @returns Normalized properties with range wrapped
 	 */
-	function normalize(entries: Entries, parents?: Some<Lazy<ResourceShape>>): ResourceShape["properties"] {
+	function normalize(entries: Entries, parents?: ResourceConstraints["extends"]): ResourceShape["properties"] {
 
 		const values = Object.values(entries);
 
-		const properties = [
+		const inherited = parents === undefined ? []
+			: (Array.isArray(parents) ? parents : [parents])
+				.flatMap(parent => Object.values(flatten(materialize(parent)).properties));
 
-			...(parents === undefined ? [] : (Array.isArray(parents) ? parents : [parents])
-				.flatMap(parent => walk(materialize(parent)))).flatMap(s => Object.values(s.properties)),
+		const properties = [...inherited, ...values];
 
-			...values
+		const trace = checkSingletons(properties);
 
-		];
-
-		if ( properties.filter(v => v.kind === "id").length > 1 ) {
-			throw new TypeError("at most one id entry is allowed per resource shape");
-		}
-
-		if ( properties.filter(v => v.kind === "type").length > 1 ) {
-			throw new TypeError("at most one type entry is allowed per resource shape");
+		if ( trace !== undefined ) {
+			throw Object.assign(new TypeError("duplicate singleton entries"), { trace });
 		}
 
 		return Object.fromEntries(Object.entries(entries).map(([name, entry]) => {
@@ -1126,7 +1318,7 @@ export function resource(
 	function build(properties: ResourceShape["properties"], { extends: parents }: ResourceConstraints = {}): Resource {
 
 		const inherited = parents === undefined ? {} : (Array.isArray(parents) ? parents : [parents])
-			.map((parent: Lazy<ResourceShape>) => materialize(parent).model)
+			.map(parent => materialize(parent).model)
 			.reduce((inherited, model) => ({ ...model, ...inherited }), {});
 
 		return immutable({
@@ -1166,12 +1358,11 @@ export function resource(
  *
  * Maps to JSON-LD `@id` and provides a required single absolute IRI property.
  *
- * @group Factories
  *
  * @param constraints The identifier property constraints
  * @param constraints.hidden Excludes the property from default serialisation
  *
- * @returns A required single IRI (1..1) property shape for the resource identifier
+ * @returns An immutable required single IRI (1..1) property shape for the resource identifier
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#node-identifiers JSON-LD 1.1 § 3.3 Node Identifiers}
  */
@@ -1181,7 +1372,13 @@ export function id(constraints: {
 
 } = {}): Id {
 
-	return { kind: "id", hidden: constraints.hidden };
+	return immutable({
+
+		kind: "id",
+
+		hidden: constraints.hidden
+
+	});
 
 }
 
@@ -1190,12 +1387,11 @@ export function id(constraints: {
  *
  * Maps to JSON-LD `@type` and provides an optional single absolute IRI property.
  *
- * @group Factories
  *
  * @param constraints The type property constraints
  * @param constraints.hidden Excludes the property from default serialisation
  *
- * @returns An optional single IRI (0..1) property shape for the resource type
+ * @returns An immutable optional single IRI (0..1) property shape for the resource type
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#specifying-the-type JSON-LD 1.1 § 3.5 Specifying the Type}
  */
@@ -1205,7 +1401,13 @@ export function type(constraints: {
 
 } = {}): Type {
 
-	return { kind: "type", hidden: constraints.hidden };
+	return immutable({
+
+		kind: "type",
+
+		hidden: constraints.hidden
+
+	});
 
 }
 
@@ -1213,13 +1415,12 @@ export function type(constraints: {
 /**
  * Creates a property shape from a value range.
  *
- * @group Factories
  *
  * @typeParam V The range type
  *
  * @param range The value range for this property
  *
- * @returns A {@link Property} with the specified range
+ * @returns An immutable {@link Property} with the specified range
  */
 export function property<V extends Range>(
 	range: V
@@ -1233,14 +1434,13 @@ export function property<V extends Range>(
  * The `forward` and `reverse` fields accept plain strings for convenience; they are converted to {@link IRI} values
  * internally.
  *
- * @group Factories
  *
  * @typeParam V The range type
  *
  * @param constraints Property constraints including IRI mappings and labels
  * @param range The value range for this property
  *
- * @returns A {@link Property} with the specified range
+ * @returns An immutable {@link Property} with the specified range
  */
 export function property<V extends Range>(
 	constraints: PropertyConstraints,
@@ -1250,7 +1450,6 @@ export function property<V extends Range>(
 /**
  * Creates property shapes.
  *
- * @group Factories
  */
 export function property(a: Range | PropertyConstraints, b?: Range): Property {
 
@@ -1277,13 +1476,12 @@ export function property(a: Range | PropertyConstraints, b?: Range): Property {
  * Unions are pure type discriminators — cardinality constraints are applied by wrapping the union in a
  * {@link Range} via cardinality helpers like {@link required}, {@link optional}, etc.
  *
- * @group Factories
  *
  * @typeParam V The variants record type
  *
  * @param variants Record mapping variant names to value shapes
  *
- * @returns A union with the specified variants
+ * @returns An immutable union with the specified variants
  *
  * @example
  *
@@ -1326,13 +1524,12 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
  *
  * Allows zero or more values, resulting in an optional array type (`undefined | readonly V[]`).
  *
- * @group Factories
  *
  * @typeParam S The value shape or union type
  *
  * @param shape The value shape or union for the linked set
  *
- * @returns A range with no minimum or maximum count
+ * @returns An immutable range with no minimum or maximum count
  */
 export function multiple<S extends ValueShape | Union>(shape: Lazy<S>): Range<S["model"], undefined, undefined> {
 
@@ -1345,13 +1542,12 @@ export function multiple<S extends ValueShape | Union>(shape: Lazy<S>): Range<S[
  *
  * Requires one or more values, resulting in a non-empty array type (`readonly [V, ...V[]]`).
  *
- * @group Factories
  *
  * @typeParam S The value shape or union type
  *
  * @param shape The value shape or union for the linked set
  *
- * @returns A range with minCount=1 and no maximum count
+ * @returns An immutable range with minCount=1 and no maximum count
  */
 export function repeatable<S extends ValueShape | Union>(shape: Lazy<S>): Range<S["model"], 1, undefined> {
 
@@ -1364,13 +1560,12 @@ export function repeatable<S extends ValueShape | Union>(shape: Lazy<S>): Range<
  *
  * Allows zero or one value, resulting in an optional scalar type (`undefined | V`).
  *
- * @group Factories
  *
  * @typeParam S The value shape or union type
  *
  * @param shape The value shape or union for the linked set
  *
- * @returns A range with no minimum count and maxCount=1
+ * @returns An immutable range with no minimum count and maxCount=1
  */
 export function optional<S extends ValueShape | Union>(shape: Lazy<S>): Range<S["model"], undefined, 1> {
 
@@ -1383,13 +1578,12 @@ export function optional<S extends ValueShape | Union>(shape: Lazy<S>): Range<S[
  *
  * Requires exactly one value, resulting in a required scalar type (`V`).
  *
- * @group Factories
  *
  * @typeParam S The value shape or union type
  *
  * @param shape The value shape or union for the linked set
  *
- * @returns A range with minCount=1 and maxCount=1
+ * @returns An immutable range with minCount=1 and maxCount=1
  */
 export function required<S extends ValueShape | Union>(shape: Lazy<S>): Range<S["model"], 1, 1> {
 
@@ -1402,7 +1596,6 @@ export function required<S extends ValueShape | Union>(shape: Lazy<S>): Range<S[
  *
  * Returns a factory function that creates ranges with the specified minimum and maximum counts.
  *
- * @group Factories
  *
  * @typeParam L The minimum count constraint type
  * @typeParam U The maximum count constraint type
@@ -1410,7 +1603,7 @@ export function required<S extends ValueShape | Union>(shape: Lazy<S>): Range<S[
  * @param lower Minimum number of values in the linked set
  * @param upper Maximum number of values in the linked set
  *
- * @returns A factory function that creates ranges with the specified cardinality
+ * @returns A factory function that creates immutable ranges with the specified cardinality
  *
  * @example
  *

@@ -21,9 +21,8 @@
  * [JSON string](https://datatracker.ietf.org/doc/html/rfc8259#section-7) type to
  * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) string datatypes.
  *
- * > [!WARNING]
- * > Factories check structural integrity of constraints but not their logical consistency:
- * > contradictory constraints like `minLength > maxLength` won't be rejected.
+ * > Factories validate constraint consistency at construction time:
+ * > contradictory constraints like `minLength > maxLength` throw a {@link !RangeError}.
  *
  * | XSD Datatype ¹    | Factory             | Description                    | Format                        |
  * | ----------------- | ------------------- | ------------------------------ | ----------------------------- |
@@ -119,13 +118,35 @@
 
 import { isRegExp, isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
+import { checkString } from "./string.core.js";
 
 
 /**
  * Shape definition for textual values.
  *
- * Validates textual values with length constraints, lexical validation, language tag constraints,
- * and value constraints for strings. Supports XSD 1.0 string datatypes and temporal formats.
+ * Validates textual values with length constraints, lexical validation, and value constraints
+ * for strings. Supports XSD 1.0 string datatypes and temporal formats.
+ *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, string-valued
+ * properties are merged according to the following rules. The *child* is the extending shape; the *parent* is the
+ * inherited shape.
+ *
+ * | Field       | Override Rule                                                                     |
+ * | ----------- | --------------------------------------------------------------------------------- |
+ * | `kind`      | Cannot be overridden                                                              |
+ * | `model`     | Must be strictly equal — mismatch signals incompatible datatypes                  |
+ * | `pattern`   | Parent and child patterns are combined so that both apply                          |
+ * | `minLength` | Child ≥ parent, narrowing the minimum length                                           |
+ * | `maxLength` | Child ≤ parent, narrowing the maximum length                                           |
+ * | `in`        | Intersection of parent and child sets; empty result is reported as an error                  |
+ * | `hasValue`  | Union of parent and child required values; child must require all parent values       |
+ *
+ * **Cross-Field Validation**
+ *
+ * - merged `minLength` must be ≤ merged `maxLength`
+ * - all merged `hasValue` entries must be members of the merged `in` set (if defined)
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#string XSD 1.0 Part 2: Datatypes § 3.2.1 string}
  */
@@ -133,11 +154,16 @@ export interface StringShape extends StringConstraints {
 
 	/**
 	 * Discriminator identifying this as a textual shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "string";
 
 	/**
 	 * Prototype value for runtime model assembly.
+	 *
+	 * **Inheritance** — must be strictly equal between parent and child; a mismatch signals
+	 * incompatible datatypes (for example, `date` vs `email`).
 	 *
 	 * @defaultValue `""` (empty string)
 	 */
@@ -148,6 +174,8 @@ export interface StringShape extends StringConstraints {
 	 *
 	 * The pattern is tested against the entire value. Use anchors (`^` and `$`) to match
 	 * the complete string rather than partial matches.
+	 *
+	 * **Inheritance** — parent and child patterns are combined so that both apply.
 	 *
 	 * @defaultValue `undefined` (no pattern constraint)
 	 *
@@ -176,6 +204,8 @@ export interface StringConstraints extends TextualConstraints {
 	/**
 	 * Minimum string length in characters.
 	 *
+	 * **Inheritance** — child value must be ≥ parent value, narrowing the lower bound.
+	 *
 	 * @defaultValue `undefined` (no minimum length)
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#MinLengthConstraintComponent SHACL § 4.3.1 sh:minLength}
@@ -184,6 +214,8 @@ export interface StringConstraints extends TextualConstraints {
 
 	/**
 	 * Maximum string length in characters.
+	 *
+	 * **Inheritance** — child value must be ≤ parent value, narrowing the upper bound.
 	 *
 	 * @defaultValue `undefined` (no maximum length)
 	 *
@@ -197,6 +229,8 @@ export interface StringConstraints extends TextualConstraints {
 	 *
 	 * The pattern is tested against the entire value. Use anchors (`^` and `$`) to match
 	 * the complete string rather than partial matches.
+	 *
+	 * **Inheritance** — parent and child patterns are combined so that both apply.
 	 *
 	 * @defaultValue `undefined` (no pattern constraint)
 	 *
@@ -216,24 +250,28 @@ export interface TextualConstraints {
 	/**
 	 * Allowed values (closed enumeration).
 	 *
-	 * When specified, values must be members of this list.
+	 * When specified, values must be members of this list. Must be non-empty.
+	 *
+	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.5.1 sh:in}
 	 */
-	readonly in?: readonly string[];
+	readonly in?: readonly [string, ...string[]];
 
 	/**
 	 * Required values that must be present.
 	 *
-	 * When specified, all listed values must appear in the resource.
+	 * When specified, all listed values must appear in the resource. Must be non-empty.
+	 *
+	 * **Inheritance** — union of parent and child required values; child must require all parent values.
 	 *
 	 * @defaultValue `undefined` (no required values)
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.5.2 sh:hasValue}
 	 */
-	readonly hasValue?: readonly string[];
+	readonly hasValue?: readonly [string, ...string[]];
 
 }
 
@@ -243,13 +281,12 @@ export interface TextualConstraints {
 /**
  * Creates a string shape with a typed model value and no other constraints.
  *
- * @group Factories
  *
  * @typeParam M The literal string type for the model
  *
  * @param model Prototype value for runtime model assembly
  *
- * @returns A shape with `model` typed as `M`
+ * @returns An immutable shape with `model` typed as `M`
  *
  * @example
  *
@@ -262,13 +299,12 @@ export function string<M extends string>(model: M): StringShape & { readonly mod
 /**
  * Creates a string shape with optional validation constraints.
  *
- * @group Factories
  *
  * @param constraints Optional shape {@link StringConstraints constraints}
  *
- * @returns A shape with `model` typed as `string`
+ * @returns An immutable shape with `model` typed as `string`
  *
- * @throws {TypeError} If `constraints` is not a valid {@link StringConstraints}
+ * @throws {RangeError} If `constraints` contains contradictory values
  *
  * @example
  *
@@ -283,13 +319,12 @@ export function string(constraints?: StringConstraints): StringShape;
 /**
  * Creates a string shape.
  *
- * @group Factories
  */
 export function string(constraints: string | StringConstraints = {}): StringShape {
 
 	const { model, pattern, ...rest } = isString(constraints) ? { model: constraints } : constraints;
 
-	return immutable({
+	const shape: StringShape = immutable({
 
 		kind: "string",
 		model: model ?? "",
@@ -300,6 +335,14 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 
 	});
 
+	const trace = checkString(shape);
+
+	if ( trace !== undefined ) {
+		throw Object.assign(new RangeError("inconsistent string shape constraints"), { trace });
+	}
+
+	return shape;
+
 }
 
 
@@ -308,11 +351,10 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 /**
  * Creates a shape for email address values.
  *
- * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
- * @returns A shape for validating email addresses
+ * @returns An immutable shape for validating email addresses
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc5321 RFC 5321 - Simple Mail Transfer Protocol}
  */
@@ -327,11 +369,10 @@ export function email(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for absolute URL reference values.
  *
- * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
- * @returns A shape for validating absolute URLs
+ * @returns An immutable shape for validating absolute URLs
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI: Generic Syntax}
  */
@@ -346,11 +387,10 @@ export function url(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for absolute URI reference values.
  *
- * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
- * @returns A shape for validating absolute URIs
+ * @returns An immutable shape for validating absolute URIs
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#anyURI XSD 1.0 Part 2: Datatypes § 3.2.17 anyURI}
  */
@@ -370,11 +410,10 @@ export function uri(constraints: TextualConstraints = {}): StringShape {
  *
  * Supports optional timezone indicators (Z for UTC or ±hh:mm offset).
  *
- * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
- * @returns A shape for validating ISO 8601 year strings
+ * @returns An immutable shape for validating ISO 8601 year strings
  *
  * @remarks
  *
@@ -393,11 +432,10 @@ export function year(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 calendar date values (YYYY-MM-DD).
  *
- * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
- * @returns A shape for validating ISO 8601 date strings
+ * @returns An immutable shape for validating ISO 8601 date strings
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#date XSD 1.0 Part 2: Datatypes § 3.2.9 date}
  */
@@ -412,11 +450,10 @@ export function date(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 time of day values (hh:mm:ss).
  *
- * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
- * @returns A shape for validating ISO 8601 time strings
+ * @returns An immutable shape for validating ISO 8601 time strings
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#time XSD 1.0 Part 2: Datatypes § 3.2.8 time}
  */
@@ -431,11 +468,10 @@ export function time(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 date and time values (YYYY-MM-DDThh:mm:ss).
  *
- * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
- * @returns A shape for validating ISO 8601 datetime strings
+ * @returns An immutable shape for validating ISO 8601 datetime strings
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
@@ -452,11 +488,10 @@ export function instant(constraints: TextualConstraints = {}): StringShape {
  *
  * Requires exactly 3 fractional second digits (millisecond precision) and UTC timezone (Z only).
  *
- * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
- * @returns A shape for validating ISO 8601 timestamp strings
+ * @returns An immutable shape for validating ISO 8601 timestamp strings
  *
  * @remarks
  *
@@ -475,11 +510,10 @@ export function timestamp(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 duration values (PnYnMnDTnHnMnS).
  *
- * @group Factories
  *
  * @param constraints Optional {@link TextualConstraints} validation constraints
  *
- * @returns A shape for validating ISO 8601 duration strings
+ * @returns An immutable shape for validating ISO 8601 duration strings
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#duration XSD 1.0 Part 2: Datatypes § 3.2.6 duration}
  */

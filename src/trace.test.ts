@@ -15,26 +15,26 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { every, group, normalise, trace } from "./trace.core.js";
+import { collect, every, group, normalise } from "./trace.core.js";
 
 
-describe("trace", () => {
+describe("collect", () => {
 
 	it("returns undefined when all entries are undefined", async () => {
 
-		expect(trace({ minLength: undefined, maxLength: undefined })).toBeUndefined();
+		expect(collect({ minLength: undefined, maxLength: undefined })).toBeUndefined();
 
 	});
 
 	it("returns undefined for empty entries", async () => {
 
-		expect(trace({})).toBeUndefined();
+		expect(collect({})).toBeUndefined();
 
 	});
 
 	it("filters out undefined entries", async () => {
 
-		const result = trace({ minLength: "too short", maxLength: undefined });
+		const result = collect({ minLength: "too short", maxLength: undefined });
 
 		expect(result).toEqual({ minLength: "too short" });
 
@@ -42,7 +42,7 @@ describe("trace", () => {
 
 	it("preserves all failed entries", async () => {
 
-		const result = trace({ minLength: "too short", pattern: "no match" });
+		const result = collect({ minLength: "too short", pattern: "no match" });
 
 		expect(result).toEqual({ minLength: "too short", pattern: "no match" });
 
@@ -50,19 +50,19 @@ describe("trace", () => {
 
 	it("filters out empty string entries", async () => {
 
-		expect(trace({ minLength: "" })).toBeUndefined();
+		expect(collect({ minLength: "" })).toBeUndefined();
 
 	});
 
 	it("filters out empty object entries", async () => {
 
-		expect(trace({ minLength: {} })).toBeUndefined();
+		expect(collect({ minLength: {} })).toBeUndefined();
 
 	});
 
 	it("preserves nested trace entries", async () => {
 
-		const result = trace({ name: { minLength: "too short" } });
+		const result = collect({ name: { minLength: "too short" } });
 
 		expect(result).toEqual({ name: { minLength: "too short" } });
 

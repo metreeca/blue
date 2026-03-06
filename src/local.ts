@@ -67,10 +67,29 @@ import { type TagRange } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/nested";
 import { type Locale, type Locales } from "@metreeca/qest/model";
 import { type Local, type Locals } from "@metreeca/qest/state";
+import { checkLocalized } from "./local.core.js";
 
 
 /**
  * Shape definition for single-valued language-tagged maps.
+ *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, single-valued
+ * language-tagged properties are merged according to the following rules. The *child* is the extending shape; the
+ * *parent* is the inherited shape.
+ *
+ * | Field        | Override Rule                                                                   |
+ * | ------------ | ------------------------------------------------------------------------------ |
+ * | `kind`       | Cannot be overridden                                                           |
+ * | `model`      | Must be deeply equal — mismatch signals incompatible shapes                    |
+ * | `minLength`  | Child ≥ parent, narrowing the minimum length                                        |
+ * | `maxLength`  | Child ≤ parent, narrowing the maximum length                                        |
+ * | `languageIn` | Intersection of parent and child sets; empty result is reported as an error               |
+ *
+ * **Cross-Field Validation**
+ *
+ * - merged `minLength` must be ≤ merged `maxLength`
  *
  * @see {@link https://www.w3.org/TR/shacl/#UniqueLangConstraintComponent SHACL § 4.8.1 sh:uniqueLang}
  */
@@ -78,6 +97,8 @@ export interface LocalShape extends LocalizedConstraints {
 
 	/**
 	 * Discriminator identifying this as a single-valued language-tagged shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "local";
 
@@ -85,6 +106,8 @@ export interface LocalShape extends LocalizedConstraints {
 	 * Prototype value for runtime model assembly.
 	 *
 	 * Accepts plain strings as shorthands for language-neutral values, equivalent to `{ und: value }`.
+	 *
+	 * **Inheritance** — must be deeply equal between parent and child.
 	 *
 	 * @defaultValue `{ "*": "" }` (wildcard empty string)
 	 */
@@ -95,12 +118,32 @@ export interface LocalShape extends LocalizedConstraints {
 /**
  * Shape definition for multi-valued language-tagged maps.
  *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, multi-valued
+ * language-tagged properties are merged according to the following rules. The *child* is the extending shape; the
+ * *parent* is the inherited shape.
+ *
+ * | Field        | Override Rule                                                                   |
+ * | ------------ | ------------------------------------------------------------------------------ |
+ * | `kind`       | Cannot be overridden                                                           |
+ * | `model`      | Must be deeply equal — mismatch signals incompatible shapes                    |
+ * | `minLength`  | Child ≥ parent, narrowing the minimum length                                        |
+ * | `maxLength`  | Child ≤ parent, narrowing the maximum length                                        |
+ * | `languageIn` | Intersection of parent and child sets; empty result is reported as an error               |
+ *
+ * **Cross-Field Validation**
+ *
+ * - merged `minLength` must be ≤ merged `maxLength`
+ *
  * @see {@link https://www.w3.org/TR/shacl/#LanguageInConstraintComponent SHACL § 4.8.2 sh:languageIn}
  */
 export interface LocalsShape extends LocalizedConstraints {
 
 	/**
 	 * Discriminator identifying this as a multi-valued language-tagged shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "locals";
 
@@ -108,6 +151,8 @@ export interface LocalsShape extends LocalizedConstraints {
 	 * Prototype value for runtime model assembly.
 	 *
 	 * Accepts plain string arrays as shorthands for language-neutral values, equivalent to `{ und: values }`.
+	 *
+	 * **Inheritance** — must be deeply equal between parent and child.
 	 *
 	 * @defaultValue `{ "*": [""] }` (wildcard empty string array)
 	 */
@@ -156,6 +201,8 @@ export interface LocalizedConstraints {
 	/**
 	 * Minimum string length in characters.
 	 *
+	 * **Inheritance** — child value must be ≥ parent value, narrowing the lower bound.
+	 *
 	 * @defaultValue `undefined` (no minimum length)
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#MinLengthConstraintComponent SHACL § 4.3.1 sh:minLength}
@@ -164,6 +211,8 @@ export interface LocalizedConstraints {
 
 	/**
 	 * Maximum string length in characters.
+	 *
+	 * **Inheritance** — child value must be ≤ parent value, narrowing the upper bound.
 	 *
 	 * @defaultValue `undefined` (no maximum length)
 	 *
@@ -175,13 +224,15 @@ export interface LocalizedConstraints {
 	/**
 	 * Allowed language ranges for language-tagged strings.
 	 *
-	 * When specified, language tags must match one of the given BCP47 language ranges.
+	 * When specified, language tags must match one of the given BCP47 language ranges. Must be non-empty.
+	 *
+	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
 	 *
 	 * @defaultValue `undefined` (no language constraint)
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#LanguageInConstraintComponent SHACL § 4.8.2 sh:languageIn}
 	 */
-	readonly languageIn?: readonly TagRange[];
+	readonly languageIn?: readonly [TagRange, ...TagRange[]];
 
 }
 
@@ -191,13 +242,12 @@ export interface LocalizedConstraints {
 /**
  * Creates a single-valued language-tagged map shape with a typed model value and no other constraints.
  *
- * @group Factories
  *
  * @typeParam M The `Locale` type of the {@link Local} model
  *
  * @param model Prototype value for runtime model assembly
  *
- * @returns A shape with `model` typed as `M`
+ * @returns An immutable shape with `model` typed as `M`
  *
  * @example
  *
@@ -211,13 +261,12 @@ export function local<M extends Locale>(model: M): LocalShape & { readonly model
 /**
  * Creates a single-valued language-tagged map shape with optional validation constraints.
  *
- * @group Factories
  *
  * @param constraints Optional shape {@link LocalConstraints constraints}
  *
- * @returns A shape with `model` typed as `Local`
+ * @returns An immutable shape with `model` typed as `Local`
  *
- * @throws {TypeError} If `constraints` is not a valid {@link LocalConstraints}
+ * @throws {RangeError} If `constraints` contains contradictory values
  *
  * @example
  *
@@ -232,7 +281,6 @@ export function local(constraints?: LocalConstraints): LocalShape;
 /**
  * Creates a single-valued language-tagged map shape.
  *
- * @group Factories
  */
 export function local(constraints: Locale | LocalConstraints = {}): LocalShape {
 
@@ -241,7 +289,7 @@ export function local(constraints: Locale | LocalConstraints = {}): LocalShape {
 			: isLocalConstraints(constraints) ? constraints
 				: { model: constraints };
 
-	return immutable({
+	const shape: LocalShape = immutable({
 
 		kind: "local",
 		model: isString(model) ? { "*": model } : model ?? { "*": "" },
@@ -249,6 +297,14 @@ export function local(constraints: Locale | LocalConstraints = {}): LocalShape {
 		...rest
 
 	});
+
+	const trace = checkLocalized(shape);
+
+	if ( trace !== undefined ) {
+		throw Object.assign(new RangeError("inconsistent local shape constraints"), { trace });
+	}
+
+	return shape;
 
 
 	function isLocalConstraints(value: unknown): value is LocalConstraints {
@@ -263,19 +319,18 @@ export function local(constraints: Locale | LocalConstraints = {}): LocalShape {
 /**
  * Creates a multi-valued language-tagged map shape.
  *
- * @group Factories
  *
  * @param constraints Optional validation {@link LocalsConstraints constraints}
  *
- * @returns A shape for validating multi-valued language-tagged maps
+ * @returns An immutable shape for validating multi-valued language-tagged maps
  *
- * @throws {TypeError} If `constraints` is not a valid {@link LocalsConstraints}
+ * @throws {RangeError} If `constraints` contains contradictory values
  */
 export function locals(constraints: LocalsConstraints = {}): LocalsShape {
 
 	const { model, ...rest } = constraints;
 
-	return immutable({
+	const shape: LocalsShape = immutable({
 
 		kind: "locals",
 		model: Array.isArray(model) ? { "*": model } : model ?? { "*": [""] },
@@ -283,4 +338,12 @@ export function locals(constraints: LocalsConstraints = {}): LocalsShape {
 		...rest
 
 	});
+
+	const trace = checkLocalized(shape);
+
+	if ( trace !== undefined ) {
+		throw Object.assign(new RangeError("inconsistent locals shape constraints"), { trace });
+	}
+
+	return shape;
 }

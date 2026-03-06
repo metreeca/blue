@@ -120,14 +120,14 @@
  * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
  */
 
-import { isObject, type Lazy } from "@metreeca/core";
+import { type Lazy } from "@metreeca/core";
 import { error, message } from "@metreeca/core/error";
 import { immutable } from "@metreeca/core/nested";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import type { Model } from "@metreeca/qest/model";
 import type { Resource, Value } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
-import { apply, materialize, validateValue } from "./index.core.js";
+import { apply, brand, branded, materialize, validateValue } from "./index.core.js";
 import type { LocalShape, LocalsShape } from "./local.js";
 import type { NumberShape } from "./number.js";
 import { validateModel, validateResource } from "./resource.core.js";
@@ -209,10 +209,9 @@ export type Infer<S extends Lazy<{ readonly model: unknown }>> =
  *
  * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure
  *
- * @remarks
- *
- * Idempotent for `Resource` values: calling multiple times on the same branded
- * object with the same mode returns the same reference.
+ * > [!NOTE]
+ * > This function is idempotent: values that pass validation are branded with the shape and mode
+ * > and won't be re-validated when validated again against the same shape and mode.
  */
 export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape & { readonly model: T }>, opts?: {
 
@@ -255,10 +254,9 @@ export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape
  *
  * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure
  *
- * @remarks
- *
- * Idempotent for `Resource` values: calling multiple times on the same branded
- * object with the same mode returns the same reference.
+ * > [!NOTE]
+ * > This function is idempotent: values that pass validation are branded with the shape and mode
+ * > and won't be re-validated when validated again against the same shape and mode.
  */
 export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape & { readonly model: T }>, opts: {
 
@@ -357,43 +355,5 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, {
 
 		}
 	}
-
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Checks whether a value was already validated against a given shape in a given mode.
- *
- * @param value The value to check
- * @param symbol The mode-specific brand symbol from {@link Validated}
- * @param shape The validation shape to match
- *
- * @returns true if `value` is an object branded with the matching symbol and shape; false otherwise
- */
-function branded(value: unknown, symbol: symbol, shape: ResourceShape): boolean {
-	return isObject(value) && value[symbol] === shape;
-}
-
-/**
- * Brands a validated resource with the given mode symbol and shape.
- *
- * @param value The validated resource to brand
- * @param symbol The mode-specific brand symbol from {@link Validated}
- * @param shape The validation shape to associate
- *
- * @returns The branded and immutable value
- */
-function brand<V extends Resource | Model>(value: V, symbol: symbol, shape: ResourceShape): V {
-
-	const target = Object.isExtensible(value) ? value
-		: Object.fromEntries(Object.keys(value).map(key => [key, value[key]]));
-
-	return immutable(Object.defineProperty(target, symbol, {
-		value: shape,
-		enumerable: false,
-		configurable: true
-	})) as V;
 
 }

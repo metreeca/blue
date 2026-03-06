@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { validateBoolean } from "./boolean.core.js";
+import { mergeBoolean, validateBoolean } from "./boolean.core.js";
 import { boolean } from "./boolean.js";
 
 
@@ -81,7 +81,7 @@ describe("factories", () => {
 
 });
 
-describe("validators", () => {
+describe("operators", () => {
 
 	describe("validateBoolean", () => {
 
@@ -132,6 +132,48 @@ describe("validators", () => {
 				const trace = validateBoolean([true, 42], boolean());
 
 				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+		});
+
+	});
+
+	describe("mergeBoolean", () => {
+
+		describe("kind", () => {
+
+			it("preserves kind as 'boolean'", async () => {
+
+				const merged = mergeBoolean(boolean(), boolean());
+
+				expect(merged.kind).toBe("boolean");
+
+			});
+
+		});
+
+		describe("model", () => {
+
+			it("merges shapes with equal models", async () => {
+
+				const merged = mergeBoolean(boolean(), boolean());
+
+				expect(merged.model).toBe(false);
+
+			});
+
+			it("merges shapes with equal non-default models", async () => {
+
+				const merged = mergeBoolean(boolean(true), boolean(true));
+
+				expect(merged.model).toBe(true);
+
+			});
+
+			it("rejects shapes with different models", async () => {
+
+				expect(() => mergeBoolean(boolean(true), boolean(false))).toThrow(RangeError);
 
 			});
 

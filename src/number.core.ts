@@ -15,17 +15,15 @@
  */
 
 /**
- * Numeric shape type guards and validation.
- *
- * Provides type guards for {@link NumberShape}, {@link NumberConstraints}, and {@link NumericConstraints}, plus the
- * numeric value validator enforcing range and enumeration constraints.
+ * Number shape operators.
  *
  * @module
  */
 
 import { isNumber } from "@metreeca/core";
-import type { NumberConstraints, NumberShape, NumericConstraints } from "./number.js";
-import { every, group, trace } from "./trace.core.js";
+import { immutable } from "@metreeca/core/nested";
+import type { NumberShape } from "./number.js";
+import { collect, every, group, wrap } from "./trace.core.js";
 import type { Trace } from "./trace.js";
 
 
@@ -52,29 +50,29 @@ export function validateNumber(values: readonly unknown[], {
 	const matching = values.filter(isNumber);
 	const mistyped = values.length-matching.length;
 
-	return trace({
+	return collect({
 
 		"{kind}": mistyped === 0
-			|| `expected ${kind} values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
 		"{minExclusive}": every(matching, value =>
 			minExclusive === undefined || value > minExclusive
-			|| `expected values > ${minExclusive}`
+			|| `expected values > <${minExclusive}>`
 		),
 
 		"{maxExclusive}": every(matching, value =>
 			maxExclusive === undefined || value < maxExclusive
-			|| `expected values < ${maxExclusive}`
+			|| `expected values < <${maxExclusive}>`
 		),
 
 		"{minInclusive}": every(matching, value =>
 			minInclusive === undefined || value >= minInclusive
-			|| `expected values >= ${minInclusive}`
+			|| `expected values >= <${minInclusive}>`
 		),
 
 		"{maxInclusive}": every(matching, value =>
 			maxInclusive === undefined || value <= maxInclusive
-			|| `expected values <= ${maxInclusive}`
+			|| `expected values <= <${maxInclusive}>`
 		),
 
 		"{in}": every(matching, value =>
@@ -86,6 +84,173 @@ export function validateNumber(values: readonly unknown[], {
 			hasValue === undefined || hasValue.every(v => group.includes(v))
 			|| `expected values to include [${hasValue.join(", ")}]`
 		)
+
+	});
+
+}
+
+
+/**
+ * Merges an overriding number shape with an inherited base shape.
+ *
+ * Combines constraints from `source` into `target`, enforcing that overrides only narrow inherited definitions.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns The merged shape with combined constraints
+ *
+ * @throws {RangeError} On incompatible overrides
+ */
+export function mergeNumber(target: NumberShape, source: NumberShape): NumberShape {
+
+	// conjunctive: in — intersection
+
+	const allowed = target.in !== undefined && source.in !== undefined
+		? target.in.filter(v => source.in!.includes(v))
+		: target.in ?? source.in;
+
+	// conjunctive: hasValue — union
+
+	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
+		? [...new Set([...target.hasValue, ...source.hasValue])]
+		: target.hasValue ?? source.hasValue;
+
+	// merged constraints
+
+	const minExclusive = target.minExclusive ?? source.minExclusive;
+	const maxExclusive = target.maxExclusive ?? source.maxExclusive;
+	const minInclusive = target.minInclusive ?? source.minInclusive;
+	const maxInclusive = target.maxInclusive ?? source.maxInclusive;
+
+	// validate
+
+	const trace = collect({
+
+		// structural: model must be strictly equal
+
+		"{model}": target.model === source.model
+			|| `mismatched types <${target.model}> and <${source.model}>`,
+
+		// narrow: minExclusive — child >= parent
+
+		"{minExclusive}": target.minExclusive === undefined || source.minExclusive === undefined
+			|| target.minExclusive >= source.minExclusive
+			|| `widened limit <${target.minExclusive}> beyond <${source.minExclusive}>`,
+
+		// narrow: maxExclusive — child <= parent
+
+		"{maxExclusive}": target.maxExclusive === undefined || source.maxExclusive === undefined
+			|| target.maxExclusive <= source.maxExclusive
+			|| `widened limit <${target.maxExclusive}> beyond <${source.maxExclusive}>`,
+
+		// narrow: minInclusive — child >= parent
+
+		"{minInclusive}": target.minInclusive === undefined || source.minInclusive === undefined
+			|| target.minInclusive >= source.minInclusive
+			|| `widened limit <${target.minInclusive}> beyond <${source.minInclusive}>`,
+
+		// narrow: maxInclusive — child <= parent
+
+		"{maxInclusive}": target.maxInclusive === undefined || source.maxInclusive === undefined
+			|| target.maxInclusive <= source.maxInclusive
+			|| `widened limit <${target.maxInclusive}> beyond <${source.maxInclusive}>`,
+
+		// conjunctive: in — empty intersection
+
+		"{in}": target.in === undefined || source.in === undefined
+			|| allowed!.length !== 0
+			|| `disjoint sets [${target.in}] and [${source.in}]`,
+
+		// post-merge constraint consistency
+
+		...wrap(checkNumber({
+
+			minExclusive,
+			maxExclusive,
+			minInclusive,
+			maxInclusive,
+
+			in: allowed,
+			hasValue
+
+		}))
+
+	});
+
+	if ( trace !== undefined ) {
+		throw Object.assign(new RangeError("incompatible number shape override"), { trace });
+	}
+
+	// build shape — casts are safe: non-emptiness validated above
+
+	return immutable({
+
+		kind: target.kind,
+		model: target.model,
+
+		minExclusive,
+		maxExclusive,
+		minInclusive,
+		maxInclusive,
+
+		in: allowed as NumberShape["in"],
+		hasValue: hasValue as NumberShape["hasValue"]
+
+	});
+
+}
+
+/**
+ * Checks internal consistency of number shape constraints.
+ *
+ * @param constraints The constraint fields to validate
+ *
+ * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
+ */
+export function checkNumber({
+
+	minExclusive,
+	maxExclusive,
+	minInclusive,
+	maxInclusive,
+
+	in: allowed,
+	hasValue
+
+}: {
+
+	readonly minExclusive?: number;
+	readonly maxExclusive?: number;
+	readonly minInclusive?: number;
+	readonly maxInclusive?: number;
+
+	readonly in?: readonly number[];
+	readonly hasValue?: readonly number[];
+
+}): undefined | Trace {
+
+	return collect({
+
+		"{minExclusive/maxExclusive}": minExclusive === undefined || maxExclusive === undefined
+			|| minExclusive < maxExclusive
+			|| `inconsistent bounds <${minExclusive}> >= <${maxExclusive}>`,
+
+		"{minInclusive/maxInclusive}": minInclusive === undefined || maxInclusive === undefined
+			|| minInclusive <= maxInclusive
+			|| `inconsistent bounds <${minInclusive}> > <${maxInclusive}>`,
+
+		"{minExclusive/maxInclusive}": minExclusive === undefined || maxInclusive === undefined
+			|| minExclusive < maxInclusive
+			|| `inconsistent bounds <${minExclusive}> >= <${maxInclusive}>`,
+
+		"{minInclusive/maxExclusive}": minInclusive === undefined || maxExclusive === undefined
+			|| minInclusive < maxExclusive
+			|| `inconsistent bounds <${minInclusive}> >= <${maxExclusive}>`,
+
+		"{hasValue/in}": hasValue === undefined || allowed === undefined
+			|| hasValue.every(v => allowed.includes(v))
+			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`
 
 	});
 

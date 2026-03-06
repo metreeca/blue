@@ -17,7 +17,7 @@
 import type { Probe, Transform } from "@metreeca/qest/model";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
-import { apply, materialize, validateValue } from "./index.core.js";
+import { apply, brand, branded, materialize, validateValue } from "./index.core.js";
 import { validate, type ValueShape } from "./index.js";
 import { local, locals } from "./local.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
@@ -439,7 +439,7 @@ describe("validate", () => {
 
 });
 
-describe("validators", () => {
+describe("operators", () => {
 
 	describe("validateValue", () => {
 
@@ -1403,6 +1403,104 @@ describe("materialize", () => {
 			const shapeB = materialize(factoryB);
 
 			expect(shapeA).not.toBe(shapeB);
+
+		});
+
+	});
+
+});
+
+describe("branding", () => {
+
+	describe("branded", () => {
+
+		const sym = Symbol("test");
+
+		it.each([
+			["null", null],
+			["undefined", undefined],
+			["string", "hello"],
+			["number", 42],
+			["boolean", true]
+		])("returns false for non-object (%s)", (_label, value) => {
+
+			expect(branded(value, sym, "payload")).toBeFalsy();
+
+		});
+
+		it("returns false when symbol is absent", async () => {
+
+			expect(branded({}, sym, "payload")).toBeFalsy();
+
+		});
+
+		it("returns false when payload mismatches", async () => {
+
+			const value = brand({ x: 1 }, sym, "a");
+
+			expect(branded(value, sym, "b")).toBeFalsy();
+
+		});
+
+		it("returns true when symbol and payload match", async () => {
+
+			const value = brand({ x: 1 }, sym, "payload");
+
+			expect(branded(value, sym, "payload")).toBeTruthy();
+
+		});
+
+	});
+
+	describe("brand", () => {
+
+		const sym = Symbol("test");
+
+		it("attaches payload to extensible object", async () => {
+
+			const value = { x: 1 };
+			const result = brand(value, sym, "payload");
+
+			expect(branded(result, sym, "payload")).toBeTruthy();
+
+		});
+
+		it("attaches payload to frozen object", async () => {
+
+			const value = Object.freeze({ x: 1 });
+			const result = brand(value, sym, "payload");
+
+			expect(branded(result, sym, "payload")).toBeTruthy();
+
+		});
+
+		it("preserves properties on frozen object", async () => {
+
+			const value = Object.freeze({ x: 1, y: 2 });
+			const result = brand(value, sym, "payload");
+
+			expect(result.x).toBe(1);
+			expect(result.y).toBe(2);
+
+		});
+
+		it("returns immutable result", async () => {
+
+			const result = brand({ x: 1 }, sym, "payload");
+
+			expect(() => {
+				(result as any).x = 99;
+			}).toThrow();
+
+		});
+
+		it("overwrites previous payload on re-brand", async () => {
+
+			const first = brand({ x: 1 }, sym, "a");
+			const second = brand(first, sym, "b");
+
+			expect(branded(second, sym, "b")).toBeTruthy();
+			expect(branded(second, sym, "a")).toBeFalsy();
 
 		});
 

@@ -17,7 +17,7 @@
 /**
  * Trace construction utilities.
  *
- * Provides helpers for building keyed {@link Trace} reports ({@link trace}, {@link every}, {@link group})
+ * Provides helpers for building keyed {@link Trace} reports ({@link collect}, {@link every}, {@link group})
  * and normalising raw validation results ({@link normalise}).
  *
  * @module
@@ -36,7 +36,7 @@ import type { Trace, Validator } from "./trace.js";
  *
  * @returns A keyed trace of failures, or `undefined` if all entries pass
  */
-export function trace(entries: Record<string, undefined | true | Trace>): undefined | Trace {
+export function collect(entries: Record<string, undefined | true | Trace>): undefined | Trace {
 
 	const valid = Object.entries(entries).filter((entry): entry is [string, Trace] =>
 		normalise(entry[1]) !== undefined
@@ -82,7 +82,7 @@ export function every<T>(values: readonly T[], validator: Validator<T>): undefin
 
 	} else {
 
-		return trace(Object.fromEntries(
+		return collect(Object.fromEntries(
 			failed.map(([i, t]) => [`${i}`, t])
 		));
 
@@ -134,7 +134,7 @@ export function normalise(trace: undefined | true | Trace): undefined | Trace {
  *
  * @param value The trace to convert
  *
- * @returns A record suitable for spreading into a {@link trace} entries argument
+ * @returns A record suitable for spreading into a {@link collect} entries argument
  */
 export function wrap(value: undefined | Trace): Record<string, Trace> {
 	return isString(value) ? { "{}": value } : value ?? {};

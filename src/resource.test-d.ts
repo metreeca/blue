@@ -787,6 +787,40 @@ describe("shape assignability", () => {
 
 	});
 
+	test("extends accepts single lazy shape", () => {
+
+		function Parent() {
+			return resource({ name: required(string()) });
+		}
+
+		resource({ extends: Parent }, { extra: required(string()) });
+
+	});
+
+	test("extends accepts non-empty array of lazy shapes", () => {
+
+		function Parent1() {
+			return resource({ name: required(string()) });
+		}
+
+		function Parent2() {
+			return resource({ code: required(string()) });
+		}
+
+		resource({ extends: [Parent1, Parent2] }, { extra: required(string()) });
+
+	});
+
+	test("extends rejects empty array", () => {
+		// @ts-expect-error - empty array not assignable to non-empty tuple
+		resource({ extends: [] }, { name: required(string()) });
+	});
+
+	test("rejects empty enumeration", () => {
+		// @ts-expect-error - empty array not assignable to non-empty tuple
+		resource({ in: [] }, {});
+	});
+
 	test("child accepts optional properties with inherited parent", () => {
 
 		function Parent() {

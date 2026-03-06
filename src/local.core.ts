@@ -15,18 +15,16 @@
  */
 
 /**
- * Language-tagged shape type guards and validation.
- *
- * Provides type guards for {@link LocalShape}, {@link LocalsShape}, and related constraint types, plus validators
- * enforcing length and language tag constraints on language-tagged string maps.
+ * Language-tagged shape operators.
  *
  * @module
  */
 
 import { isArray, isObject, isString } from "@metreeca/core";
 import { isTag, matchTag } from "@metreeca/core/language";
+import { equals, immutable } from "@metreeca/core/nested";
 import type { LocalShape, LocalsShape } from "./local.js";
-import { every, trace } from "./trace.core.js";
+import { collect, every, wrap } from "./trace.core.js";
 import type { Trace } from "./trace.js";
 
 
@@ -51,10 +49,10 @@ export function validateLocal(values: readonly unknown[], {
 	const matching = values.filter(value => isString(value) || isObject(value));
 	const mistyped = values.length-matching.length;
 
-	return trace({
+	return collect({
 
 		"{kind}": mistyped === 0
-			|| `expected ${kind} values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
 		...Object.fromEntries(matching
 
@@ -74,13 +72,13 @@ export function validateLocal(values: readonly unknown[], {
 
 				} else {
 
-					return [key, trace({
+					return [key, collect({
 
 						"{minLength}": minLength === undefined || value.length >= minLength
-							|| `expected string length >= ${minLength}`,
+							|| `expected string length >= <${minLength}>`,
 
 						"{maxLength}": maxLength === undefined || value.length <= maxLength
-							|| `expected string length <= ${maxLength}`,
+							|| `expected string length <= <${maxLength}>`,
 
 						"{languageIn}": languageIn === undefined || languageIn.some(range => matchTag(key, range))
 							|| `tag not in allowed languages [${languageIn.join(", ")}]`
@@ -116,10 +114,10 @@ export function validateLocals(values: readonly unknown[], {
 	const matching = values.filter(value => isArray(value) || isObject(value));
 	const mistyped = values.length-matching.length;
 
-	return trace({
+	return collect({
 
 		"{kind}": mistyped === 0
-			|| `expected ${kind} values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
 		...Object.fromEntries(matching
 
@@ -139,16 +137,16 @@ export function validateLocals(values: readonly unknown[], {
 
 				} else {
 
-					return [key, trace({
+					return [key, collect({
 
 						"{minLength}": every(value, text =>
 							minLength === undefined || text.length >= minLength
-							|| `expected string length >= ${minLength}`
+							|| `expected string length >= <${minLength}>`
 						),
 
 						"{maxLength}": every(value, text =>
 							maxLength === undefined || text.length <= maxLength
-							|| `expected string length <= ${maxLength}`
+							|| `expected string length <= <${maxLength}>`
 						),
 
 						"{languageIn}": languageIn === undefined || languageIn.some(range => matchTag(key, range))
@@ -159,6 +157,193 @@ export function validateLocals(values: readonly unknown[], {
 				}
 
 			}))
+
+	});
+
+}
+
+
+/**
+ * Merges an overriding local shape with an inherited base shape.
+ *
+ * Combines constraints from `source` into `target`, enforcing that overrides only narrow inherited definitions.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns The merged shape with combined constraints
+ *
+ * @throws {RangeError} On incompatible overrides
+ */
+export function mergeLocal(target: LocalShape, source: LocalShape): LocalShape {
+
+	// conjunctive: languageIn — intersection
+
+	const languageIn = target.languageIn !== undefined && source.languageIn !== undefined
+		? target.languageIn.filter(v => source.languageIn!.includes(v))
+		: target.languageIn ?? source.languageIn;
+
+	// merged constraints
+
+	const minLength = target.minLength ?? source.minLength;
+	const maxLength = target.maxLength ?? source.maxLength;
+
+	// validate
+
+	const trace = collect({
+
+		// structural: model — deep equality
+
+		"{model}": equals(target.model, source.model)
+			|| `mismatched types <${JSON.stringify(target.model)}> and <${JSON.stringify(source.model)}>`,
+
+		// narrow: minLength — child >= parent
+
+		"{minLength}": target.minLength === undefined || source.minLength === undefined
+			|| target.minLength >= source.minLength
+			|| `widened limit <${target.minLength}> beyond <${source.minLength}>`,
+
+		// narrow: maxLength — child <= parent
+
+		"{maxLength}": target.maxLength === undefined || source.maxLength === undefined
+			|| target.maxLength <= source.maxLength
+			|| `widened limit <${target.maxLength}> beyond <${source.maxLength}>`,
+
+		// conjunctive: languageIn — empty intersection
+
+		"{languageIn}": target.languageIn === undefined || source.languageIn === undefined
+			|| languageIn!.length !== 0
+			|| `disjoint sets [${target.languageIn}] and [${source.languageIn}]`,
+
+		// post-merge constraint consistency
+
+		...wrap(checkLocalized({ minLength, maxLength }))
+
+	});
+
+	if ( trace !== undefined ) {
+		throw Object.assign(new RangeError("incompatible local shape override"), { trace });
+	}
+
+	// build shape — casts are safe: non-emptiness validated above
+
+	return immutable({
+
+		kind: target.kind,
+		model: target.model,
+
+		minLength,
+		maxLength,
+
+		languageIn: languageIn as LocalShape["languageIn"]
+
+	});
+
+}
+
+/**
+ * Merges an overriding locals shape with an inherited base shape.
+ *
+ * Combines constraints from `source` into `target`, enforcing that overrides only narrow inherited definitions.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns The merged shape with combined constraints
+ *
+ * @throws {RangeError} On incompatible overrides
+ */
+export function mergeLocals(target: LocalsShape, source: LocalsShape): LocalsShape {
+
+	// conjunctive: languageIn — intersection
+
+	const languageIn = target.languageIn !== undefined && source.languageIn !== undefined
+		? target.languageIn.filter(v => source.languageIn!.includes(v))
+		: target.languageIn ?? source.languageIn;
+
+	// merged constraints
+
+	const minLength = target.minLength ?? source.minLength;
+	const maxLength = target.maxLength ?? source.maxLength;
+
+	// validate
+
+	const trace = collect({
+
+		// structural: model — deep equality
+
+		"{model}": equals(target.model, source.model)
+			|| `mismatched types <${JSON.stringify(target.model)}> and <${JSON.stringify(source.model)}>`,
+
+		// narrow: minLength — child >= parent
+
+		"{minLength}": target.minLength === undefined || source.minLength === undefined
+			|| target.minLength >= source.minLength
+			|| `widened limit <${target.minLength}> beyond <${source.minLength}>`,
+
+		// narrow: maxLength — child <= parent
+
+		"{maxLength}": target.maxLength === undefined || source.maxLength === undefined
+			|| target.maxLength <= source.maxLength
+			|| `widened limit <${target.maxLength}> beyond <${source.maxLength}>`,
+
+		// conjunctive: languageIn — empty intersection
+
+		"{languageIn}": target.languageIn === undefined || source.languageIn === undefined
+			|| languageIn!.length !== 0
+			|| `disjoint sets [${target.languageIn}] and [${source.languageIn}]`,
+
+		// post-merge constraint consistency
+
+		...wrap(checkLocalized({ minLength, maxLength }))
+
+	});
+
+	if ( trace !== undefined ) {
+		throw Object.assign(new RangeError("incompatible locals shape override"), { trace });
+	}
+
+	// build shape — casts are safe: non-emptiness validated above
+
+	return immutable({
+
+		kind: target.kind,
+		model: target.model,
+
+		minLength,
+		maxLength,
+
+		languageIn: languageIn as LocalsShape["languageIn"]
+
+	});
+
+}
+
+
+/**
+ * Checks internal consistency of localized shape constraints.
+ *
+ * @param constraints The constraint fields to check
+ *
+ * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
+ */
+export function checkLocalized({
+
+	minLength,
+	maxLength
+
+}: {
+
+	readonly minLength?: number;
+	readonly maxLength?: number;
+
+}): undefined | Trace {
+
+	return collect({
+
+		"{minLength/maxLength}": minLength === undefined || maxLength === undefined
+			|| minLength <= maxLength
+			|| `inconsistent bounds <${minLength}> > <${maxLength}>`
 
 	});
 
