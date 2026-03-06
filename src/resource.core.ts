@@ -24,7 +24,7 @@
  * @module
  */
 
-import { isArray, isBoolean, isNumber, isObject, isString } from "@metreeca/core";
+import { type Identifier, isArray, isBoolean, isNumber, isObject, isString } from "@metreeca/core";
 import { message } from "@metreeca/core/error";
 import { isTagRange } from "@metreeca/core/language";
 import { isIRI } from "@metreeca/core/resource";
@@ -45,7 +45,7 @@ import {
 } from "./resource.js";
 import type { StringShape } from "./string.js";
 import { every, group, normalise, trace, wrap } from "./trace.core.js";
-import type { Trace, Validator } from "./trace.js";
+import type { Trace } from "./trace.js";
 
 
 /**
@@ -58,12 +58,6 @@ const PatternFormat = new RegExp(
 	+"(?:/\\*)?"+ // optional /* wildcard
 	"$"
 );
-
-
-/**
- * Shorthand for the properties map of a {@link ResourceShape}.
- */
-type Properties = ResourceShape["properties"];
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -79,27 +73,32 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 	const matching = values.filter(isReference);
 	const mistyped = values.length-matching.length;
 
-	const { pattern, in: allowed, hasValue } = materialize(shape.shape);
+	const lineage = walk(materialize(shape.shape));
+
+	const patterns = lineage.flatMap(s => s.pattern !== undefined ? [s.pattern] : []);
+	const allowed = lineage.flatMap(s => s.in !== undefined ? [s.in] : []);
+	const required = lineage.flatMap(s => s.hasValue !== undefined ? [s.hasValue] : []);
 
 	return trace({
 
 		"{kind}": mistyped === 0
 			|| `expected ${shape.kind} values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
-		"{pattern}": every(matching, value =>
-			pattern === undefined || match(value, pattern)
-			|| `expected IRI matching pattern <${pattern}>`
-		),
+		...Object.fromEntries([
 
-		"{in}": every(matching, value =>
-			allowed === undefined || allowed.includes(value)
-			|| `expected IRI in [${allowed.join(", ")}]`
-		),
+			...patterns.map((pattern, i) => [patterns.length > 1 ? `{pattern}[${i}]` : "{pattern}",
+				every(matching, value => match(value, pattern) || `expected IRI matching pattern <${pattern}>`)
+			]),
 
-		"{hasValue}": group(matching, group =>
-			hasValue === undefined || hasValue.every(v => group.includes(v))
-			|| `expected values to include [${hasValue.join(", ")}]`
-		)
+			...allowed.map((list, i) => [allowed.length > 1 ? `{in}[${i}]` : "{in}",
+				every(matching, value => list.includes(value) || `expected IRI in [${list.join(", ")}]`)
+			]),
+
+			...required.map((list, i) => [required.length > 1 ? `{hasValue}[${i}]` : "{hasValue}",
+				group(matching, group => list.every(v => group.includes(v)) || `expected values to include [${list.join(", ")}]`)
+			])
+
+		])
 
 	});
 
@@ -124,10 +123,25 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
 
-	const { properties, overrides, validators } = flatten(shape);
+	const lineage = walk(shape);
 
-	const envelope = new Set(Object.keys(properties));
-	const identifier = id(properties);
+
+	// resolve the identifier property key from the lineage
+
+	const identifier = lineage
+		.flatMap(s => Object.entries(s.properties))
+		.find(([, entry]) => entry.kind === "id")
+		?.[0];
+
+	// merge properties across the lineage (child overrides parent)
+
+	const entries = new Map(lineage.flatMap(s => Object.entries(s.properties)));
+
+	// collect and deduplicate validators across the lineage
+
+	const validators = [...new Set(lineage
+		.flatMap(s => s.validators ?? [])
+	)];
 
 
 	return trace({
@@ -139,21 +153,19 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 			trace(Object.fromEntries([
 
-				// property validation — validate declared shape properties
+				// property validation — validate merged shape properties
 
-				...Object.entries(properties).map(([name, property]) => [name,
-
-					property.kind === "id" ? validateId(resource[name])
-						: property.kind === "type" ? validateType(resource[name])
-							: property.kind === "property" ? validateProperty(resource[name], property, overrides[name])
-								: undefined
-
+				...[...entries].map(([name, entry]) => [name,
+					entry.kind === "id" ? validateId(resource[name], lineage)
+						: entry.kind === "type" ? validateType(resource[name])
+							: validateProperty(resource[name], name, lineage)
 				]),
+
 
 				// envelope validation — reject unknown properties
 
 				...Object.keys(resource)
-					.filter(key => !envelope.has(key))
+					.filter(key => !entries.has(key))
 					.map(key => [key, "unexpected property"]),
 
 				// custom validators
@@ -170,7 +182,11 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	});
 
 
-	function validateId(value: unknown): undefined | Trace {
+	function validateId(value: unknown, lineage: readonly ResourceShape[]): undefined | Trace {
+
+		const patterns = lineage.flatMap(s => s.pattern !== undefined ? [s.pattern] : []);
+		const allowed = lineage.flatMap(s => s.in !== undefined ? [s.in] : []);
+		const required = lineage.flatMap(s => s.hasValue !== undefined ? [s.hasValue] : []);
 
 		return trace({
 
@@ -181,16 +197,23 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 					: !isReference(value) ? "expected absolute IRI"
 						: undefined,
 
-			// constraint validation
+			// constraint validation (conjunctive across inheritance lineage)
 
-			"{pattern}": shape.pattern === undefined || isReference(value) && match(value, shape.pattern)
-				|| `expected IRI matching pattern <${shape.pattern}>`,
+			...Object.fromEntries([
 
-			"{in}": shape.in === undefined || isReference(value) && shape.in.includes(value)
-				|| `expected IRI in [${shape.in.join(", ")}]`,
+				...patterns.map((pattern, i) => [patterns.length > 1 ? `{pattern}[${i}]` : "{pattern}",
+					isReference(value) && match(value, pattern) || `expected IRI matching pattern <${pattern}>`
+				]),
 
-			"{hasValue}": shape.hasValue === undefined || isReference(value) && shape.hasValue.includes(value)
-				|| `expected values to include [${shape.hasValue.join(", ")}]`
+				...allowed.map((list, i) => [allowed.length > 1 ? `{in}[${i}]` : "{in}",
+					isReference(value) && list.includes(value) || `expected IRI in [${list.join(", ")}]`
+				]),
+
+				...required.map((list, i) => [required.length > 1 ? `{hasValue}[${i}]` : "{hasValue}",
+					isReference(value) && list.includes(value) || `expected values to include [${list.join(", ")}]`
+				])
+
+			])
 
 		});
 
@@ -208,15 +231,22 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 	}
 
-	function validateProperty(value: unknown, property: Property, inherited?: readonly Range[]): undefined | Trace {
+	function validateProperty(value: unknown, name: Identifier, lineage: readonly ResourceShape[]): undefined | Trace {
 
-		const ranges = [property.range, ...(inherited ?? [])];
+		const ranges = lineage
+			.map(s => s.properties[name])
+			.filter((entry): entry is Property => entry?.kind === "property")
+			.map(entry => entry.range);
 
-		return trace(Object.fromEntries(
-			ranges.flatMap((range, i) => Object.entries(validateRange(value, range) ?? {})
-				.map(([k, t]) => [ranges.length > 1 ? `${k}[${i}]` : k, t])
-			)
-		));
+		if ( ranges.length === 0 ) { return undefined; } else {
+
+			return trace(Object.fromEntries(
+				ranges.flatMap((range, i) => Object.entries(validateRange(value, range) ?? {})
+					.map(([k, t]) => [ranges.length > 1 ? `${k}[${i}]` : k, t])
+				)
+			));
+
+		}
 
 	}
 
@@ -307,8 +337,11 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
 
-	const { properties } = flatten(shape);
-	const identifier = id(properties);
+	const lineage = walk(shape);
+
+	// resolve the identifier property key from the lineage
+
+	const identifier = lineage.flatMap(s => Object.entries(s.properties)).find(([, entry]) => entry.kind === "id")?.[0];
 
 	return trace({
 
@@ -586,7 +619,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 	}
 
 
-	function validateLimit(value: unknown, shape: undefined | ValueShape | Union ): undefined | Trace {
+	function validateLimit(value: unknown, shape: undefined | ValueShape | Union): undefined | Trace {
 
 		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
 
@@ -666,7 +699,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateOptions(value: unknown, shape: undefined | ValueShape | Union ): undefined | Trace {
+	function validateOptions(value: unknown, shape: undefined | ValueShape | Union): undefined | Trace {
 
 		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
 
@@ -741,123 +774,29 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Checks if a value is a {@link Reference}.
+ * Walks the inheritance lineage of a {@link ResourceShape}, collecting all shapes in parent-first order.
  *
- * @group Guards
+ * Handles diamond inheritance and defends against loops by tracking visited shapes. Each shape appears at most once
+ * in the result, with parents before children.
  *
- * @param value The value to check
+ * @param shape The shape whose inheritance lineage is to be walked
+ * @param visited Accumulator for cycle and diamond detection
  *
- * @returns True if the value is an absolute IRI
+ * @returns All shapes in the inheritance lineage, parent-first, deduplicated
  */
-function isReference(value: unknown): value is Reference {
-	return isIRI(value, "absolute");
-}
+export function walk(shape: ResourceShape, visited: Set<ResourceShape> = new Set()): readonly ResourceShape[] {
 
-
-/**
- * Finds the property key declared as the resource identifier in a {@link Properties} map.
- *
- * Locates the entry with `kind === "id"` and returns its key, or `undefined` if no identifier property is declared.
- *
- * @param properties The properties map to search
- *
- * @returns The property key for the identifier entry, or `undefined` if none exists
- */
-function id(properties: Properties): undefined | string {
-	return Object.entries(properties).find(([, entry]) => entry.kind === "id")?.[0];
-}
-
-/**
- * Resolves a trace key for a resource value.
- *
- * Extracts the identifier property from `value` and returns it as the trace key if it is an absolute IRI; otherwise,
- * falls back to a positional blank node label (`_:{index}`).
- *
- * @param value The resource value to identify
- * @param index The positional index used as fallback blank node label
- * @param id The identifier property key, or `undefined` if no identifier is declared
- *
- * @returns The absolute IRI identifier or a blank node label
- */
-function key(value: unknown, index: number, id: undefined | string) {
-
-	const iri = id !== undefined && isObject(value) ? value[id] : undefined;
-
-	return isReference(iri) ? `<${iri}>` : `[${index}]`;
-
-}
-
-
-/**
- * Flattens the inheritance chain of a {@link ResourceShape} into merged properties, overrides, and validators.
- *
- * Overridden inherited ranges are tracked in the overrides map for conjunctive constraint enforcement.
- *
- * @param shape The shape whose inheritance chain is to be resolved
- *
- * @returns The merged properties, inherited range overrides, and deduplicated validators
- */
-export function flatten(shape: ResourceShape): {
-	properties: Properties;
-	overrides: Record<string, readonly Range[]>;
-	validators: readonly Validator<Resource>[];
-} {
-
-	const parents = shape.extends;
-
-	if ( parents === undefined ) {
-
-		return {
-			properties: shape.properties,
-			overrides: {},
-			validators: shape.validators ?? []
-		};
-
-	} else {
-
-		const parentShapes: readonly ResourceShape[] = Array.isArray(parents)
-			? parents.map(p => materialize(p))
-			: [materialize(parents)];
-
-		// merge parent properties/validators left-to-right; deduplicate validators by Set identity
-
-		const inherited = parentShapes
-			.map(flatten)
-			.reduce((inherited, resolved) => ({
-				properties: { ...inherited.properties, ...resolved.properties },
-				overrides: { ...inherited.overrides, ...resolved.overrides },
-				validators: [...new Set([...inherited.validators, ...resolved.validators])]
-			}), {
-				properties: {} as Properties,
-				overrides: {} as Record<string, readonly Range[]>,
-				validators: [] as readonly Validator<Resource>[]
-			});
-
-		// collect inherited ranges overridden by local properties; propagate transitive overrides
-
-		const overrides = Object.entries(shape.properties)
-			.reduce((overrides, [key, local]) => {
-
-				const parent = inherited.properties[key];
-
-				if ( parent?.kind === "property" && local.kind === "property" ) {
-					return { ...overrides, [key]: [...(overrides[key] ?? []), parent.range] };
-				} else {
-					return overrides;
-				}
-
-			}, {
-				...inherited.overrides
-			});
-
-		return {
-			properties: { ...inherited.properties, ...shape.properties },
-			overrides,
-			validators: [...new Set([...inherited.validators, ...(shape.validators ?? [])])]
-		};
-
+	if ( visited.has(shape) ) {
+		return [];
 	}
 
+	visited.add(shape);
+
+	const parents = shape.extends === undefined ? []
+		: Array.isArray(shape.extends) ? shape.extends.map(p => materialize(p))
+			: [materialize(shape.extends)];
+
+	return [...parents.flatMap(parent => walk(parent, visited)), shape];
 }
 
 /**
@@ -894,5 +833,41 @@ export function match(iri: Reference, pattern: string): boolean {
 		: iri;
 
 	return new RegExp(`^${regexPattern}$`).test(target);
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Checks if a value is a {@link Reference}.
+ *
+ * @group Guards
+ *
+ * @param value The value to check
+ *
+ * @returns True if the value is an absolute IRI
+ */
+function isReference(value: unknown): value is Reference {
+	return isIRI(value, "absolute");
+}
+
+/**
+ * Resolves a trace key for a resource value.
+ *
+ * Extracts the identifier property from `value` and returns it as the trace key if it is an absolute IRI; otherwise,
+ * falls back to a positional blank node label (`_:{index}`).
+ *
+ * @param value The resource value to identify
+ * @param index The positional index used as fallback blank node label
+ * @param id The identifier property key, or `undefined` if no identifier is declared
+ *
+ * @returns The absolute IRI identifier or a blank node label
+ */
+function key(value: unknown, index: number, id: undefined | string) {
+
+	const iri = id !== undefined && isObject(value) ? value[id] : undefined;
+
+	return isReference(iri) ? `<${iri}>` : `[${index}]`;
 
 }

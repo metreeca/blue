@@ -32,7 +32,7 @@ import type { ValueShape } from "./index.js";
 import { validateLocal, validateLocals } from "./local.core.js";
 import { validateNumber } from "./number.core.js";
 import { decimal, integer } from "./number.js";
-import { flatten, validateReference, validateResource } from "./resource.core.js";
+import { validateReference, validateResource, walk } from "./resource.core.js";
 import type { Range, ReferenceShape, ResourceShape, Union } from "./resource.js";
 import { validateString } from "./string.core.js";
 import { date, duration, instant, string, time, timestamp, uri, year } from "./string.js";
@@ -277,9 +277,13 @@ export function apply(probe: Probe, shape: ValueShape): undefined | Range  {
 	 */
 	function resolve(shape: ValueShape, property: Identifier): Focus | undefined {
 
-		const properties = shape.kind === "resource" ? flatten(shape).properties
-			: shape.kind === "reference" ? flatten(materialize(shape.shape)).properties
+		const chain = shape.kind === "resource" ? walk(shape)
+			: shape.kind === "reference" ? walk(materialize(shape.shape))
 				: undefined;
+
+		const properties = chain !== undefined
+			? Object.fromEntries(chain.flatMap(s => Object.entries(s.properties)))
+			: undefined;
 
 		if ( properties === undefined ) {
 

@@ -16,6 +16,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Reject duplicate `Id` and `Type` entries across the full inheritance chain in resource shape factories — previously
+	only local entries were checked; inherited duplicates are now detected via lineage traversal
+- Enforce class-level constraints (`pattern`, `in`, `hasValue`) conjunctively across the inheritance chain in resource
+	validation — child shapes can only restrict, never bypass, inherited constraints
 - Reject IRI strings for embedded `ResourceShape` properties in model validation — only nested models are accepted;
 	IRI references are exclusive to `ReferenceShape` properties
 

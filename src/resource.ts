@@ -22,9 +22,8 @@
  * compile-time type inference.
  *
  * > [!WARNING]
- * > Factories check structural integrity of constraints but not their logical consistency:
- * > contradictory constraints like `minCount > maxCount` won't be rejected, nor will
- * > inconsistencies with inherited definitions.
+ * > Factories rely only on TypeScript's static types for structural integrity and do not check logical consistency:
+ * > contradictory constraint combinations and type mismatches in property overrides won't be rejected.
  *
  * > [!IMPORTANT]
  * > Resource shapes are **closed**: validated resources may only contain properties explicitly defined in the shape.
@@ -215,6 +214,7 @@ import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core
 import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
 import { materialize } from "./index.core.js";
 import type { Infer, ValueShape } from "./index.js";
+import { walk } from "./resource.core.js";
 import type { Validator } from "./trace.js";
 
 
@@ -311,6 +311,8 @@ export interface ResourceShape extends ResourceConstraints {
 
 	/**
 	 * Property shapes defining the expected structure.
+	 *
+	 * At most one {@link Id} and one {@link Type} entry are allowed.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
 	 */
@@ -441,9 +443,10 @@ export interface ResourceConstraints {
 
 
 /**
- * Marker interface for the resource identifier property.
+ * Shape definition for the resource identifier property.
  *
- * Tags a {@link PropertyConstraints} returned by {@link id} as mapping to JSON-LD `@id`.
+ * Tags a resource property as mapping to JSON-LD `@id`. Created by the {@link id} factory. At most one per
+ * resource shape.
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#node-identifiers JSON-LD 1.1 § 3.3 Node Identifiers}
  */
@@ -464,9 +467,10 @@ export interface Id {
 }
 
 /**
- * Marker interface for the resource type property.
+ * Shape definition for the resource type property.
  *
- * Tags a {@link PropertyConstraints} returned by {@link type} as mapping to JSON-LD `@type`.
+ * Tags a resource property as mapping to JSON-LD `@type`. Created by the {@link type} factory. At most one per
+ * resource shape.
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#specifying-the-type JSON-LD 1.1 § 3.5 Specifying the Type}
  */
@@ -874,6 +878,8 @@ export function backlink(shape: Lazy<ResourceShape>): ReferenceShape {
  *
  * @returns A shape for validating resources with the specified properties
  *
+ * @throws {TypeError} If entries contain more than one {@link Id} or more than one {@link Type} definition
+ *
  * @example
  *
  * ```typescript
@@ -910,6 +916,7 @@ export function resource<E extends Entries>(
  *
  * @returns A shape for validating resources, including inherited properties if `extends` is specified
  *
+ * @throws {TypeError} If entries contain more than one {@link Id} or more than one {@link Type} definition
  * @throws {TypeError} If `namespace` is not a function
  * @throws {TypeError} If multiple parents have inconsistent namespaces and no overriding `namespace` is declared
  *
@@ -966,7 +973,7 @@ export function resource(
 		const properties = b;
 
 		const namespace = identify(constraints);
-		const resolved = resolve(normalize(properties), namespace);
+		const resolved = resolve(normalize(properties, constraints.extends), namespace);
 
 		return immutable({
 
@@ -1021,10 +1028,31 @@ export function resource(
 	 * Wraps naked {@link Range} entries into {@link Property} objects.
 	 *
 	 * @param entries The property definitions to normalize
+	 * @param parents Optional parent shapes for inheritance-aware duplicate detection
 	 *
 	 * @returns Normalized properties with range wrapped
 	 */
-	function normalize(entries: Entries): ResourceShape["properties"] {
+	function normalize(entries: Entries, parents?: Some<Lazy<ResourceShape>>): ResourceShape["properties"] {
+
+		const values = Object.values(entries);
+
+		const properties = [
+
+			...(parents === undefined ? [] : (Array.isArray(parents) ? parents : [parents])
+				.flatMap(parent => walk(materialize(parent)))).flatMap(s => Object.values(s.properties)),
+
+			...values
+
+		];
+
+		if ( properties.filter(v => v.kind === "id").length > 1 ) {
+			throw new TypeError("at most one id entry is allowed per resource shape");
+		}
+
+		if ( properties.filter(v => v.kind === "type").length > 1 ) {
+			throw new TypeError("at most one type entry is allowed per resource shape");
+		}
+
 		return Object.fromEntries(Object.entries(entries).map(([name, entry]) => {
 
 			return entry.kind === "range"

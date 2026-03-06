@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { local, locals } from "./local.js";
 import { integer } from "./number.js";
-import { flatten, match, validateModel, validateReference, validateResource } from "./resource.core.js";
+import { match, validateModel, validateReference, validateResource } from "./resource.core.js";
 import {
 	backlink,
 	cardinality,
@@ -400,6 +400,110 @@ describe("factories", () => {
 				expect(() => resource({ namespace: "http://example.org/" } as any, {
 					name: property(required(string()))
 				})).toThrow(TypeError);
+
+			});
+
+			it("throws on duplicate id entries", async () => {
+
+				expect(() => resource({
+					first: id(),
+					second: id()
+				})).toThrow(TypeError);
+
+			});
+
+			it("throws on duplicate type entries", async () => {
+
+				expect(() => resource({
+					first: type(),
+					second: type()
+				})).toThrow(TypeError);
+
+			});
+
+			it("throws on inherited duplicate id entries", async () => {
+
+				const Parent = resource({
+					rid: id(),
+					name: required(string())
+				});
+
+				expect(() => resource({ extends: Parent }, {
+					rid: id()
+				})).toThrow(TypeError);
+
+			});
+
+			it("throws on inherited duplicate type entries", async () => {
+
+				const Parent = resource({
+					rtype: type(),
+					name: required(string())
+				});
+
+				expect(() => resource({ extends: Parent }, {
+					rtype: type()
+				})).toThrow(TypeError);
+
+			});
+
+			it("throws on deeply inherited duplicate id entries", async () => {
+
+				const GrandParent = resource({
+					rid: id(),
+					name: required(string())
+				});
+
+				const Parent = resource({ extends: GrandParent }, {
+					age: required(integer())
+				});
+
+				expect(() => resource({ extends: Parent }, {
+					rid: id()
+				})).toThrow(TypeError);
+
+			});
+
+			it("throws on deeply inherited duplicate type entries", async () => {
+
+				const GrandParent = resource({
+					rtype: type(),
+					name: required(string())
+				});
+
+				const Parent = resource({ extends: GrandParent }, {
+					age: required(integer())
+				});
+
+				expect(() => resource({ extends: Parent }, {
+					rtype: type()
+				})).toThrow(TypeError);
+
+			});
+
+			it("accepts inherited id when child has none", async () => {
+
+				const Parent = resource({
+					rid: id(),
+					name: required(string())
+				});
+
+				expect(() => resource({ extends: Parent }, {
+					age: required(integer())
+				})).not.toThrow();
+
+			});
+
+			it("accepts inherited type when child has none", async () => {
+
+				const Parent = resource({
+					rtype: type(),
+					name: required(string())
+				});
+
+				expect(() => resource({ extends: Parent }, {
+					age: required(integer())
+				})).not.toThrow();
 
 			});
 
@@ -1667,6 +1771,109 @@ describe("validators", () => {
 
 					expect(inner).toHaveProperty("id");
 					expect(inner["id"]).toHaveProperty("{kind}");
+
+				});
+
+			});
+
+		});
+
+		describe("inherited class-level constraints", () => {
+
+			describe("pattern", () => {
+
+				it("enforces parent pattern on child", async () => {
+
+					const Parent = resource({ pattern: "/users/{id}" }, { id: id() });
+					const Child = resource({ extends: Parent }, { name: required(string()) });
+
+					expect(validateResource([{ "id": "app:/users/123", "name": "Alice" }], Child)).toBeUndefined();
+
+					const trace = validateResource([{ "id": "app:/products/123", "name": "Alice" }], Child) as Record<string, Trace>;
+					const inner = trace["<app:/products/123>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{pattern}");
+
+				});
+
+				it("enforces both parent and child patterns conjunctively", async () => {
+
+					const Parent = resource({ pattern: "/org/*" }, { id: id() });
+					const Child = resource({ extends: Parent, pattern: "/org/users/{id}" }, { name: required(string()) });
+
+					expect(validateResource([{ "id": "app:/org/users/123", "name": "Alice" }], Child)).toBeUndefined();
+
+					const trace = validateResource([{ "id": "app:/org/products/123", "name": "Alice" }], Child) as Record<string, Trace>;
+					const inner = trace["<app:/org/products/123>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+
+					// with multiple patterns, keys are indexed
+					const idTrace = inner["id"] as Record<string, Trace>;
+					expect(idTrace).toSatisfy((t: Record<string, unknown>) =>
+						Object.keys(t).some(k => k.startsWith("{pattern}"))
+					);
+
+				});
+
+			});
+
+			describe("in", () => {
+
+				it("enforces parent in constraint on child", async () => {
+
+					const Parent = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
+					const Child = resource({ extends: Parent }, { name: required(string()) });
+
+					expect(validateResource([{ "id": "app:/users/alice", "name": "Alice" }], Child)).toBeUndefined();
+
+					const trace = validateResource([{ "id": "app:/users/charlie", "name": "Charlie" }], Child) as Record<string, Trace>;
+					const inner = trace["<app:/users/charlie>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{in}");
+
+				});
+
+			});
+
+			describe("hasValue", () => {
+
+				it("enforces parent hasValue constraint on child", async () => {
+
+					const Parent = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+					const Child = resource({ extends: Parent }, { name: required(string()) });
+
+					expect(validateResource([{ "id": "app:/users/admin", "name": "Admin" }], Child)).toBeUndefined();
+
+					const trace = validateResource([{ "id": "app:/users/guest", "name": "Guest" }], Child) as Record<string, Trace>;
+					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{hasValue}");
+
+				});
+
+				it("enforces parent and child hasValue conjunctively", async () => {
+
+					const Parent = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+					const Child = resource({ extends: Parent, hasValue: ["app:/users/root"] }, { name: required(string()) });
+
+					// id "app:/users/guest" fails both parent and child hasValue
+
+					const trace = validateResource([
+						{ "id": "app:/users/guest", "name": "Guest" }
+					], Child) as Record<string, Trace>;
+					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+
+					// with multiple hasValue lists, keys are indexed
+					const idTrace = inner["id"] as Record<string, unknown>;
+					expect(idTrace).toSatisfy((t: Record<string, unknown>) =>
+						Object.keys(t).some(k => k.startsWith("{hasValue}"))
+					);
 
 				});
 
@@ -4891,297 +5098,6 @@ describe("validators", () => {
 });
 
 describe("utilities", () => {
-
-	describe("flatten", () => {
-
-		describe("no inheritance", () => {
-
-			it("returns own properties with empty overrides", async () => {
-
-				const shape = resource({
-					name: required(string()),
-					age: optional(integer())
-				});
-
-				const { properties, overrides, validators } = flatten(shape);
-
-				expect(properties).toBe(shape.properties);
-				expect(overrides).toEqual({});
-				expect(validators).toEqual([]);
-
-			});
-
-			it("returns own validators", async () => {
-
-				const v: Validator = () => undefined;
-
-				const shape = resource({ validators: [v] }, {
-					name: required(string())
-				});
-
-				const { validators } = flatten(shape);
-
-				expect(validators).toEqual([v]);
-
-			});
-
-		});
-
-		describe("single parent", () => {
-
-			it("merges parent and child properties", async () => {
-
-				const Parent = resource({
-					name: required(string())
-				});
-
-				const Child = resource({ extends: Parent }, {
-					age: required(integer())
-				});
-
-				const { properties } = flatten(Child);
-
-				expect(Object.keys(properties)).toContain("name");
-				expect(Object.keys(properties)).toContain("age");
-
-			});
-
-			it("overrides parent property with child property", async () => {
-
-				const Parent = resource({
-					name: required(string())
-				});
-
-				const Child = resource({ extends: Parent }, {
-					name: required(string())
-				});
-
-				const { properties, overrides } = flatten(Child);
-
-				expect(properties.name).toBe(Child.properties.name);
-				expect(overrides["name"]).toBeDefined();
-				expect(overrides["name"]).toHaveLength(1);
-
-			});
-
-			it("does not record overrides for non-property entries", async () => {
-
-				const Parent = resource({
-					label: type()
-				});
-
-				const Child = resource({ extends: Parent }, {
-					label: type()
-				});
-
-				const { overrides } = flatten(Child);
-
-				expect(overrides["label"]).toBeUndefined();
-
-			});
-
-			it("merges parent and child validators", async () => {
-
-				const v1: Validator = () => undefined;
-				const v2: Validator = () => undefined;
-
-				const Parent = resource({ validators: [v1] }, {
-					name: required(string())
-				});
-
-				const Child = resource({ extends: Parent, validators: [v2] }, {
-					age: required(integer())
-				});
-
-				const { validators } = flatten(Child);
-
-				expect(validators).toContain(v1);
-				expect(validators).toContain(v2);
-
-			});
-
-			it("deduplicates shared validators by identity", async () => {
-
-				const v: Validator = () => undefined;
-
-				const Parent = resource({ validators: [v] }, {
-					name: required(string())
-				});
-
-				const Child = resource({ extends: Parent, validators: [v] }, {
-					age: required(integer())
-				});
-
-				const { validators } = flatten(Child);
-
-				expect(validators).toHaveLength(1);
-				expect(validators).toContain(v);
-
-			});
-
-		});
-
-		describe("lazy parent", () => {
-
-			it("resolves lazy parent reference", async () => {
-
-				const Parent = resource({
-					name: required(string())
-				});
-
-				const Child = resource({ extends: () => Parent }, {
-					age: required(integer())
-				});
-
-				const { properties } = flatten(Child);
-
-				expect(Object.keys(properties)).toContain("name");
-				expect(Object.keys(properties)).toContain("age");
-
-			});
-
-		});
-
-		describe("multiple parents", () => {
-
-			it("merges properties from all parents left-to-right", async () => {
-
-				const Parent1 = resource({
-					name: required(string())
-				});
-
-				const Parent2 = resource({
-					age: required(integer())
-				});
-
-				const Child = resource({ extends: [Parent1, Parent2] }, {
-					active: required(boolean())
-				});
-
-				const { properties } = flatten(Child);
-
-				expect(Object.keys(properties)).toContain("name");
-				expect(Object.keys(properties)).toContain("age");
-				expect(Object.keys(properties)).toContain("active");
-
-			});
-
-			it("right parent overrides left parent for same property", async () => {
-
-				const Parent1 = resource({
-					name: required(string())
-				});
-
-				const Parent2 = resource({
-					name: property(optional(string()))
-				});
-
-				const Child = resource({ extends: [Parent1, Parent2] }, {
-					age: required(integer())
-				});
-
-				const { properties } = flatten(Child);
-
-				expect(properties.name).toBe(Parent2.properties.name);
-
-			});
-
-			it("merges validators from all parents", async () => {
-
-				const v1: Validator = () => undefined;
-				const v2: Validator = () => undefined;
-
-				const Parent1 = resource({ validators: [v1] }, {
-					name: required(string())
-				});
-
-				const Parent2 = resource({ validators: [v2] }, {
-					age: required(integer())
-				});
-
-				const Child = resource({ extends: [Parent1, Parent2] }, {
-					active: required(boolean())
-				});
-
-				const { validators } = flatten(Child);
-
-				expect(validators).toContain(v1);
-				expect(validators).toContain(v2);
-
-			});
-
-		});
-
-		describe("transitive inheritance", () => {
-
-			it("flattens grandparent properties", async () => {
-
-				const Grandparent = resource({
-					name: required(string())
-				});
-
-				const Parent = resource({ extends: Grandparent }, {
-					age: required(integer())
-				});
-
-				const Child = resource({ extends: Parent }, {
-					active: required(boolean())
-				});
-
-				const { properties } = flatten(Child);
-
-				expect(Object.keys(properties)).toContain("name");
-				expect(Object.keys(properties)).toContain("age");
-				expect(Object.keys(properties)).toContain("active");
-
-			});
-
-			it("accumulates transitive overrides", async () => {
-
-				const Grandparent = resource({
-					name: required(string())
-				});
-
-				const Parent = resource({ extends: Grandparent }, {
-					name: required(string())
-				});
-
-				const Child = resource({ extends: Parent }, {
-					name: required(string())
-				});
-
-				const { overrides } = flatten(Child);
-
-				expect(overrides["name"]).toBeDefined();
-				expect(overrides["name"].length).toBeGreaterThanOrEqual(2);
-
-			});
-
-			it("propagates grandparent validators", async () => {
-
-				const v: Validator = () => undefined;
-
-				const Grandparent = resource({ validators: [v] }, {
-					name: required(string())
-				});
-
-				const Parent = resource({ extends: Grandparent }, {
-					age: required(integer())
-				});
-
-				const Child = resource({ extends: Parent }, {
-					active: required(boolean())
-				});
-
-				const { validators } = flatten(Child);
-
-				expect(validators).toContain(v);
-
-			});
-
-		});
-
-	});
 
 	describe("match", () => {
 
