@@ -75,8 +75,9 @@ import { checkLocalized } from "./local.core.js";
  *
  * **Inheritance**
  *
- * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, single-valued
- * language-tagged properties are merged according to the following rules. The *child* is the extending shape; the
+ * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
+ * single-valued language-tagged properties are merged according to the following rules. The *child* is the extending
+ * shape; the
  * *parent* is the inherited shape.
  *
  * | Field        | Override Rule                                                                   |
@@ -120,8 +121,9 @@ export interface LocalShape extends LocalizedConstraints {
  *
  * **Inheritance**
  *
- * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, multi-valued
- * language-tagged properties are merged according to the following rules. The *child* is the extending shape; the
+ * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
+ * multi-valued language-tagged properties are merged according to the following rules. The *child* is the extending
+ * shape; the
  * *parent* is the inherited shape.
  *
  * | Field        | Override Rule                                                                   |

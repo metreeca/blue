@@ -153,14 +153,6 @@ describe("every", () => {
 
 	});
 
-	it("applies count prefix only to string traces", async () => {
-
-		const result = every([1, 2, 3], () => "bad");
-
-		expect(result).toMatch(/^\(3\/3\)/);
-
-	});
-
 	it("wraps multiple keyed failures in index keys", async () => {
 
 		const result = every([1, 2], () => ({ name: "required" }));

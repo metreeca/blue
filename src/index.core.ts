@@ -565,40 +565,67 @@ export function materialize<T>(lazy: Lazy<T>): T {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Checks whether a value carries a brand matching a given symbol and payload.
+ * Checks whether a value carries all symbol-keyed properties with the expected payloads.
  *
  * Supports idempotency patterns where repeated operations can be skipped on already-processed values.
+ * Keys mapped to `undefined` act as wildcards, checking only for key presence without comparing payloads.
  *
  * @param value The value to check
- * @param symbol The brand symbol
- * @param payload The expected brand payload (defaults to `null`)
+ * @param tags Map of symbol keys to expected payloads; all entries must match. `undefined` values match any payload
  *
- * @returns `true` if `value` is an object branded with the matching symbol and payload; `false` otherwise
+ * @returns `true` if `value` is an object carrying all specified symbol-keyed properties with matching payloads;
+ *     `false` otherwise
  */
-export function branded(value: unknown, symbol: symbol, payload: unknown = null): boolean {
-	return isObject(value) && value[symbol] === payload;
+export function branded<T extends Record<symbol, unknown>>(value: unknown, tags: T): value is Record<keyof T, unknown> {
+
+	if ( isObject(value) ) {
+
+		return Object.getOwnPropertySymbols(tags).every(symbol =>
+			symbol in value && (tags[symbol] === undefined || tags[symbol] === value[symbol])
+		);
+
+	} else {
+
+		return false;
+
+	}
+
 }
 
 /**
- * Attaches a brand to a value using the given symbol and payload.
+ * Attaches symbol-keyed properties to a value, returning an immutable copy.
  *
  * Supports idempotency patterns where repeated operations can be skipped on already-processed values.
+ * Non-object values are returned unchanged.
+ *
+ * @typeParam V The value type
  *
  * @param value The value to brand
- * @param symbol The brand symbol
- * @param payload The brand payload to attach (defaults to `null`)
+ * @param tags Map of symbol keys to payloads to attach
  *
- * @returns The branded and immutable value
+ * @returns An immutable copy of the value with all symbol-keyed properties attached; non-object values are returned
+ *     unchanged
  */
-export function brand<V extends object>(value: V, symbol: symbol, payload: unknown = null): V {
+export function brand<V>(value: V, tags: { readonly [key: symbol]: unknown }): V {
 
-	return immutable(Object.defineProperty(Object.isExtensible(value) ? value : { ...value }, symbol, {
+	if ( isObject(value) ) {
 
-		enumerable: false,
-		configurable: true,
+		return immutable(Object.getOwnPropertySymbols(tags).reduce(
+			(copy, symbol) => Object.defineProperty(copy, symbol, {
 
-		value: payload
+				enumerable: false,
+				configurable: true,
 
-	}));
+				value: tags[symbol]
+
+			}),
+			Object.isExtensible(value) ? value : { ...value }
+		));
+
+	} else {
+
+		return value;
+
+	}
 
 }

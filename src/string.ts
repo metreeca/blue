@@ -22,7 +22,7 @@
  * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) string datatypes.
  *
  * > Factories validate constraint consistency at construction time:
- * > contradictory constraints like `minLength > maxLength` throw a {@link !RangeError}.
+ * > contradictory constraints like `minLength > maxLength` throw a `RangeError`.
  *
  * | XSD Datatype ¹    | Factory             | Description                    | Format                        |
  * | ----------------- | ------------------- | ------------------------------ | ----------------------------- |
@@ -129,9 +129,9 @@ import { checkString } from "./string.core.js";
  *
  * **Inheritance**
  *
- * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, string-valued
- * properties are merged according to the following rules. The *child* is the extending shape; the *parent* is the
- * inherited shape.
+ * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
+ * string-valued properties are merged according to the following rules. The *child* is the extending shape; the
+ * *parent* is the inherited shape.
  *
  * | Field       | Override Rule                                                                     |
  * | ----------- | --------------------------------------------------------------------------------- |

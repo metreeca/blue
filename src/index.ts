@@ -31,7 +31,7 @@
  * - {@link local!LocalShape | LocalShape} - Single-valued language-tagged maps
  * - {@link local!LocalsShape | LocalsShape} - Multi-valued language-tagged maps
  * - {@link resource!ReferenceShape | ReferenceShape} - Resource IRI references
- * - {@link resource!ResourceShape | ResourceShape} - Nested resources
+ * - {@link resource!ResourceShape | ResourceShape} - Resources
  *
  * **Defining Shapes**
  *
@@ -51,29 +51,40 @@
  * });
  * ```
  *
- * **Validating Resources**
+ * **Validating Values**
  *
  * Validate values against shapes using pattern matching on the {@link Relay} result:
  *
  * ```typescript
  * import { validate } from '@metreeca/blue';
  *
- * const name = validate(data, Product)({
+ * const name = validate(data, { scope: "value", shape: Product })({
  *   value: product => product.name
  * }); // undefined if validation fails
  * ```
  *
- * **Validation Modes**
+ * **Validating Models**
  *
- * Beyond complete resource states, {@link validate} supports projections:
+ * Validate projection models specifying which properties to retrieve from a resource:
  *
  * ```typescript
- * // validate a complete resource state (default)
- * validate(data, Product);
- *
  * // validate a projection model
- * validate(data, Product, { mode: "model" });
+ * validate(data, { scope: "model", shape: Product });
  *
+ * // validate a projection model with nesting depth
+ * validate(data, { scope: "model", shape: Product, depth: 2 });
+ * ```
+ *
+ * **Tagging Entries**
+ *
+ * Both {@link validate} and {@link tag} associate entries with a shape for a given scope. The scope tracks how
+ * the association was established: `value` and `model` scopes are set by {@link validate} after successful validation,
+ * while the `entry` scope is set by {@link tag} when conformance is immaterial.
+ * Use {@link tag} as a getter to retrieve the shape associated with an entry for a given scope.
+ *
+ * ```typescript
+ * const tagged = tag(data, { scope: "entry", shape: Product });
+ * const shape = tag(tagged, { scope: "entry" }); // Product shape
  * ```
  *
  * **Custom Validators**
@@ -121,16 +132,15 @@
  */
 
 import { type Lazy } from "@metreeca/core";
-import { error, message } from "@metreeca/core/error";
-import { immutable } from "@metreeca/core/nested";
+import { message } from "@metreeca/core/error";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import type { Model } from "@metreeca/qest/model";
-import type { Resource, Value } from "@metreeca/qest/state";
+import type { Reference, Resource, Value } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
 import { apply, brand, branded, materialize, validateValue } from "./index.core.js";
 import type { LocalShape, LocalsShape } from "./local.js";
 import type { NumberShape } from "./number.js";
-import { validateModel, validateResource } from "./resource.core.js";
+import { flatten, validateModel, validateResource } from "./resource.core.js";
 import type { ReferenceShape, ResourceShape } from "./resource.js";
 import type { StringShape } from "./string.js";
 import type { Trace, Validator } from "./trace.js";
@@ -139,19 +149,14 @@ export { apply, Trace, Validator };
 
 
 /**
- * Mode-specific brand symbols for validated resources.
- *
- * Set by {@link brand} and checked by {@link branded} to skip redundant validation against the same shape.
- *
- * - `State` — brands resources validated in state mode
- * - `Model` — brands resources validated in model mode
+ * Symbol key for storing the validation scope on branded entries.
  */
-const Validated = immutable({
+const TagScope: unique symbol = Symbol("TagScope");
 
-	State: Symbol("StateValidated"),
-	Model: Symbol("ModelValidated")
-
-});
+/**
+ * Symbol key for storing the associated shape on branded entries.
+ */
+const TagShape: unique symbol = Symbol("TagShape");
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -194,28 +199,138 @@ export type Infer<S extends Lazy<{ readonly model: unknown }>> =
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Validates a `Value` against a shape.
+ * Retrieves the shape associated with a value.
  *
- * - **{@link ResourceShape}**: validates a `Resource` state, then enforces all shape constraints including
- *   cardinality, closed-shape checks, and custom validators — unknown and missing properties are both rejected
- * - **Other shapes**: validates the `Value` directly using the type-specific validator
+ * @param value The value to inspect
+ * @param opts Retrieval options
+ * @param opts.scope The scope to check against; if omitted, returns the associated shape regardless of scope
  *
- * @typeParam T The `Value` type inferred from `shape`
+ * @returns The associated {@link ResourceShape}, or `undefined` if no shape is associated with the expected scope
+ */
+export function tag(value: Value, opts?: {
+
+	readonly scope?: "value" | "entry"
+
+}): undefined | ResourceShape;
+
+/**
+ * Retrieves the shape associated with a model.
+ *
+ * @param model The model to inspect
+ * @param opts Retrieval options
+ * @param opts.scope The scope to check against; if omitted, returns the associated shape regardless of scope
+ *
+ * @returns The associated {@link ResourceShape}, or `undefined` if no shape is associated with the expected scope
+ */
+export function tag(model: Model, opts?: {
+
+	readonly scope?: "model" | "entry"
+
+}): undefined | ResourceShape;
+
+/**
+ * Forces the association of an entry with a shape for a given scope.
+ *
+ * Returns a new entry associated with the given scope and shape, replacing any previous association.
+ *
+ * > [!WARNING]
+ * > Tagging an entry does not verify actual conformance to the tagging shape.
+ * >
+ * > Set the scope to `value` or `model` when conformance is already guaranteed, for instance for data from trusted
+ * > sources or safely constructed entries.
+ * >
+ * > Set the scope to `entry` when conformance is immaterial, for instance when associating a shape with the identity
+ * > of an entry rather than its description, as in deletion operations.
+ * >
+ * > When conformance matters and is not guaranteed, use {@link validate} instead to both validate and associate the
+ * > appropriate scope and shape.
+ *
+ * @typeParam T The entry type
+ *
+ * @param entry The entry to associate
+ * @param opts Association options
+ * @param opts.scope The scope to associate
+ * @param opts.shape The {@link ValueShape} to associate
+ *
+ * @returns An immutable copy of the entry associated with the given scope and a verified and flattened copy of the
+ * shape (see {@link resource!resource | resource})
+ *
+ * @throws TypeError If the shape contains invalid entry definitions (see {@link resource!resource | resource})
+ * @throws RangeError If the shape contains incompatible inherited constraints
+ * (see {@link resource!resource | resource})
+ */
+export function tag<T extends Value | Model>(entry: T, opts: {
+
+	readonly scope: "value" | "model" | "entry"
+	readonly shape: ValueShape
+
+}): T;
+
+export function tag(entry: Value | Model, {
+
+	scope,
+	shape
+
+}: {
+
+	readonly scope?: "value" | "model" | "entry"
+	readonly shape?: ValueShape
+
+} = {}): undefined | ResourceShape | Value | Model {
+
+	if ( shape === undefined ) { // getter: return shape only if scope matches
+
+		return branded(entry, { [TagScope]: scope, [TagShape]: undefined })
+			? entry[TagShape] as ResourceShape
+			: undefined;
+
+	} else { // setter: associate scope and shape
+
+		return shape.kind === "resource"
+			? brand(entry, { [TagScope]: scope, [TagShape]: flatten(shape) })
+			: entry;
+
+	}
+
+}
+
+
+/**
+ * Validates a value against a shape with a value scope.
+ *
+ * Enforces all shape constraints including type, cardinality, closed-shape checks, and custom validators.
+ * For {@link Resource} values, which are property maps describing the complete state of a linked data resource,
+ * unknown and missing properties are both rejected; all declared properties are required unless marked optional
+ * by the shape.
+ *
+ * > [!TIP]
+ * > For {@link Resource} values, the function is idempotent on a specific scope/shape combination: on re-validation
+ * > against the same scope and shape, the previous association is trusted without repeating the validation process,
+ * > so that you can safely re-validate defensively.
+ *
+ * > [!TIP]
+ * > For values already trusted or pre-validated elsewhere, use {@link tag} to force the shape association without
+ * > repeating the validation process.
+ *
+ * @typeParam T The {@link Value} type inferred from `opts.shape`
  *
  * @param value The value to validate
- * @param shape The {@link ValueShape} defining validation constraints; may be a {@link Lazy} factory
  * @param opts Validation options
- * @param opts.mode Must be `"state"`
+ * @param opts.scope The validation scope; must be `"value"`
+ * @param opts.shape The {@link ValueShape} defining validation constraints; may be a {@link Lazy} factory
  *
- * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure
+ * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; for
+ * {@link Resource} values, on success, the value is an immutable copy associated with the `value` scope and a verified
+ * and flattened copy of the shape (see {@link resource!resource | resource}), retrievable via {@link tag}
  *
- * > [!NOTE]
- * > This function is idempotent: values that pass validation are branded with the shape and mode
- * > and won't be re-validated when validated again against the same shape and mode.
+ * @throws TypeError If the shape contains invalid entry definitions (see {@link resource!resource | resource})
+ * @throws RangeError If the shape contains incompatible inherited constraints (see {@link resource!resource |
+ *     resource})
  */
-export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape & { readonly model: T }>, opts?: {
+export function validate<T extends Value>(value: unknown, opts: {
 
-	readonly mode: "state"
+	readonly scope: "value"
+	readonly shape: Lazy<ValueShape & { model: T }>
 
 }): Relay<{
 
@@ -225,42 +340,50 @@ export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape
 }>;
 
 /**
- * Validates a `Value` as a projection model against a shape.
+ * Validates a model against a shape with a model scope.
  *
- * - **{@link ResourceShape}**: validates a `Model` projection;
- *   `Value` constraints and custom validators are skipped as a
- *   `Model` describes a projection shape rather than actual data; cardinality is
- *   checked only for shape consistency (scalar if `maxCount` is 1, singleton tuple otherwise); unknown properties
- *   are rejected, but missing properties are accepted as not requested
- * - **Other shapes**: validates the `Value` directly using the type-specific validator
- *   (shared with state validation)
+ * A {@link Model} is a recursively nested property map specifying which properties to retrieve from a resource.
+ * Shape constraints beyond type are skipped as model values are placeholders rather than actual
+ * data; cardinality is checked only for shape consistency (scalar if `maxCount` is 1, singleton tuple otherwise);
+ * missing properties are accepted as not requested and unknown properties in expression paths are silently ignored.
  *
- * > [!NOTE]
- * > For {@link ResourceShape resource shapes}, wherever a property specifies a resource (either directly or via a
- * > `Reference`), the value may be either a
- * > `Reference` (retrieving just the id) or a nested
- * > `Model`, subject to `depth` limits.
+ * > [!TIP]
+ * > The function is idempotent on a specific scope/shape combination: on re-validation against the same scope and
+ * > shape, the previous association is trusted without repeating the validation process, so that you can safely
+ * > re-validate defensively.
  *
- * @typeParam T The `Value` type inferred from `shape`
+ * > [!TIP]
+ * > For models already trusted or pre-validated elsewhere, use {@link tag} to force the shape association without
+ * > repeating the validation process.
  *
- * @param value The value to validate
- * @param shape The {@link ValueShape} defining validation constraints; may be a {@link Lazy} factory
+ * > [!TIP]
+ * > Wherever a property specifies a {@link ReferenceShape}, the model may be either an IRI {@link Reference}
+ * > (retrieving just the id) or a nested {@link Model} (retrieving a projection of the referenced resource, validated
+ * > against its target shape). Nesting is subject to `depth` limits; set `depth` to the minimum required level to
+ * > guard against possible complexity attacks from deeply nested models.
+ *
+ * @typeParam T The {@link Model} type
+ *
+ * @param model The model to validate
  * @param opts Validation options
- * @param opts.mode Must be `"model"`
- * @param opts.depth Maximum nesting depth for `Reference` and embedded
- *     `Resource` expansion; `0` rejects any nested
- *     `Model` while still accepting IRI references; `null` for unlimited; defaults
- *     to `0`
+ * @param opts.scope The validation scope; must be `"model"`
+ * @param opts.shape The {@link ValueShape} defining validation constraints; may be a {@link Lazy} factory
+ * @param opts.depth Maximum nesting depth for {@link Reference} and embedded {@link Resource} expansion; `0` rejects
+ *     any nested {@link Model} while still accepting IRI references; `null` for unlimited; defaults to `0`
  *
- * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure
+ * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the
+ * value is an immutable copy of the model associated with the `model` scope and a verified and flattened copy of the
+ * shape (see {@link resource!resource | resource}), retrievable via {@link tag}
  *
- * > [!NOTE]
- * > This function is idempotent: values that pass validation are branded with the shape and mode
- * > and won't be re-validated when validated again against the same shape and mode.
+ * @throws TypeError If the shape contains invalid entry definitions (see {@link resource!resource | resource})
+ * @throws RangeError If the shape contains incompatible inherited constraints
+ * (see {@link resource!resource | resource})
  */
-export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape & { readonly model: T }>, opts: {
+export function validate<T extends Model>(model: unknown, opts: {
 
-	readonly mode: "model"
+	readonly scope: "model"
+	readonly shape: Lazy<ValueShape>
+
 	readonly depth?: null | number
 
 }): Relay<{
@@ -271,43 +394,59 @@ export function validate<T extends Value>(value: unknown, shape: Lazy<ValueShape
 }>;
 
 /**
- * Validates a value state or projection model against a shape.
+ * Validates a value or model against a shape within the specified scope.
  */
-export function validate(value: unknown, lazy: Lazy<ValueShape>, {
+export function validate(value: unknown, {
 
-	mode,
+	scope,
+	shape: lazy,
 	depth = 0
 
 }: {
 
-	readonly mode: "state" | "model"
+	readonly scope: "value" | "model"
+	readonly shape: Lazy<ValueShape>
+
 	readonly depth?: null | number
-
-} = {
-
-	mode: "state"
 
 }): Relay<{
 
-	readonly value: Value,
+	readonly value: Value | Model,
 	readonly trace: Trace
 
 }> {
-
 
 	try {
 
 		const shape = materialize(lazy);
 
-		if ( shape.kind === "resource" ) { // resource shapes: dispatch by mode with branding
+		if ( shape.kind === "resource" ) {
 
-			return mode === "state" ? state(shape)
-				: mode === "model" ? model(shape)
-					: error(`unsupported mode <${mode}>`);
+			if ( branded(value, { [TagScope]: scope, [TagShape]: shape }) ) { // already validated
 
-		} else { // non-resource shapes: validate value directly, ignoring mode (no model/state distinction)
+				return createRelay({ value });
 
-			const trace = validateValue([value as Value], shape);
+			} else if ( scope === "value" ) {
+
+				const trace = validateResource([value], shape);
+
+				return trace === undefined
+					? createRelay({ value: brand(value, { [TagScope]: "value", [TagShape]: shape }) })
+					: createRelay({ trace });
+
+			} else {
+
+				const trace = validateModel([value], shape, depth);
+
+				return trace === undefined
+					? createRelay({ value: brand(value, { [TagScope]: "model", [TagShape]: shape }) })
+					: createRelay({ trace });
+
+			}
+
+		} else { // validate value directly, ignoring scope
+
+			const trace = validateValue([value], shape);
 
 			return trace === undefined
 				? createRelay({ value: value as Value })
@@ -319,41 +458,6 @@ export function validate(value: unknown, lazy: Lazy<ValueShape>, {
 
 		return createRelay({ trace: message(e) });
 
-	}
-
-
-	function state(shape: ResourceShape) {
-
-		if ( branded(value, Validated.State, shape) ) {
-
-			return createRelay({ value: value as Value });
-
-		} else {
-
-			const trace = validateResource([value as Resource], shape);
-
-			return trace === undefined
-				? createRelay({ value: brand(value as Resource, Validated.State, shape) })
-				: createRelay({ trace });
-
-		}
-	}
-
-	function model(shape: ResourceShape) {
-
-		if ( branded(value, Validated.Model, shape) ) {
-
-			return createRelay({ value: value as Model });
-
-		} else {
-
-			const trace = validateModel([value as Model], shape, depth);
-
-			return trace === undefined
-				? createRelay({ value: brand(value as Model, Validated.Model, shape) })
-				: createRelay({ trace });
-
-		}
 	}
 
 }

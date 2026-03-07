@@ -753,7 +753,7 @@ describe("shape assignability", () => {
 			name: property(required(string()))
 		});
 
-		validate({}, shape);
+		validate({}, { scope: "value", shape });
 
 	});
 

@@ -9,6 +9,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Add `tag()` to associate entries with a shape for a given scope (`value`, `model`, `entry`) and to retrieve
+	previously associated shapes; replaces `certify()`
 - Add `Validator<T>` type for custom value validators returning `undefined | true | Trace`
 - Validate constraint operator semantics against property value types in model validation — range, text search,
 	disjunctive/conjunctive, focus, sort, and pagination operators are checked against the effective shape computed by
@@ -36,9 +38,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	special case for single-resource arrays
 - Redesign `Trace` type as a recursive `string | { readonly [key: string]: Trace }` union, replacing the mixed-array
 	representation with keyed reports at every level (collection, resource, property, constraint)
-- Widen `validate()` model overload type parameter from `T extends Model` to `T extends Value`, accepting any value
-	shape for projection validation
-- Rename `validate()` default mode from `"value"` to `"state"` aligning with qest resource state terminology
+- Redesign `validate()` to accept a single options object with `scope` (`value` | `model`), `shape`, and optional
+	`depth`; `value` scope enforces full constraints on resources, `model` scope validates projection models
 
 ### Removed
 

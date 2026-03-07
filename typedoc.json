@@ -35,6 +35,7 @@
       "Indexed": "https://metreeca.github.io/qest/types/state.Indexed.html",
       "decodeResource": "https://metreeca.github.io/qest/functions/state.decodeResource.html",
       "decodeQuery": "https://metreeca.github.io/qest/functions/query.decodeQuery.html",
+      "Model": "https://metreeca.github.io/qest/types/model.Model.html",
       "Binding": "https://metreeca.github.io/qest/types/model.Binding.html",
       "isValue": "https://metreeca.github.io/qest/functions/state.isValue.html",
       "isModel": "https://metreeca.github.io/qest/functions/model.isModel.html",

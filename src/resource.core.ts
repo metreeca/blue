@@ -1337,7 +1337,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
  */
 export function flatten(shape: ResourceShape): ResourceShape {
 
-	if ( branded(shape, Flattened) ) { return shape; } else {
+	if ( branded(shape, { [Flattened]: null }) ) { return shape; } else {
 
 		const parents = shape.extends === undefined ? []
 			: Array.isArray(shape.extends) ? shape.extends.map(p => flatten(materialize(p)))
@@ -1364,7 +1364,7 @@ export function flatten(shape: ResourceShape): ResourceShape {
 			throw Object.assign(new RangeError("incompatible flattened shape"), { trace });
 		}
 
-		return brand(flattened, Flattened);
+		return brand(flattened, { [Flattened]: null });
 
 	}
 
