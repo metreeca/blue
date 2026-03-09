@@ -564,30 +564,22 @@ export function materialize<T>(lazy: Lazy<T>): T {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Checks whether a value carries all symbol-keyed properties with the expected payloads.
+ * Retrieves the payload associated with a symbol-keyed brand property on a value.
  *
  * Supports idempotency patterns where repeated operations can be skipped on already-processed values.
- * Keys mapped to `undefined` act as wildcards, checking only for key presence without comparing payloads.
  *
- * @param value The value to check
- * @param tags Map of symbol keys to expected payloads; all entries must match. `undefined` values match any payload
+ * @typeParam T The expected payload type
  *
- * @returns `true` if `value` is an object carrying all specified symbol-keyed properties with matching payloads;
- *     `false` otherwise
+ * @param value The value to inspect
+ * @param tag The symbol key to look up
+ *
+ * @returns The payload associated with the symbol key if the value is an object carrying it; `undefined` otherwise
  */
-export function branded<T extends Record<symbol, unknown>>(value: unknown, tags: T): value is Record<keyof T, unknown> {
+export function branded<T>(value: unknown, tag: symbol): T | undefined {
 
-	if ( isObject(value) ) {
-
-		return Object.getOwnPropertySymbols(tags).every(symbol =>
-			symbol in value && (tags[symbol] === undefined || tags[symbol] === value[symbol])
-		);
-
-	} else {
-
-		return false;
-
-	}
+	return isObject(value) && tag in value
+		? value[tag] as T
+		: undefined;
 
 }
 

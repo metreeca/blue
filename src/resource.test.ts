@@ -33,6 +33,7 @@ import {
 	mergeReference,
 	mergeResource,
 	mergeUnion,
+	validateEntry,
 	validateModel,
 	validateReference,
 	validateResource
@@ -1454,6 +1455,217 @@ describe("operators", () => {
 
 	});
 
+
+	describe("validateEntry", () => {
+
+		describe("shapes without id", () => {
+
+			it("returns undefined for shape with no id property", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				expect(validateEntry([{ name: "Alice" }], shape)).toBeUndefined();
+
+			});
+
+			it("returns undefined for empty shape", async () => {
+
+				expect(validateEntry([{}], resource({}))).toBeUndefined();
+
+			});
+
+		});
+
+		describe("shapes with id", () => {
+
+			it("accepts single absolute IRI", async () => {
+
+				const shape = resource({ id: id() });
+
+				expect(validateEntry([{ "id": "app:/users/123" }], shape)).toBeUndefined();
+
+			});
+
+			it("rejects missing id", async () => {
+
+				const shape = resource({ id: id() });
+
+				const trace = validateEntry([{}], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
+
+				expect(inner).toHaveProperty("id");
+				expect(inner["id"]).toHaveProperty("{kind}");
+
+			});
+
+			it("rejects non-IRI value", async () => {
+
+				const shape = resource({ id: id() });
+
+				const trace = validateEntry([{ "id": "not an iri" }], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
+
+				expect(inner).toHaveProperty("id");
+				expect(inner["id"]).toHaveProperty("{kind}");
+
+			});
+
+			it("rejects multiple values", async () => {
+
+				const shape = resource({ id: id() });
+
+				const trace = validateEntry([{ "id": ["/users/1", "/users/2"] }], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
+
+				expect(inner).toHaveProperty("id");
+				expect(inner["id"]).toHaveProperty("{kind}");
+
+			});
+
+			it("rejects non-object values", async () => {
+
+				const shape = resource({ id: id() });
+
+				const trace = validateEntry(["not an object"], shape) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+		});
+
+		describe("id constraints", () => {
+
+			describe("pattern", () => {
+
+				it("accepts id matching pattern", async () => {
+
+					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+
+					expect(validateEntry([{ "id": "app:/users/123" }], shape)).toBeUndefined();
+
+				});
+
+				it("rejects id not matching pattern", async () => {
+
+					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+
+					const trace = validateEntry([{ "id": "/products/123" }], shape) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{pattern}");
+
+				});
+
+			});
+
+			describe("in", () => {
+
+				it("accepts id in allowed enumeration", async () => {
+
+					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
+
+					expect(validateEntry([{ "id": "app:/users/alice" }], shape)).toBeUndefined();
+
+				});
+
+				it("rejects id not in allowed enumeration", async () => {
+
+					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
+
+					const trace = validateEntry([{ "id": "app:/users/charlie" }], shape) as Record<string, Trace>;
+					const inner = trace["<app:/users/charlie>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{in}");
+
+				});
+
+			});
+
+			describe("hasValue", () => {
+
+				it("accepts id matching required value", async () => {
+
+					const shape = resource({ hasValue: ["app:/users/alice"] }, { id: id() });
+
+					expect(validateEntry([{ "id": "app:/users/alice" }], shape)).toBeUndefined();
+
+				});
+
+				it("rejects id not matching required value", async () => {
+
+					const shape = resource({ hasValue: ["app:/users/alice"] }, { id: id() });
+
+					const trace = validateEntry([{ "id": "app:/users/bob" }], shape) as Record<string, Trace>;
+					const inner = trace["<app:/users/bob>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{hasValue}");
+
+				});
+
+			});
+
+		});
+
+		describe("non-id properties ignored", () => {
+
+			it("does not validate other properties", async () => {
+
+				const shape = resource({
+					id: id(),
+					name: required(string({ minLength: 10 }))
+				});
+
+				// name violates minLength but validateEntry should not check it
+				expect(validateEntry([{ "id": "app:/users/123", name: "Al" }], shape)).toBeUndefined();
+
+			});
+
+			it("does not reject unknown properties", async () => {
+
+				const shape = resource({ id: id() });
+
+				expect(validateEntry([{ "id": "app:/users/123", extra: "value" }], shape)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("multiple entries", () => {
+
+			it("accepts multiple valid entries", async () => {
+
+				const shape = resource({ id: id() });
+
+				expect(validateEntry([
+					{ "id": "app:/users/1" },
+					{ "id": "app:/users/2" }
+				], shape)).toBeUndefined();
+
+			});
+
+			it("reports invalid entries keyed by IRI or index", async () => {
+
+				const shape = resource({ id: id() });
+
+				const trace = validateEntry([
+					{ "id": "app:/users/1" },
+					{ "id": "not valid" }
+				], shape) as Record<string, Trace>;
+
+				expect(trace).not.toHaveProperty("<app:/users/1>");
+				expect(trace).toHaveProperty("[1]");
+
+			});
+
+		});
+
+	});
 
 	describe("validateResource", () => {
 
@@ -3868,43 +4080,20 @@ describe("operators", () => {
 
 			describe("shape enforced (scalar vs singleton tuple)", () => {
 
-				it("accepts scalar value on scalar property", async () => {
+				it.each([
+					["accepts scalar on scalar", "name", required(string()), { name: "Alice" }, true],
+					["accepts tuple on array", "tags", repeatable(string()), { tags: ["a"] }, true],
+					["rejects array on scalar", "name", required(string()), { name: ["Alice"] }, false],
+					["rejects scalar on array", "tags", repeatable(string()), { tags: "a" }, false]
+				] as const)("%s", async (_label, key, range, value, valid) => {
 
-					const shape = resource({
-						name: required(string())
-					});
+					const shape = resource({ [key]: range });
 
-					expect(validateModel([{ name: "Alice" }], shape, 0)).toBeUndefined();
-
-				});
-
-				it("accepts singleton tuple on array property", async () => {
-
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateModel([{ tags: ["a"] }], shape, 0)).toBeUndefined();
-
-				});
-
-				it("rejects array value on scalar property", async () => {
-
-					const shape = resource({
-						name: required(string())
-					});
-
-					expect(validateModel([{ name: ["Alice"] } as any], shape, 0)).toBeDefined();
-
-				});
-
-				it("rejects scalar value on array property", async () => {
-
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateModel([{ tags: "a" }], shape, 0)).toBeDefined();
+					if ( valid ) {
+						expect(validateModel([value], shape, 0)).toBeUndefined();
+					} else {
+						expect(validateModel([value as any], shape, 0)).toBeDefined();
+					}
 
 				});
 
@@ -3912,23 +4101,14 @@ describe("operators", () => {
 
 			describe("undefined template rejected", () => {
 
-				it("rejects undefined template on scalar property", async () => {
+				it.each([
+					["scalar", "name", required(string()), { name: undefined }],
+					["array", "tags", repeatable(string()), { tags: undefined }]
+				] as const)("rejects undefined template on %s property", async (_label, key, range, value) => {
 
-					const shape = resource({
-						name: required(string())
-					});
+					const shape = resource({ [key]: range });
 
-					expect(validateModel([{ name: undefined } as any], shape, 0)).toBeDefined();
-
-				});
-
-				it("rejects undefined template on array property", async () => {
-
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateModel([{ tags: undefined } as any], shape, 0)).toBeDefined();
+					expect(validateModel([value as any], shape, 0)).toBeDefined();
 
 				});
 
@@ -4316,18 +4496,6 @@ describe("operators", () => {
 				});
 
 				expect(validateModel([{ child: { label: "x" } }], Outer, null)).toBeUndefined();
-
-			});
-
-			it("rejects nested model via reference when depth is 0", async () => {
-
-				const Inner = resource({ label: required(string()) });
-
-				const Outer = resource({
-					child: optional(reference(Inner))
-				});
-
-				expect(validateModel([{ child: { label: "x" } }], Outer, 0)).toBeDefined();
 
 			});
 

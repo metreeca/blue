@@ -861,6 +861,96 @@ export function checkRange({
 
 
 /**
+ * Validates entry identity against a {@link ResourceShape}.
+ *
+ * Checks whether the shape declares an `id` property and, if so, validates that each value contains an `id` field
+ * with a proper absolute IRI, enforcing resource-level `pattern`, `in`, and `hasValue` constraints on the identifier.
+ * Returns `undefined` if the shape declares no `id` property or all entries have valid identifiers.
+ *
+ * @param values The entry instances to validate
+ * @param shape The resource shape defining the expected structure
+ *
+ * @returns A keyed trace of constraint violations per entry, or `undefined` if all entries are valid
+ */
+export function validateEntry(values: readonly unknown[], shape: ResourceShape): undefined | Trace {
+
+	const matching = values.filter(value => isObject(value));
+	const mistyped = values.length-matching.length;
+
+	const flattened = flatten(shape);
+
+	// resolve the identifier property key
+
+	const identifier = Object.entries(flattened.properties)
+		.find(([, entry]) => entry.kind === "id")
+		?.[0];
+
+	if ( identifier === undefined ) {
+
+		return undefined;
+
+	} else {
+
+		const patterns = flattened.pattern !== undefined ? [flattened.pattern] : [];
+		const allowed = flattened.in !== undefined ? [flattened.in] : [];
+		const required = flattened.hasValue !== undefined ? [flattened.hasValue] : [];
+
+		return collect({
+
+			"{kind}": mistyped === 0
+				|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+
+			...Object.fromEntries(matching.map((entry, index) => [key(entry, index, identifier),
+
+				collect({
+
+					[identifier]: validateId(entry[identifier])
+
+				})
+
+			]))
+
+		});
+
+
+		function validateId(value: unknown): undefined | Trace {
+
+			return collect({
+
+				// format validation
+
+				"{kind}": value === undefined ? "expected required id"
+					: Array.isArray(value) ? "expected single value"
+						: !isReference(value) ? "expected absolute IRI"
+							: undefined,
+
+				// constraint validation (conjunctive across inheritance lineage)
+
+				...Object.fromEntries([
+
+					...patterns.map((pattern, i) => [patterns.length > 1 ? `{pattern}[${i}]` : "{pattern}",
+						isReference(value) && match(value, pattern) || `expected IRI matching pattern <${pattern}>`
+					]),
+
+					...allowed.map((items, i) => [allowed.length > 1 ? `{in}[${i}]` : "{in}",
+						isReference(value) && items.includes(value) || `expected values in [${items.join(", ")}]`
+					]),
+
+					...required.map((items, i) => [required.length > 1 ? `{hasValue}[${i}]` : "{hasValue}",
+						isReference(value) && items.includes(value) || `expected values to include [${items.join(", ")}]`
+					])
+
+				])
+
+			});
+
+		}
+
+	}
+
+}
+
+/**
  * Validates projection models against a {@link ResourceShape}.
  *
  * Checks property shape (scalar vs singleton tuple), inherited properties, and {@link Probe} keys (transform pipe
@@ -1337,7 +1427,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
  */
 export function flatten(shape: ResourceShape): ResourceShape {
 
-	if ( branded(shape, { [Flattened]: null }) ) { return shape; } else {
+	if ( branded(shape, Flattened) !== undefined ) { return shape; } else {
 
 		const parents = shape.extends === undefined ? []
 			: Array.isArray(shape.extends) ? shape.extends.map(p => flatten(materialize(p)))

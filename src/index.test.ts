@@ -18,7 +18,7 @@ import type { Probe, Transform } from "@metreeca/qest/model";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { apply, brand, branded, materialize, validateValue } from "./index.core.js";
-import { tag, validate, type ValueShape } from "./index.js";
+import { audit, validate, type ValueShape } from "./index.js";
 import { local, locals } from "./local.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import {
@@ -79,37 +79,15 @@ describe("validate", () => {
 
 		});
 
-		it("returns trace for null", async () => {
+		it.each([
+			["null", null],
+			["undefined", undefined],
+			["string", "not a resource"],
+			["array", [{ name: "Alice" }]]
+		])("returns trace for %s", async (_label, value) => {
 
 			const shape = resource({});
-			const result = validate(null, { scope: "value", shape });
-
-			expect(result({ trace: t => t })).toBeDefined();
-
-		});
-
-		it("returns trace for undefined", async () => {
-
-			const shape = resource({});
-			const result = validate(undefined, { scope: "value", shape });
-
-			expect(result({ trace: t => t })).toBeDefined();
-
-		});
-
-		it("returns trace for string", async () => {
-
-			const shape = resource({});
-			const result = validate("not a resource", { scope: "value", shape });
-
-			expect(result({ trace: t => t })).toBeDefined();
-
-		});
-
-		it("returns trace for array", async () => {
-
-			const shape = resource({});
-			const result = validate([{ name: "Alice" }], { scope: "value", shape });
+			const result = validate(value, { scope: "value", shape });
 
 			expect(result({ trace: t => t })).toBeDefined();
 
@@ -234,21 +212,6 @@ describe("validate", () => {
 
 		});
 
-		it("revalidates unbranded resources", async () => {
-
-			const shape = resource({
-				name: required(string())
-			});
-
-			// fresh resource should always be validated
-
-			const value = { name: "Alice" };
-			const result = validate(value, { scope: "value", shape });
-
-			expect(result({ value: v => v })).toBeDefined();
-
-		});
-
 		it("skips validation for model already validated with same shape", async () => {
 
 			const shape = resource({
@@ -305,25 +268,25 @@ describe("validate", () => {
 
 	});
 
-	describe("tag", () => {
+	describe("audit", () => {
 
 		describe("getter", () => {
 
 			it("returns undefined for untagged value with value scope", async () => {
 
-				expect(tag({ name: "Alice" }, { scope: "value" })).toBeUndefined();
+				expect(audit({ name: "Alice" }, { scope: "value" })).toBeUndefined();
 
 			});
 
 			it("returns undefined for untagged model with model scope", async () => {
 
-				expect(tag({}, { scope: "model" })).toBeUndefined();
+				expect(audit({}, { scope: "model" })).toBeUndefined();
 
 			});
 
 			it("returns undefined for untagged value with entry scope", async () => {
 
-				expect(tag({ name: "Alice" }, { scope: "entry" })).toBeUndefined();
+				expect(audit({ name: "Alice" }, { scope: "entry" })).toBeUndefined();
 
 			});
 
@@ -332,7 +295,7 @@ describe("validate", () => {
 				const shape = resource({ name: required(string()) });
 				const value = validate({ name: "Alice" }, { scope: "value", shape })({ value: v => v });
 
-				expect(tag(value!, { scope: "value" })).toBe(shape);
+				expect(audit(value!, { scope: "value" })).toBe(shape);
 
 			});
 
@@ -341,7 +304,7 @@ describe("validate", () => {
 				const shape = resource({ name: required(string()) });
 				const value = validate({ name: "Alice" }, { scope: "value", shape })({ value: v => v });
 
-				expect(tag(value as never, { scope: "model" })).toBeUndefined();
+				expect(audit(value as never, { scope: "model" })).toBeUndefined();
 
 			});
 
@@ -350,7 +313,7 @@ describe("validate", () => {
 				const shape = resource({ name: required(string()) });
 				const value = validate({}, { scope: "model", shape })({ value: v => v });
 
-				expect(tag(value!, { scope: "model" })).toBe(shape);
+				expect(audit(value!, { scope: "model" })).toBe(shape);
 
 			});
 
@@ -359,122 +322,47 @@ describe("validate", () => {
 				const shape = resource({ name: required(string()) });
 				const value = validate({}, { scope: "model", shape })({ value: v => v });
 
-				expect(tag(value!, { scope: "value" })).toBeUndefined();
+				expect(audit(value!, { scope: "value" })).toBeUndefined();
 
 			});
 
-			it("returns shape when scope matches entry-tagged value", async () => {
+			it("returns undefined for untagged value with wildcard scope", async () => {
 
-				const shape = resource({ name: required(string()) });
-				const tagged = tag({ name: "Alice" }, { scope: "entry", shape });
-
-				expect(tag(tagged, { scope: "entry" })).toBe(shape);
+				expect(audit({ name: "Alice" }, { scope: "*" })).toBeUndefined();
 
 			});
 
-			it("returns undefined when scope mismatches entry-tagged value", async () => {
-
-				const shape = resource({ name: required(string()) });
-				const tagged = tag({ name: "Alice" }, { scope: "entry", shape });
-
-				expect(tag(tagged, { scope: "value" })).toBeUndefined();
-				expect(tag(tagged, { scope: "model" })).toBeUndefined();
-
-			});
-
-			it("returns shape regardless of scope when no opts provided", async () => {
+			it("returns shape when wildcard scope matches value-validated resource", async () => {
 
 				const shape = resource({ name: required(string()) });
 				const value = validate({ name: "Alice" }, { scope: "value", shape })({ value: v => v });
 
-				expect(tag(value!)).toBe(shape);
+				expect(audit(value!, { scope: "*" })).toBe(shape);
 
 			});
 
-			it("returns shape regardless of scope when opts provided without scope", async () => {
+			it("returns shape when wildcard scope matches entry-validated resource", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const value = validate({ id: "https://example.com/1", name: "Alice" }, {
+					scope: "entry",
+					shape
+				})({ value: v => v });
+
+				expect(audit(value!, { scope: "*" })).toBe(shape);
+
+			});
+
+			it("returns undefined when wildcard scope does not match model-validated model", async () => {
 
 				const shape = resource({ name: required(string()) });
-				const value = validate({ name: "Alice" }, { scope: "value", shape })({ value: v => v });
+				const value = validate({}, { scope: "model", shape })({ value: v => v });
 
-				expect(tag(value!, {})).toBe(shape);
-
-			});
-
-			it("returns undefined when no opts provided for untagged value", async () => {
-
-				expect(tag({ name: "Alice" })).toBeUndefined();
+				expect(audit(value as never, { scope: "*" })).toBeUndefined();
 
 			});
 
-		});
-
-		describe("setter", () => {
-
-			it("returns a new entry", async () => {
-
-				const shape = resource({ name: required(string()) });
-				const value = { name: "Alice" };
-
-				const tagged = tag(value, { scope: "entry", shape });
-
-				expect(tagged).not.toBe(value);
-				expect(tagged).toEqual(value);
-
-			});
-
-			it("returns an immutable entry", async () => {
-
-				const shape = resource({ name: required(string()) });
-
-				const tagged = tag({ name: "Alice" }, { scope: "entry", shape });
-
-				expect(() => {
-					(tagged as any).name = "Bob";
-				}).toThrow();
-
-			});
-
-			it("overwrites previously tagged scope and shape", async () => {
-
-				const shapeA = resource({ name: required(string()) });
-				const shapeB = resource({ name: required(string({ minLength: 1 })) });
-				const value = { name: "Alice" };
-
-				const first = tag(value, { scope: "entry", shape: shapeA });
-				const second = tag(first, { scope: "value", shape: shapeB });
-
-				expect(tag(second, { scope: "value" })).toBe(shapeB);
-
-			});
-
-			it("overwrites scope set by validate", async () => {
-
-				const shapeA = resource({ name: required(string()) });
-				const shapeB = resource({ name: required(string({ minLength: 1 })) });
-
-				const validated = validate({ name: "Alice" }, { scope: "value", shape: shapeA })({ value: v => v });
-
-				const retagged = tag(validated!, { scope: "entry", shape: shapeB });
-
-				expect(tag(retagged, { scope: "value" })).toBeUndefined();
-
-			});
-
-			it("validate overwrites scope and shape set by tag setter", async () => {
-
-				const shapeA = resource({ name: required(string()) });
-				const shapeB = resource({ name: required(string({ minLength: 1 })) });
-				const value = { name: "Alice" };
-
-				const tagged = tag(value, { scope: "entry", shape: shapeA });
-
-				const validated = validate(tagged, { scope: "value", shape: shapeB })({ value: v => v });
-
-				expect(tag(validated!, { scope: "value" })).toBe(shapeB);
-
-			});
-
-			it("validate overwrites scope set by previous validate", async () => {
+			it("overwrites scope set by previous validate", async () => {
 
 				const shape = resource({ name: required(string()) });
 				const value = { name: "Alice" };
@@ -483,8 +371,8 @@ describe("validate", () => {
 
 				const second = validate(first, { scope: "model", shape })({ value: v => v });
 
-				expect(tag(second!, { scope: "model" })).toBe(shape);
-				expect(tag(second!, { scope: "value" })).toBeUndefined();
+				expect(audit(second!, { scope: "model" })).toBe(shape);
+				expect(audit(second!, { scope: "value" })).toBeUndefined();
 
 			});
 
@@ -557,6 +445,99 @@ describe("validate", () => {
 
 	});
 
+	describe("entry mode", () => {
+
+		it("returns value for entry with valid id", async () => {
+
+			const shape = resource({ id: id(), name: required(string()) });
+
+			const result = validate({ id: "app:/users/123", name: "Alice" }, { scope: "entry", shape });
+			expect(result({ value: v => v })).toEqual({ id: "app:/users/123", name: "Alice" });
+
+		});
+
+		it("returns value for shape without id property", async () => {
+
+			const shape = resource({ name: required(string()) });
+
+			const result = validate({ name: "Alice" }, { scope: "entry", shape });
+			expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+		});
+
+		it("returns trace for entry with missing id", async () => {
+
+			const shape = resource({ id: id() });
+
+			const result = validate({}, { scope: "entry", shape });
+			expect(result({ trace: t => t })).toBeDefined();
+
+		});
+
+		it("returns trace for entry with invalid id", async () => {
+
+			const shape = resource({ id: id() });
+
+			const result = validate({ id: "not an iri" }, { scope: "entry", shape });
+			expect(result({ trace: t => t })).toBeDefined();
+
+		});
+
+		it("ignores non-id property violations", async () => {
+
+			const shape = resource({
+				id: id(),
+				name: required(string({ minLength: 10 }))
+			});
+
+			// name violates minLength but entry scope should not check it
+			const result = validate({ id: "app:/users/123", name: "Al" }, { scope: "entry", shape });
+			expect(result({ value: v => v })).toEqual({ id: "app:/users/123", name: "Al" });
+
+		});
+
+		it("enforces pattern constraint on id", async () => {
+
+			const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+
+			const result = validate({ id: "/products/123" }, { scope: "entry", shape });
+			expect(result({ trace: t => t })).toBeDefined();
+
+		});
+
+		it("returns immutable value on success", async () => {
+
+			const shape = resource({ id: id() });
+
+			const result = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ value: v => v });
+			expect(() => { (result as any).id = "changed"; }).toThrow();
+
+		});
+
+		it("is idempotent on same scope and shape", async () => {
+
+			const shape = resource({ id: id() });
+
+			const first = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ value: v => v });
+			const second = validate(first, { scope: "entry", shape })({ value: v => v });
+
+			expect(second).toBe(first);
+
+		});
+
+		it("brands value with entry scope retrievable via audit", async () => {
+
+			const shape = resource({ id: id() });
+
+			const value = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ value: v => v })!;
+			const audited = audit(value, { scope: "entry" });
+
+			expect(audited).toBeDefined();
+
+		});
+
+	});
+
 	describe("lazy shapes", () => {
 
 		it("resolves factory function before validation", async () => {
@@ -566,6 +547,17 @@ describe("validate", () => {
 			});
 
 			const result = validate({ name: "Alice" }, { scope: "value", shape: () => shape });
+			expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+		});
+
+		it("resolves factory for model mode", async () => {
+
+			const shape = resource({
+				name: required(string())
+			});
+
+			const result = validate({ name: "Alice" }, { scope: "model", shape: () => shape });
 			expect(result({ value: v => v })).toEqual({ name: "Alice" });
 
 		});
@@ -583,17 +575,6 @@ describe("validate", () => {
 
 			const second = validate(branded, { scope: "value", shape: factory });
 			expect(second({ value: v => v })).toBe(branded);
-
-		});
-
-		it("resolves factory for model mode", async () => {
-
-			const shape = resource({
-				name: required(string())
-			});
-
-			const result = validate({ name: "Alice" }, { scope: "model", shape: () => shape });
-			expect(result({ value: v => v })).toEqual({ name: "Alice" });
 
 		});
 
@@ -1577,7 +1558,6 @@ describe("branding", () => {
 	describe("branded", () => {
 
 		const sym = Symbol("test");
-		const sym2 = Symbol("test2");
 
 		it.each([
 			["null", null],
@@ -1585,64 +1565,23 @@ describe("branding", () => {
 			["string", "hello"],
 			["number", 42],
 			["boolean", true]
-		])("returns false for non-object (%s)", (_label, value) => {
+		])("returns undefined for non-object (%s)", (_label, value) => {
 
-			expect(branded(value, { [sym]: "payload" })).toBeFalsy();
-
-		});
-
-		it("returns false when symbol is absent", async () => {
-
-			expect(branded({}, { [sym]: "payload" })).toBeFalsy();
+			expect(branded(value, sym)).toBeUndefined();
 
 		});
 
-		it("returns false when payload mismatches", async () => {
+		it("returns undefined when symbol is absent", async () => {
 
-			const value = brand({ x: 1 }, { [sym]: "a" });
-
-			expect(branded(value, { [sym]: "b" })).toBeFalsy();
+			expect(branded({}, sym)).toBeUndefined();
 
 		});
 
-		it("returns true when symbol and payload match", async () => {
+		it("returns payload when symbol is present", async () => {
 
 			const value = brand({ x: 1 }, { [sym]: "payload" });
 
-			expect(branded(value, { [sym]: "payload" })).toBeTruthy();
-
-		});
-
-		it("returns true only when all entries match", async () => {
-
-			const value = brand({ x: 1 }, { [sym]: "a", [sym2]: "b" });
-
-			expect(branded(value, { [sym]: "a", [sym2]: "b" })).toBeTruthy();
-			expect(branded(value, { [sym]: "a", [sym2]: "wrong" })).toBeFalsy();
-			expect(branded(value, { [sym]: "a" })).toBeTruthy();
-
-		});
-
-		it("matches any payload when tag value is undefined", async () => {
-
-			const value = brand({ x: 1 }, { [sym]: "payload" });
-
-			expect(branded(value, { [sym]: undefined })).toBeTruthy();
-
-		});
-
-		it("returns false for absent key even with undefined wildcard", async () => {
-
-			expect(branded({}, { [sym]: undefined })).toBeFalsy();
-
-		});
-
-		it("mixes wildcard and exact tags", async () => {
-
-			const value = brand({ x: 1 }, { [sym]: "a", [sym2]: "b" });
-
-			expect(branded(value, { [sym]: "a", [sym2]: undefined })).toBeTruthy();
-			expect(branded(value, { [sym]: "wrong", [sym2]: undefined })).toBeFalsy();
+			expect(branded(value, sym)).toBe("payload");
 
 		});
 
@@ -1658,7 +1597,7 @@ describe("branding", () => {
 			const value = { x: 1 };
 			const result = brand(value, { [sym]: "payload" });
 
-			expect(branded(result, { [sym]: "payload" })).toBeTruthy();
+			expect(branded(result, sym)).toBe("payload");
 
 		});
 
@@ -1667,7 +1606,7 @@ describe("branding", () => {
 			const value = Object.freeze({ x: 1 });
 			const result = brand(value, { [sym]: "payload" });
 
-			expect(branded(result, { [sym]: "payload" })).toBeTruthy();
+			expect(branded(result, sym)).toBe("payload");
 
 		});
 
@@ -1704,8 +1643,7 @@ describe("branding", () => {
 			const first = brand({ x: 1 }, { [sym]: "a" });
 			const second = brand(first, { [sym]: "b" });
 
-			expect(branded(second, { [sym]: "b" })).toBeTruthy();
-			expect(branded(second, { [sym]: "a" })).toBeFalsy();
+			expect(branded(second, sym)).toBe("b");
 
 		});
 
@@ -1713,9 +1651,8 @@ describe("branding", () => {
 
 			const result = brand({ x: 1 }, { [sym]: "a", [sym2]: "b" });
 
-			expect(branded(result, { [sym]: "a" })).toBeTruthy();
-			expect(branded(result, { [sym2]: "b" })).toBeTruthy();
-			expect(branded(result, { [sym]: "a", [sym2]: "b" })).toBeTruthy();
+			expect(branded(result, sym)).toBe("a");
+			expect(branded(result, sym2)).toBe("b");
 
 		});
 
