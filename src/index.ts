@@ -340,9 +340,9 @@ export function validate<T extends Value>(value: unknown, opts: {
  * @param opts.scope Selects identity-only validation checking just the `id` property
  * @param opts.shape The {@link ValueShape} defining validation constraints; may be a {@link Lazy} factory
  *
- * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on
+ * @returns A {@link Relay} resolving to either `{ entry }` on success or `{ trace }` on
  * failure; for
- * {@link Resource} values, on success, the value is an immutable copy associated with the `entry` scope and a verified
+ * {@link Resource} values, on success, the entry is an immutable copy associated with the `entry` scope and a verified
  * and flattened copy of the shape (see {@link resource!resource | resource}), retrievable via {@link audit}
  *
  * @throws {TypeError} If the shape contains invalid entry definitions (see {@link resource!resource | resource})
@@ -356,7 +356,7 @@ export function validate<T extends Value>(value: unknown, opts: {
 
 }): Relay<{
 
-	readonly value: T,
+	readonly entry: T,
 	readonly trace: Trace
 
 }>;
@@ -401,8 +401,8 @@ export function validate<T extends Value>(value: unknown, opts: {
  * @param opts.depth Maximum nesting depth for {@link Reference} and embedded {@link Resource} expansion; `0` rejects
  *     any nested {@link Model} while still accepting IRI references; `null` for unlimited; defaults to `0`
  *
- * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on
- * failure; on success, the value is an immutable copy of the model associated with the `model` scope and a verified and
+ * @returns A {@link Relay} resolving to either `{ model }` on success or `{ trace }` on
+ * failure; on success, the model is an immutable copy associated with the `model` scope and a verified and
  * flattened copy of the
  * shape (see {@link resource!resource | resource}), retrievable via {@link audit}
  *
@@ -420,7 +420,7 @@ export function validate<T extends Model>(model: unknown, opts: {
 
 }): Relay<{
 
-	readonly value: T,
+	readonly model: T,
 	readonly trace: Trace
 
 }>;
@@ -446,7 +446,9 @@ export function validate(value: unknown, {
 
 }): Relay<{
 
-	readonly value: Value | Model,
+	readonly value: Value
+	readonly entry: Value
+	readonly model: Value | Model
 	readonly trace: Trace
 
 }> {
@@ -459,7 +461,9 @@ export function validate(value: unknown, {
 
 			if ( branded(value, ValidationScope) === scope && branded(value, ValidationShape) === materialized ) {
 
-				return createRelay({ value }); // already validated
+				return scope === "value" ? createRelay({ value })
+					: scope === "entry" ? createRelay({ entry: value })
+						: createRelay({ model: value });
 
 			} else if ( scope === "value" ) {
 
@@ -480,7 +484,7 @@ export function validate(value: unknown, {
 
 				return trace === undefined
 					? createRelay({
-						value: brand(value, {
+						entry: brand(value, {
 							[ValidationScope]: "entry",
 							[ValidationShape]: materialized
 						})
@@ -493,7 +497,7 @@ export function validate(value: unknown, {
 
 				return trace === undefined
 					? createRelay({
-						value: brand(value, {
+						model: brand(value, {
 							[ValidationScope]: "model",
 							[ValidationShape]: materialized
 						})
@@ -506,7 +510,15 @@ export function validate(value: unknown, {
 
 			if ( scope === "entry" ) { // non-resource values accepted as-is
 
-				return createRelay({ value: value as Value });
+				return createRelay({ entry: value as Value });
+
+			} else if ( scope === "model" ) {
+
+				const trace = validateValue([value], materialized);
+
+				return trace === undefined
+					? createRelay({ model: value as Value })
+					: createRelay({ trace });
 
 			} else {
 

@@ -48,7 +48,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	representation with keyed reports at every level (collection, resource, property, constraint)
 - Redesign `validate()` to accept a single options object with `scope` (`value` | `entry` | `model`), `shape`, and
 	optional `depth`; `value` scope enforces full constraints on resources, `entry` scope validates identity only, `model`
-	scope validates projection models
+	scope validates projection models; relay result key matches the scope name (`value`, `entry`, or `model`)
 
 ### Removed
 

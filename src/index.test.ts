@@ -126,7 +126,7 @@ describe("validate", () => {
 			const shape = resource({ name: required(string()) });
 			const model = { name: "Alice" };
 
-			const result = validate(model, { scope: "model", shape })({ value: v => v });
+			const result = validate(model, { scope: "model", shape })({ model: v => v });
 
 			expect(result).not.toBe(model);
 			expect(result).toEqual(model);
@@ -137,7 +137,7 @@ describe("validate", () => {
 
 			const shape = resource({ name: required(string()) });
 
-			const result = validate({}, { scope: "model", shape })({ value: v => v });
+			const result = validate({}, { scope: "model", shape })({ model: v => v });
 
 			expect(() => {
 				(result as any).name = [true];
@@ -183,7 +183,7 @@ describe("validate", () => {
 			// second validation with different mode should revalidate
 
 			const second = validate(branded, { scope: "model", shape });
-			const revalidated = second({ value: v => v });
+			const revalidated = second({ model: v => v });
 
 			expect(revalidated).not.toBe(branded);
 
@@ -220,10 +220,10 @@ describe("validate", () => {
 
 			const value = { name: [true] };
 			const first = validate(value, { scope: "model", shape });
-			const branded = first({ value: v => v });
+			const branded = first({ model: v => v });
 
 			const second = validate(branded, { scope: "model", shape });
-			expect(second({ value: v => v })).toBe(branded);
+			expect(second({ model: v => v })).toBe(branded);
 
 		});
 
@@ -262,7 +262,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({}, { scope: "model", shape });
-			expect(result({ value: v => v })).toEqual({});
+			expect(result({ model: v => v })).toEqual({});
 
 		});
 
@@ -311,7 +311,7 @@ describe("validate", () => {
 			it("returns shape when scope matches model-validated model", async () => {
 
 				const shape = resource({ name: required(string()) });
-				const value = validate({}, { scope: "model", shape })({ value: v => v });
+				const value = validate({}, { scope: "model", shape })({ model: v => v });
 
 				expect(audit(value!, { scope: "model" })).toBe(shape);
 
@@ -320,7 +320,7 @@ describe("validate", () => {
 			it("returns undefined when scope mismatches model-validated model", async () => {
 
 				const shape = resource({ name: required(string()) });
-				const value = validate({}, { scope: "model", shape })({ value: v => v });
+				const value = validate({}, { scope: "model", shape })({ model: v => v });
 
 				expect(audit(value!, { scope: "value" })).toBeUndefined();
 
@@ -347,7 +347,7 @@ describe("validate", () => {
 				const value = validate({ id: "https://example.com/1", name: "Alice" }, {
 					scope: "entry",
 					shape
-				})({ value: v => v });
+				})({ entry: v => v });
 
 				expect(audit(value!, { scope: "*" })).toBe(shape);
 
@@ -356,7 +356,7 @@ describe("validate", () => {
 			it("returns undefined when wildcard scope does not match model-validated model", async () => {
 
 				const shape = resource({ name: required(string()) });
-				const value = validate({}, { scope: "model", shape })({ value: v => v });
+				const value = validate({}, { scope: "model", shape })({ model: v => v });
 
 				expect(audit(value as never, { scope: "*" })).toBeUndefined();
 
@@ -369,7 +369,7 @@ describe("validate", () => {
 
 				const first = validate(value, { scope: "value", shape })({ value: v => v });
 
-				const second = validate(first, { scope: "model", shape })({ value: v => v });
+				const second = validate(first, { scope: "model", shape })({ model: v => v });
 
 				expect(audit(second!, { scope: "model" })).toBe(shape);
 				expect(audit(second!, { scope: "value" })).toBeUndefined();
@@ -389,7 +389,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({ name: "Alice" }, { scope: "model", shape });
-			expect(result({ value: v => v })).toEqual({ name: "Alice" });
+			expect(result({ model: v => v })).toEqual({ name: "Alice" });
 
 		});
 
@@ -400,7 +400,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({}, { scope: "model", shape });
-			expect(result({ value: v => v })).toEqual({});
+			expect(result({ model: v => v })).toEqual({});
 
 		});
 
@@ -426,7 +426,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({ child: { label: "x" } }, { scope: "model", shape, depth: null });
-			expect(result({ value: v => v })).toEqual({ child: { label: "x" } });
+			expect(result({ model: v => v })).toEqual({ child: { label: "x" } });
 
 		});
 
@@ -439,7 +439,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({ child: { label: "x" } }, { scope: "model", shape, depth: 1 });
-			expect(result({ value: v => v })).toEqual({ child: { label: "x" } });
+			expect(result({ model: v => v })).toEqual({ child: { label: "x" } });
 
 		});
 
@@ -461,7 +461,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({ "total=count:": 0 }, { scope: "model", shape, stats: true });
-			expect(result({ value: v => v })).toEqual({ "total=count:": 0 });
+			expect(result({ model: v => v })).toEqual({ "total=count:": 0 });
 
 		});
 
@@ -483,7 +483,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({ "y=year:released": 0 }, { scope: "model", shape, stats: false });
-			expect(result({ value: v => v })).toEqual({ "y=year:released": 0 });
+			expect(result({ model: v => v })).toEqual({ "y=year:released": 0 });
 
 		});
 
@@ -494,7 +494,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({ name: "" }, { scope: "model", shape, stats: false });
-			expect(result({ value: v => v })).toEqual({ name: "" });
+			expect(result({ model: v => v })).toEqual({ name: "" });
 
 		});
 
@@ -507,7 +507,7 @@ describe("validate", () => {
 			const shape = resource({ id: id(), name: required(string()) });
 
 			const result = validate({ id: "app:/users/123", name: "Alice" }, { scope: "entry", shape });
-			expect(result({ value: v => v })).toEqual({ id: "app:/users/123", name: "Alice" });
+			expect(result({ entry: v => v })).toEqual({ id: "app:/users/123", name: "Alice" });
 
 		});
 
@@ -516,7 +516,7 @@ describe("validate", () => {
 			const shape = resource({ name: required(string()) });
 
 			const result = validate({ name: "Alice" }, { scope: "entry", shape });
-			expect(result({ value: v => v })).toEqual({ name: "Alice" });
+			expect(result({ entry: v => v })).toEqual({ name: "Alice" });
 
 		});
 
@@ -547,7 +547,7 @@ describe("validate", () => {
 
 			// name violates minLength but entry scope should not check it
 			const result = validate({ id: "app:/users/123", name: "Al" }, { scope: "entry", shape });
-			expect(result({ value: v => v })).toEqual({ id: "app:/users/123", name: "Al" });
+			expect(result({ entry: v => v })).toEqual({ id: "app:/users/123", name: "Al" });
 
 		});
 
@@ -564,7 +564,7 @@ describe("validate", () => {
 
 			const shape = resource({ id: id() });
 
-			const result = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ value: v => v });
+			const result = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ entry: v => v });
 			expect(() => { (result as any).id = "changed"; }).toThrow();
 
 		});
@@ -573,8 +573,8 @@ describe("validate", () => {
 
 			const shape = resource({ id: id() });
 
-			const first = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ value: v => v });
-			const second = validate(first, { scope: "entry", shape })({ value: v => v });
+			const first = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ entry: v => v });
+			const second = validate(first, { scope: "entry", shape })({ entry: v => v });
 
 			expect(second).toBe(first);
 
@@ -584,7 +584,7 @@ describe("validate", () => {
 
 			const shape = resource({ id: id() });
 
-			const value = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ value: v => v })!;
+			const value = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ entry: v => v })!;
 			const audited = audit(value, { scope: "entry" });
 
 			expect(audited).toBeDefined();
@@ -613,7 +613,7 @@ describe("validate", () => {
 			});
 
 			const result = validate({ name: "Alice" }, { scope: "model", shape: () => shape });
-			expect(result({ value: v => v })).toEqual({ name: "Alice" });
+			expect(result({ model: v => v })).toEqual({ name: "Alice" });
 
 		});
 
