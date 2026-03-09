@@ -30,7 +30,15 @@ describe("StringShape", () => {
 
 	describe("in", () => {
 
-		test("rejects empty enumeration", () => {
+		test("accepts non-empty array", () => {
+			string({ in: ["a", "b", "c"] });
+		});
+
+		test("accepts single-element array", () => {
+			string({ in: ["x"] });
+		});
+
+		test("rejects empty array", () => {
 			// @ts-expect-error - empty array not assignable to non-empty tuple
 			string({ in: [] });
 		});
@@ -39,7 +47,15 @@ describe("StringShape", () => {
 
 	describe("hasValue", () => {
 
-		test("rejects empty required values", () => {
+		test("accepts non-empty array", () => {
+			string({ hasValue: ["a", "b"] });
+		});
+
+		test("accepts single-element array", () => {
+			string({ hasValue: ["x"] });
+		});
+
+		test("rejects empty array", () => {
 			// @ts-expect-error - empty array not assignable to non-empty tuple
 			string({ hasValue: [] });
 		});

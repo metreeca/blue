@@ -816,9 +816,31 @@ describe("shape assignability", () => {
 		resource({ extends: [] }, { name: required(string()) });
 	});
 
-	test("rejects empty enumeration", () => {
+	test("accepts non-empty classes array", () => {
+		resource({ classes: ["https://example.org/Type" as IRI] }, {});
+	});
+
+	test("accepts non-empty in array", () => {
+		resource({ in: ["https://example.org/a" as IRI, "https://example.org/b" as IRI] }, {});
+	});
+
+	test("accepts non-empty hasValue array", () => {
+		resource({ hasValue: ["https://example.org/x" as IRI] }, {});
+	});
+
+	test("rejects empty classes array", () => {
+		// @ts-expect-error - empty array not assignable to non-empty tuple
+		resource({ classes: [] }, {});
+	});
+
+	test("rejects empty in array", () => {
 		// @ts-expect-error - empty array not assignable to non-empty tuple
 		resource({ in: [] }, {});
+	});
+
+	test("rejects empty hasValue array", () => {
+		// @ts-expect-error - empty array not assignable to non-empty tuple
+		resource({ hasValue: [] }, {});
 	});
 
 	test("child accepts optional properties with inherited parent", () => {

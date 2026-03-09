@@ -278,7 +278,7 @@ export function local<M extends Locale>(model: M): LocalShape & { readonly model
  * const text = local({ languageIn: ["en", "it"] });
  * ```
  */
-export function local(constraints?: LocalConstraints): LocalShape;
+export function local<const C extends LocalConstraints>(constraints?: C): LocalShape;
 
 /**
  * Creates a single-valued language-tagged map shape.

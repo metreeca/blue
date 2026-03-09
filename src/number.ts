@@ -301,7 +301,7 @@ export function number<M extends number>(model: M): NumberShape & { readonly mod
  * const score = number({ minInclusive: 0, maxInclusive: 100 });
  * ```
  */
-export function number(constraints?: NumberConstraints): NumberShape;
+export function number<const C extends NumberConstraints>(constraints?: C): NumberShape;
 
 /**
  * Creates a numeric shape.

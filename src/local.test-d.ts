@@ -15,49 +15,33 @@
  */
 
 /**
- * Static type tests for {@link NumberShape} factory constraints.
+ * Static type tests for {@link LocalShape} factory constraints.
  *
  * Verifies compile-time enforcement of non-empty array constraints.
  *
  * @module
  */
 
+import { asTagRange } from "@metreeca/core/language";
 import { describe, test } from "vitest";
-import { number } from "./number.js";
+import { local } from "./local.js";
 
 
-describe("NumberShape", () => {
+describe("LocalShape", () => {
 
-	describe("in", () => {
+	describe("languageIn", () => {
 
 		test("accepts non-empty array", () => {
-			number({ in: [1, 2, 3] });
+			local({ languageIn: [asTagRange("en"), asTagRange("it")] });
 		});
 
 		test("accepts single-element array", () => {
-			number({ in: [42] });
+			local({ languageIn: [asTagRange("en")] });
 		});
 
 		test("rejects empty array", () => {
 			// @ts-expect-error - empty array not assignable to non-empty tuple
-			number({ in: [] });
-		});
-
-	});
-
-	describe("hasValue", () => {
-
-		test("accepts non-empty array", () => {
-			number({ hasValue: [1, 2] });
-		});
-
-		test("accepts single-element array", () => {
-			number({ hasValue: [0] });
-		});
-
-		test("rejects empty array", () => {
-			// @ts-expect-error - empty array not assignable to non-empty tuple
-			number({ hasValue: [] });
+			local({ languageIn: [] });
 		});
 
 	});

@@ -22,6 +22,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	avg) are accepted in client-defined models — defaults to `false` for safe-by-default protection against complexity
 	attacks
 - Add `url()` string factory as a convenience alias for `iri({ variant: "hierarchical" })`
+- Add `const` type parameters to `local()`, `number()`, and `string()` constraint overloads — non-empty array
+	constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
 
 ### Fixed
 

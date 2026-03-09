@@ -316,7 +316,7 @@ export function string<M extends string>(model: M): StringShape & { readonly mod
  * const code = string({ pattern: /^[A-Z]{3}-\d{4}$/ });
  * ```
  */
-export function string(constraints?: StringConstraints): StringShape;
+export function string<const C extends StringConstraints>(constraints?: C): StringShape;
 
 /**
  * Creates a string shape.
