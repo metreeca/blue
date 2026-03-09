@@ -11,8 +11,8 @@ description: Development guidelines and conventions for the @metreeca/blue packa
 
 ## Dependencies
 
-- [Core](https://metreeca.github.io/core/) - Essential TypeScript abstractions
-- [Qest](https://metreeca.github.io/qest/) - Linked data models
+- [@metreeca/core](https://github.com/metreeca/core) - Core utilities and shared types
+- [@metreeca/qest](https://github.com/metreeca/qest) - Linked data models and query languages
 
 # NPM Scripts
 
