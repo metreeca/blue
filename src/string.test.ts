@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import { checkString, mergeString, validateString } from "./string.core.js";
-import { date, duration, email, instant, string, time, timestamp, uri, url, year } from "./string.js";
+import { date, duration, email, instant, iri, string, time, timestamp, year } from "./string.js";
 
 
 describe("factories", () => {
@@ -152,43 +152,42 @@ describe("factories", () => {
 
 	});
 
-	describe("url", () => {
+	describe("iri", () => {
 
-		it("returns a shape with url model", async () => {
+		it("returns a shape with default relative variant", async () => {
 
-			const shape = url();
+			const shape = iri();
 
 			expect(shape.kind).toBe("string");
+			expect(shape.model).toBe("./path");
+			expect(shape.pattern).toBe("^\\S+$");
+
+		});
+
+		it("returns a shape with hierarchical variant", async () => {
+
+			const shape = iri({ variant: "hierarchical" });
+
 			expect(shape.model).toBe("https://example.net/");
+			expect(shape.pattern).toBe("^[a-zA-Z][a-zA-Z0-9+.-]*:\\/\\S*$");
 
 		});
 
-		it("returns a shape with url pattern", async () => {
+		it("returns a shape with absolute variant", async () => {
 
-			const shape = url();
+			const shape = iri({ variant: "absolute" });
 
-			expect(shape.pattern).toBe("^[a-zA-Z][a-zA-Z0-9+.-]*:\\/\\/\\S+$");
-
-		});
-
-	});
-
-	describe("uri", () => {
-
-		it("returns a shape with uri model", async () => {
-
-			const shape = uri();
-
-			expect(shape.kind).toBe("string");
 			expect(shape.model).toBe("urn:example:resource");
+			expect(shape.pattern).toBe("^[a-zA-Z][a-zA-Z0-9+.-]*:\\S+$");
 
 		});
 
-		it("returns a shape with uri pattern", async () => {
+		it("returns a shape with internal variant", async () => {
 
-			const shape = uri();
+			const shape = iri({ variant: "internal" });
 
-			expect(shape.pattern).toBe("^[a-zA-Z][a-zA-Z0-9+.-]*:\\S+$");
+			expect(shape.model).toBe("/path");
+			expect(shape.pattern).toBe("^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\\S+|\\/\\S*)$");
 
 		});
 

@@ -28,8 +28,7 @@
  * | ----------------- | ------------------- | ------------------------------ | ----------------------------- |
  * | [string][]        | {@link string}      | Unicode character sequence     |                               |
  * | string            | {@link email}       | [RFC 5321][] email address     |                               |
- * | string            | {@link url}         | [RFC 3986][] absolute URL      |                               |
- * | [anyURI][]        | {@link uri}         | [RFC 3986][] absolute URI      |                               |
+ * | string            | {@link iri}         | [RFC 3987][] IRI reference     |                               |
  * | [gYear][]         | {@link year} ²      | [ISO 8601][iso-year] year      | YYYY[Z/±hh:mm]                |
  * | [date][]          | {@link date}        | [ISO 8601][iso-date] date      | YYYY-MM-DD[Z/±hh:mm]          |
  * | [time][]          | {@link time}        | [ISO 8601][iso-time] time      | hh:mm:ss[.sss][Z/±hh:mm]      |
@@ -48,6 +47,7 @@
  *
  * [RFC 5321]: https://datatracker.ietf.org/doc/html/rfc5321
  * [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
+ * [RFC 3987]: https://datatracker.ietf.org/doc/html/rfc3987
  * [iso-year]: https://en.wikipedia.org/wiki/ISO_8601#Years
  * [iso-date]: https://en.wikipedia.org/wiki/ISO_8601#Dates
  * [iso-time]: https://en.wikipedia.org/wiki/ISO_8601#Times
@@ -85,11 +85,10 @@
  * Predefined factories for common string formats:
  *
  * ```typescript
- * import { email, url, uri, date, time, instant, timestamp, duration } from '@metreeca/blue';
+ * import { email, iri, date, time, instant, timestamp, duration } from '@metreeca/blue';
  *
  * const contact = email();      // RFC 5321 email address
- * const homepage = url();       // RFC 3986 absolute URL
- * const identifier = uri();     // RFC 3986 absolute URI
+ * const identifier = iri();     // RFC 3987 IRI reference
  * const birthday = date();      // ISO 8601 date (YYYY-MM-DD)
  * const start = time();         // ISO 8601 time (hh:mm:ss)
  * const created = instant();    // ISO 8601 datetime
@@ -118,6 +117,7 @@
 
 import { isRegExp, isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
+import type { Variant } from "@metreeca/core/resource";
 import { checkString } from "./string.core.js";
 
 
@@ -367,39 +367,42 @@ export function email(constraints: TextualConstraints = {}): StringShape {
 }
 
 /**
- * Creates a shape for absolute URL reference values.
+ * Creates a shape for Internationalized Resource Identifier values.
  *
+ * IRIs generalise URIs (RFC 3986) and URLs by allowing the full Unicode character set beyond ASCII. The `variant`
+ * constraint controls which subset of the IRI hierarchy is accepted: `hierarchical` (URLs/IRLs with authority),
+ * `absolute` (scheme-based URIs/IRIs), `internal` (absolute or root-relative), or `relative` (any valid reference).
  *
- * @param constraints Optional {@link TextualConstraints} validation constraints
+ * @param constraints Optional {@link TextualConstraints} validation constraints and IRI {@link Variant | variant}
  *
- * @returns An immutable shape for validating absolute URLs
+ * @returns An immutable shape for validating IRIs
  *
- * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI: Generic Syntax}
+ * @see {@link https://datatracker.ietf.org/doc/html/rfc3987 RFC 3987 - Internationalized Resource Identifiers}
+ * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
  */
-export function url(constraints: TextualConstraints = {}): StringShape {
-	return string({
-		model: "https://example.net/",
-		pattern: /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/\S+$/,
-		...constraints
-	});
-}
+export function iri(constraints: TextualConstraints & {
 
-/**
- * Creates a shape for absolute URI reference values.
- *
- *
- * @param constraints Optional {@link TextualConstraints} validation constraints
- *
- * @returns An immutable shape for validating absolute URIs
- *
- * @see {@link https://www.w3.org/TR/xmlschema-2/#anyURI XSD 1.0 Part 2: Datatypes § 3.2.17 anyURI}
- */
-export function uri(constraints: TextualConstraints = {}): StringShape {
+	readonly  variant?: Variant
+
+} = { variant: "relative" }): StringShape {
+
+	const { variant = "relative", ...textual } = constraints;
+
 	return string({
-		model: "urn:example:resource",
-		pattern: /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/,
-		...constraints
+
+		model: variant === "hierarchical" ? "https://example.net/"
+			: variant === "absolute" ? "urn:example:resource"
+				: variant === "internal" ? "/path"
+					: "./path",
+
+		pattern: variant === "hierarchical" ? /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\S*$/
+			: variant === "absolute" ? /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/
+				: variant === "internal" ? /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\S+|\/\S*)$/
+					: /^\S+$/,
+
+		...textual
 	});
+
 }
 
 

@@ -9,8 +9,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Add `tag()` to associate entries with a shape for a given scope (`value`, `model`, `entry`) and to retrieve
-	previously associated shapes; replaces `certify()`
+- Add `tag()` to associate entries with a shape for a given scope (`value`, `model`, `entry`) and to retrieve previously
+	associated shapes; replaces `certify()`
 - Add `Validator<T>` type for custom value validators returning `undefined | true | Trace`
 - Validate constraint operator semantics against property value types in model validation — range, text search,
 	disjunctive/conjunctive, focus, sort, and pagination operators are checked against the effective shape computed by
@@ -43,6 +43,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+- Replace `url()` and `uri()` string shape factories with `iri()` accepting a `variant` parameter (`hierarchical`,
+	`absolute`, `internal`, `relative`) aligned with `@metreeca/core` `Variant` type; defaults to `relative`
 - Remove `is*Shape` and `is*Constraints` type guard exports from all shape modules — structural validation is now
 	integrated into the functional validators (`validateResource`, `validateModel`, etc.) and produces path-specific
 	traces instead of boolean results

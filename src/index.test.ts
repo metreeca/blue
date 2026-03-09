@@ -34,7 +34,7 @@ import {
 	union,
 	type Union
 } from "./resource.js";
-import { date, duration, instant, string, time, timestamp, uri, year } from "./string.js";
+import { date, duration, instant, iri, string, time, timestamp, year } from "./string.js";
 
 
 describe("validate", () => {
@@ -1238,7 +1238,7 @@ describe("apply", () => {
 					name: required(string())
 				});
 
-				expect(probeRange(probe(["rid"]), s)?.shape).toEqual(uri());
+				expect(probeRange(probe(["rid"]), s)?.shape).toEqual(iri({ variant: "absolute" }));
 
 			});
 
@@ -1267,7 +1267,7 @@ describe("apply", () => {
 					child: required(Inner)
 				});
 
-				expect(probeRange(probe(["child", "rid"]), s)?.shape).toEqual(uri());
+				expect(probeRange(probe(["child", "rid"]), s)?.shape).toEqual(iri({ variant: "absolute" }));
 
 			});
 
@@ -1282,7 +1282,7 @@ describe("apply", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(probeRange(probe(["child", "rid"]), s)?.shape).toEqual(uri());
+				expect(probeRange(probe(["child", "rid"]), s)?.shape).toEqual(iri({ variant: "absolute" }));
 
 			});
 
@@ -1325,7 +1325,7 @@ describe("apply", () => {
 					name: required(string())
 				});
 
-				expect(probeRange(probe(["kind"]), s)?.shape).toEqual(uri());
+				expect(probeRange(probe(["kind"]), s)?.shape).toEqual(iri({ variant: "absolute" }));
 
 			});
 
@@ -1354,7 +1354,7 @@ describe("apply", () => {
 					child: required(Inner)
 				});
 
-				expect(probeRange(probe(["child", "kind"]), s)?.shape).toEqual(uri());
+				expect(probeRange(probe(["child", "kind"]), s)?.shape).toEqual(iri({ variant: "absolute" }));
 
 			});
 
@@ -1369,7 +1369,7 @@ describe("apply", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(probeRange(probe(["child", "kind"]), s)?.shape).toEqual(uri());
+				expect(probeRange(probe(["child", "kind"]), s)?.shape).toEqual(iri({ variant: "absolute" }));
 
 			});
 

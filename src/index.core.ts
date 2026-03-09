@@ -35,8 +35,7 @@ import { decimal, integer } from "./number.js";
 import { flatten, mergeReference, mergeResource, validateReference, validateResource } from "./resource.core.js";
 import type { Range, ReferenceShape, ResourceShape, Union } from "./resource.js";
 import { mergeString, validateString } from "./string.core.js";
-import type { StringShape } from "./string.js";
-import { date, duration, instant, string, time, timestamp, uri, year } from "./string.js";
+import { date, duration, instant, iri, string, type StringShape, time, timestamp, year } from "./string.js";
 import type { Trace } from "./trace.js";
 
 
@@ -354,7 +353,7 @@ export function apply(probe: Probe, shape: ValueShape): undefined | Range {
 					minCount: 1,
 					maxCount: 1,
 
-					variants: [uri()]
+					variants: [iri({ variant: "absolute" })]
 
 				};
 
@@ -364,7 +363,7 @@ export function apply(probe: Probe, shape: ValueShape): undefined | Range {
 
 					maxCount: 1,
 
-					variants: [uri()]
+					variants: [iri({ variant: "absolute" })]
 
 				};
 

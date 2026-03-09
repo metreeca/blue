@@ -23,6 +23,7 @@
       "Lazy": "https://metreeca.github.io/core/types/index.Lazy.html",
       "IRI": "https://metreeca.github.io/core/types/resource.IRI.html",
       "Namespace": "https://metreeca.github.io/core/types/resource.Namespace.html",
+      "Variant": "https://metreeca.github.io/core/types/resource.Variant.html",
       "Tag": "https://metreeca.github.io/core/types/language.Tag.html",
       "TagRange": "https://metreeca.github.io/core/types/language.TagRange.html"
     },
