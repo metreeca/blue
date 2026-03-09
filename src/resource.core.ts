@@ -29,7 +29,7 @@ import { defaultBase } from "@metreeca/qest/index";
 import { decodeProbe, type Probe } from "@metreeca/qest/model";
 import { type Reference, type Resource } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
-import { apply, brand, branded, materialize, mergeValue, validateValue } from "./index.core.js";
+import { apply, brand, branded, isAggregate, materialize, mergeValue, validateValue } from "./index.core.js";
 import type { ValueShape } from "./index.js";
 import type { LocalShape, LocalsShape } from "./local.js";
 import type { NumberShape } from "./number.js";
@@ -968,7 +968,7 @@ export function validateEntry(values: readonly unknown[], shape: ResourceShape):
  *
  * @returns A keyed trace of constraint violations per property, or `undefined` if all models are valid
  */
-export function validateModel(values: readonly unknown[], shape: ResourceShape, depth: null | number): undefined | Trace {
+export function validateModel(values: readonly unknown[], shape: ResourceShape, depth: null | number, stats: boolean = true): undefined | Trace {
 
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
@@ -1007,11 +1007,19 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	function validateProjection(binding: Probe, value: unknown, shape: ValueShape, depth: null | number): undefined | Trace {
 
-		const effective = apply(binding, shape);
+		if ( !stats && binding.pipe.some(isAggregate) ) {
 
-		// undefined effective range means the binding cannot be populated at runtime; template is immaterial
+			return "aggregate transforms are not enabled";
 
-		return effective === undefined ? undefined : validateRange(value, effective, depth);
+		} else {
+
+			const effective = apply(binding, shape);
+
+			// undefined effective range means the binding cannot be populated at runtime; template is immaterial
+
+			return effective === undefined ? undefined : validateRange(value, effective, depth);
+
+		}
 
 	}
 

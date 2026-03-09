@@ -18,6 +18,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	disjunctive/conjunctive, focus, sort, and pagination operators are checked against the effective shape computed by
 	`apply()`, including recursive validation against union variant types
 - Add `classes` constraint on `ResourceShape` for accumulating parent class IRIs across inheritance
+- Add `stats` option to `validate()` model scope for controlling whether aggregate transforms (count, sum, min, max,
+	avg) are accepted in client-defined models — defaults to `false` for safe-by-default protection against complexity
+	attacks
 
 ### Fixed
 
@@ -68,7 +71,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Widen `Trace` record keys from `Identifier | Tag | TagRange` to `string` to support operator-prefixed query keys
 - Rename `LocalConstraints.model` type from `LocalModel` to `Locale` and `LocalsConstraints.model` from `LocalsModel`
 	to `Locales`, following upstream `@metreeca/qest` renames
-- Remove `tag()` — replaced by `audit()` for shape retrieval and `validate()` with `entry` scope for identity association
+- Remove `tag()` — replaced by `audit()` for shape retrieval and `validate()` with `entry` scope for identity
+	association
 
 ### Fixed
 

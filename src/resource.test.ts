@@ -5515,6 +5515,125 @@ describe("operators", () => {
 
 			});
 
+			describe("stats option", () => {
+
+				it("accepts aggregate binding when stats is true", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, null, true)).toBeUndefined();
+
+				});
+
+				it("accepts aggregate binding when stats is defaulted", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, null)).toBeUndefined();
+
+				});
+
+				it("rejects aggregate binding when stats is false", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, null, false)).toBeDefined();
+
+				});
+
+				it("rejects min aggregate when stats is false", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, null, false)).toBeDefined();
+
+				});
+
+				it("rejects max aggregate when stats is false", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "highest=max:price": 0 }] }], Wrapper, null, false)).toBeDefined();
+
+				});
+
+				it("rejects sum aggregate when stats is false", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "total=sum:price": 0 }] }], Wrapper, null, false)).toBeDefined();
+
+				});
+
+				it("rejects avg aggregate when stats is false", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "average=avg:price": 0 }] }], Wrapper, null, false)).toBeDefined();
+
+				});
+
+				it("rejects chained aggregate pipe when stats is false", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, null, false)).toBeDefined();
+
+				});
+
+				it("accepts non-aggregate transform when stats is false", async () => {
+
+					const Target = resource({ name: required(string()), released: optional(year()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "y=year:released": 0 }] }], Wrapper, null, false)).toBeUndefined();
+
+				});
+
+				it("accepts scalar transform pipe when stats is false", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ "r=round:price": 0 }] }], Wrapper, null, false)).toBeUndefined();
+
+				});
+
+				it("accepts plain property when stats is false", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateModel([{ items: [{ name: "" }] }], Wrapper, null, false)).toBeUndefined();
+
+				});
+
+				it("rejects aggregate on flat model when stats is false", async () => {
+
+					const shape = resource({ name: required(string()), price: optional(integer()) });
+
+					expect(validateModel([{ "total=count:": 0 }], shape, 0, false)).toBeDefined();
+
+				});
+
+				it("accepts plain property on flat model when stats is false", async () => {
+
+					const shape = resource({ name: required(string()), price: optional(integer()) });
+
+					expect(validateModel([{ name: "" }], shape, 0, false)).toBeUndefined();
+
+				});
+
+			});
+
 			describe("operator semantics", () => {
 
 				// operator/type compatibility must be evaluated against the effective shape

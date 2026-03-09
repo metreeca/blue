@@ -443,6 +443,61 @@ describe("validate", () => {
 
 		});
 
+		it("rejects aggregate binding when stats defaults to false", async () => {
+
+			const shape = resource({
+				price: optional(integer())
+			});
+
+			const result = validate({ "total=count:": 0 }, { scope: "model", shape });
+			expect(result({ trace: t => t })).toBeDefined();
+
+		});
+
+		it("accepts aggregate binding when stats is true", async () => {
+
+			const shape = resource({
+				price: optional(integer())
+			});
+
+			const result = validate({ "total=count:": 0 }, { scope: "model", shape, stats: true });
+			expect(result({ value: v => v })).toEqual({ "total=count:": 0 });
+
+		});
+
+		it("rejects aggregate binding when stats is false", async () => {
+
+			const shape = resource({
+				price: optional(integer())
+			});
+
+			const result = validate({ "total=count:": 0 }, { scope: "model", shape, stats: false });
+			expect(result({ trace: t => t })).toBeDefined();
+
+		});
+
+		it("accepts non-aggregate binding when stats is false", async () => {
+
+			const shape = resource({
+				released: optional(year())
+			});
+
+			const result = validate({ "y=year:released": 0 }, { scope: "model", shape, stats: false });
+			expect(result({ value: v => v })).toEqual({ "y=year:released": 0 });
+
+		});
+
+		it("accepts plain property when stats is false", async () => {
+
+			const shape = resource({
+				name: required(string())
+			});
+
+			const result = validate({ name: "" }, { scope: "model", shape, stats: false });
+			expect(result({ value: v => v })).toEqual({ name: "" });
+
+		});
+
 	});
 
 	describe("entry mode", () => {

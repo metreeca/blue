@@ -209,6 +209,14 @@ export function mergeValue<T extends ValueShape>(target: T, source: T): T {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Checks whether a transform is an aggregate (count, min, max, sum, avg).
+ */
+export function isAggregate(name: Transform): boolean {
+	return Transforms[name].aggregate;
+}
+
+
+/**
  * Applies a probe to a value shape, resolving the effective output {@link Range}.
  *
  * **Shape dispatch** — dispatches on the input shape kind:

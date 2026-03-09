@@ -73,11 +73,18 @@
  *
  * **Validating Models**
  *
+ * > [!WARNING]
+ * > Model validation is safe against complexity attacks by default: aggregate transforms and nested model expansion
+ * > are disabled. Enable `stats` and/or `depth` explicitly only when the additional complexity is required.
+ *
  * Validate projection models specifying which properties to retrieve from a resource:
  *
  * ```typescript
  * // validate a projection model
  * validate(data, { scope: "model", shape: Product });
+ *
+ * // validate a projection model with aggregate transforms
+ * validate(data, { scope: "model", shape: Product, stats: true });
  *
  * // validate a projection model with nesting depth
  * validate(data, { scope: "model", shape: Product, depth: 2 });
@@ -377,12 +384,20 @@ export function validate<T extends Value>(value: unknown, opts: {
  * > against its target shape). Nesting is subject to `depth` limits; set `depth` to the minimum required level to
  * > guard against possible complexity attacks from deeply nested models.
  *
+ * > [!WARNING]
+ * > Default options are safe against complexity attacks from client-defined models: aggregate transforms are rejected
+ * > (`stats` defaults to `false`) and nested model expansion is disabled (`depth` defaults to `0`). Explicitly set
+ * > `stats` to `true` and/or `depth` to a positive value or `null` only when the additional complexity is required
+ * > and acceptable.
+ *
  * @typeParam T The {@link Model} type
  *
  * @param model The model to validate
  * @param opts Validation options
  * @param opts.scope Selects model-level validation with structural checks
  * @param opts.shape The {@link ValueShape} defining the expected structure; may be a {@link Lazy} factory
+ * @param opts.stats Whether aggregate transforms (count, sum, min, max, avg) are accepted; `true` allows them;
+ *     `false` rejects any binding containing aggregate transforms; defaults to `false`
  * @param opts.depth Maximum nesting depth for {@link Reference} and embedded {@link Resource} expansion; `0` rejects
  *     any nested {@link Model} while still accepting IRI references; `null` for unlimited; defaults to `0`
  *
@@ -400,6 +415,7 @@ export function validate<T extends Model>(model: unknown, opts: {
 	readonly scope: "model"
 	readonly shape: Lazy<ValueShape>
 
+	readonly stats?: boolean
 	readonly depth?: null | number
 
 }): Relay<{
@@ -415,7 +431,9 @@ export function validate<T extends Model>(model: unknown, opts: {
 export function validate(value: unknown, {
 
 	scope,
-	shape: lazy,
+	shape,
+
+	stats = false,
 	depth = 0
 
 }: {
@@ -423,6 +441,7 @@ export function validate(value: unknown, {
 	readonly scope: "value" | "model" | "entry"
 	readonly shape: Lazy<ValueShape>
 
+	readonly stats?: boolean
 	readonly depth?: null | number
 
 }): Relay<{
@@ -434,36 +453,51 @@ export function validate(value: unknown, {
 
 	try {
 
-		const shape = materialize(lazy);
+		const materialized = materialize(shape);
 
-		if ( shape.kind === "resource" ) {
+		if ( materialized.kind === "resource" ) {
 
-			if ( branded(value, ValidationScope) === scope && branded(value, ValidationShape) === shape ) {
+			if ( branded(value, ValidationScope) === scope && branded(value, ValidationShape) === materialized ) {
 
 				return createRelay({ value }); // already validated
 
 			} else if ( scope === "value" ) {
 
-				const trace = validateResource([value], shape);
+				const trace = validateResource([value], materialized);
 
 				return trace === undefined
-					? createRelay({ value: brand(value, { [ValidationScope]: "value", [ValidationShape]: shape }) })
+					? createRelay({
+						value: brand(value, {
+							[ValidationScope]: "value",
+							[ValidationShape]: materialized
+						})
+					})
 					: createRelay({ trace });
 
 			} else if ( scope === "entry" ) {
 
-				const trace = validateEntry([value], shape);
+				const trace = validateEntry([value], materialized);
 
 				return trace === undefined
-					? createRelay({ value: brand(value, { [ValidationScope]: "entry", [ValidationShape]: shape }) })
+					? createRelay({
+						value: brand(value, {
+							[ValidationScope]: "entry",
+							[ValidationShape]: materialized
+						})
+					})
 					: createRelay({ trace });
 
 			} else {
 
-				const trace = validateModel([value], shape, depth);
+				const trace = validateModel([value], materialized, depth, stats);
 
 				return trace === undefined
-					? createRelay({ value: brand(value, { [ValidationScope]: "model", [ValidationShape]: shape }) })
+					? createRelay({
+						value: brand(value, {
+							[ValidationScope]: "model",
+							[ValidationShape]: materialized
+						})
+					})
 					: createRelay({ trace });
 
 			}
@@ -476,7 +510,7 @@ export function validate(value: unknown, {
 
 			} else {
 
-				const trace = validateValue([value], shape);
+				const trace = validateValue([value], materialized);
 
 				return trace === undefined
 					? createRelay({ value: value as Value })
