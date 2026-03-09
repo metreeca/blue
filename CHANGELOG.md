@@ -21,6 +21,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `stats` option to `validate()` model scope for controlling whether aggregate transforms (count, sum, min, max,
 	avg) are accepted in client-defined models — defaults to `false` for safe-by-default protection against complexity
 	attacks
+- Add `url()` string factory as a convenience alias for `iri({ variant: "hierarchical" })`
 
 ### Fixed
 

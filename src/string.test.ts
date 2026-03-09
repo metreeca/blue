@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import { checkString, mergeString, validateString } from "./string.core.js";
-import { date, duration, email, instant, iri, string, time, timestamp, year } from "./string.js";
+import { date, duration, email, instant, iri, string, time, timestamp, url, year } from "./string.js";
 
 
 describe("factories", () => {
@@ -188,6 +188,28 @@ describe("factories", () => {
 
 			expect(shape.model).toBe("/path");
 			expect(shape.pattern).toBe("^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\\S+|\\/\\S*)$");
+
+		});
+
+	});
+
+	describe("url", () => {
+
+		it("returns a shape equivalent to iri with hierarchical variant", async () => {
+
+			const shape = url();
+
+			expect(shape.kind).toBe("string");
+			expect(shape.model).toBe("https://example.net/");
+			expect(shape.pattern).toBe("^[a-zA-Z][a-zA-Z0-9+.-]*:\\/\\S*$");
+
+		});
+
+		it("forwards textual constraints to iri", async () => {
+
+			const shape = url({ in: ["https://example.net/"] });
+
+			expect(shape.in).toEqual(["https://example.net/"]);
 
 		});
 

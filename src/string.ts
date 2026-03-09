@@ -29,6 +29,7 @@
  * | [string][]        | {@link string}      | Unicode character sequence     |                               |
  * | string            | {@link email}       | [RFC 5321][] email address     |                               |
  * | string            | {@link iri}         | [RFC 3987][] IRI reference     |                               |
+ * | string            | {@link url}         | [RFC 3986][] hierarchical URL  |                               |
  * | [gYear][]         | {@link year} ²      | [ISO 8601][iso-year] year      | YYYY[Z/±hh:mm]                |
  * | [date][]          | {@link date}        | [ISO 8601][iso-date] date      | YYYY-MM-DD[Z/±hh:mm]          |
  * | [time][]          | {@link time}        | [ISO 8601][iso-time] time      | hh:mm:ss[.sss][Z/±hh:mm]      |
@@ -85,10 +86,11 @@
  * Predefined factories for common string formats:
  *
  * ```typescript
- * import { email, iri, date, time, instant, timestamp, duration } from '@metreeca/blue';
+ * import { email, iri, url, date, time, instant, timestamp, duration } from '@metreeca/blue';
  *
  * const contact = email();      // RFC 5321 email address
  * const identifier = iri();     // RFC 3987 IRI reference
+ * const link = url();           // RFC 3986 hierarchical URL
  * const birthday = date();      // ISO 8601 date (YYYY-MM-DD)
  * const start = time();         // ISO 8601 time (hh:mm:ss)
  * const created = instant();    // ISO 8601 datetime
@@ -405,6 +407,25 @@ export function iri(constraints: TextualConstraints & {
 
 }
 
+/**
+ * Creates a shape for hierarchical URL values.
+ *
+ * Convenience alias for {@link iri} with `variant: "hierarchical"`, accepting only URLs with a scheme and authority
+ * component (for example, `https://example.net/path`).
+ *
+ * @param constraints Optional {@link TextualConstraints} validation constraints
+ *
+ * @returns An immutable shape for validating hierarchical URLs
+ *
+ * @see {@link iri}
+ * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
+ */
+export function url(constraints: TextualConstraints = {}): StringShape {
+
+	return iri({ variant: "hierarchical", ...constraints });
+
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -425,11 +446,13 @@ export function iri(constraints: TextualConstraints & {
  * @see {@link https://www.w3.org/TR/xmlschema-2/#gYear XSD 1.0 Part 2: Datatypes § 3.2.11 gYear}
  */
 export function year(constraints: TextualConstraints = {}): StringShape {
+
 	return string({
 		model: "1970",
 		pattern: /^\d{4}(?:Z|[+-]\d{2}:\d{2})?$/,
 		...constraints
 	});
+
 }
 
 /**
@@ -443,11 +466,13 @@ export function year(constraints: TextualConstraints = {}): StringShape {
  * @see {@link https://www.w3.org/TR/xmlschema-2/#date XSD 1.0 Part 2: Datatypes § 3.2.9 date}
  */
 export function date(constraints: TextualConstraints = {}): StringShape {
+
 	return string({
 		model: "1970-01-01",
 		pattern: /^\d{4}-\d{2}-\d{2}(?:Z|[+-]\d{2}:\d{2})?$/,
 		...constraints
 	});
+
 }
 
 /**
@@ -461,11 +486,13 @@ export function date(constraints: TextualConstraints = {}): StringShape {
  * @see {@link https://www.w3.org/TR/xmlschema-2/#time XSD 1.0 Part 2: Datatypes § 3.2.8 time}
  */
 export function time(constraints: TextualConstraints = {}): StringShape {
+
 	return string({
 		model: "00:00:00",
 		pattern: /^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
 		...constraints
 	});
+
 }
 
 /**
@@ -479,11 +506,13 @@ export function time(constraints: TextualConstraints = {}): StringShape {
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
 export function instant(constraints: TextualConstraints = {}): StringShape {
+
 	return string({
 		model: "1970-01-01T00:00:00",
 		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
 		...constraints
 	});
+
 }
 
 /**
@@ -503,11 +532,13 @@ export function instant(constraints: TextualConstraints = {}): StringShape {
  * @see {@link https://www.w3.org/TR/xmlschema11-2/#dateTimeStamp XSD 1.1 Part 2: Datatypes § 3.4.28 dateTimeStamp}
  */
 export function timestamp(constraints: TextualConstraints = {}): StringShape {
+
 	return string({
 		model: "1970-01-01T00:00:00.000Z",
 		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
 		...constraints
 	});
+
 }
 
 /**
@@ -521,9 +552,11 @@ export function timestamp(constraints: TextualConstraints = {}): StringShape {
  * @see {@link https://www.w3.org/TR/xmlschema-2/#duration XSD 1.0 Part 2: Datatypes § 3.2.6 duration}
  */
 export function duration(constraints: TextualConstraints = {}): StringShape {
+
 	return string({
 		model: "PT0S",
 		pattern: /^-?P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/,
 		...constraints
 	});
+
 }
