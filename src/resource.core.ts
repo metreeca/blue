@@ -568,8 +568,8 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 			|| `conflicting parent values <${parents[0].virtual}> vs <${parents.find(p => p.virtual !== parents[0].virtual)?.virtual}> without child override`,
 
 		"{namespace}": shape.namespace !== undefined
-			|| parents.every(p => p.namespace?.() === parents[0].namespace?.())
-			|| `conflicting parent values <${parents[0].namespace?.()}> vs <${parents.find(p => p.namespace?.() !== parents[0].namespace?.())?.namespace?.()}> without child override`,
+			|| parents.every(p => p.namespace?.[""] === parents[0].namespace?.[""])
+			|| `conflicting parent values <${parents[0].namespace?.[""]}>  vs <${parents.find(p => p.namespace?.[""] !== parents[0].namespace?.[""])?.namespace?.[""]}>  without child override`,
 
 		// property-level inherit fields
 

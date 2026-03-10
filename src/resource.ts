@@ -1301,13 +1301,13 @@ export function resource(
 
 			} else {
 
-				const forward = isString(property.forward)
-					? asIRI(property.forward) // IRI
-					: property.forward && asIRI(property.forward(name)); // namespace
+				const forward = isString(property.forward) ? asIRI(property.forward) // IRI
+					: property.forward ? asIRI(property.forward[name]) // namespace
+						: undefined;
 
-				const reverse = isString(property.reverse)
-					? asIRI(property.reverse) // IRI
-					: property.reverse && asIRI(property.reverse(name)); // namespace
+				const reverse = isString(property.reverse) ? asIRI(property.reverse) // IRI
+					: property.reverse ? asIRI(property.reverse[name]) // namespace
+						: undefined;
 
 
 				return [name, {
@@ -1317,7 +1317,7 @@ export function resource(
 					// generate default forward when neither forward nor reverse is defined
 
 					forward: forward === undefined && reverse === undefined
-						? asIRI(namespace(name))
+						? asIRI(namespace[name])
 						: forward,
 
 					reverse
