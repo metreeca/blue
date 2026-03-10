@@ -27,6 +27,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Allow child local/locals shapes to override the parent model during merge — previously required strict deep equality,
+	blocking template labels like `local("{posted} / {author}")` in extending shapes
 - Inherit `forward`/`reverse` metadata when overriding inherited properties with naked Range — previously lost during
 	normalization and merge, causing `RangeError` on closed namespaces
 - Reject duplicate `Id` and `Type` entries across the full inheritance chain in resource shape factories — previously

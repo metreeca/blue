@@ -718,7 +718,7 @@ describe("operators", () => {
 		["mergeLocal", mergeLocal, local, "local", { "*": "" },
 			{ target: { en: "hello", fr: "bonjour" }, source: { en: "hello", fr: "bonjour" } },
 			{ equal: { en: "hello", fr: "bonjour" } },
-			{ target: { en: "hello" }, source: { fr: "bonjour" } }
+			{ target: { en: "hello" }, source: { fr: "bonjour" }, expected: { en: "hello" } }
 		],
 
 		["mergeLocals", mergeLocals, locals, "locals", { "*": [""] },
@@ -727,7 +727,7 @@ describe("operators", () => {
 				source: { model: { en: ["hello"], fr: ["bonjour"] } }
 			},
 			{ equal: { en: ["hello"], fr: ["bonjour"] } },
-			{ target: { model: { en: ["hello"] } }, source: { model: { fr: ["bonjour"] } } }
+			{ target: { model: { en: ["hello"] } }, source: { model: { fr: ["bonjour"] } }, expected: { en: ["hello"] } }
 		]
 
 	] as const)("%s", (_name, merge, factory, kind, defaultModel, nonDefaultModels, equalModel, differentModels) => {
@@ -765,12 +765,14 @@ describe("operators", () => {
 
 			});
 
-			it("rejects shapes with different models", async () => {
+			it("accepts child model overriding parent model", async () => {
 
-				expect(() => merge(
+				const merged = merge(
 					factory(differentModels.target as any) as any,
 					factory(differentModels.source as any) as any
-				)).toThrow(RangeError);
+				);
+
+				expect(merged.model).toEqual(differentModels.expected);
 
 			});
 

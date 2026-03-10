@@ -22,7 +22,7 @@
 
 import { isArray, isObject, isString } from "@metreeca/core";
 import { isTag, matchTag } from "@metreeca/core/language";
-import { equals, immutable } from "@metreeca/core/nested";
+import { immutable } from "@metreeca/core/nested";
 import type { LocalShape, LocalsShape } from "./local.js";
 import { collect, every, wrap } from "./trace.core.js";
 import { type Trace, TraceError } from "./trace.js";
@@ -192,11 +192,6 @@ export function mergeLocal(target: LocalShape, source: LocalShape): LocalShape {
 
 	const trace = collect({
 
-		// structural: model — deep equality
-
-		"{model}": equals(target.model, source.model)
-			|| `mismatched types <${JSON.stringify(target.model)}> and <${JSON.stringify(source.model)}>`,
-
 		// narrow: minLength — child >= parent
 
 		"{minLength}": target.minLength === undefined || source.minLength === undefined
@@ -225,7 +220,7 @@ export function mergeLocal(target: LocalShape, source: LocalShape): LocalShape {
 		throw new TraceError("incompatible local shape override", trace);
 	}
 
-	// build shape — casts are safe: non-emptiness validated above
+	// build shape — child model overrides parent
 
 	return immutable({
 
@@ -235,7 +230,7 @@ export function mergeLocal(target: LocalShape, source: LocalShape): LocalShape {
 		minLength,
 		maxLength,
 
-		languageIn: languageIn as LocalShape["languageIn"]
+		languageIn: languageIn as LocalShape["languageIn"] // casts are safe: non-emptiness validated above
 
 	});
 
@@ -270,11 +265,6 @@ export function mergeLocals(target: LocalsShape, source: LocalsShape): LocalsSha
 
 	const trace = collect({
 
-		// structural: model — deep equality
-
-		"{model}": equals(target.model, source.model)
-			|| `mismatched types <${JSON.stringify(target.model)}> and <${JSON.stringify(source.model)}>`,
-
 		// narrow: minLength — child >= parent
 
 		"{minLength}": target.minLength === undefined || source.minLength === undefined
@@ -303,7 +293,7 @@ export function mergeLocals(target: LocalsShape, source: LocalsShape): LocalsSha
 		throw new TraceError("incompatible locals shape override", trace);
 	}
 
-	// build shape — casts are safe: non-emptiness validated above
+	// build shape — child model overrides parent
 
 	return immutable({
 
@@ -313,7 +303,7 @@ export function mergeLocals(target: LocalsShape, source: LocalsShape): LocalsSha
 		minLength,
 		maxLength,
 
-		languageIn: languageIn as LocalsShape["languageIn"]
+		languageIn: languageIn as LocalsShape["languageIn"] // casts are safe: non-emptiness validated above
 
 	});
 
