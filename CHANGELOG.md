@@ -38,9 +38,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Add `TraceError` class extending `RangeError` with a typed `cause: Trace` and pretty-printed trace in the error
+	message — replaces `Object.assign(new RangeError(…), { trace })` for visible diagnostics in stack traces
 - Replace `Some<Lazy<ResourceShape>>` with inline non-empty tuple for `ResourceConstraints.extends`
 - Shape factories now validate constraint consistency on construction via check functions — contradictory constraints
-	(e.g. `minLength > maxLength`, `hasValue` entries outside `in` set) are rejected with `RangeError`
+	(e.g. `minLength > maxLength`, `hasValue` entries outside `in` set) are rejected with `TraceError`
 - Standardize all trace messages — wrap scalar parameters in `<>` and list parameters in `[]`, start checker messages
 	with adjectives, include offending values in checker diagnostics
 - Replace internal `walk` with `flatten` for validation and probe resolution

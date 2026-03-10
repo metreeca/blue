@@ -108,6 +108,7 @@
 import { isNumber } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
 import { checkNumber } from "./number.core.js";
+import { TraceError } from "./trace.js";
 
 
 /**
@@ -292,7 +293,7 @@ export function number<M extends number>(model: M): NumberShape & { readonly mod
  *
  * @returns An immutable shape with `model` typed as `number`
  *
- * @throws {RangeError} If `constraints` contains contradictory values
+ * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @example
  *
@@ -323,7 +324,7 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
 	const trace = checkNumber(shape);
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("inconsistent number shape constraints"), { trace });
+		throw new TraceError("inconsistent number shape constraints", trace);
 	}
 
 	return shape;

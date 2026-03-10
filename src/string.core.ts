@@ -24,7 +24,7 @@ import { isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
 import type { StringShape } from "./string.js";
 import { collect, every, group, wrap } from "./trace.core.js";
-import type { Trace } from "./trace.js";
+import { type Trace, TraceError } from "./trace.js";
 
 
 /**
@@ -95,7 +95,7 @@ export function validateString(values: readonly unknown[], {
  *
  * @returns The merged shape with combined constraints
  *
- * @throws {RangeError} On incompatible overrides
+ * @throws {TraceError} On incompatible overrides
  */
 export function mergeString(target: StringShape, source: StringShape): StringShape {
 
@@ -164,7 +164,7 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 	});
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("incompatible string shape override"), { trace });
+		throw new TraceError("incompatible string shape override", trace);
 	}
 
 	// build shape — casts are safe: non-emptiness validated above

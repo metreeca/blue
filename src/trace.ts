@@ -54,3 +54,25 @@ export type Trace =
  */
 export type Validator<T = unknown> =
 	(value: T) => undefined | true | Trace;
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Error carrying a structured validation {@link Trace}.
+ *
+ * Extends `RangeError` with a typed {@link Trace} as `cause` and includes a pretty-printed trace in the message
+ * for visibility in stack traces and test output.
+ */
+export class TraceError extends RangeError {
+
+	override readonly cause: Trace;
+
+	constructor(message: string, cause: Trace) {
+
+		super(`${message} <${JSON.stringify(cause, undefined, 2)}>`, { cause });
+
+		this.cause = cause;
+	}
+
+}

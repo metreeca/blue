@@ -121,6 +121,7 @@ import { isRegExp, isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
 import type { Variant } from "@metreeca/core/resource";
 import { checkString } from "./string.core.js";
+import { TraceError } from "./trace.js";
 
 
 /**
@@ -306,7 +307,7 @@ export function string<M extends string>(model: M): StringShape & { readonly mod
  *
  * @returns An immutable shape with `model` typed as `string`
  *
- * @throws {RangeError} If `constraints` contains contradictory values
+ * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @example
  *
@@ -340,7 +341,7 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 	const trace = checkString(shape);
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("inconsistent string shape constraints"), { trace });
+		throw new TraceError("inconsistent string shape constraints", trace);
 	}
 
 	return shape;

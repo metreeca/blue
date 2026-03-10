@@ -24,7 +24,7 @@ import { isBoolean } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
 import type { BooleanShape } from "./boolean.js";
 import { collect } from "./trace.core.js";
-import type { Trace } from "./trace.js";
+import { type Trace, TraceError } from "./trace.js";
 
 
 /**
@@ -57,7 +57,7 @@ export function validateBoolean(values: readonly unknown[], { kind }: BooleanSha
  *
  * @returns The merged shape
  *
- * @throws {RangeError} On incompatible overrides
+ * @throws {TraceError} On incompatible overrides
  */
 export function mergeBoolean(target: BooleanShape, source: BooleanShape): BooleanShape {
 
@@ -71,7 +71,7 @@ export function mergeBoolean(target: BooleanShape, source: BooleanShape): Boolea
 	});
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("incompatible boolean shape override"), { trace });
+		throw new TraceError("incompatible boolean shape override", trace);
 	}
 
 	return immutable({

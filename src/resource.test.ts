@@ -57,7 +57,7 @@ import {
 	type Union
 } from "./resource.js";
 import { string, year } from "./string.js";
-import type { Trace, Validator } from "./trace.js";
+import { type Trace, TraceError, type Validator } from "./trace.js";
 
 
 describe("factories", () => {
@@ -424,7 +424,7 @@ describe("factories", () => {
 				expect(() => resource({
 					first: id(),
 					second: id()
-				})).toThrow(TypeError);
+				})).toThrow(TraceError);
 
 			});
 
@@ -433,7 +433,7 @@ describe("factories", () => {
 				expect(() => resource({
 					first: type(),
 					second: type()
-				})).toThrow(TypeError);
+				})).toThrow(TraceError);
 
 			});
 
@@ -446,7 +446,7 @@ describe("factories", () => {
 
 				expect(() => resource({ extends: Parent }, {
 					rid: id()
-				})).toThrow(TypeError);
+				})).toThrow(TraceError);
 
 			});
 
@@ -459,7 +459,7 @@ describe("factories", () => {
 
 				expect(() => resource({ extends: Parent }, {
 					rtype: type()
-				})).toThrow(TypeError);
+				})).toThrow(TraceError);
 
 			});
 
@@ -476,7 +476,7 @@ describe("factories", () => {
 
 				expect(() => resource({ extends: Parent }, {
 					rid: id()
-				})).toThrow(TypeError);
+				})).toThrow(TraceError);
 
 			});
 
@@ -493,7 +493,7 @@ describe("factories", () => {
 
 				expect(() => resource({ extends: Parent }, {
 					rtype: type()
-				})).toThrow(TypeError);
+				})).toThrow(TraceError);
 
 			});
 
@@ -950,7 +950,7 @@ describe("factories", () => {
 
 				});
 
-it("rejects incompatible property kinds across parents", async () => {
+				it("rejects incompatible property kinds across parents", async () => {
 
 					const First = resource({ name: required(string()) });
 					const Second = resource({ name: required(integer()) });
@@ -3381,8 +3381,8 @@ describe("operators", () => {
 
 				} catch ( e ) {
 
-					expect(e).toBeInstanceOf(RangeError);
-					expect((e as RangeError & { trace: Trace }).trace).toHaveProperty("{field}");
+					expect(e).toBeInstanceOf(TraceError);
+					expect((e as TraceError).cause).toHaveProperty("{field}");
 
 				}
 

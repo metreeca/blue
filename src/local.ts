@@ -68,6 +68,7 @@ import { immutable } from "@metreeca/core/nested";
 import { type Locale, type Locales } from "@metreeca/qest/model";
 import { type Local, type Locals } from "@metreeca/qest/state";
 import { checkLocalized } from "./local.core.js";
+import { TraceError } from "./trace.js";
 
 
 /**
@@ -268,7 +269,7 @@ export function local<M extends Locale>(model: M): LocalShape & { readonly model
  *
  * @returns An immutable shape with `model` typed as `Local`
  *
- * @throws {RangeError} If `constraints` contains contradictory values
+ * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @example
  *
@@ -303,7 +304,7 @@ export function local(constraints: Locale | LocalConstraints = {}): LocalShape {
 	const trace = checkLocalized(shape);
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("inconsistent local shape constraints"), { trace });
+		throw new TraceError("inconsistent local shape constraints", trace);
 	}
 
 	return shape;
@@ -326,7 +327,7 @@ export function local(constraints: Locale | LocalConstraints = {}): LocalShape {
  *
  * @returns An immutable shape for validating multi-valued language-tagged maps
  *
- * @throws {RangeError} If `constraints` contains contradictory values
+ * @throws {TraceError} If `constraints` contains contradictory values
  */
 export function locals(constraints: LocalsConstraints = {}): LocalsShape {
 
@@ -344,7 +345,7 @@ export function locals(constraints: LocalsConstraints = {}): LocalsShape {
 	const trace = checkLocalized(shape);
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("inconsistent locals shape constraints"), { trace });
+		throw new TraceError("inconsistent locals shape constraints", trace);
 	}
 
 	return shape;

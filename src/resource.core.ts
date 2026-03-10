@@ -36,7 +36,7 @@ import type { NumberShape } from "./number.js";
 import { type Property, type Range, type ReferenceShape, type ResourceShape, type Union } from "./resource.js";
 import type { StringShape } from "./string.js";
 import { collect, every, group, normalise, wrap } from "./trace.core.js";
-import type { Trace } from "./trace.js";
+import { type Trace, TraceError } from "./trace.js";
 
 
 /**
@@ -113,7 +113,7 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
  *
  * @returns The merged shape with combined constraints
  *
- * @throws {RangeError} On incompatible overrides
+ * @throws {TraceError} On incompatible overrides
  */
 export function mergeReference(target: ReferenceShape, source: ReferenceShape): ReferenceShape {
 
@@ -127,7 +127,7 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 	});
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("incompatible reference shape override"), { trace });
+		throw new TraceError("incompatible reference shape override", trace);
 	}
 
 	return immutable({
@@ -349,7 +349,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  *
  * @returns The merged shape with combined constraints
  *
- * @throws {RangeError} On incompatible overrides
+ * @throws {TraceError} On incompatible overrides
  */
 export function mergeResource(target: ResourceShape, source: ResourceShape): ResourceShape {
 
@@ -449,7 +449,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 	});
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("incompatible resource shape override"), { trace });
+		throw new TraceError("incompatible resource shape override", trace);
 	}
 
 	// build shape — casts are safe: non-emptiness validated above
@@ -694,7 +694,7 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
  *
  * @returns The merged property
  *
- * @throws {RangeError} On incompatible overrides
+ * @throws {TraceError} On incompatible overrides
  */
 export function mergeProperty(target: Property, source: Property): Property {
 
@@ -738,7 +738,7 @@ export function mergeProperty(target: Property, source: Property): Property {
  *
  * @returns The merged range
  *
- * @throws {RangeError} On incompatible overrides
+ * @throws {TraceError} On incompatible overrides
  */
 export function mergeRange(target: Range, source: Range): Range {
 
@@ -775,7 +775,7 @@ export function mergeRange(target: Range, source: Range): Range {
 	});
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("incompatible range override"), { trace });
+		throw new TraceError("incompatible range override", trace);
 	}
 
 	// build range
@@ -806,7 +806,7 @@ export function mergeRange(target: Range, source: Range): Range {
  *
  * @returns The merged union
  *
- * @throws {RangeError} On variant key mismatch or incompatible variant overrides
+ * @throws {TraceError} On variant key mismatch or incompatible variant overrides
  */
 export function mergeUnion(target: Union, source: Union): Union {
 
@@ -1436,7 +1436,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
  *
  * @returns A new resource shape with all inherited constraints merged; `extends` preserved for reference
  *
- * @throws {RangeError} On incompatible overrides in the inheritance chain
+ * @throws {TraceError} On incompatible overrides in the inheritance chain
  */
 export function flatten(shape: ResourceShape): ResourceShape {
 
@@ -1464,7 +1464,7 @@ export function flatten(shape: ResourceShape): ResourceShape {
 		});
 
 		if ( trace !== undefined ) {
-			throw Object.assign(new RangeError("incompatible flattened shape"), { trace });
+			throw new TraceError("incompatible flattened shape", trace);
 		}
 
 		return brand(flattened, { [Flattened]: null });

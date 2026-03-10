@@ -213,7 +213,7 @@ import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
 import { materialize } from "./index.core.js";
 import type { Infer, ValueShape } from "./index.js";
 import { checkSingletons, flatten } from "./resource.core.js";
-import type { Validator } from "./trace.js";
+import { TraceError, type Validator } from "./trace.js";
 
 
 /**
@@ -1078,7 +1078,7 @@ export function backlink(shape: Lazy<ResourceShape>): ReferenceShape {
  *
  * @returns An immutable resource shape with the specified properties
  *
- * @throws {TypeError} If entry definitions are invalid (e.g., duplicate id/type markers)
+ * @throws {TraceError} If entry definitions are invalid (e.g., duplicate id/type markers)
  *
  * @example
  *
@@ -1117,8 +1117,7 @@ export function resource<E extends Entries>(
  *
  * @returns An immutable resource shape with all inherited constraints resolved
  *
- * @throws {TypeError} If entry definitions are invalid (e.g., duplicate id/type markers, non-function namespace)
- * @throws {RangeError} If inherited constraints are incompatible with overrides
+ * @throws {TraceError} If entry definitions are invalid or inherited constraints are incompatible
  *
  * @example
  *
@@ -1247,7 +1246,7 @@ export function resource(
 		const trace = checkSingletons(properties);
 
 		if ( trace !== undefined ) {
-			throw Object.assign(new TypeError("duplicate singleton entries"), { trace });
+			throw new TraceError("duplicate singleton entries", trace);
 		}
 
 		return Object.fromEntries(Object.entries(entries).map(([name, entry]) => {

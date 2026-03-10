@@ -167,7 +167,7 @@ export function validateValue(values: readonly unknown[], shape: ValueShape): un
  *
  * @returns The merged shape
  *
- * @throws {RangeError} On kind mismatch or incompatible overrides
+ * @throws {TraceError} On kind mismatch or incompatible overrides
  */
 export function mergeValue<T extends ValueShape>(target: T, source: T): T {
 

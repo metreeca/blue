@@ -24,7 +24,7 @@ import { isNumber } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
 import type { NumberShape } from "./number.js";
 import { collect, every, group, wrap } from "./trace.core.js";
-import type { Trace } from "./trace.js";
+import { type Trace, TraceError } from "./trace.js";
 
 
 /**
@@ -100,7 +100,7 @@ export function validateNumber(values: readonly unknown[], {
  *
  * @returns The merged shape with combined constraints
  *
- * @throws {RangeError} On incompatible overrides
+ * @throws {TraceError} On incompatible overrides
  */
 export function mergeNumber(target: NumberShape, source: NumberShape): NumberShape {
 
@@ -179,7 +179,7 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 	});
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("incompatible number shape override"), { trace });
+		throw new TraceError("incompatible number shape override", trace);
 	}
 
 	// build shape — casts are safe: non-emptiness validated above

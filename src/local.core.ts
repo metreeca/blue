@@ -25,7 +25,7 @@ import { isTag, matchTag } from "@metreeca/core/language";
 import { equals, immutable } from "@metreeca/core/nested";
 import type { LocalShape, LocalsShape } from "./local.js";
 import { collect, every, wrap } from "./trace.core.js";
-import type { Trace } from "./trace.js";
+import { type Trace, TraceError } from "./trace.js";
 
 
 /**
@@ -173,7 +173,7 @@ export function validateLocals(values: readonly unknown[], {
  *
  * @returns The merged shape with combined constraints
  *
- * @throws {RangeError} On incompatible overrides
+ * @throws {TraceError} On incompatible overrides
  */
 export function mergeLocal(target: LocalShape, source: LocalShape): LocalShape {
 
@@ -222,7 +222,7 @@ export function mergeLocal(target: LocalShape, source: LocalShape): LocalShape {
 	});
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("incompatible local shape override"), { trace });
+		throw new TraceError("incompatible local shape override", trace);
 	}
 
 	// build shape — casts are safe: non-emptiness validated above
@@ -251,7 +251,7 @@ export function mergeLocal(target: LocalShape, source: LocalShape): LocalShape {
  *
  * @returns The merged shape with combined constraints
  *
- * @throws {RangeError} On incompatible overrides
+ * @throws {TraceError} On incompatible overrides
  */
 export function mergeLocals(target: LocalsShape, source: LocalsShape): LocalsShape {
 
@@ -300,7 +300,7 @@ export function mergeLocals(target: LocalsShape, source: LocalsShape): LocalsSha
 	});
 
 	if ( trace !== undefined ) {
-		throw Object.assign(new RangeError("incompatible locals shape override"), { trace });
+		throw new TraceError("incompatible locals shape override", trace);
 	}
 
 	// build shape — casts are safe: non-emptiness validated above

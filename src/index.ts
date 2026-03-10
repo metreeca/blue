@@ -158,9 +158,9 @@ import type { NumberShape } from "./number.js";
 import { flatten, validateEntry, validateModel, validateResource } from "./resource.core.js";
 import type { ReferenceShape, ResourceShape } from "./resource.js";
 import type { StringShape } from "./string.js";
-import type { Trace, Validator } from "./trace.js";
+import { type Trace, TraceError, type Validator } from "./trace.js";
 
-export { apply, Trace, Validator };
+export { apply, Trace, TraceError, Validator };
 
 
 /**
@@ -300,9 +300,8 @@ export function audit(entry: Value | Model, {
  * {@link Resource} values, on success, the value is an immutable copy associated with the `value` scope and a verified
  * and flattened copy of the shape (see {@link resource!resource | resource}), retrievable via {@link audit}
  *
- * @throws {TypeError} If the shape contains invalid entry definitions (see {@link resource!resource | resource})
- * @throws {RangeError} If the shape contains incompatible inherited constraints (see {@link resource!resource |
- *     resource})
+ * @throws {TraceError} If the shape contains invalid or incompatible entry definitions (see
+ *     {@link resource!resource | resource})
  */
 export function validate<T extends Value>(value: unknown, opts: {
 
@@ -345,9 +344,8 @@ export function validate<T extends Value>(value: unknown, opts: {
  * {@link Resource} values, on success, the entry is an immutable copy associated with the `entry` scope and a verified
  * and flattened copy of the shape (see {@link resource!resource | resource}), retrievable via {@link audit}
  *
- * @throws {TypeError} If the shape contains invalid entry definitions (see {@link resource!resource | resource})
- * @throws {RangeError} If the shape contains incompatible inherited constraints (see {@link resource!resource |
- *     resource})
+ * @throws {TraceError} If the shape contains invalid or incompatible entry definitions (see
+ *     {@link resource!resource | resource})
  */
 export function validate<T extends Value>(value: unknown, opts: {
 
@@ -534,7 +532,7 @@ export function validate(value: unknown, {
 
 	} catch ( e ) {
 
-		return createRelay({ trace: message(e) });
+		return createRelay({ trace: e instanceof TraceError ? e.cause : message(e) });
 
 	}
 
