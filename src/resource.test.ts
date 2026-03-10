@@ -918,7 +918,39 @@ describe("factories", () => {
 
 				});
 
-				it("rejects incompatible property kinds across parents", async () => {
+				it("inherits forward from parent when overriding with naked range", async () => {
+
+					const rdfs = createNamespace("http://www.w3.org/2000/01/rdf-schema#", ["label"]);
+
+					const Parent = resource({
+						label: property({ forward: rdfs.label }, required(string()))
+					});
+
+					const Child = resource({ extends: Parent }, {
+						label: required(string({ minLength: 1 }))
+					});
+
+					expect((Child.properties.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
+
+				});
+
+				it("inherits reverse from parent when overriding with naked range", async () => {
+
+					const ex = createNamespace("http://example.org/", ["owner"]);
+
+					const Parent = resource({
+						owner: property({ reverse: ex.owner }, required(string()))
+					});
+
+					const Child = resource({ extends: Parent }, {
+						owner: required(string({ minLength: 1 }))
+					});
+
+					expect((Child.properties.owner as Property).reverse).toBe("http://example.org/owner");
+
+				});
+
+it("rejects incompatible property kinds across parents", async () => {
 
 					const First = resource({ name: required(string()) });
 					const Second = resource({ name: required(integer()) });
@@ -3487,6 +3519,46 @@ describe("operators", () => {
 				);
 
 				expect(merged.hidden).toBe(false);
+
+			});
+
+		});
+
+		describe.each([
+			{ field: "forward" as const },
+			{ field: "reverse" as const }
+		])("$field", ({ field }) => {
+
+			it("inherits source value when target has none", async () => {
+
+				const merged = mergeProperty(
+					property(required(string())),
+					property({ [field]: "http://example.org/term" }, required(string()))
+				);
+
+				expect(merged[field]).toBe("http://example.org/term");
+
+			});
+
+			it("keeps target value when both define it", async () => {
+
+				const merged = mergeProperty(
+					property({ [field]: "http://target.org/term" }, required(string())),
+					property({ [field]: "http://source.org/term" }, required(string()))
+				);
+
+				expect(merged[field]).toBe("http://target.org/term");
+
+			});
+
+			it("keeps target value when source has none", async () => {
+
+				const merged = mergeProperty(
+					property({ [field]: "http://target.org/term" }, required(string())),
+					property(required(string()))
+				);
+
+				expect(merged[field]).toBe("http://target.org/term");
 
 			});
 

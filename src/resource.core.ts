@@ -713,8 +713,13 @@ export function mergeProperty(target: Property, source: Property): Property {
 		name: target.name,
 		description: target.description,
 
-		forward: target.forward,
-		reverse: target.reverse,
+		...target.forward !== undefined ? { forward: target.forward }
+			: source.forward !== undefined ? { forward: source.forward }
+				: {},
+
+		...target.reverse !== undefined ? { reverse: target.reverse }
+			: source.reverse !== undefined ? { reverse: source.reverse }
+				: {},
 
 		range: mergeRange(target.range, source.range)
 

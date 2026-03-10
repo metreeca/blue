@@ -1152,6 +1152,10 @@ export function resource(
 	b?: Entries
 ): ResourceShape {
 
+	type Parents = ResourceConstraints["extends"];
+	type Properties = ResourceShape["properties"];
+
+
 	if ( b === undefined ) {
 
 		const properties = a as Entries;
@@ -1229,15 +1233,16 @@ export function resource(
 	 *
 	 * @returns Normalized properties with range wrapped
 	 */
-	function normalize(entries: Entries, parents?: ResourceConstraints["extends"]): ResourceShape["properties"] {
+	function normalize(entries: Entries, parents?: Parents): Properties {
 
-		const values = Object.values(entries);
-
-		const inherited = parents === undefined ? []
+		const bases: Properties[] = parents === undefined ? []
 			: (Array.isArray(parents) ? parents : [parents])
-				.flatMap(parent => Object.values(flatten(materialize(parent)).properties));
+				.map(parent => materialize(parent).properties);
 
-		const properties = [...inherited, ...values];
+		const properties = [
+			...bases.flatMap(base => Object.values(base)),
+			...Object.values(entries)
+		];
 
 		const trace = checkSingletons(properties);
 
@@ -1247,9 +1252,32 @@ export function resource(
 
 		return Object.fromEntries(Object.entries(entries).map(([name, entry]) => {
 
-			return entry.kind === "range"
-				? [name, property(entry)] // wrap Range
-				: [name, entry]; // pass-through Id | Type | Property
+			if ( entry.kind === "range" ) {
+
+				// inherit forward/reverse from parent when wrapping naked range
+
+				const base = bases.reduce<Entry | undefined>((found, b) => found ?? b[name], undefined);
+
+				if ( base !== undefined && base.kind === "property"
+					&& (base.forward !== undefined || base.reverse !== undefined)
+				) {
+
+					return [name, property({
+						...base.forward !== undefined && { forward: base.forward },
+						...base.reverse !== undefined && { reverse: base.reverse }
+					}, entry)];
+
+				} else {
+
+					return [name, property(entry)];
+
+				}
+
+			} else {
+
+				return [name, entry]; // pass-through Id | Type | Property
+
+			}
 
 		}));
 	}
@@ -1264,7 +1292,7 @@ export function resource(
 	 *
 	 * @returns Properties with `forward` and `reverse` resolved to IRIs
 	 */
-	function resolve(properties: ResourceShape["properties"], namespace: Namespace): ResourceShape["properties"] {
+	function resolve(properties: Properties, namespace: Namespace): Properties {
 		return Object.fromEntries(Object.entries(properties).map(([name, property]) => {
 
 			if ( property.kind === "id" || property.kind === "type" ) {
@@ -1274,12 +1302,12 @@ export function resource(
 			} else {
 
 				const forward = isString(property.forward)
-					? asIRI(property.forward)
-					: property.forward && asIRI(property.forward(name));
+					? asIRI(property.forward) // IRI
+					: property.forward && asIRI(property.forward(name)); // namespace
 
 				const reverse = isString(property.reverse)
-					? asIRI(property.reverse)
-					: property.reverse && asIRI(property.reverse(name));
+					? asIRI(property.reverse) // IRI
+					: property.reverse && asIRI(property.reverse(name)); // namespace
 
 
 				return [name, {
@@ -1315,7 +1343,7 @@ export function resource(
 	 *
 	 * @returns An immutable resource model
 	 */
-	function build(properties: ResourceShape["properties"], { extends: parents }: ResourceConstraints = {}): Resource {
+	function build(properties: Properties, { extends: parents }: ResourceConstraints = {}): Resource {
 
 		const inherited = parents === undefined ? {} : (Array.isArray(parents) ? parents : [parents])
 			.map(parent => materialize(parent).model)

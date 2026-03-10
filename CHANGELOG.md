@@ -27,6 +27,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Inherit `forward`/`reverse` metadata when overriding inherited properties with naked Range — previously lost during
+	normalization and merge, causing `RangeError` on closed namespaces
 - Reject duplicate `Id` and `Type` entries across the full inheritance chain in resource shape factories — previously
 	only local entries were checked; inherited duplicates are now detected via lineage traversal
 - Enforce class-level constraints (`pattern`, `in`, `hasValue`) conjunctively across the inheritance chain in resource
