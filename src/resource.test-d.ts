@@ -26,66 +26,68 @@
 import type { IRI } from "@metreeca/core/resource";
 import type { Local, Locals, Resource } from "@metreeca/qest/state";
 import { assertType, describe, expectTypeOf, test } from "vitest";
-import { type Infer, validate } from "./index.js";
+import type { BooleanShape } from "./boolean.js";
+import type { ValueShape } from "./index.js";
+import { validate } from "./index.js";
+import type { LocalShape, LocalsShape } from "./local.js";
 import { local, locals } from "./local.js";
 import type { NumberShape } from "./number.js";
 import {
 	type Cardinality,
 	type Composition,
 	type Content,
+	type Infer,
 	multiple,
 	optional,
 	property,
 	type Range,
 	reference,
+	type ReferenceShape,
 	repeatable,
 	required,
 	resource,
+	type ResourceShape,
 	union
 } from "./resource.js";
 import type { StringShape } from "./string.js";
 
 
-describe("Cardinality", () => {
+// helper shapes for tests
 
-	test("required (1,1) → V", () => {
-		expectTypeOf<Cardinality<string, 1, 1>>().toEqualTypeOf<string>();
+function string(): StringShape {
+	return { kind: "string", model: "" };
+}
+
+function integer(): NumberShape {
+	return { kind: "number", model: 0 };
+}
+
+
+describe("Overrides", () => {
+
+	function Base() {
+		return resource({
+			name: property(required(string()))
+		});
+	}
+
+	test("rejects incompatible override type", () => {
+		// @ts-expect-error - incompatible override: integer does not extend string
+		resource({ extends: Base }, { name: required(integer()) });
 	});
 
-	test("optional (undefined,1) → undefined | V", () => {
-		expectTypeOf<Cardinality<string, undefined, 1>>().toEqualTypeOf<undefined | string>();
+	test("accepts compatible narrowing", () => {
+		resource({ extends: Base }, { name: required(string()) });
 	});
 
-	test("multiple (undefined,undefined) → undefined | readonly V[]", () => {
-		expectTypeOf<Cardinality<string, undefined, undefined>>().toEqualTypeOf<undefined | readonly string[]>();
+	test("rejects widening cardinality (required → optional)", () => {
+		// @ts-expect-error - incompatible override: optional widens required
+		resource({ extends: Base }, { name: optional(string()) });
 	});
 
-	test("repeatable (1,undefined) → readonly [V, ...V[]]", () => {
-		expectTypeOf<Cardinality<string, 1, undefined>>().toEqualTypeOf<readonly [string, ...string[]]>();
-	});
-
-});
-
-describe("Content", () => {
-
-	test("naked Range → V", () => {
-		type E = Range<string, 1, 1>;
-		expectTypeOf<Content<E>>().toEqualTypeOf<string>();
-	});
-
-	test("naked optional Range → undefined | V", () => {
-		type E = Range<string, undefined, 1>;
-		expectTypeOf<Content<E>>().toEqualTypeOf<undefined | string>();
-	});
-
-	test("Property with Range range → V", () => {
-		type E = { readonly kind: "property"; readonly range: Range<string, 1, 1> };
-		expectTypeOf<Content<E>>().toEqualTypeOf<string>();
-	});
-
-	test("Property with optional Range range → undefined | V", () => {
-		type E = { readonly kind: "property"; readonly range: Range<string, undefined, 1> };
-		expectTypeOf<Content<E>>().toEqualTypeOf<undefined | string>();
+	test("rejects changing to array cardinality", () => {
+		// @ts-expect-error - incompatible override: multiple changes scalar to array
+		resource({ extends: Base }, { name: multiple(string()) });
 	});
 
 });
@@ -150,21 +152,100 @@ describe("Composition", () => {
 
 });
 
+describe("Cardinality", () => {
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	test("required (1,1) → V", () => {
+		expectTypeOf<Cardinality<string, 1, 1>>().toEqualTypeOf<string>();
+	});
 
-// helper shape for tests
+	test("optional (undefined,1) → undefined | V", () => {
+		expectTypeOf<Cardinality<string, undefined, 1>>().toEqualTypeOf<undefined | string>();
+	});
 
-function string(): StringShape {
-	return { kind: "string", model: "" };
-}
+	test("multiple (undefined,undefined) → undefined | readonly V[]", () => {
+		expectTypeOf<Cardinality<string, undefined, undefined>>().toEqualTypeOf<undefined | readonly string[]>();
+	});
 
-function integer(): NumberShape {
-	return { kind: "number", model: 0 };
-}
+	test("repeatable (1,undefined) → readonly [V, ...V[]]", () => {
+		expectTypeOf<Cardinality<string, 1, undefined>>().toEqualTypeOf<readonly [string, ...string[]]>();
+	});
 
+});
 
-describe("Model", () => {
+describe("Content", () => {
+
+	test("naked Range → V", () => {
+		type E = Range<string, 1, 1>;
+		expectTypeOf<Content<E>>().toEqualTypeOf<string>();
+	});
+
+	test("naked optional Range → undefined | V", () => {
+		type E = Range<string, undefined, 1>;
+		expectTypeOf<Content<E>>().toEqualTypeOf<undefined | string>();
+	});
+
+	test("Property with Range range → V", () => {
+		type E = { readonly kind: "property"; readonly range: Range<string, 1, 1> };
+		expectTypeOf<Content<E>>().toEqualTypeOf<string>();
+	});
+
+	test("Property with optional Range range → undefined | V", () => {
+		type E = { readonly kind: "property"; readonly range: Range<string, undefined, 1> };
+		expectTypeOf<Content<E>>().toEqualTypeOf<undefined | string>();
+	});
+
+});
+
+describe("Infer", () => {
+
+	describe("value shapes", () => {
+
+		test("BooleanShape → boolean", () => {
+			expectTypeOf<Infer<BooleanShape>>().toEqualTypeOf<boolean>();
+		});
+
+		test("NumberShape → number", () => {
+			expectTypeOf<Infer<NumberShape>>().toEqualTypeOf<number>();
+		});
+
+		test("StringShape → string", () => {
+			expectTypeOf<Infer<StringShape>>().toEqualTypeOf<string>();
+		});
+
+		test("LocalShape → Local", () => {
+			expectTypeOf<Infer<LocalShape>>().toEqualTypeOf<Local>();
+		});
+
+		test("LocalShape accepts string shorthand", () => {
+			expectTypeOf<string>().toExtend<Infer<LocalShape>>();
+		});
+
+		test("LocalsShape → Locals", () => {
+			expectTypeOf<Infer<LocalsShape>>().toEqualTypeOf<Locals>();
+		});
+
+		test("LocalsShape accepts string array shorthand", () => {
+			expectTypeOf<readonly string[]>().toExtend<Infer<LocalsShape>>();
+		});
+
+		test("ReferenceShape → Reference", () => {
+			expectTypeOf<Infer<ReferenceShape>>().toEqualTypeOf<IRI>();
+		});
+
+		test("ResourceShape → Resource", () => {
+			expectTypeOf<Infer<ResourceShape>>().toEqualTypeOf<Resource>();
+		});
+
+		test("ValueShape → union of all model types", () => {
+			expectTypeOf<Infer<ValueShape>>()
+				.toEqualTypeOf<boolean | number | string | Local | Locals | IRI | Resource>();
+		});
+
+		test("lazy resource factory → unwrapped model type", () => {
+			expectTypeOf<Infer<() => ResourceShape>>().toEqualTypeOf<Resource>();
+		});
+
+	});
 
 	describe("cardinality", () => {
 
@@ -177,19 +258,19 @@ describe("Model", () => {
 			});
 		}
 
-		test("required: T", () => {
+		test("required → T", () => {
 			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("req").toEqualTypeOf<string>();
 		});
 
-		test("optional: undefined | T", () => {
+		test("optional → undefined | T", () => {
 			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("opt").toEqualTypeOf<string | undefined>();
 		});
 
-		test("multiple: undefined | readonly T[]", () => {
+		test("multiple → undefined | readonly T[]", () => {
 			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("mult").toEqualTypeOf<readonly string[] | undefined>();
 		});
 
-		test("repeatable: readonly [T, ...T[]]", () => {
+		test("repeatable → readonly [T, ...T[]]", () => {
 			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("rep").toEqualTypeOf<readonly [string, ...string[]]>();
 		});
 
@@ -216,23 +297,23 @@ describe("Model", () => {
 			});
 		}
 
-		test("naked required: T", () => {
+		test("required → T", () => {
 			expectTypeOf<Infer<typeof NakedShape>>().toHaveProperty("req").toEqualTypeOf<string>();
 		});
 
-		test("naked optional: undefined | T", () => {
+		test("optional → undefined | T", () => {
 			expectTypeOf<Infer<typeof NakedShape>>().toHaveProperty("opt").toEqualTypeOf<string | undefined>();
 		});
 
-		test("naked multiple: undefined | readonly T[]", () => {
+		test("multiple → undefined | readonly T[]", () => {
 			expectTypeOf<Infer<typeof NakedShape>>().toHaveProperty("mult").toEqualTypeOf<readonly string[] | undefined>();
 		});
 
-		test("naked repeatable: readonly [T, ...T[]]", () => {
+		test("repeatable → readonly [T, ...T[]]", () => {
 			expectTypeOf<Infer<typeof NakedShape>>().toHaveProperty("rep").toEqualTypeOf<readonly [string, ...string[]]>();
 		});
 
-		test("naked range with union accepts string variant", () => {
+		test("union accepts string variant", () => {
 			function UnionShape() {
 				return resource({
 					value: optional(union({ string: string(), number: integer() }))
@@ -242,7 +323,7 @@ describe("Model", () => {
 			assertType<Infer<typeof UnionShape>>({ value: { string: "text" } });
 		});
 
-		test("naked range with union accepts number variant", () => {
+		test("union accepts number variant", () => {
 			function UnionShape() {
 				return resource({
 					value: optional(union({ string: string(), number: integer() }))
@@ -252,7 +333,7 @@ describe("Model", () => {
 			assertType<Infer<typeof UnionShape>>({ value: { number: 42 } });
 		});
 
-		test("naked range with union rejects invalid type", () => {
+		test("union rejects invalid type", () => {
 			function UnionShape() {
 				return resource({
 					value: optional(union({ string: string(), number: integer() }))
@@ -275,7 +356,7 @@ describe("Model", () => {
 			expectTypeOf<Infer<typeof MixedShape>>().toHaveProperty("age").toEqualTypeOf<number | undefined>();
 		});
 
-		test("rejects undefined for naked required", () => {
+		test("rejects undefined for required", () => {
 			function NakedRequired() {
 				return resource({
 					req: required(string()),
@@ -289,66 +370,58 @@ describe("Model", () => {
 
 	});
 
-	describe("single inheritance", () => {
+	describe("locals", () => {
 
-		function Base() {
-			return resource({
-				name: property(required(string()))
-			});
-		}
-
-		function Derived() {
-			return resource({ extends: Base }, {
-				code: property(required(string()))
-			});
-		}
-
-		test("includes inherited properties", () => {
-			expectTypeOf<Infer<typeof Derived>>().toHaveProperty("name").toEqualTypeOf<string>();
-			expectTypeOf<Infer<typeof Derived>>().toHaveProperty("code").toEqualTypeOf<string>();
+		const Shape = resource({
+			title: required(local()),
+			keywords: optional(locals())
 		});
 
-		test("rejects missing inherited property", () => {
-			// @ts-expect-error - missing inherited 'name'
-			assertType<Infer<typeof Derived>>({ code: "own" });
+		test("infers Local type", () => {
+			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("title").toEqualTypeOf<Local>();
 		});
 
-	});
-
-	describe("multiple inheritance", () => {
-
-		function Base() {
-			return resource({
-				name: property(required(string()))
-			});
-		}
-
-		function Mixin() {
-			return resource({
-				label: property(optional(string()))
-			});
-		}
-
-		function Multi() {
-			return resource({ extends: [Base, Mixin] }, {
-				id: property(required(string()))
-			});
-		}
-
-		test("includes properties from all parents", () => {
-			expectTypeOf<Infer<typeof Multi>>().toHaveProperty("name").toEqualTypeOf<string>();
-			expectTypeOf<Infer<typeof Multi>>().toHaveProperty("label").toEqualTypeOf<string | undefined>();
-			expectTypeOf<Infer<typeof Multi>>().toHaveProperty("id").toEqualTypeOf<string>();
+		test("infers Locals | undefined type", () => {
+			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("keywords").toEqualTypeOf<Locals | undefined>();
 		});
 
-		test("rejects missing property from parent", () => {
-			// @ts-expect-error - missing 'name' from Base
-			assertType<Infer<typeof Multi>>({ label: "mixin", id: "own" });
+		test("local accepts string shorthand", () => {
+			expectTypeOf<string>().toExtend<Infer<typeof Shape>["title"]>();
+		});
+
+		test("locals accepts string array shorthand", () => {
+			expectTypeOf<readonly string[]>().toExtend<NonNullable<Infer<typeof Shape>["keywords"]>>();
+		});
+
+		test("accepts tagged object for local", () => {
+			assertType<Infer<typeof Shape>>({ title: { en: "Hello" } });
+		});
+
+		test("accepts string shorthand for local", () => {
+			assertType<Infer<typeof Shape>>({ title: "Hello" });
+		});
+
+		test("accepts tagged object for locals", () => {
+			assertType<Infer<typeof Shape>>({ title: "Hello", keywords: { en: ["a", "b"] } });
+		});
+
+		test("accepts string array shorthand for locals", () => {
+			assertType<Infer<typeof Shape>>({ title: "Hello", keywords: ["a", "b"] });
+		});
+
+		test("rejects number for local", () => {
+			// @ts-expect-error - number not assignable to Local
+			assertType<Infer<typeof Shape>>({ title: 42 });
+		});
+
+		test("rejects number array for locals", () => {
+			// @ts-expect-error - number[] not assignable to Locals
+			assertType<Infer<typeof Shape>>({ title: "Hello", keywords: [1, 2] });
 		});
 
 	});
 
-	describe("union types", () => {
+	describe("unions", () => {
 
 		function Shape() {
 			return resource({
@@ -381,130 +454,193 @@ describe("Model", () => {
 
 	});
 
-	describe("deep inheritance", () => {
+	describe("inheritance", () => {
 
-		function GrandParent() {
-			return resource({
-				a: property(required(string()))
+		describe("single", () => {
+
+			function Base() {
+				return resource({
+					name: property(required(string()))
+				});
+			}
+
+			function Derived() {
+				return resource({ extends: Base }, {
+					code: property(required(string()))
+				});
+			}
+
+			test("includes inherited properties", () => {
+				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("name").toEqualTypeOf<string>();
+				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("code").toEqualTypeOf<string>();
 			});
-		}
 
-		function Parent() {
-			return resource({ extends: GrandParent }, {
-				b: property(required(string()))
+			test("rejects missing inherited property", () => {
+				// @ts-expect-error - missing inherited 'name'
+				assertType<Infer<typeof Derived>>({ code: "own" });
 			});
-		}
 
-		function Child() {
-			return resource({ extends: Parent }, {
-				c: property(required(string()))
-			});
-		}
-
-		test("includes properties from all ancestors", () => {
-			expectTypeOf<Infer<typeof Child>>().toHaveProperty("a").toEqualTypeOf<string>();
-			expectTypeOf<Infer<typeof Child>>().toHaveProperty("b").toEqualTypeOf<string>();
-			expectTypeOf<Infer<typeof Child>>().toHaveProperty("c").toEqualTypeOf<string>();
 		});
 
-		test("rejects missing grandparent property", () => {
-			// @ts-expect-error - missing 'a' from GrandParent
-			assertType<Infer<typeof Child>>({ b: "parent", c: "child" });
+		describe("multiple", () => {
+
+			function Base() {
+				return resource({
+					name: property(required(string()))
+				});
+			}
+
+			function Mixin() {
+				return resource({
+					label: property(optional(string()))
+				});
+			}
+
+			function Multi() {
+				return resource({ extends: [Base, Mixin] }, {
+					id: property(required(string()))
+				});
+			}
+
+			test("includes properties from all parents", () => {
+				expectTypeOf<Infer<typeof Multi>>().toHaveProperty("name").toEqualTypeOf<string>();
+				expectTypeOf<Infer<typeof Multi>>().toHaveProperty("label").toEqualTypeOf<string | undefined>();
+				expectTypeOf<Infer<typeof Multi>>().toHaveProperty("id").toEqualTypeOf<string>();
+			});
+
+			test("rejects missing property from parent", () => {
+				// @ts-expect-error - missing 'name' from Base
+				assertType<Infer<typeof Multi>>({ label: "mixin", id: "own" });
+			});
+
+		});
+
+		describe("deep", () => {
+
+			function GrandParent() {
+				return resource({
+					a: property(required(string()))
+				});
+			}
+
+			function Parent() {
+				return resource({ extends: GrandParent }, {
+					b: property(required(string()))
+				});
+			}
+
+			function Child() {
+				return resource({ extends: Parent }, {
+					c: property(required(string()))
+				});
+			}
+
+			test("includes properties from all ancestors", () => {
+				expectTypeOf<Infer<typeof Child>>().toHaveProperty("a").toEqualTypeOf<string>();
+				expectTypeOf<Infer<typeof Child>>().toHaveProperty("b").toEqualTypeOf<string>();
+				expectTypeOf<Infer<typeof Child>>().toHaveProperty("c").toEqualTypeOf<string>();
+			});
+
+			test("rejects missing grandparent property", () => {
+				// @ts-expect-error - missing 'a' from GrandParent
+				assertType<Infer<typeof Child>>({ b: "parent", c: "child" });
+			});
+
+		});
+
+		describe("diamond", () => {
+
+			function Root() {
+				return resource({
+					id: property(required(string()))
+				});
+			}
+
+			function Left() {
+				return resource({ extends: Root }, {
+					left: property(required(string()))
+				});
+			}
+
+			function Right() {
+				return resource({ extends: Root }, {
+					right: property(required(string()))
+				});
+			}
+
+			function Diamond() {
+				return resource({ extends: [Left, Right] }, {
+					own: property(required(string()))
+				});
+			}
+
+			test("includes properties from all paths", () => {
+				expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("id").toEqualTypeOf<string>();
+				expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("left").toEqualTypeOf<string>();
+				expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("right").toEqualTypeOf<string>();
+				expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("own").toEqualTypeOf<string>();
+			});
+
+		});
+
+		describe("mixed optionality", () => {
+
+			function Base() {
+				return resource({
+					reqBase: property(required(string())),
+					optBase: property(optional(string()))
+				});
+			}
+
+			function Derived() {
+				return resource({ extends: Base }, {
+					reqOwn: property(required(integer())),
+					optOwn: property(optional(integer()))
+				});
+			}
+
+			test("preserves optionality from parent", () => {
+				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("reqBase").toEqualTypeOf<string>();
+				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("optBase").toEqualTypeOf<string | undefined>();
+				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("reqOwn").toEqualTypeOf<number>();
+				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("optOwn").toEqualTypeOf<number | undefined>();
+			});
+
+			test("allows omitting optional properties", () => {
+				assertType<Infer<typeof Derived>>({ reqBase: "x", reqOwn: 1 });
+			});
+
 		});
 
 	});
 
-	describe("diamond inheritance", () => {
+	describe("laziness", () => {
 
-		function Root() {
-			return resource({
-				id: property(required(string()))
+		test("direct shape", () => {
+
+			const DirectShape = resource({
+				name: property(required(string()))
 			});
-		}
 
-		function Left() {
-			return resource({ extends: Root }, {
-				left: property(required(string()))
-			});
-		}
-
-		function Right() {
-			return resource({ extends: Root }, {
-				right: property(required(string()))
-			});
-		}
-
-		function Diamond() {
-			return resource({ extends: [Left, Right] }, {
-				own: property(required(string()))
-			});
-		}
-
-		test("includes properties from all paths", () => {
-			expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("id").toEqualTypeOf<string>();
-			expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("left").toEqualTypeOf<string>();
-			expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("right").toEqualTypeOf<string>();
-			expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("own").toEqualTypeOf<string>();
-		});
-
-	});
-
-	describe("direct shape access", () => {
-
-		const DirectShape = resource({
-			name: property(required(string()))
-		});
-
-		test("works with non-lazy shapes", () => {
 			expectTypeOf<Infer<typeof DirectShape>>().toHaveProperty("name").toEqualTypeOf<string>();
+
 		});
 
-	});
+		test("lazy factory", () => {
 
-	describe("lazy shape factories", () => {
+			function LazyShape() {
+				return resource({
+					name: property(required(string()))
+				});
+			}
 
-		function LazyShape() {
-			return resource({
-				name: property(required(string))  // lazy: factory passed, not called
-			});
-		}
-
-		test("infers type from lazy factory", () => {
 			expectTypeOf<Infer<typeof LazyShape>>().toHaveProperty("name").toEqualTypeOf<string>();
+
 		});
 
 	});
 
-	describe("mixed optionality in inheritance", () => {
-
-		function Base() {
-			return resource({
-				reqBase: property(required(string())),
-				optBase: property(optional(string()))
-			});
-		}
-
-		function Derived() {
-			return resource({ extends: Base }, {
-				reqOwn: property(required(integer())),
-				optOwn: property(optional(integer()))
-			});
-		}
-
-		test("preserves optionality from parent", () => {
-			expectTypeOf<Infer<typeof Derived>>().toHaveProperty("reqBase").toEqualTypeOf<string>();
-			expectTypeOf<Infer<typeof Derived>>().toHaveProperty("optBase").toEqualTypeOf<string | undefined>();
-			expectTypeOf<Infer<typeof Derived>>().toHaveProperty("reqOwn").toEqualTypeOf<number>();
-			expectTypeOf<Infer<typeof Derived>>().toHaveProperty("optOwn").toEqualTypeOf<number | undefined>();
-		});
-
-		test("allows omitting optional properties", () => {
-			assertType<Infer<typeof Derived>>({ reqBase: "x", reqOwn: 1 });
-		});
-
-	});
-
-	describe("self-referential shapes", () => {
+	describe("references", () => {
 
 		function TreeNode() {
 			return resource({
@@ -513,21 +649,47 @@ describe("Model", () => {
 			});
 		}
 
-		test("reference infers as IRI", () => {
+		test("infers as IRI", () => {
 			expectTypeOf<Infer<typeof TreeNode>>().toHaveProperty("children").toEqualTypeOf<undefined | readonly IRI[]>();
 		});
 
-		test("accepts IRI array for children", () => {
+		test("accepts IRI array", () => {
 			assertType<Infer<typeof TreeNode>>({ label: "root", children: ["/child1" as IRI, "/child2" as IRI] });
 		});
 
-		test("accepts undefined for children", () => {
+		test("accepts undefined", () => {
 			assertType<Infer<typeof TreeNode>>({ label: "leaf" });
 		});
 
 		test("rejects non-IRI values", () => {
 			// @ts-expect-error - number not assignable to IRI
 			assertType<Infer<typeof TreeNode>>({ label: "root", children: [1, 2] });
+		});
+
+	});
+
+	describe("composition", () => {
+
+		test("maps identifier keys to their content types", () => {
+
+			const shape = resource({
+				name: required(string()),
+				age: optional(integer())
+			});
+
+			expectTypeOf<Infer<typeof shape>>().toHaveProperty("name").toEqualTypeOf<string>();
+			expectTypeOf<Infer<typeof shape>>().toHaveProperty("age").toEqualTypeOf<number | undefined>();
+
+		});
+
+		test("accepts extra properties via Resource index signature", () => {
+
+			const shape = resource({
+				name: required(string())
+			});
+
+			assertType<Infer<typeof shape>>({ name: "test", extra: "unexpected" });
+
 		});
 
 	});
@@ -635,119 +797,9 @@ describe("Model", () => {
 });
 
 
-describe("Local/Locals shorthand acceptance", () => {
+describe("resource()", () => {
 
-	const Shape = resource({
-		title: required(local()),
-		keywords: optional(locals())
-	});
-
-	test("infers Local type for local property", () => {
-		expectTypeOf<Infer<typeof Shape>>().toHaveProperty("title").toEqualTypeOf<Local>();
-	});
-
-	test("infers Locals | undefined type for optional locals property", () => {
-		expectTypeOf<Infer<typeof Shape>>().toHaveProperty("keywords").toEqualTypeOf<Locals | undefined>();
-	});
-
-	test("local property accepts string shorthand", () => {
-		expectTypeOf<string>().toExtend<Infer<typeof Shape>["title"]>();
-	});
-
-	test("locals property accepts string array shorthand", () => {
-		expectTypeOf<readonly string[]>().toExtend<NonNullable<Infer<typeof Shape>["keywords"]>>();
-	});
-
-	test("accepts tagged object for local property", () => {
-		assertType<Infer<typeof Shape>>({ title: { en: "Hello" } });
-	});
-
-	test("accepts string shorthand for local property", () => {
-		assertType<Infer<typeof Shape>>({ title: "Hello" });
-	});
-
-	test("accepts tagged object for locals property", () => {
-		assertType<Infer<typeof Shape>>({ title: "Hello", keywords: { en: ["a", "b"] } });
-	});
-
-	test("accepts string array shorthand for locals property", () => {
-		assertType<Infer<typeof Shape>>({ title: "Hello", keywords: ["a", "b"] });
-	});
-
-	test("rejects number for local property", () => {
-		// @ts-expect-error - number not assignable to Local
-		assertType<Infer<typeof Shape>>({ title: 42 });
-	});
-
-	test("rejects number array for locals property", () => {
-		// @ts-expect-error - number[] not assignable to Locals
-		assertType<Infer<typeof Shape>>({ title: "Hello", keywords: [1, 2] });
-	});
-
-});
-
-
-describe("override validation", () => {
-
-	function Base() {
-		return resource({
-			name: property(required(string()))
-		});
-	}
-
-	test("rejects incompatible override type", () => {
-		// @ts-expect-error - incompatible override: integer does not extend string
-		resource({ extends: Base }, { name: required(integer()) });
-	});
-
-	test("accepts compatible override with narrower constraints", () => {
-		// narrowing constraints is allowed (string → string with minLength)
-		resource({ extends: Base }, { name: required(string()) });
-	});
-
-	test("rejects widening cardinality (required → optional)", () => {
-		// @ts-expect-error - incompatible override: optional widens required
-		resource({ extends: Base }, { name: optional(string()) });
-	});
-
-	test("rejects changing to array cardinality", () => {
-		// @ts-expect-error - incompatible override: multiple changes scalar to array
-		resource({ extends: Base }, { name: multiple(string()) });
-	});
-
-});
-
-
-describe("Composition", () => {
-
-	test("maps identifier keys to their content types", () => {
-
-		const shape = resource({
-			name: required(string()),
-			age: optional(integer())
-		});
-
-		expectTypeOf<Infer<typeof shape>>().toHaveProperty("name").toEqualTypeOf<string>();
-		expectTypeOf<Infer<typeof shape>>().toHaveProperty("age").toEqualTypeOf<number | undefined>();
-
-	});
-
-	test("accepts extra properties via Resource index signature", () => {
-
-		const shape = resource({
-			name: required(string())
-		});
-
-		assertType<Infer<typeof shape>>({ name: "test", extra: "unexpected" });
-
-	});
-
-});
-
-
-describe("shape assignability", () => {
-
-	test("validate() accepts concrete resource shapes", () => {
+	test("validate() accepts concrete shapes", () => {
 
 		const shape = resource({
 			name: property(required(string()))
@@ -757,7 +809,7 @@ describe("shape assignability", () => {
 
 	});
 
-	test("extends accepts concrete parent shape", () => {
+	test("extends accepts concrete parent", () => {
 
 		function Base() {
 			return resource({

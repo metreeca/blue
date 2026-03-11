@@ -123,6 +123,61 @@ describe("factories", () => {
 
 		});
 
+		describe("lazy factory", () => {
+
+			it("materialises a lazy factory and returns a validated shape", async () => {
+
+				const shape = resource(() => resource({
+					name: required(string())
+				}));
+
+				expect(shape.kind).toBe("resource");
+				expect(shape.properties.name).toBeDefined();
+
+			});
+
+			it("returns the same shape when called with a direct resource shape", async () => {
+
+				const direct = resource({
+					name: required(string())
+				});
+
+				const lazy = resource(direct);
+
+				expect(lazy).toBe(direct);
+
+			});
+
+			it("caches factory results for idempotent materialisation", async () => {
+
+				const factory = () => resource({
+					name: required(string())
+				});
+
+				const first = resource(factory);
+				const second = resource(factory);
+
+				expect(first).toBe(second);
+
+			});
+
+			it("flattens inherited constraints from a lazy factory", async () => {
+
+				const Parent = resource({
+					name: required(string())
+				});
+
+				const Child = resource(() => resource({ extends: Parent }, {
+					age: optional(integer())
+				}));
+
+				expect(Child.properties.name).toBeDefined();
+				expect(Child.properties.age).toBeDefined();
+
+			});
+
+		});
+
 		describe("properties only", () => {
 
 			it("returns a shape with kind 'resource'", async () => {
@@ -172,6 +227,258 @@ describe("factories", () => {
 
 				expect(shape.kind).toBe("resource");
 				expect(shape.properties.name).toBeDefined();
+
+			});
+
+		});
+
+		describe("from shape", () => {
+
+			it("returns a resource shape with kind 'resource'", async () => {
+
+				const original = resource({
+					name: property(required(string()))
+				});
+
+				const reprocessed = resource(original);
+
+				expect(reprocessed.kind).toBe("resource");
+
+			});
+
+			it("preserves properties from the original shape", async () => {
+
+				const original = resource({
+					name: property(required(string())),
+					age: property(optional(integer()))
+				});
+
+				const reprocessed = resource(original);
+
+				expect(reprocessed.properties.name).toBeDefined();
+				expect(reprocessed.properties.age).toBeDefined();
+
+			});
+
+			it("resolves namespace from the original shape", async () => {
+
+				const ns = createNamespace("http://example.org/");
+
+				const original = resource({ namespace: ns }, {
+					name: required(string())
+				});
+
+				const reprocessed = resource(original);
+
+				expect((reprocessed.properties.name as Property).forward).toBe("http://example.org/name");
+
+			});
+
+			it("preserves constraints from the original shape", async () => {
+
+				const ns = createNamespace("http://example.org/");
+
+				const original = resource({ namespace: ns }, {
+					name: required(string())
+				});
+
+				const reprocessed = resource(original);
+
+				expect(reprocessed.namespace).toBe(ns);
+
+			});
+
+			it("returns an immutable shape", async () => {
+
+				const original = resource({
+					name: property(required(string()))
+				});
+
+				const reprocessed = resource(original);
+
+				expect(() => {
+					(reprocessed as any).kind = "string";
+				}).toThrow();
+
+			});
+
+			it("rebuilds the model from properties", async () => {
+
+				const original = resource({
+					name: required(string()),
+					age: optional(integer())
+				});
+
+				const reprocessed = resource(original);
+
+				expect(reprocessed.model).toBeDefined();
+				expect(reprocessed.model).toHaveProperty("name");
+				expect(reprocessed.model).toHaveProperty("age");
+
+			});
+
+		});
+
+		describe("deep flattening", () => {
+
+			it("flattens an unflattened nested ResourceShape in a property range", async () => {
+
+				const Parent = resource({
+					name: required(string())
+				});
+
+				// manually constructed — not flattened, extends not resolved
+
+				const Unflattened = {
+					kind: "resource",
+					model: {},
+					extends: Parent,
+					properties: {
+						age: property(optional(integer()))
+					}
+				} as ResourceShape;
+
+				const Outer = resource({
+					person: required(Unflattened)
+				});
+
+				const nested = ((Outer.properties.person as Property).range as Range).shape as ResourceShape;
+
+				expect(nested.properties.name).toBeDefined();
+				expect(nested.properties.age).toBeDefined();
+
+			});
+
+			it("flattens an unflattened ResourceShape variant inside a union", async () => {
+
+				const Parent = resource({
+					name: required(string())
+				});
+
+				const Unflattened = {
+					kind: "resource",
+					model: {},
+					extends: Parent,
+					properties: {
+						age: property(optional(integer()))
+					}
+				} as ResourceShape;
+
+				const Outer = resource({
+					contact: required(union({ person: Unflattened, org: string() }))
+				});
+
+				const range = (Outer.properties.contact as Property).range as Range;
+				const variants = (range.shape as UnionShape).variants;
+				const nested = variants.person as ResourceShape;
+
+				expect(nested.properties.name).toBeDefined();
+				expect(nested.properties.age).toBeDefined();
+
+			});
+
+			it("flattens the target ResourceShape inside a ReferenceShape", async () => {
+
+				const Parent = resource({
+					name: required(string())
+				});
+
+				const Unflattened = {
+					kind: "resource",
+					model: {},
+					extends: Parent,
+					properties: {
+						age: property(optional(integer()))
+					}
+				} as ResourceShape;
+
+				const Outer = resource({
+					ref: required(reference(() => Unflattened))
+				});
+
+				const ref = ((Outer.properties.ref as Property).range as Range).shape;
+
+				expect(ref.kind).toBe("reference");
+
+				const target = resource((ref as { shape: () => ResourceShape }).shape);
+
+				expect(target.properties.name).toBeDefined();
+				expect(target.properties.age).toBeDefined();
+
+			});
+
+			it("flattens nested ResourceShape with constraints overload", async () => {
+
+				const Parent = resource({
+					name: required(string())
+				});
+
+				const Unflattened = {
+					kind: "resource",
+					model: {},
+					extends: Parent,
+					properties: {
+						age: property(optional(integer()))
+					}
+				} as ResourceShape;
+
+				const ns = createNamespace("http://example.org/");
+
+				const Outer = resource({ namespace: ns }, {
+					person: required(Unflattened)
+				});
+
+				const nested = ((Outer.properties.person as Property).range as Range).shape as ResourceShape;
+
+				expect(nested.properties.name).toBeDefined();
+				expect(nested.properties.age).toBeDefined();
+
+			});
+
+			it("flattens nested ResourceShape with shape overload", async () => {
+
+				const Parent = resource({
+					name: required(string())
+				});
+
+				const Unflattened = {
+					kind: "resource",
+					model: {},
+					extends: Parent,
+					properties: {
+						age: property(optional(integer()))
+					}
+				} as ResourceShape;
+
+				const manual = resource({
+					person: required(Unflattened)
+				});
+
+				const reprocessed = resource(manual);
+
+				const nested = ((reprocessed.properties.person as Property).range as Range).shape as ResourceShape;
+
+				expect(nested.properties.name).toBeDefined();
+				expect(nested.properties.age).toBeDefined();
+
+			});
+
+			it("handles circular lazy references without infinite recursion", async () => {
+
+				function Person(): ResourceShape {
+					return resource({
+						name: required(string()),
+						friend: optional(reference(Person))
+					});
+				}
+
+				const shape = resource({
+					person: required(reference(Person))
+				});
+
+				const ref = ((shape.properties.person as Property).range as Range).shape;
+
+				expect(ref.kind).toBe("reference");
 
 			});
 
@@ -1152,11 +1459,11 @@ describe("factories", () => {
 
 	describe("multiple", () => {
 
-		it("accepts lazy shape", async () => {
+		it("accepts lazy resource shape", async () => {
 
-			const range = multiple(() => string());
+			const range = multiple(() => resource({}));
 
-			expect(range.shape.kind).toBe("string");
+			expect(range.shape.kind).toBe("resource");
 
 		});
 
@@ -3840,7 +4147,7 @@ describe("operators", () => {
 
 					const shape = resource({});
 
-					expect(validateModel([{}], shape, 0)).toBeUndefined();
+					expect(validateModel([{}], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3851,7 +4158,7 @@ describe("operators", () => {
 						age: optional(integer())
 					});
 
-					expect(validateModel([{ name: "Alice", age: 30 }], shape, 0)).toBeUndefined();
+					expect(validateModel([{ name: "Alice", age: 30 }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3862,7 +4169,10 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ "id": "app:/users/123", name: "Alice" }], shape, 0)).toBeUndefined();
+					expect(validateModel([{
+						"id": "app:/users/123",
+						name: "Alice"
+					}], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3876,7 +4186,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ id: 1, name: "Alice" }], Derived, 0)).toBeUndefined();
+					expect(validateModel([{ id: 1, name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3886,7 +4196,7 @@ describe("operators", () => {
 
 					const shape = resource({});
 
-					expect(validateModel([{ name: "Alice" }], shape, 0)).toBeUndefined();
+					expect(validateModel([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3898,7 +4208,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ name: "Alice", extra: "value" }], shape, 0)).toBeUndefined();
+					expect(validateModel([{ name: "Alice", extra: "value" }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3912,7 +4222,7 @@ describe("operators", () => {
 						name: "Alice",
 						extra1: "a",
 						extra2: "b"
-					}], shape, 0)).toBeUndefined();
+					}], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3924,7 +4234,10 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ "id": "app:/users/123", name: "Alice" }], shape, 0)).toBeUndefined();
+					expect(validateModel([{
+						"id": "app:/users/123",
+						name: "Alice"
+					}], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3941,7 +4254,7 @@ describe("operators", () => {
 						"id": "app:/users/123",
 						name: "Alice",
 						extra: "value"
-					}], shape, 0)).toBeUndefined();
+					}], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3959,7 +4272,7 @@ describe("operators", () => {
 						id: 1,
 						name: "Alice",
 						extra: "value"
-					}], Derived, 0)).toBeUndefined();
+					}], Derived, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3969,7 +4282,10 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ name: "Alice", ">=name": "A" } as any], shape, 0)).toBeUndefined();
+					expect(validateModel([{
+						name: "Alice",
+						">=name": "A"
+					} as any], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3979,7 +4295,10 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ name: "Alice", "^name": "asc" } as any], shape, 0)).toBeUndefined();
+					expect(validateModel([{
+						name: "Alice",
+						"^name": "asc"
+					} as any], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3998,7 +4317,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ name: "Alice" }], shape, 0)).toBeUndefined();
+					expect(validateModel([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -4014,7 +4333,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ age: 15, name: "Bob" }], Derived, 0)).toBeUndefined();
+					expect(validateModel([{ age: 15, name: "Bob" }], Derived, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -4034,7 +4353,7 @@ describe("operators", () => {
 
 					// array on scalar triggers shape mismatch in nested resource
 
-					const trace = validateModel([{ address: { city: ["Rome"] } as any }], shape, null);
+					const trace = validateModel([{ address: { city: ["Rome"] } as any }], shape, { depth: null });
 
 					expect(trace).toBeDefined();
 					expect(trace).toHaveProperty(["[0]", "address"]);
@@ -4051,7 +4370,7 @@ describe("operators", () => {
 
 				const shape = resource({ id: id() });
 
-				expect(validateModel([{ "id": "some-id" }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ "id": "some-id" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4059,7 +4378,7 @@ describe("operators", () => {
 
 				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
-				expect(validateModel([{}], shape, 0)).toBeUndefined();
+				expect(validateModel([{}], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4067,7 +4386,7 @@ describe("operators", () => {
 
 				const shape = resource({ id: id() });
 
-				expect(validateModel([{ "id": ["/users/1", "/users/2"] } as any], shape, 0)).toBeDefined();
+				expect(validateModel([{ "id": ["/users/1", "/users/2"] } as any], shape, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4075,7 +4394,7 @@ describe("operators", () => {
 
 				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
-				expect(validateModel([{ "id": "app:/invalid" }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ "id": "app:/invalid" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4083,7 +4402,7 @@ describe("operators", () => {
 
 				const shape = resource({ in: ["app:/users/alice"] }, { id: id() });
 
-				expect(validateModel([{ "id": "app:/users/charlie" }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ "id": "app:/users/charlie" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4091,7 +4410,7 @@ describe("operators", () => {
 
 				const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
 
-				expect(validateModel([{ "id": "app:/users/guest" }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ "id": "app:/users/guest" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4103,7 +4422,7 @@ describe("operators", () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateModel([{ "type": "some-type" }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ "type": "some-type" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4111,7 +4430,7 @@ describe("operators", () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateModel([{}], shape, 0)).toBeUndefined();
+				expect(validateModel([{}], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4119,7 +4438,7 @@ describe("operators", () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateModel([{ "type": ["/types/A", "/types/B"] } as any], shape, 0)).toBeDefined();
+				expect(validateModel([{ "type": ["/types/A", "/types/B"] } as any], shape, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4135,7 +4454,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{}], shape, 0)).toBeUndefined();
+					expect(validateModel([{}], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -4145,7 +4464,7 @@ describe("operators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateModel([{}], shape, 0)).toBeUndefined();
+					expect(validateModel([{}], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -4163,9 +4482,9 @@ describe("operators", () => {
 					const shape = resource({ [key]: range });
 
 					if ( valid ) {
-						expect(validateModel([value], shape, 0)).toBeUndefined();
+						expect(validateModel([value], shape, { depth: 0 })).toBeUndefined();
 					} else {
-						expect(validateModel([value as any], shape, 0)).toBeDefined();
+						expect(validateModel([value as any], shape, { depth: 0 })).toBeDefined();
 					}
 
 				});
@@ -4181,7 +4500,7 @@ describe("operators", () => {
 
 					const shape = resource({ [key]: range });
 
-					expect(validateModel([value as any], shape, 0)).toBeDefined();
+					expect(validateModel([value as any], shape, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -4195,7 +4514,7 @@ describe("operators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateModel([{ tags: [] }], shape, 0)).toBeDefined();
+					expect(validateModel([{ tags: [] }], shape, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -4205,7 +4524,7 @@ describe("operators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateModel([{ tags: ["a", "b"] } as any], shape, 0)).toBeDefined();
+					expect(validateModel([{ tags: ["a", "b"] } as any], shape, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -4215,7 +4534,7 @@ describe("operators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateModel([{ tags: ["a"] }], shape, 0)).toBeUndefined();
+					expect(validateModel([{ tags: ["a"] }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -4233,8 +4552,8 @@ describe("operators", () => {
 						age: optional(integer())
 					});
 
-					expect(validateModel([{ name: "Alice" }], Derived, 0)).toBeUndefined();
-					expect(validateModel([{ name: ["Alice"] } as any], Derived, 0)).toBeDefined();
+					expect(validateModel([{ name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
+					expect(validateModel([{ name: ["Alice"] } as any], Derived, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -4252,9 +4571,9 @@ describe("operators", () => {
 						email: optional(string())
 					});
 
-					expect(validateModel([{}], Person, 0)).toBeUndefined();
-					expect(validateModel([{ name: "Alice", age: 30 }], Person, 0)).toBeUndefined();
-					expect(validateModel([{ name: ["Alice"] } as any], Person, 0)).toBeDefined();
+					expect(validateModel([{}], Person, { depth: 0 })).toBeUndefined();
+					expect(validateModel([{ name: "Alice", age: 30 }], Person, { depth: 0 })).toBeUndefined();
+					expect(validateModel([{ name: ["Alice"] } as any], Person, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -4272,8 +4591,8 @@ describe("operators", () => {
 
 				// type shape still enforced on overridden property
 
-				expect(validateModel([{ name: "A" }], Derived, 0)).toBeUndefined();
-				expect(validateModel([{ name: 42 }], Derived, 0)).toBeDefined();
+				expect(validateModel([{ name: "A" }], Derived, { depth: 0 })).toBeUndefined();
+				expect(validateModel([{ name: 42 }], Derived, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4287,7 +4606,7 @@ describe("operators", () => {
 					name: required(string())
 				});
 
-				expect(validateModel([{ name: "Alice" }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4297,7 +4616,7 @@ describe("operators", () => {
 					name: required(string())
 				});
 
-				expect(validateModel([{ name: 42 }], shape, 0)).toBeDefined();
+				expect(validateModel([{ name: 42 }], shape, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4307,7 +4626,7 @@ describe("operators", () => {
 					age: required(integer({ minInclusive: 0 }))
 				});
 
-				expect(validateModel([{ age: -5 }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ age: -5 }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4322,20 +4641,20 @@ describe("operators", () => {
 
 				it("accepts value matching one variant type", async () => {
 
-					expect(validateModel([{ value: "hello" }], textOrCount, 0)).toBeUndefined();
-					expect(validateModel([{ value: 42 }], textOrCount, 0)).toBeUndefined();
+					expect(validateModel([{ value: "hello" }], textOrCount, { depth: 0 })).toBeUndefined();
+					expect(validateModel([{ value: 42 }], textOrCount, { depth: 0 })).toBeUndefined();
 
 				});
 
 				it("accepts missing union property", async () => {
 
-					expect(validateModel([{}], textOrCount, 0)).toBeUndefined();
+					expect(validateModel([{}], textOrCount, { depth: 0 })).toBeUndefined();
 
 				});
 
 				it("rejects value matching no variant type", async () => {
 
-					expect(validateModel([{ value: true }], textOrCount, 0)).toBeDefined();
+					expect(validateModel([{ value: true }], textOrCount, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -4345,8 +4664,8 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateModel([{ value: "hello" }], Derived, 0)).toBeUndefined();
-					expect(validateModel([{ value: true }], Derived, 0)).toBeDefined();
+					expect(validateModel([{ value: "hello" }], Derived, { depth: 0 })).toBeUndefined();
+					expect(validateModel([{ value: true }], Derived, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -4363,14 +4682,14 @@ describe("operators", () => {
 
 				it("accepts alias binding matching one variant type", async () => {
 
-					expect(validateModel([{ "alias=value": "hello" }], shape, 0)).toBeUndefined();
-					expect(validateModel([{ "alias=value": 42 }], shape, 0)).toBeUndefined();
+					expect(validateModel([{ "alias=value": "hello" }], shape, { depth: 0 })).toBeUndefined();
+					expect(validateModel([{ "alias=value": 42 }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
 				it("rejects alias binding matching no variant type", async () => {
 
-					expect(validateModel([{ "alias=value": true }], shape, 0)).toBeDefined();
+					expect(validateModel([{ "alias=value": true }], shape, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -4388,7 +4707,7 @@ describe("operators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateModel([{ supervisor: "app:/users/1" }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ supervisor: "app:/users/1" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4400,7 +4719,7 @@ describe("operators", () => {
 					members: multiple(reference(Target))
 				});
 
-				expect(validateModel([{ members: ["app:/users/1"] }], shape, 0)).toBeUndefined();
+				expect(validateModel([{ members: ["app:/users/1"] }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4412,7 +4731,7 @@ describe("operators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateModel([{ supervisor: { name: "Alice" } }], shape, null)).toBeUndefined();
+				expect(validateModel([{ supervisor: { name: "Alice" } }], shape, { depth: null })).toBeUndefined();
 
 			});
 
@@ -4424,7 +4743,7 @@ describe("operators", () => {
 					members: multiple(reference(Target))
 				});
 
-				expect(validateModel([{ members: [{ name: "Alice" }] } as any], shape, null)).toBeUndefined();
+				expect(validateModel([{ members: [{ name: "Alice" }] } as any], shape, { depth: null })).toBeUndefined();
 
 			});
 
@@ -4436,7 +4755,7 @@ describe("operators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateModel([{ supervisor: 42 }], shape, 0)).toBeDefined();
+				expect(validateModel([{ supervisor: 42 }], shape, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4458,7 +4777,7 @@ describe("operators", () => {
 
 					expect(validateModel([{
 						supervisor: { name: "Alice", department: { label: "Engineering" } }
-					}], shape, null)).toBeUndefined();
+					}], shape, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4468,7 +4787,7 @@ describe("operators", () => {
 
 					expect(validateModel([{
 						supervisor: { name: "Alice", extra: "bad" }
-					}], shape, null)).toBeUndefined();
+					}], shape, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4478,7 +4797,7 @@ describe("operators", () => {
 
 					expect(validateModel([{
 						supervisor: { name: "Alice", department: { label: "Engineering", extra: "bad" } }
-					}], shape, null)).toBeUndefined();
+					}], shape, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4492,7 +4811,7 @@ describe("operators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateModel([{}], shape, 0)).toBeUndefined();
+				expect(validateModel([{}], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4504,7 +4823,7 @@ describe("operators", () => {
 					children: multiple(backlink(Target))
 				});
 
-				expect(validateModel([{ children: ["app:/items/1"] } as any], shape, 0)).toBeUndefined();
+				expect(validateModel([{ children: ["app:/items/1"] } as any], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4516,7 +4835,7 @@ describe("operators", () => {
 					children: multiple(backlink(Target))
 				});
 
-				expect(validateModel([{ children: [{ name: "Child" }] }], shape, null)).toBeUndefined();
+				expect(validateModel([{ children: [{ name: "Child" }] }], shape, { depth: null })).toBeUndefined();
 
 			});
 
@@ -4530,7 +4849,7 @@ describe("operators", () => {
 					child: optional(resource({ name: required(string()) }))
 				});
 
-				expect(validateModel([{ child: "app:/children/1" }], shape, 0)).toBeDefined();
+				expect(validateModel([{ child: "app:/children/1" }], shape, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4540,7 +4859,7 @@ describe("operators", () => {
 					child: optional(resource({ name: required(string()) }))
 				});
 
-				expect(validateModel([{ child: { name: "Alice" } }], shape, null)).toBeUndefined();
+				expect(validateModel([{ child: { name: "Alice" } }], shape, { depth: null })).toBeUndefined();
 
 			});
 
@@ -4556,7 +4875,7 @@ describe("operators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateModel([{ child: { label: "x" } }], Outer, 0)).toBeDefined();
+				expect(validateModel([{ child: { label: "x" } }], Outer, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4568,7 +4887,7 @@ describe("operators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateModel([{ child: { label: "x" } }], Outer, null)).toBeUndefined();
+				expect(validateModel([{ child: { label: "x" } }], Outer, { depth: null })).toBeUndefined();
 
 			});
 
@@ -4580,7 +4899,7 @@ describe("operators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateModel([{ child: "app:/items/1" }], Outer, 0)).toBeUndefined();
+				expect(validateModel([{ child: "app:/items/1" }], Outer, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4592,7 +4911,7 @@ describe("operators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateModel([{ child: { label: "x" } }], Outer, 1)).toBeUndefined();
+				expect(validateModel([{ child: { label: "x" } }], Outer, { depth: 1 })).toBeUndefined();
 
 			});
 
@@ -4610,7 +4929,7 @@ describe("operators", () => {
 
 				expect(validateModel([{
 					middle: { leaf: { value: "x" } }
-				}], Root, 1)).toBeDefined();
+				}], Root, { depth: 1 })).toBeDefined();
 
 			});
 
@@ -4628,7 +4947,7 @@ describe("operators", () => {
 
 				expect(validateModel([{
 					middle: { leaf: { value: "x" } }
-				}], Root, 2)).toBeUndefined();
+				}], Root, { depth: 2 })).toBeUndefined();
 
 			});
 
@@ -4640,7 +4959,7 @@ describe("operators", () => {
 					child: required(Embedded)
 				});
 
-				expect(validateModel([{ child: { label: "x" } }], Outer, 0)).toBeDefined();
+				expect(validateModel([{ child: { label: "x" } }], Outer, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4652,7 +4971,7 @@ describe("operators", () => {
 					child: required(Embedded)
 				});
 
-				expect(validateModel([{ child: { label: "x" } }], Outer, 1)).toBeUndefined();
+				expect(validateModel([{ child: { label: "x" } }], Outer, { depth: 1 })).toBeUndefined();
 
 			});
 
@@ -4664,7 +4983,7 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				expect(validateModel([{ items: [{ name: "x" }] }], Outer, 0)).toBeDefined();
+				expect(validateModel([{ items: [{ name: "x" }] }], Outer, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4676,7 +4995,7 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				expect(validateModel([{ items: [{ name: "x" }] }], Outer, 1)).toBeUndefined();
+				expect(validateModel([{ items: [{ name: "x" }] }], Outer, { depth: 1 })).toBeUndefined();
 
 			});
 
@@ -4688,7 +5007,7 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				const trace = validateModel([{ items: [{ "===invalid": "x" }] }], Outer, 1);
+				const trace = validateModel([{ items: [{ "===invalid": "x" }] }], Outer, { depth: 1 });
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty(["[0]", "items", "===invalid"]);
@@ -4705,7 +5024,7 @@ describe("operators", () => {
 
 				// year: transform produces number, 0 is number — should be accepted
 
-				expect(validateModel([{ "releaseYear=year:released": 0 }], Target, 0)).toBeUndefined();
+				expect(validateModel([{ "releaseYear=year:released": 0 }], Target, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4715,7 +5034,7 @@ describe("operators", () => {
 
 				// "alias=name" is a valid binding key — envelope should not reject it
 
-				expect(validateModel([{ "alias=name": "" }], Target, 0)).toBeUndefined();
+				expect(validateModel([{ "alias=name": "" }], Target, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4725,7 +5044,7 @@ describe("operators", () => {
 
 				// year: produces number, "" is string — should be rejected
 
-				const trace = validateModel([{ "releaseYear=year:released": "" }], Target, 0);
+				const trace = validateModel([{ "releaseYear=year:released": "" }], Target, { depth: 0 });
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty(["[0]", "releaseYear=year:released"]);
@@ -4738,7 +5057,7 @@ describe("operators", () => {
 
 				const Target = resource({ name: required(string()) });
 
-				expect(validateModel([{ "y=year:missing": 0 }], Target, 0)).toBeUndefined();
+				expect(validateModel([{ "y=year:missing": 0 }], Target, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4753,7 +5072,12 @@ describe("operators", () => {
 					const Target = resource({ id: id(), name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ name: "", age: 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{
+						items: [{
+							name: "",
+							age: 0
+						}]
+					}], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4769,7 +5093,7 @@ describe("operators", () => {
 							name: "",
 							extra: ""
 						}]
-					}], Wrapper, null)).toBeUndefined();
+					}], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4787,7 +5111,7 @@ describe("operators", () => {
 					["trailing", { name: "", age: 0, id: "app:/items/1" }]
 				])("accepts id as %s projection property", async (_position, query) => {
 
-					expect(validateModel([{ items: [query] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [query] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4805,7 +5129,7 @@ describe("operators", () => {
 					["trailing", { name: "", age: 0, type: "app:/types/Person" }]
 				])("accepts type as %s projection property", async (_position, query) => {
 
-					expect(validateModel([{ items: [query] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [query] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4818,7 +5142,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ ">=age": 18 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ ">=age": 18 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4827,7 +5151,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "~name": "alice" }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "~name": "alice" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4836,7 +5160,7 @@ describe("operators", () => {
 					const Target = resource({ status: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "?status": "active" }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "?status": "active" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4845,7 +5169,7 @@ describe("operators", () => {
 					const Target = resource({ tags: repeatable(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "!tags": "urgent" }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "!tags": "urgent" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4856,7 +5180,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ ">=age": 18 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ ">=age": 18 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4874,7 +5198,7 @@ describe("operators", () => {
 							"^name": "asc",
 							"^age": "desc"
 						}]
-					}], Wrapper, null)).toBeUndefined();
+					}], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4883,7 +5207,7 @@ describe("operators", () => {
 					const Target = resource({ status: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "*status": ["active"] }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "*status": ["active"] }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4894,7 +5218,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "^missing": "asc" }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "^missing": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4906,47 +5230,52 @@ describe("operators", () => {
 				const Wrapper = resource({ items: multiple(reference(Target)) });
 
 				it("accepts offset and limit", async () => {
-					expect(validateModel([{ items: [{ "@": 10, "#": 25 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{
+						items: [{
+							"@": 10,
+							"#": 25
+						}]
+					}], Wrapper, { depth: null })).toBeUndefined();
 				});
 
 				it("accepts zero offset", async () => {
-					expect(validateModel([{ items: [{ "@": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "@": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 				});
 
 				it("accepts zero limit", async () => {
-					expect(validateModel([{ items: [{ "#": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "#": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 				});
 
 				it("rejects negative offset", async () => {
-					expect(validateModel([{ items: [{ "@": -1 }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "@": -1 }] }], Wrapper, { depth: null })).toBeDefined();
 				});
 
 				it("rejects negative limit", async () => {
-					expect(validateModel([{ items: [{ "#": -1 }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "#": -1 }] }], Wrapper, { depth: null })).toBeDefined();
 				});
 
 				it("rejects fractional offset", async () => {
-					expect(validateModel([{ items: [{ "@": 1.5 }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "@": 1.5 }] }], Wrapper, { depth: null })).toBeDefined();
 				});
 
 				it("rejects fractional limit", async () => {
-					expect(validateModel([{ items: [{ "#": 2.5 }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "#": 2.5 }] }], Wrapper, { depth: null })).toBeDefined();
 				});
 
 				it("rejects string offset", async () => {
-					expect(validateModel([{ items: [{ "@": "10" }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "@": "10" }] }], Wrapper, { depth: null })).toBeDefined();
 				});
 
 				it("rejects string limit", async () => {
-					expect(validateModel([{ items: [{ "#": "25" }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "#": "25" }] }], Wrapper, { depth: null })).toBeDefined();
 				});
 
 				it("rejects boolean offset", async () => {
-					expect(validateModel([{ items: [{ "@": true }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "@": true }] }], Wrapper, { depth: null })).toBeDefined();
 				});
 
 				it("rejects null limit", async () => {
-					expect(validateModel([{ items: [{ "#": null }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "#": null }] }], Wrapper, { depth: null })).toBeDefined();
 				});
 
 			});
@@ -4972,7 +5301,7 @@ describe("operators", () => {
 							"@": 0,
 							"#": 10
 						}]
-					}], Wrapper, null)).toBeUndefined();
+					}], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -4989,7 +5318,7 @@ describe("operators", () => {
 							extra: "",
 							"^name": "asc"
 						}]
-					}], Wrapper, null)).toBeUndefined();
+					}], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5002,7 +5331,7 @@ describe("operators", () => {
 					const Member = resource({ name: required(string()) });
 					const Wrapper = resource({ members: multiple(reference(Member)) });
 
-					expect(validateModel([{ members: [{ name: "" }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ members: [{ name: "" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5011,7 +5340,7 @@ describe("operators", () => {
 					const Target = resource({ id: id(), name: required(string()) });
 					const Wrapper = resource({ supervisor: optional(reference(Target)) });
 
-					expect(validateModel([{ supervisor: "app:/users/1" }], Wrapper, 0)).toBeUndefined();
+					expect(validateModel([{ supervisor: "app:/users/1" }], Wrapper, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -5019,7 +5348,7 @@ describe("operators", () => {
 
 					const Wrapper = resource({ label: required(local()) });
 
-					expect(validateModel([{ label: { "en": "Hello" } }], Wrapper, 0)).toBeUndefined();
+					expect(validateModel([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -5027,7 +5356,7 @@ describe("operators", () => {
 
 					const Wrapper = resource({ labels: required(locals()) });
 
-					expect(validateModel([{ labels: { "en": ["Hello"] as const } }], Wrapper, 0)).toBeUndefined();
+					expect(validateModel([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -5035,7 +5364,7 @@ describe("operators", () => {
 
 					const Wrapper = resource({ label: multiple(local()) });
 
-					expect(validateModel([{ label: [{ "en": "Hello" }] }], Wrapper, 0)).toBeDefined();
+					expect(validateModel([{ label: [{ "en": "Hello" }] }], Wrapper, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -5043,7 +5372,7 @@ describe("operators", () => {
 
 					const Wrapper = resource({ labels: multiple(locals()) });
 
-					expect(validateModel([{ labels: [{ "en": ["Hello"] as const }] }], Wrapper, 0)).toBeDefined();
+					expect(validateModel([{ labels: [{ "en": ["Hello"] as const }] }], Wrapper, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -5056,7 +5385,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ ">=age": 18 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ ">=age": 18 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5066,7 +5395,7 @@ describe("operators", () => {
 					const Target = resource({ vendor: required(reference(Vendor)) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5076,7 +5405,7 @@ describe("operators", () => {
 					const Target = resource({ vendor: required(reference(Vendor)) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "^vendor.rating": "asc" }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "^vendor.rating": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5087,7 +5416,7 @@ describe("operators", () => {
 					const Target = resource({ product: required(reference(Product)) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5099,7 +5428,7 @@ describe("operators", () => {
 					const Target = resource({ vendor: required(reference(Vendor)) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5110,7 +5439,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ ">=name.deep": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ ">=name.deep": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5124,7 +5453,7 @@ describe("operators", () => {
 					const Target = resource({ item: required(union({ a: reference(ItemShape), b: string() })) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ ">=item.score": 5 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ ">=item.score": 5 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5136,7 +5465,7 @@ describe("operators", () => {
 					const Target = resource({ item: required(union({ a: reference(ItemShape), b: string() })) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ ">=item.missing": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ ">=item.missing": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5149,7 +5478,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), released: optional(year()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "releaseYear=year:released": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "releaseYear=year:released": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5158,7 +5487,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), released: optional(year()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "releaseYear=year:released": "" }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "releaseYear=year:released": "" }] }], Wrapper, { depth: null })).toBeDefined();
 
 				});
 
@@ -5169,7 +5498,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), released: optional(year()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "y=year:missing": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "y=year:missing": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5178,7 +5507,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5187,7 +5516,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "avg=round:avg:price": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "avg=round:avg:price": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5196,7 +5525,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5205,7 +5534,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "total=count:": "" }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "total=count:": "" }] }], Wrapper, { depth: null })).toBeDefined();
 
 				});
 
@@ -5216,7 +5545,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "total=sum:": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "total=sum:": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5228,7 +5557,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=lower:": "" }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "alias=lower:": "" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5237,7 +5566,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5255,49 +5584,49 @@ describe("operators", () => {
 					it("accepts identity binding on string property", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=name": "" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=name": "" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
 					it("accepts identity binding on integer property", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=age": 0 }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=age": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
 					it("accepts identity binding on boolean property", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=active": true }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=active": true }] }], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
 					it("accepts identity binding on reference property with IRI", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=link": "app:/items/1" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=link": "app:/items/1" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
 					it("rejects identity binding on reference property with wrong type", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=link": 0 }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "alias=link": 0 }] }], Wrapper, { depth: null })).toBeDefined();
 
 					});
 
 					it("accepts identity binding on embedded resource with model", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=child": { label: "" } }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=child": { label: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
 					it("rejects identity binding on embedded resource with invalid model", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=child": { label: 0 } }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "alias=child": { label: 0 } }] }], Wrapper, { depth: null })).toBeDefined();
 
 					});
 
@@ -5305,42 +5634,42 @@ describe("operators", () => {
 
 						// unknown=unknown → apply() returns undefined → lenient
 
-						expect(validateModel([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
 					it("rejects identity binding on embedded resource with non-object", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=child": 42 }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "alias=child": 42 }] }], Wrapper, { depth: null })).toBeDefined();
 
 					});
 
 					it("accepts aggregate binding on embedded resource with model", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
 					it("rejects aggregate binding on embedded resource with invalid model", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=min:child": { label: 0 } }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "alias=min:child": { label: 0 } }] }], Wrapper, { depth: null })).toBeDefined();
 
 					});
 
 					it("rejects aggregate binding on embedded resource with non-object", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=min:child": 42 }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "alias=min:child": 42 }] }], Wrapper, { depth: null })).toBeDefined();
 
 					});
 
 					it("accepts identity binding on embedded resource with depth", async () => {
 
 
-						expect(validateModel([{ items: [{ "alias=child": { label: "x" } }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=child": { label: "x" } }] }], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
@@ -5354,7 +5683,7 @@ describe("operators", () => {
 									"^label": "asc"
 								}
 							}]
-						}], Wrapper, null)).toBeUndefined();
+						}], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
@@ -5362,7 +5691,7 @@ describe("operators", () => {
 
 						// unknown=unknown → apply() returns undefined → lenient
 
-						expect(validateModel([{ items: [{ "alias=link": { unknown: "" } }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=link": { unknown: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
@@ -5376,7 +5705,7 @@ describe("operators", () => {
 									"^label": "asc"
 								}
 							}]
-						}], Wrapper, null)).toBeUndefined();
+						}], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
@@ -5384,7 +5713,7 @@ describe("operators", () => {
 
 						// unknown=unknown → apply() returns undefined → lenient
 
-						expect(validateModel([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
@@ -5398,7 +5727,7 @@ describe("operators", () => {
 									">=label": "a"
 								}
 							}]
-						}], Wrapper, null)).toBeUndefined();
+						}], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
@@ -5412,7 +5741,7 @@ describe("operators", () => {
 									">=label": "a"
 								}
 							}]
-						}], Wrapper, null)).toBeUndefined();
+						}], Wrapper, { depth: null })).toBeUndefined();
 
 					});
 
@@ -5429,7 +5758,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "total=sum:name": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "total=sum:name": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5442,7 +5771,7 @@ describe("operators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "v=abs:link": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "v=abs:link": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5451,7 +5780,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "y=year:price": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "y=year:price": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5460,7 +5789,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "m=month:name": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "m=month:name": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5469,7 +5798,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5484,7 +5813,7 @@ describe("operators", () => {
 					const Target = resource({ label: required(local()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=lower:label": { "en": "hello" } }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "alias=lower:label": { "en": "hello" } }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5493,7 +5822,7 @@ describe("operators", () => {
 					const Target = resource({ label: required(local()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=upper:label": { "en": "HELLO" } }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "alias=upper:label": { "en": "HELLO" } }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5505,7 +5834,7 @@ describe("operators", () => {
 					const Target = resource({ label: required(local()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=length:label": 5 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "alias=length:label": 5 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5516,7 +5845,7 @@ describe("operators", () => {
 					const Target = resource({ label: required(local()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5525,7 +5854,7 @@ describe("operators", () => {
 					const Target = resource({ labels: required(locals()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=lower:labels": { "en": ["hello"] as const } }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "alias=lower:labels": { "en": ["hello"] as const } }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5542,7 +5871,7 @@ describe("operators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=abs:value": 42 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "alias=abs:value": 42 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5555,7 +5884,7 @@ describe("operators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=abs:value": "wrong" }] }], Wrapper, null)).toBeDefined();
+					expect(validateModel([{ items: [{ "alias=abs:value": "wrong" }] }], Wrapper, { depth: null })).toBeDefined();
 
 				});
 
@@ -5568,7 +5897,7 @@ describe("operators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=lower:value": "" }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "alias=lower:value": "" }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5582,7 +5911,7 @@ describe("operators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5595,7 +5924,10 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, null, true)).toBeUndefined();
+					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, {
+						depth: null,
+						stats: true
+					})).toBeUndefined();
 
 				});
 
@@ -5604,7 +5936,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, null)).toBeUndefined();
+					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 
 				});
 
@@ -5613,7 +5945,10 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, null, false)).toBeDefined();
+					expect(validateModel([{ items: [{ "total=count:": 0 }] }], Wrapper, {
+						depth: null,
+						stats: false
+					})).toBeDefined();
 
 				});
 
@@ -5622,7 +5957,10 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, null, false)).toBeDefined();
+					expect(validateModel([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, {
+						depth: null,
+						stats: false
+					})).toBeDefined();
 
 				});
 
@@ -5631,7 +5969,10 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "highest=max:price": 0 }] }], Wrapper, null, false)).toBeDefined();
+					expect(validateModel([{ items: [{ "highest=max:price": 0 }] }], Wrapper, {
+						depth: null,
+						stats: false
+					})).toBeDefined();
 
 				});
 
@@ -5640,7 +5981,10 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "total=sum:price": 0 }] }], Wrapper, null, false)).toBeDefined();
+					expect(validateModel([{ items: [{ "total=sum:price": 0 }] }], Wrapper, {
+						depth: null,
+						stats: false
+					})).toBeDefined();
 
 				});
 
@@ -5649,7 +5993,10 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "average=avg:price": 0 }] }], Wrapper, null, false)).toBeDefined();
+					expect(validateModel([{ items: [{ "average=avg:price": 0 }] }], Wrapper, {
+						depth: null,
+						stats: false
+					})).toBeDefined();
 
 				});
 
@@ -5658,7 +6005,10 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, null, false)).toBeDefined();
+					expect(validateModel([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {
+						depth: null,
+						stats: false
+					})).toBeDefined();
 
 				});
 
@@ -5667,7 +6017,10 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), released: optional(year()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "y=year:released": 0 }] }], Wrapper, null, false)).toBeUndefined();
+					expect(validateModel([{ items: [{ "y=year:released": 0 }] }], Wrapper, {
+						depth: null,
+						stats: false
+					})).toBeUndefined();
 
 				});
 
@@ -5676,7 +6029,10 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ "r=round:price": 0 }] }], Wrapper, null, false)).toBeUndefined();
+					expect(validateModel([{ items: [{ "r=round:price": 0 }] }], Wrapper, {
+						depth: null,
+						stats: false
+					})).toBeUndefined();
 
 				});
 
@@ -5685,7 +6041,10 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateModel([{ items: [{ name: "" }] }], Wrapper, null, false)).toBeUndefined();
+					expect(validateModel([{ items: [{ name: "" }] }], Wrapper, {
+						depth: null,
+						stats: false
+					})).toBeUndefined();
 
 				});
 
@@ -5693,7 +6052,7 @@ describe("operators", () => {
 
 					const shape = resource({ name: required(string()), price: optional(integer()) });
 
-					expect(validateModel([{ "total=count:": 0 }], shape, 0, false)).toBeDefined();
+					expect(validateModel([{ "total=count:": 0 }], shape, { depth: 0, stats: false })).toBeDefined();
 
 				});
 
@@ -5701,7 +6060,7 @@ describe("operators", () => {
 
 					const shape = resource({ name: required(string()), price: optional(integer()) });
 
-					expect(validateModel([{ name: "" }], shape, 0, false)).toBeUndefined();
+					expect(validateModel([{ name: "" }], shape, { depth: 0, stats: false })).toBeUndefined();
 
 				});
 
@@ -5726,50 +6085,50 @@ describe("operators", () => {
 				describe("text search operator (~)", () => {
 
 					it("accepts text search on string property", async () => {
-						expect(validateModel([{ items: [{ "~name": "alice" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "~name": "alice" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts text search on local property", async () => {
-						expect(validateModel([{ items: [{ "~label": "hello" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "~label": "hello" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts text search on locals property", async () => {
-						expect(validateModel([{ items: [{ "~labels": "hello" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "~labels": "hello" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects text search on number property", async () => {
-						expect(validateModel([{ items: [{ "~age": "42" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "~age": "42" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects text search on boolean property", async () => {
-						expect(validateModel([{ items: [{ "~active": "true" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "~active": "true" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects text search on reference property", async () => {
-						expect(validateModel([{ items: [{ "~link": "test" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "~link": "test" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("accepts text search on undefined property", async () => {
 
 						// apply() returns undefined → lenient
 
-						expect(validateModel([{ items: [{ "~missing": "x" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "~missing": "x" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects number keywords on string property", async () => {
-						expect(validateModel([{ items: [{ "~name": 42 }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "~name": 42 }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects boolean keywords on string property", async () => {
-						expect(validateModel([{ items: [{ "~name": true }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "~name": true }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects null keywords on local property", async () => {
-						expect(validateModel([{ items: [{ "~label": null }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "~label": null }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects array keywords on string property", async () => {
-						expect(validateModel([{ items: [{ "~name": ["a", "b"] }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "~name": ["a", "b"] }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 				});
@@ -5785,7 +6144,7 @@ describe("operators", () => {
 					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
 
 					it("accepts text search matching string union variant", async () => {
-						expect(validateModel([{ items: [{ "~value": "hello" }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "~value": "hello" }] }], UnionWrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects text search matching no textual union variant", async () => {
@@ -5798,7 +6157,7 @@ describe("operators", () => {
 						});
 						const NumericWrapper = resource({ items: multiple(reference(NumericUnion)) });
 
-						expect(validateModel([{ items: [{ "~value": "hello" }] }], NumericWrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "~value": "hello" }] }], NumericWrapper, { depth: null })).toBeDefined();
 
 					});
 
@@ -5807,30 +6166,30 @@ describe("operators", () => {
 				describe("range operators (<, >, <=, >=)", () => {
 
 					it("accepts range operator on string property", async () => {
-						expect(validateModel([{ items: [{ ">=name": "alice" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ ">=name": "alice" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts range operator on boolean property", async () => {
-						expect(validateModel([{ items: [{ ">=active": true }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ ">=active": true }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects range operator on local property", async () => {
-						expect(validateModel([{ items: [{ ">=label": "x" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ ">=label": "x" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects range operator on locals property", async () => {
-						expect(validateModel([{ items: [{ ">=labels": "x" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ ">=labels": "x" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects range operator on reference property", async () => {
-						expect(validateModel([{ items: [{ ">=link": "x" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ ">=link": "x" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("accepts range operator on undefined property", async () => {
 
 						// apply() returns undefined → lenient
 
-						expect(validateModel([{ items: [{ ">=missing": 0 }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ ">=missing": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it.each([
@@ -5839,23 +6198,23 @@ describe("operators", () => {
 						["<=", "<=age"],
 						[">=", ">=age"]
 					])("accepts %s operator on number property", async (_op, key) => {
-						expect(validateModel([{ items: [{ [key]: 18 }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ [key]: 18 }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects string limit on number property", async () => {
-						expect(validateModel([{ items: [{ ">=age": "alice" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ ">=age": "alice" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects number limit on string property", async () => {
-						expect(validateModel([{ items: [{ ">=name": 42 }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ ">=name": 42 }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects boolean limit on number property", async () => {
-						expect(validateModel([{ items: [{ ">=age": true }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ ">=age": true }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects null limit on string property", async () => {
-						expect(validateModel([{ items: [{ ">=name": null }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ ">=name": null }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 				});
@@ -5871,15 +6230,15 @@ describe("operators", () => {
 					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
 
 					it("accepts range limit matching first union variant", async () => {
-						expect(validateModel([{ items: [{ ">=value": "hello" }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ ">=value": "hello" }] }], UnionWrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts range limit matching second union variant", async () => {
-						expect(validateModel([{ items: [{ ">=value": 42 }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ ">=value": 42 }] }], UnionWrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects range limit matching no union variant", async () => {
-						expect(validateModel([{ items: [{ ">=value": true }] }], UnionWrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ ">=value": true }] }], UnionWrapper, { depth: null })).toBeDefined();
 					});
 
 					it.each([
@@ -5888,7 +6247,7 @@ describe("operators", () => {
 						["<=", "<=value"],
 						[">=", ">=value"]
 					])("accepts %s operator on union property with matching variant", async (_op, key) => {
-						expect(validateModel([{ items: [{ [key]: 42 }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ [key]: 42 }] }], UnionWrapper, { depth: null })).toBeUndefined();
 					});
 
 				});
@@ -5898,97 +6257,97 @@ describe("operators", () => {
 					// single option values
 
 					it("accepts disjunctive filter on string property", async () => {
-						expect(validateModel([{ items: [{ "?name": "alice" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?name": "alice" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts disjunctive filter on number property", async () => {
-						expect(validateModel([{ items: [{ "?age": 18 }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?age": 18 }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts disjunctive filter on boolean property", async () => {
-						expect(validateModel([{ items: [{ "?active": true }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?active": true }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts conjunctive filter on string property", async () => {
-						expect(validateModel([{ items: [{ "!name": "alice" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "!name": "alice" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts conjunctive filter on number property", async () => {
-						expect(validateModel([{ items: [{ "!age": 18 }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "!age": 18 }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts conjunctive filter on boolean property", async () => {
-						expect(validateModel([{ items: [{ "!active": true }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "!active": true }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts null option on any property", async () => {
-						expect(validateModel([{ items: [{ "?name": null }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?name": null }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts reference option on reference property", async () => {
-						expect(validateModel([{ items: [{ "?link": "app:/items/1" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?link": "app:/items/1" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					// array of options
 
 					it("accepts array of options on string property", async () => {
-						expect(validateModel([{ items: [{ "?name": ["alice", "bob"] }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?name": ["alice", "bob"] }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts array of options on number property", async () => {
-						expect(validateModel([{ items: [{ "?age": [18, 25] }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?age": [18, 25] }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts array with null option", async () => {
-						expect(validateModel([{ items: [{ "?name": ["alice", null] }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?name": ["alice", null] }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					// local/locals options
 
 					it("accepts local option on local property", async () => {
-						expect(validateModel([{ items: [{ "?label": { "en": "hello" } }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?label": { "en": "hello" } }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts string option on local property", async () => {
-						expect(validateModel([{ items: [{ "?label": "hello" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?label": "hello" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts locals option on locals property", async () => {
-						expect(validateModel([{ items: [{ "?labels": { "en": ["hello"] as const } }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?labels": { "en": ["hello"] as const } }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					// type mismatch rejections
 
 					it("rejects string option on number property", async () => {
-						expect(validateModel([{ items: [{ "?age": "alice" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "?age": "alice" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects number option on string property", async () => {
-						expect(validateModel([{ items: [{ "?name": 42 }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "?name": 42 }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects boolean option on number property", async () => {
-						expect(validateModel([{ items: [{ "?age": true }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "?age": true }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects array with mismatched option on number property", async () => {
-						expect(validateModel([{ items: [{ "?age": [18, "wrong"] }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "?age": [18, "wrong"] }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects number option on local property", async () => {
-						expect(validateModel([{ items: [{ "?label": 42 }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "?label": 42 }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects number option on locals property", async () => {
-						expect(validateModel([{ items: [{ "?labels": 42 }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "?labels": 42 }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects non-IRI string option on reference property", async () => {
-						expect(validateModel([{ items: [{ "?link": "not-an-iri" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "?link": "not-an-iri" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects conjunctive string option on number property", async () => {
-						expect(validateModel([{ items: [{ "!age": "alice" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "!age": "alice" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					// undefined property
@@ -5997,7 +6356,7 @@ describe("operators", () => {
 
 						// apply() returns undefined → lenient
 
-						expect(validateModel([{ items: [{ "?missing": "x" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?missing": "x" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 				});
@@ -6005,47 +6364,47 @@ describe("operators", () => {
 				describe("focus operator (*)", () => {
 
 					it("accepts focus on string property", async () => {
-						expect(validateModel([{ items: [{ "*name": ["alice"] }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "*name": ["alice"] }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts focus on number property", async () => {
-						expect(validateModel([{ items: [{ "*age": [18] }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "*age": [18] }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts focus on boolean property", async () => {
-						expect(validateModel([{ items: [{ "*active": [true] }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "*active": [true] }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts focus with null option", async () => {
-						expect(validateModel([{ items: [{ "*name": [null, "alice"] }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "*name": [null, "alice"] }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts focus with reference option on reference property", async () => {
-						expect(validateModel([{ items: [{ "*link": "app:/items/1" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "*link": "app:/items/1" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts focus with local option on local property", async () => {
-						expect(validateModel([{ items: [{ "*label": { "en": "hello" } }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "*label": { "en": "hello" } }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects focus with string option on number property", async () => {
-						expect(validateModel([{ items: [{ "*age": "alice" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "*age": "alice" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects focus with number option on string property", async () => {
-						expect(validateModel([{ items: [{ "*name": 42 }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "*name": 42 }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects focus with non-IRI string on reference property", async () => {
-						expect(validateModel([{ items: [{ "*link": "not-an-iri" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "*link": "not-an-iri" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects focus with mismatched array element on number property", async () => {
-						expect(validateModel([{ items: [{ "*age": [18, "wrong"] }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "*age": [18, "wrong"] }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("accepts focus on undefined property", async () => {
-						expect(validateModel([{ items: [{ "*missing": "x" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "*missing": "x" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 				});
@@ -6064,50 +6423,50 @@ describe("operators", () => {
 					// disjunctive filter
 
 					it("accepts disjunctive filter matching first union variant", async () => {
-						expect(validateModel([{ items: [{ "?value": "hello" }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?value": "hello" }] }], UnionWrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts disjunctive filter matching second union variant", async () => {
-						expect(validateModel([{ items: [{ "?value": 42 }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?value": 42 }] }], UnionWrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts null option on union property", async () => {
-						expect(validateModel([{ items: [{ "?value": null }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?value": null }] }], UnionWrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects option matching no union variant", async () => {
-						expect(validateModel([{ items: [{ "?value": true }] }], UnionWrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "?value": true }] }], UnionWrapper, { depth: null })).toBeDefined();
 					});
 
 					// conjunctive filter
 
 					it("accepts conjunctive filter matching one union variant", async () => {
-						expect(validateModel([{ items: [{ "!value": "hello" }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "!value": "hello" }] }], UnionWrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects conjunctive filter matching no union variant", async () => {
-						expect(validateModel([{ items: [{ "!value": true }] }], UnionWrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "!value": true }] }], UnionWrapper, { depth: null })).toBeDefined();
 					});
 
 					// focus operator
 
 					it("accepts focus option matching one union variant", async () => {
-						expect(validateModel([{ items: [{ "*value": ["hello"] }] }], UnionWrapper, null)).toBeUndefined();
-						expect(validateModel([{ items: [{ "*value": [42] }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "*value": ["hello"] }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateModel([{ items: [{ "*value": [42] }] }], UnionWrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects focus option matching no union variant", async () => {
-						expect(validateModel([{ items: [{ "*value": [true] }] }], UnionWrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "*value": [true] }] }], UnionWrapper, { depth: null })).toBeDefined();
 					});
 
 					// array of options
 
 					it("accepts array of options each matching some union variant", async () => {
-						expect(validateModel([{ items: [{ "?value": ["hello", 42] }] }], UnionWrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "?value": ["hello", 42] }] }], UnionWrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects array with option matching no union variant", async () => {
-						expect(validateModel([{ items: [{ "?value": ["hello", true] }] }], UnionWrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "?value": ["hello", true] }] }], UnionWrapper, { depth: null })).toBeDefined();
 					});
 
 				});
@@ -6115,43 +6474,43 @@ describe("operators", () => {
 				describe("sort operator (^)", () => {
 
 					it("accepts 'asc' sort value", async () => {
-						expect(validateModel([{ items: [{ "^name": "asc" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "^name": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts 'desc' sort value", async () => {
-						expect(validateModel([{ items: [{ "^name": "desc" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "^name": "desc" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts positive number sort value", async () => {
-						expect(validateModel([{ items: [{ "^name": 1 }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "^name": 1 }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts negative number sort value", async () => {
-						expect(validateModel([{ items: [{ "^name": -1 }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "^name": -1 }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts zero sort value", async () => {
-						expect(validateModel([{ items: [{ "^name": 0 }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "^name": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects boolean sort value", async () => {
-						expect(validateModel([{ items: [{ "^name": true }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "^name": true }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects null sort value", async () => {
-						expect(validateModel([{ items: [{ "^name": null }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "^name": null }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects arbitrary string sort value", async () => {
-						expect(validateModel([{ items: [{ "^name": "ascending" }] }], Wrapper, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "^name": "ascending" }] }], Wrapper, { depth: null })).toBeDefined();
 					});
 
 					it("accepts sort on number property", async () => {
-						expect(validateModel([{ items: [{ "^age": "asc" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "^age": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts sort on undefined property", async () => {
-						expect(validateModel([{ items: [{ "^missing": "asc" }] }], Wrapper, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "^missing": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
 					});
 
 				});
@@ -6165,7 +6524,7 @@ describe("operators", () => {
 						const T = resource({ released: optional(year()) });
 						const W = resource({ items: multiple(reference(T)) });
 
-						expect(validateModel([{ items: [{ ">=year:released": 2020 }] }], W, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ ">=year:released": 2020 }] }], W, { depth: null })).toBeUndefined();
 					});
 
 					it("rejects text search on transform-derived number", async () => {
@@ -6175,7 +6534,7 @@ describe("operators", () => {
 						const T = resource({ name: required(string()), price: optional(integer()) });
 						const W = resource({ items: multiple(reference(T)) });
 
-						expect(validateModel([{ items: [{ "~count:price": "x" }] }], W, null)).toBeDefined();
+						expect(validateModel([{ items: [{ "~count:price": "x" }] }], W, { depth: null })).toBeDefined();
 					});
 
 					it("accepts text search on transform-preserving string", async () => {
@@ -6185,7 +6544,7 @@ describe("operators", () => {
 						const T = resource({ name: required(string()) });
 						const W = resource({ items: multiple(reference(T)) });
 
-						expect(validateModel([{ items: [{ "~lower:name": "alice" }] }], W, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "~lower:name": "alice" }] }], W, { depth: null })).toBeUndefined();
 					});
 
 					it("accepts operator when transform makes apply() return undefined", async () => {
@@ -6195,7 +6554,7 @@ describe("operators", () => {
 						const T = resource({ name: required(string()) });
 						const W = resource({ items: multiple(reference(T)) });
 
-						expect(validateModel([{ items: [{ "~sum:name": "x" }] }], W, null)).toBeUndefined();
+						expect(validateModel([{ items: [{ "~sum:name": "x" }] }], W, { depth: null })).toBeUndefined();
 					});
 
 				});
@@ -6227,7 +6586,7 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				const trace = validateModel([{ items: [{ name: 42 }] } as any], shape, null) as Record<string, Trace>;
+				const trace = validateModel([{ items: [{ name: 42 }] } as any], shape, { depth: null }) as Record<string, Trace>;
 
 				expect(trace).toHaveProperty(["[0]", "items"]);
 
@@ -6248,7 +6607,7 @@ describe("operators", () => {
 					items: [
 						{ "id": "app:/items/1", name: 42 }
 					]
-				} as any], shape, null) as Record<string, Trace>;
+				} as any], shape, { depth: null }) as Record<string, Trace>;
 
 				expect(trace).toHaveProperty(["[0]", "items"]);
 
@@ -6268,7 +6627,7 @@ describe("operators", () => {
 					items: [
 						{ name: 42 }
 					]
-				} as any], shape, null) as Record<string, Trace>;
+				} as any], shape, { depth: null }) as Record<string, Trace>;
 
 				expect(trace).toHaveProperty(["[0]", "items"]);
 
@@ -6288,7 +6647,7 @@ describe("operators", () => {
 					items: [
 						{ "id": "app:/items/2", name: 42 }
 					]
-				} as any], shape, null) as Record<string, Trace>;
+				} as any], shape, { depth: null }) as Record<string, Trace>;
 
 				expect(trace).toHaveProperty(["[0]", "items"]);
 
@@ -6308,7 +6667,7 @@ describe("operators", () => {
 					items: [
 						{ "id": "app:/items/1", name: "Alice" }
 					] as any
-				}], shape, null)).toBeUndefined();
+				}], shape, { depth: null })).toBeUndefined();
 
 			});
 

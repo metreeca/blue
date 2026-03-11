@@ -149,18 +149,18 @@
  * });
  * ```
  *
- * **Probe Resolution**
+ * **Effective Shape Resolution**
  *
- * Use {@link inspect} to resolve the effective shape after applying a probe to a value shape.
- * Supports type-aware shape inference in interactive UIs, resolving property paths through nested resources
- * and deriving the effective type through each transform pipe stage.
+ * Use {@link apply} to resolve the effective shape after applying a probe to a value shape. Supports type-aware shape
+ * inference in interactive UIs, resolving property paths through nested resources and deriving the effective type
+ * through each transform pipe stage.
  *
  * @module index
  *
  * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
  */
 
-import { type Identifier, isFunction, type Lazy } from "@metreeca/core";
+import { type Identifier, type Lazy } from "@metreeca/core";
 import { error as report, message } from "@metreeca/core/error";
 import { immutable } from "@metreeca/core/nested";
 import { createRelay, type Relay } from "@metreeca/core/relay";
@@ -169,11 +169,12 @@ import type { Model, Probe, Transform } from "@metreeca/qest/model";
 import type { Reference, Resource, Value } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
 import { brand, branded } from "./core/brand.js";
+import { materialize } from "./core/cache.js";
 import { TraceError } from "./core/trace.js";
 import { validateValue } from "./index.core.js";
 import type { LocalShape, LocalsShape } from "./local.js";
 import { decimal, integer, type NumberShape } from "./number.js";
-import { flatten, validateEntry, validateModel, validateResource } from "./resource.core.js";
+import { validateEntry, validateModel, validateResource } from "./resource.core.js";
 import type { Range, ReferenceShape, ResourceShape, UnionShape } from "./resource.js";
 import { date, duration, instant, iri, string, type StringShape, time, timestamp, year } from "./string.js";
 
@@ -236,7 +237,7 @@ const Transforms: Record<Transform, {
 /**
  * Known temporal string shape models.
  *
- * Closed set of all model values produced by temporal string shape factories. Used by {@link inspect}
+ * Closed set of all model values produced by temporal string shape factories. Used by {@link apply}
  * to distinguish temporal strings from plain strings when checking transform compatibility.
  */
 const Temporal: ReadonlySet<string> = new Set([
@@ -251,15 +252,6 @@ const Temporal: ReadonlySet<string> = new Set([
 ].map(factory =>
 	factory().model
 ));
-
-
-/**
- * Cache for materialized values from factory functions.
- *
- * Uses WeakMap so factories with unstable identity (local functions, lambdas)
- * can be garbage collected when they go out of scope.
- */
-const cache = new WeakMap<() => unknown, unknown>();
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -315,24 +307,7 @@ export type Validator<T = unknown> =
 	(value: T) => undefined | true | Trace;
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Infers the model type from a {@link Lazy} shape.
- *
- * Recursively resolves factory functions and extracts the `model` type from the underlying shape.
- *
- * @typeParam S The lazy shape type
- */
-export type Infer<S extends Lazy<{ readonly model: unknown }>> =
-	S extends () => infer R
-		? R extends { readonly model: infer T } ? T
-			: R extends Lazy<{ readonly model: unknown }> ? Infer<R> : never
-		: S extends { readonly model: infer T } ? T
-			: never;
-
-
-//// Value Methods /////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Shape Methods /////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Checks whether a value was validated with a given scope.
@@ -381,7 +356,7 @@ export function audit(entry: Value | Model, {
 
 	if ( scope === "*" ? actual === "value" || actual === "entry" : actual === scope ) {
 
-		return flatten(branded(entry, ValidationShape) as ResourceShape);
+		return branded(entry, ValidationShape) as ResourceShape;
 
 	} else {
 
@@ -414,7 +389,7 @@ export function audit(entry: Value | Model, {
  * @param value The value to validate
  * @param opts Validation options
  * @param opts.scope Selects value-level validation with full constraint enforcement
- * @param opts.shape The {@link ValueShape} defining validation constraints; may be a {@link Lazy} factory
+ * @param opts.shape The {@link Lazy} shape defining validation constraints
  *
  * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on
  * failure; for
@@ -458,7 +433,7 @@ export function validate<T extends Value>(value: unknown, opts: {
  * @param value The value to validate
  * @param opts Validation options
  * @param opts.scope Selects identity-only validation checking just the `id` property
- * @param opts.shape The {@link ValueShape} defining validation constraints; may be a {@link Lazy} factory
+ * @param opts.shape The {@link Lazy} shape defining validation constraints
  *
  * @returns A {@link Relay} resolving to either `{ entry }` on success or `{ trace }` on
  * failure; for
@@ -514,7 +489,7 @@ export function validate<T extends Value>(value: unknown, opts: {
  * @param model The model to validate
  * @param opts Validation options
  * @param opts.scope Selects model-level validation with structural checks
- * @param opts.shape The {@link ValueShape} defining the expected structure; may be a {@link Lazy} factory
+ * @param opts.shape The {@link Lazy} shape defining the expected structure
  * @param opts.stats Whether aggregate transforms (count, sum, min, max, avg) are accepted; `true` allows them;
  *     `false` rejects any binding containing aggregate transforms; defaults to `false`
  * @param opts.depth Maximum nesting depth for {@link Reference} and embedded {@link Resource} expansion; `0` rejects
@@ -612,7 +587,7 @@ export function validate(value: unknown, {
 
 			} else {
 
-				const trace = validateModel([value], materialized, depth, stats);
+				const trace = validateModel([value], materialized, { depth, stats });
 
 				return trace === undefined
 					? createRelay({
@@ -629,14 +604,14 @@ export function validate(value: unknown, {
 
 			if ( scope === "entry" ) { // non-resource values accepted as-is
 
-				return createRelay({ entry: value as Value });
+				return createRelay({ entry: value });
 
 			} else if ( scope === "model" ) {
 
 				const trace = validateValue([value], materialized);
 
 				return trace === undefined
-					? createRelay({ model: value as Value })
+					? createRelay({ model: value })
 					: createRelay({ trace });
 
 			} else {
@@ -660,194 +635,8 @@ export function validate(value: unknown, {
 }
 
 
-//// Resource Metadata /////////////////////////////////////////////////////////////////////////////////////////////////
-
 /**
- * Retrieves the identifier of a validated resource.
- *
- * @typeParam T The resource type
- *
- * @param resource The resource to inspect; must be already {@link validate | validated} with either `"value"` or
- *     `"entry"` scope
- *
- * @returns The resource identifier or `undefined` if the associated {@link ResourceShape} declares no
- *     {@link resource.Id | id} property
- *
- * @throws Error If `resource` was not previously validated with either `"value"` or `"entry"` scope
- */
-export function identify<T extends Resource>(resource: T): undefined | Reference ;
-
-/**
- * Configures the identifier of a validated resource.
- *
- * @typeParam T The resource type
- *
- * @param resource The resource to configure; must be already {@link validate | validated} with either `"value"` or
- *     `"entry"` scope
- * @param id The new identifier to assign
- *
- * @returns An immutable copy of `resource` with the identifier set to `id`, preserving validation tagging
- *
- * @throws Error If `resource` was not previously validated with either `"value"` or `"entry"` scope
- * @throws Error If the associated {@link ResourceShape} declares no {@link resource.Id | id} property
- * @throws Error If `id` is not an absolute IRI
- */
-export function identify<T extends Resource>(resource: T, id: Reference): T ;
-
-/**
- * Retrieves or configures the identifier of a validated resource.
- */
-export function identify<T extends Resource>(resource: T, id?: Reference): undefined | Reference | T {
-
-	const shape = audit(resource, { scope: "*" });
-
-	if ( shape === undefined ) {
-		throw new TypeError("unvalidated resource for <value> or <entry> scope");
-	}
-
-	// find the id property key in the shape
-
-	const entry = Object.entries(shape.properties).find(([, p]) => p.kind === "id");
-
-	if ( id === undefined ) { // getter
-
-		return entry === undefined ? undefined : resource[entry[0]] as Reference;
-
-	} else { // setter
-
-		if ( entry === undefined ) {
-			throw new RangeError("missing id property in shape");
-		}
-
-		if ( !isIRI(id, "absolute") ) {
-			throw new TypeError("expected absolute IRI");
-		}
-
-		return brand({ ...resource, [entry[0]]: id }, {
-			[ValidationScope]: branded(resource, ValidationScope),
-			[ValidationShape]: branded(resource, ValidationShape)
-		});
-
-	}
-
-}
-
-
-/**
- * Retrieves the type of a validated resource.
- *
- * @typeParam T The resource type
- *
- * @param resource The resource to inspect; must be already {@link validate | validated} with `"value"` scope
- *
- * @returns The resource type or `undefined` if the associated {@link ResourceShape} declares no
- *     {@link resource.Type | type} property
- *
- * @throws Error If `resource` was not previously validated with `"value"` scope
- */
-export function classify<T extends Resource>(resource: T): undefined | Reference ;
-
-/**
- * Configures the type of a validated resource.
- *
- * @typeParam T The resource type
- *
- * @param resource The resource to configure; must be already {@link validate | validated} with `"value"` scope
- * @param type The new type to assign, or `undefined` to remove it
- *
- * @returns An immutable copy of `resource` with the type set to `type` or removed, preserving validation tagging
- *
- * @throws Error If `resource` was not previously validated with `"value"` scope
- * @throws Error If the associated {@link ResourceShape} declares no {@link resource.Type | type} property
- * @throws Error If `type` is defined and not an absolute IRI
- */
-export function classify<T extends Resource>(resource: T, type: undefined | Reference): T ;
-
-/**
- * Retrieves or configures the type of a validated resource.
- */
-export function classify<T extends Resource>(resource: T, type?: Reference): undefined | Reference | T {
-
-	const shape = audit(resource, { scope: "value" });
-
-	if ( shape === undefined ) {
-		throw new TypeError("unvalidated resource for <value> scope");
-	}
-
-	// find the type property key in the shape
-
-	const entry = Object.entries(shape.properties).find(([, p]) => p.kind === "type");
-
-	if ( arguments.length === 1 ) { // getter
-
-		return entry === undefined ? undefined : resource[entry[0]] as Reference;
-
-	} else { // setter
-
-		if ( entry === undefined ) {
-			throw new RangeError("missing type property in shape");
-		}
-
-		if ( type !== undefined && !isIRI(type, "absolute") ) {
-			throw new TypeError("expected absolute IRI");
-		}
-
-		const updated = type !== undefined
-			? { ...resource, [entry[0]]: type }
-			: Object.fromEntries(Object.entries(resource).filter(([k]) => k !== entry[0]));
-
-		return brand(updated as T, {
-			[ValidationScope]: branded(resource, ValidationScope),
-			[ValidationShape]: branded(resource, ValidationShape)
-		});
-
-	}
-
-}
-
-
-//// Shape Methods /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Resolves a lazy value shape, caching factory results for idempotent materialisation.
- *
- * When given a factory function, returns the cached result if available, otherwise calls the factory, caches the
- * result, and returns it. Direct shapes are returned unchanged.
- *
- * @param shape A value shape or factory function returning a value shape
- *
- * @returns The resolved value shape
- */
-export function materialize<T extends ValueShape>(shape: Lazy<T>): T {
-
-	if ( isFunction(shape) ) {
-
-		const cached = cache.get(shape) as T;
-
-		if ( cached === undefined ) {
-
-			const resolved = shape();
-
-			cache.set(shape, resolved);
-
-			return resolved;
-
-		} else {
-
-			return cached;
-
-		}
-
-	} else {
-
-		return shape;
-
-	}
-
-}
-
-/**
- * Inspects a shape through a {@link Probe}, resolving the effective {@link Range}.
+ * Apply a {@link Probe} to a shape, resolving the effective {@link Range}.
  *
  * Traverses the {@link Probe.path} segments through nested resource properties to locate the target shape, then applies
  * the {@link Probe.pipe} transforms to compute the effective range with accumulated cardinality.
@@ -873,15 +662,15 @@ export function materialize<T extends ValueShape>(shape: Lazy<T>): T {
  * - All transforms set `minCount` to `undefined`; scalar transforms preserve `maxCount`; aggregate transforms set
  *   `maxCount` to `1`
  *
- * @param shape The input value shape to inspect
- * @param probe The probe containing the property path and transform pipe
+ * @param probe The probe containing property path and transform pipe
+ * @param shape The value shape to inspect
  *
  * @returns An immutable {@link Range} with accumulated cardinality, or `undefined` when the probe is
  *     demonstrated to never produce a valid value at runtime
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function inspect(shape: Lazy<ValueShape>, { pipe, path }: Probe): Range | undefined {
+export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined | Range {
 
 	type Focus = {
 
@@ -957,8 +746,8 @@ export function inspect(shape: Lazy<ValueShape>, { pipe, path }: Probe): Range |
 	 */
 	function resolve(shape: ValueShape, property: Identifier): Focus | undefined {
 
-		const resolved = shape.kind === "resource" ? flatten(shape)
-			: shape.kind === "reference" ? flatten(materialize(shape.shape))
+		const resolved = shape.kind === "resource" ? shape
+			: shape.kind === "reference" ? materialize(shape.shape)
 				: undefined;
 
 		const properties = resolved !== undefined
@@ -1147,6 +936,152 @@ export function inspect(shape: Lazy<ValueShape>, { pipe, path }: Probe): Range |
 
 			}
 
+		});
+
+	}
+
+}
+
+
+//// Resource Metadata /////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Retrieves the identifier of a validated resource.
+ *
+ * @typeParam T The resource type
+ *
+ * @param resource The resource to inspect; must be already {@link validate | validated} with either `"value"` or
+ *     `"entry"` scope
+ *
+ * @returns The resource identifier or `undefined` if the associated {@link ResourceShape} declares no
+ *     {@link resource.Id | id} property
+ *
+ * @throws Error If `resource` was not previously validated with either `"value"` or `"entry"` scope
+ */
+export function identify<T extends Resource>(resource: T): undefined | Reference ;
+
+/**
+ * Configures the identifier of a validated resource.
+ *
+ * @typeParam T The resource type
+ *
+ * @param resource The resource to configure; must be already {@link validate | validated} with either `"value"` or
+ *     `"entry"` scope
+ * @param id The new identifier to assign
+ *
+ * @returns An immutable copy of `resource` with the identifier set to `id`, preserving validation tagging
+ *
+ * @throws Error If `resource` was not previously validated with either `"value"` or `"entry"` scope
+ * @throws Error If the associated {@link ResourceShape} declares no {@link resource.Id | id} property
+ * @throws Error If `id` is not an absolute IRI
+ */
+export function identify<T extends Resource>(resource: T, id: Reference): T ;
+
+/**
+ * Retrieves or configures the identifier of a validated resource.
+ */
+export function identify<T extends Resource>(resource: T, id?: Reference): undefined | Reference | T {
+
+	const shape = audit(resource, { scope: "*" });
+
+	if ( shape === undefined ) {
+		throw new TypeError("unvalidated resource for <value> or <entry> scope");
+	}
+
+	// find the id property key in the shape
+
+	const entry = Object.entries(shape.properties).find(([, p]) => p.kind === "id");
+
+	if ( id === undefined ) { // getter
+
+		return entry === undefined ? undefined : resource[entry[0]] as Reference;
+
+	} else { // setter
+
+		if ( entry === undefined ) {
+			throw new RangeError("missing id property in shape");
+		}
+
+		if ( !isIRI(id, "absolute") ) {
+			throw new TypeError("expected absolute IRI");
+		}
+
+		return brand({ ...resource, [entry[0]]: id }, {
+			[ValidationScope]: branded(resource, ValidationScope),
+			[ValidationShape]: branded(resource, ValidationShape)
+		});
+
+	}
+
+}
+
+
+/**
+ * Retrieves the type of a validated resource.
+ *
+ * @typeParam T The resource type
+ *
+ * @param resource The resource to inspect; must be already {@link validate | validated} with `"value"` scope
+ *
+ * @returns The resource type or `undefined` if the associated {@link ResourceShape} declares no
+ *     {@link resource.Type | type} property
+ *
+ * @throws Error If `resource` was not previously validated with `"value"` scope
+ */
+export function classify<T extends Resource>(resource: T): undefined | Reference ;
+
+/**
+ * Configures the type of a validated resource.
+ *
+ * @typeParam T The resource type
+ *
+ * @param resource The resource to configure; must be already {@link validate | validated} with `"value"` scope
+ * @param type The new type to assign, or `undefined` to remove it
+ *
+ * @returns An immutable copy of `resource` with the type set to `type` or removed, preserving validation tagging
+ *
+ * @throws Error If `resource` was not previously validated with `"value"` scope
+ * @throws Error If the associated {@link ResourceShape} declares no {@link resource.Type | type} property
+ * @throws Error If `type` is defined and not an absolute IRI
+ */
+export function classify<T extends Resource>(resource: T, type: undefined | Reference): T ;
+
+/**
+ * Retrieves or configures the type of a validated resource.
+ */
+export function classify<T extends Resource>(resource: T, type?: Reference): undefined | Reference | T {
+
+	const shape = audit(resource, { scope: "value" });
+
+	if ( shape === undefined ) {
+		throw new TypeError("unvalidated resource for <value> scope");
+	}
+
+	// find the type property key in the shape
+
+	const entry = Object.entries(shape.properties).find(([, p]) => p.kind === "type");
+
+	if ( arguments.length === 1 ) { // getter
+
+		return entry === undefined ? undefined : resource[entry[0]] as Reference;
+
+	} else { // setter
+
+		if ( entry === undefined ) {
+			throw new RangeError("missing type property in shape");
+		}
+
+		if ( type !== undefined && !isIRI(type, "absolute") ) {
+			throw new TypeError("expected absolute IRI");
+		}
+
+		const updated = type !== undefined
+			? { ...resource, [entry[0]]: type }
+			: Object.fromEntries(Object.entries(resource).filter(([k]) => k !== entry[0]));
+
+		return brand(updated as T, {
+			[ValidationScope]: branded(resource, ValidationScope),
+			[ValidationShape]: branded(resource, ValidationShape)
 		});
 
 	}

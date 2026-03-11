@@ -28,7 +28,7 @@ import type { LocalShape, LocalsShape } from "./local.js";
 import { mergeNumber, validateNumber } from "./number.core.js";
 import type { NumberShape } from "./number.js";
 import { mergeReference, mergeResource, validateReference, validateResource } from "./resource.core.js";
-import type { ReferenceShape, ResourceShape } from "./resource.js";
+import { type ReferenceShape, resource, type ResourceShape } from "./resource.js";
 import { mergeString, validateString } from "./string.core.js";
 import { type StringShape } from "./string.js";
 

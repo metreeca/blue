@@ -210,11 +210,13 @@ import { type Identifier, isFunction, isString, type Lazy } from "@metreeca/core
 import { immutable } from "@metreeca/core/nested";
 import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
 import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
+import { materialize } from "./core/cache.js";
 import { TraceError } from "./core/trace.js";
-import type { Infer, Validator, ValueShape } from "./index.js";
-import { materialize } from "./index.js";
+import type { Validator, ValueShape } from "./index.js";
 import { checkSingletons, flatten } from "./resource.core.js";
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Default application namespace for property IRI resolution (`app:/#`).
@@ -921,7 +923,6 @@ export type Overrides<E extends Entries, I> = {
 		: E[K]
 };
 
-
 /**
  * Extracts inherited model types from {@link ResourceConstraints.extends}.
  */
@@ -932,28 +933,11 @@ export type Inheritance<C> =
 				| readonly [Lazy<ResourceShape>, ...Lazy<ResourceShape>[]]
 		}
 		? DeclaredProperties<Intersection<
-			E extends readonly (infer S extends Lazy<ValueShape>)[] ? Infer<S>
-				: E extends Lazy<ValueShape> ? Infer<E>
+			E extends readonly (infer S extends Lazy<ResourceShape>)[] ? Infer<S>
+				: E extends Lazy<ResourceShape> ? Infer<E>
 					: never
 		>>
 		: {};
-
-/**
- * Extracts explicitly declared properties, stripping index signatures.
- */
-export type DeclaredProperties<T> = {
-	[K in keyof T as string extends K ? never : number extends K ? never : K]: T[K]
-};
-
-
-/**
- * Converts a union type to an intersection type.
- *
- * @typeParam U The union type
- */
-export type Intersection<U extends Value> =
-	(U extends unknown ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
-
 
 /**
  * Builds a resource type from {@link Entries}.
@@ -963,6 +947,18 @@ export type Intersection<U extends Value> =
 export type Composition<E extends Entries> =
 	& { readonly [K in RequiredKeys<E> as K & string]: Content<E[K]> }
 	& { readonly [K in OptionalKeys<E> as K & string]?: Exclude<Content<E[K]>, undefined> };
+
+/**
+ * Maps SHACL cardinality constraints to TypeScript types.
+ *
+ * @typeParam V The value type
+ * @typeParam L The {@link Range.minCount} constraint
+ * @typeParam U The {@link Range.maxCount} constraint
+ */
+export type Cardinality<V, L extends undefined | number, U extends undefined | number> =
+	U extends 1
+		? L extends undefined | 0 ? undefined | V : V
+		: L extends undefined | 0 ? undefined | readonly V[] : readonly [V, ...V[]];
 
 /**
  * Extracts the content type from an {@link Entry}.
@@ -992,18 +988,45 @@ export type RequiredKeys<E extends Entries> =
 export type OptionalKeys<E extends Entries> =
 	| { [K in keyof E]: undefined extends Content<E[K]> ? K : never }[keyof E];
 
+/**
+ * Extracts explicitly declared properties, stripping index signatures.
+ */
+export type DeclaredProperties<T> = {
+	[K in keyof T as string extends K ? never : number extends K ? never : K]: T[K]
+};
 
 /**
- * Maps SHACL cardinality constraints to TypeScript types.
+ * Converts a union type to an intersection type.
  *
- * @typeParam V The value type
- * @typeParam L The {@link Range.minCount} constraint
- * @typeParam U The {@link Range.maxCount} constraint
+ * @typeParam U The union type
  */
-export type Cardinality<V, L extends undefined | number, U extends undefined | number> =
-	U extends 1
-		? L extends undefined | 0 ? undefined | V : V
-		: L extends undefined | 0 ? undefined | readonly V[] : readonly [V, ...V[]];
+export type Intersection<U extends Value> =
+	(U extends unknown ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
+
+
+/**
+ * Extracts the eager {@link ValueShape} from a {@link Lazy} shape.
+ *
+ * Resolves lazy factories to their return type and passes direct shapes through unchanged.
+ *
+ * @typeParam S The lazy shape to resolve
+ */
+export type Eager<S extends Lazy<ValueShape>> =
+	S extends Lazy<infer T extends ValueShape> ? T
+		: S extends ValueShape ? S
+			: never;
+
+/**
+ * Infers the model type from a {@link Lazy} shape or {@link UnionShape}.
+ *
+ * Resolves lazy factories to their return type and extracts the `model` type from the underlying shape.
+ *
+ * @typeParam S The shape type
+ */
+export type Infer<S extends Lazy<ValueShape> | UnionShape> =
+	S extends () => { readonly model: infer T } ? T
+		: S extends { readonly model: infer T } ? T
+			: never;
 
 
 //// Resources /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1014,6 +1037,10 @@ export type Cardinality<V, L extends undefined | number, U extends undefined | n
  * > [!WARNING]
  * > The target shape must include an {@link Id} property. This constraint is checked at runtime but not at compile
  * > time due to limitations with recursive type inference.
+ *
+ * > [!TIP]
+ * > Always dereference {@link ReferenceShape.shape} through {@link resource | resource()} rather than calling the
+ * > factory directly, to ensure the resulting shape is fully flattened.
  *
  *
  * @param shape The target resource shape, either directly or as a lazy function to support circular and
@@ -1042,6 +1069,10 @@ export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
  * Backlinks are reverse links managed by the target resource. They are read-only from the source resource perspective:
  * included in responses but rejected in state updates.
  *
+ * > [!TIP]
+ * > Always dereference {@link ReferenceShape.shape} through {@link resource | resource()} rather than calling the
+ * > factory directly, to ensure the resulting shape is fully flattened.
+ *
  *
  * @param shape The target resource shape, either directly or as a lazy function to support circular and
  *     self-referential definitions
@@ -1066,6 +1097,47 @@ export function backlink(shape: Lazy<ResourceShape>): ReferenceShape {
 
 }
 
+
+/**
+ * Creates a resource shape from a lazy definition.
+ *
+ * Accepts a {@link ResourceShape} or a factory function returning one. Use a factory for self-referential or circular
+ * definitions that must be deferred to avoid infinite recursion at definition time.
+ *
+ * > [!TIP]
+ * > When `shape` includes `extends`, parent shapes are recursively flattened and merged into the returned shape.
+ * > Consumers can work with the result directly without traversing the inheritance chain. The `extends` field is
+ * > retained for reference, but all inherited constraints are already resolved.
+ *
+ * > [!TIP]
+ * > Always resolve {@link ResourceShape} values from public APIs through `resource()` to ensure the resulting shape
+ * > is fully flattened and branded.
+ *
+ * > [!NOTE]
+ * > This function is idempotent: the returned shape is branded and won't be re-flattened if passed to the factory
+ * > again or used as a parent in another shape.
+ *
+ * @typeParam T The concrete {@link ResourceShape} type
+ *
+ * @param shape The resource shape or a factory function returning it
+ *
+ * @returns An immutable resource shape with inherited constraints and properties flattened and merged
+ *
+ * @throws {TraceError} If the shape contains incompatible constraints
+ *
+ * @example
+ *
+ * ```typescript
+ * // direct shape
+ * const Person = resource(shape);
+ *
+ * // lazy self-referential shape
+ * const Person: ResourceShape = resource(() => resource({
+ *   friends: optional(reference(Person))
+ * }));
+ * ```
+ */
+export function resource<T extends ResourceShape>(shape: Lazy<T>): T;
 
 /**
  * Creates a resource shape from property definitions.
@@ -1099,7 +1171,7 @@ export function resource<E extends Entries>(
 ): ResourceShape & { readonly model: Composition<E> };
 
 /**
- * Creates a resource shape with constraints.
+ * Creates a resource shape from constraints and property definitions.
  *
  * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link Range} values for concise
  * syntax, and {@link Id}/{@link Type} markers.
@@ -1120,7 +1192,7 @@ export function resource<E extends Entries>(
  * @param constraints Shape constraints including namespace, name, validators, and optionally `extends`
  * @param entries The property definitions
  *
- * @returns An immutable resource shape with all inherited constraints resolved
+ * @returns An immutable resource shape with inherited constraints and properties flattened and merged
  *
  * @throws {TraceError} If entry definitions are invalid or inherited constraints are incompatible
  *
@@ -1149,10 +1221,9 @@ export function resource<
 
 /**
  * Creates resource shapes.
- *
  */
 export function resource(
-	a: Entries | ResourceConstraints,
+	a: Lazy<ResourceShape> | Entries | ResourceConstraints,
 	b?: Entries
 ): ResourceShape {
 
@@ -1160,7 +1231,37 @@ export function resource(
 	type Properties = ResourceShape["properties"];
 
 
-	if ( b === undefined ) {
+	if ( isFunction(a) ) {
+
+		return materialize(a) as ResourceShape;
+
+	} else if ( "kind" in a && a.kind === "resource" ) {
+
+		const shape = a as ResourceShape;
+
+		if ( flatten(shape) === shape ) { // idempotency: already-flattened shapes are returned unchanged
+
+			return shape;
+
+		} else {
+
+			const namespace = locate(shape);
+			const resolved = resolve(normalize(shape.properties, shape.extends), namespace);
+
+			return flatten({
+
+				...shape,
+
+				kind: "resource",
+				model: build(resolved, shape),
+
+				properties: resolved
+
+			});
+
+		}
+
+	} else if ( b === undefined ) {
 
 		const properties = a as Entries;
 		const namespace = locate({});
@@ -1213,7 +1314,7 @@ export function resource(
 		} else if ( parents !== undefined ) {
 
 			const namespaces = (Array.isArray(parents) ? parents : [parents]).map(parent =>
-				materialize(parent).namespace
+				resource(parent).namespace
 			);
 
 			// conflicts validated later by flatten() using flattened parent namespaces
@@ -1228,7 +1329,6 @@ export function resource(
 
 	}
 
-
 	/**
 	 * Wraps naked {@link Range} entries into {@link Property} objects.
 	 *
@@ -1241,7 +1341,7 @@ export function resource(
 
 		const bases: Properties[] = parents === undefined ? []
 			: (Array.isArray(parents) ? parents : [parents])
-				.map(parent => materialize(parent).properties);
+				.map(parent => resource(parent).properties);
 
 		const properties = [
 			...bases.flatMap(base => Object.values(base)),
@@ -1350,7 +1450,7 @@ export function resource(
 	function build(properties: Properties, { extends: parents }: ResourceConstraints = {}): Resource {
 
 		const inherited = parents === undefined ? {} : (Array.isArray(parents) ? parents : [parents])
-			.map(parent => materialize(parent).model)
+			.map(parent => resource(parent).model)
 			.reduce((inherited, model) => ({ ...model, ...inherited }), {});
 
 		return immutable({
@@ -1527,13 +1627,15 @@ export function property(a: Range | PropertyConstraints, b?: Range): Property {
  * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.2 sh:or}
  * @see {@link https://www.w3.org/TR/json-ld11/#data-indexing JSON-LD 1.1 § 4.6.1 Data Indexing}
  */
-export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShape> }>(
-	variants: V
-): UnionShape<{ readonly [K in keyof V]: V[K] extends Lazy<infer S extends ValueShape> ? S : never }> {
+export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShape> }>(variants: V): UnionShape<{
+
+	readonly [K in keyof V]: Eager<V[K]>
+
+}> {
 
 	const materialized = Object.fromEntries(
 		Object.entries(variants)
-			.map(([k, v]) => [k, materialize(v as Lazy<ValueShape>)])
+			.map(([k, v]) => [k, materialize(v)])
 	);
 
 	return immutable({
@@ -1546,7 +1648,7 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
 
 		variants: materialized
 
-	}) as UnionShape<{ readonly [K in keyof V]: V[K] extends Lazy<infer S extends ValueShape> ? S : never }>;
+	}) as UnionShape<{ readonly [K in keyof V]: Eager<V[K]> }>;
 
 }
 
@@ -1557,9 +1659,9 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
  * Allows zero or more values, resulting in an optional array type (`undefined | readonly V[]`).
  *
  *
- * @typeParam S The value shape or union type
+ * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
  *
- * @param shape The value shape or union for the linked set
+ * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} for the linked set
  *
  * @returns An immutable range with no minimum or maximum count
  */
@@ -1575,9 +1677,9 @@ export function multiple<S extends Lazy<ValueShape> | UnionShape>(shape: S): Ran
  * Requires one or more values, resulting in a non-empty array type (`readonly [V, ...V[]]`).
  *
  *
- * @typeParam S The value shape or union type
+ * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
  *
- * @param shape The value shape or union for the linked set
+ * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} for the linked set
  *
  * @returns An immutable range with minCount=1 and no maximum count
  */
@@ -1593,9 +1695,9 @@ export function repeatable<S extends Lazy<ValueShape> | UnionShape>(shape: S): R
  * Allows zero or one value, resulting in an optional scalar type (`undefined | V`).
  *
  *
- * @typeParam S The value shape or union type
+ * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
  *
- * @param shape The value shape or union for the linked set
+ * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} for the linked set
  *
  * @returns An immutable range with no minimum count and maxCount=1
  */
@@ -1611,9 +1713,9 @@ export function optional<S extends Lazy<ValueShape> | UnionShape>(shape: S): Ran
  * Requires exactly one value, resulting in a required scalar type (`V`).
  *
  *
- * @typeParam S The value shape or union type
+ * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
  *
- * @param shape The value shape or union for the linked set
+ * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} for the linked set
  *
  * @returns An immutable range with minCount=1 and maxCount=1
  */
@@ -1652,32 +1754,35 @@ export function cardinality<
 	upper?: U
 ): <S extends Lazy<ValueShape> | UnionShape>(shape: S) => Range<Infer<S>, L, U> {
 
-	const $lower = lower as L;
-	const $upper = upper as U;
-
-	if ( $lower !== undefined && $lower < 0 ) {
-		throw new TypeError(`expected non-negative minCount <${$lower}>`);
+	if ( lower !== undefined && lower < 0 ) {
+		throw new TypeError(`expected non-negative minCount <${lower}>`);
 	}
 
-	if ( $upper !== undefined && $upper < 0 ) {
-		throw new TypeError(`expected non-negative maxCount <${$upper}>`);
+	if ( upper !== undefined && upper < 0 ) {
+		throw new TypeError(`expected non-negative maxCount <${upper}>`);
 	}
 
-	if ( $lower !== undefined && $upper !== undefined && $lower > $upper ) {
-		throw new TypeError(`inconsistent bounds <${$lower}> > <${$upper}>`);
+	if ( lower !== undefined && upper !== undefined && lower > upper ) {
+		throw new TypeError(`inconsistent bounds <${lower}> > <${upper}>`);
 	}
 
-	return <S extends Lazy<ValueShape> | UnionShape>(shape: S) => immutable({
+	return <S extends Lazy<ValueShape> | UnionShape>(shape: S) => {
 
-		kind: "range",
+		const materialized = "kind" in shape ? shape as ValueShape | UnionShape : materialize(shape as Lazy<ValueShape>);
 
-		minCount: $lower,
-		maxCount: $upper,
+		return immutable({
 
-		shape: (isFunction(shape) ? materialize(shape) : shape) as (ValueShape | UnionShape) & {
-			readonly model: Infer<S>
-		}
+			kind: "range",
 
-	});
+			minCount: lower,
+			maxCount: upper,
+
+			shape: materialized as (ValueShape | UnionShape) & {
+				readonly model: Infer<S>
+			}
+
+		});
+
+	};
 
 }

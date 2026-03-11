@@ -30,12 +30,13 @@ import { decodeProbe, isAggregate, type Probe } from "@metreeca/qest/model";
 import { type Reference, type Resource } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
 import { brand, branded } from "./core/brand.js";
+import { materialize } from "./core/cache.js";
 import { collect, every, group, normalise, TraceError, wrap } from "./core/trace.js";
 import { mergeValue, validateValue } from "./index.core.js";
-import { inspect, materialize, type Trace, type ValueShape } from "./index.js";
+import { apply, type Trace, type ValueShape } from "./index.js";
 import type { LocalShape, LocalsShape } from "./local.js";
 import type { NumberShape } from "./number.js";
-import { type Property, type Range, type ReferenceShape, type ResourceShape, type UnionShape } from "./resource.js";
+import type { Property, Range, ReferenceShape, ResourceShape, UnionShape } from "./resource.js";
 import type { StringShape } from "./string.js";
 
 
@@ -72,11 +73,11 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 	const matching = values.filter(isReference);
 	const mistyped = values.length-matching.length;
 
-	const flattened = flatten(materialize(shape.shape));
+	const target = materialize(shape.shape);
 
-	const patterns = flattened.pattern !== undefined ? [flattened.pattern] : [];
-	const allowed = flattened.in !== undefined ? [flattened.in] : [];
-	const required = flattened.hasValue !== undefined ? [flattened.hasValue] : [];
+	const patterns = target.pattern !== undefined ? [target.pattern] : [];
+	const allowed = target.in !== undefined ? [target.in] : [];
+	const required = target.hasValue !== undefined ? [target.hasValue] : [];
 
 	return collect({
 
@@ -162,22 +163,20 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
 
-	const flattened = flatten(shape);
-
 
 	// resolve the identifier property key
 
-	const identifier = Object.entries(flattened.properties)
+	const identifier = Object.entries(shape.properties)
 		.find(([, entry]) => entry.kind === "id")
 		?.[0];
 
 	// collect properties
 
-	const entries = new Map(Object.entries(flattened.properties));
+	const entries = new Map(Object.entries(shape.properties));
 
 	// collect validators
 
-	const validators = flattened.validators ?? [];
+	const validators = shape.validators ?? [];
 
 
 	return collect({
@@ -192,9 +191,9 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 				// property validation — validate merged shape properties
 
 				...[...entries].map(([name, entry]) => [name,
-					entry.kind === "id" ? validateId(resource[name], flattened)
+					entry.kind === "id" ? validateId(resource[name], shape)
 						: entry.kind === "type" ? validateType(resource[name])
-							: validateProperty(resource[name], name, flattened)
+							: validateProperty(resource[name], name, shape)
 				]),
 
 
@@ -882,11 +881,9 @@ export function validateEntry(values: readonly unknown[], shape: ResourceShape):
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
 
-	const flattened = flatten(shape);
-
 	// resolve the identifier property key
 
-	const identifier = Object.entries(flattened.properties)
+	const identifier = Object.entries(shape.properties)
 		.find(([, entry]) => entry.kind === "id")
 		?.[0];
 
@@ -896,9 +893,9 @@ export function validateEntry(values: readonly unknown[], shape: ResourceShape):
 
 	} else {
 
-		const patterns = flattened.pattern !== undefined ? [flattened.pattern] : [];
-		const allowed = flattened.in !== undefined ? [flattened.in] : [];
-		const required = flattened.hasValue !== undefined ? [flattened.hasValue] : [];
+		const patterns = shape.pattern !== undefined ? [shape.pattern] : [];
+		const allowed = shape.in !== undefined ? [shape.in] : [];
+		const required = shape.hasValue !== undefined ? [shape.hasValue] : [];
 
 		return collect({
 
@@ -958,31 +955,42 @@ export function validateEntry(values: readonly unknown[], shape: ResourceShape):
 /**
  * Validates projection models against a {@link ResourceShape}.
  *
- * Checks property shape (scalar vs singleton tuple), inherited properties, and {@link Probe} keys (transform pipe
- * resolution and projection type-checking). Value constraints, minCount/maxCount cardinality, and custom validators are
- * skipped as a model describes a projection shape rather than actual data. Unknown properties are silently skipped and
- * missing properties are accepted as not requested. Wherever a property specifies a resource (either directly or via a
- * reference), the model value may be either a {@link Reference} (retrieving just the id) or a nested resource model,
- * subject to `depth` limits. Returns a keyed trace where outer keys are property names and inner keys are constraint
- * names, or `undefined` if all models are valid.
+ * Verifies that each model entry is structurally compatible with the shape: property shape (scalar vs singleton tuple),
+ * inherited properties, and {@link Probe} keys (transform pipe resolution and projection type-checking). Value
+ * constraints, cardinality bounds, and custom validators are skipped, as a model describes a projection shape rather
+ * than actual data. Unknown properties are silently ignored and missing properties are accepted as not requested.
+ *
+ * Where a property specifies a resource (either directly or via a reference), the model value may be either a
+ * {@link Reference} (retrieving just the identifier) or a nested resource model, subject to `depth` limits. When
+ * `stats` is disabled, aggregate transforms in {@link Probe} pipes are rejected.
  *
  * @param values The model instances to validate
  * @param shape The resource shape defining the expected structure
- * @param depth Maximum nesting depth for reference and embedded resource expansion; `0` rejects any nested model
- *     while still accepting IRI references; `null` for unlimited
+ * @param opts Validation options
+ * @param opts.stats Whether aggregate transforms are allowed in probe pipes; defaults to `true`
+ * @param opts.depth Maximum nesting depth for reference and embedded resource expansion; `0` rejects any nested
+ *     model while still accepting IRI references; `null` for unlimited
  *
  * @returns A keyed trace of constraint violations per property, or `undefined` if all models are valid
  */
-export function validateModel(values: readonly unknown[], shape: ResourceShape, depth: null | number, stats: boolean = true): undefined | Trace {
+export function validateModel(values: readonly unknown[], shape: ResourceShape, {
+
+	stats = true,
+	depth
+
+}: {
+
+	readonly stats?: boolean
+	readonly depth: null | number
+
+}): undefined | Trace {
 
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
 
-	const flattened = flatten(shape);
-
 	// resolve the identifier property key
 
-	const identifier = Object.entries(flattened.properties).find(([, entry]) => entry.kind === "id")?.[0];
+	const identifier = Object.entries(shape.properties).find(([, entry]) => entry.kind === "id")?.[0];
 
 	return collect({
 
@@ -995,7 +1003,11 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 				try {
 
-					return [binding, validateProjection(decodeProbe(binding), template, shape, depth)];
+					const probe = decodeProbe(binding);
+
+					return !stats && probe.pipe.some(isAggregate)
+						? [binding, "disabled aggregate transforms"]
+						: [binding, validateProjection(probe, template, shape, depth)];
 
 				} catch ( e ) {
 
@@ -1012,19 +1024,11 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	function validateProjection(binding: Probe, value: unknown, shape: ValueShape, depth: null | number): undefined | Trace {
 
-		if ( !stats && binding.pipe.some(isAggregate) ) {
+		const effective = apply(binding, shape);
 
-			return "disabled aggregate transforms";
+		// undefined effective range means the binding cannot be populated at runtime; template is immaterial
 
-		} else {
-
-			const effective = inspect(shape, binding);
-
-			// undefined effective range means the binding cannot be populated at runtime; template is immaterial
-
-			return effective === undefined ? undefined : validateRange(value, effective, depth);
-
-		}
+		return effective === undefined ? undefined : validateRange(value, effective, depth);
 
 	}
 
@@ -1080,12 +1084,15 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 				return isString(value) ? (isReference(value) ? undefined : "expected absolute reference IRI")
 					: depth !== null && depth <= 0 ? "exceeded maximum nesting depth"
-						: validateModel([value], materialize(shape.shape), depth === null ? depth : depth-1);
+						: validateModel([value], materialize(shape.shape), {
+							stats,
+							depth: depth === null ? depth : depth-1
+						});
 
 			case "resource":
 
 				return depth !== null && depth <= 0 ? "exceeded maximum nesting depth"
-					: validateModel([value], shape, depth === null ? depth : depth-1);
+					: validateModel([value], shape, { stats, depth: depth === null ? depth : depth-1 });
 
 			case "union":
 
@@ -1217,43 +1224,50 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 					const probe = decodeProbe(key);
 
-					switch ( probe.target ) {
+					if ( !stats && probe.pipe.some(isAggregate) ) {
 
-						case "<":
-						case ">":
-						case "<=":
-						case ">=":
+						return [key, "disabled aggregate transforms"];
 
-							return [key, validateLimit(v, inspect(shape, probe)?.shape)];
+					} else {
 
-						case "~":
+						switch ( probe.target ) {
 
-							return [key, validateKeywords(v, inspect(shape, probe)?.shape)];
+							case "<":
+							case ">":
+							case "<=":
+							case ">=":
 
-						case "?":
-						case "!":
-						case "*":
+								return [key, validateLimit(v, apply(probe, shape)?.shape)];
 
-							return [key, validateOptions(v, inspect(shape, probe)?.shape)];
+							case "~":
 
-						case "^":
+								return [key, validateKeywords(v, apply(probe, shape)?.shape)];
 
-							return [key, v === "asc" || v === "desc" || isNumber(v) ? undefined
-								: "expected <asc>, <desc>, or number value"
-							];
+							case "?":
+							case "!":
+							case "*":
 
-						case "@":
-						case "#":
+								return [key, validateOptions(v, apply(probe, shape)?.shape)];
 
-							return [key, !isNumber(v) ? "expected number value"
-								: !Number.isInteger(v) || v < 0 ? "expected non-negative integer"
-									: undefined
-							];
+							case "^":
 
-						default:
+								return [key, v === "asc" || v === "desc" || isNumber(v) ? undefined
+									: "expected <asc>, <desc>, or number value"
+								];
 
-							return [key, validateProjection(probe, v, shape, depth)];
+							case "@":
+							case "#":
 
+								return [key, !isNumber(v) ? "expected number value"
+									: !Number.isInteger(v) || v < 0 ? "expected non-negative integer"
+										: undefined
+								];
+
+							default:
+
+								return [key, validateProjection(probe, v, shape, depth)];
+
+						}
 					}
 
 				} catch ( e ) {
@@ -1440,11 +1454,9 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
  */
 export function flatten(shape: ResourceShape): ResourceShape {
 
-	if ( branded(shape, Flattened) !== undefined ) { return shape; } else {
+	if ( branded(shape, Flattened) === null ) { return shape; } else {
 
-		const parents = shape.extends === undefined ? []
-			: Array.isArray(shape.extends) ? shape.extends.map(p => flatten(materialize(p)))
-				: [flatten(materialize(shape.extends as ResourceShape))];
+		const parents = [shape.extends ?? []].flat().map(p => materialize(p));
 
 		const flattened = mergeResource(shape, parents.reduce(mergeResource, {
 
@@ -1467,7 +1479,61 @@ export function flatten(shape: ResourceShape): ResourceShape {
 			throw new TraceError("incompatible flattened shape", trace);
 		}
 
-		return brand(flattened, { [Flattened]: null });
+		return brand({
+
+			...flattened,
+
+			// recursively flatten nested resource shapes within property ranges
+
+			properties: Object.fromEntries(Object.entries(flattened.properties).map(([name, entry]) => {
+
+				if ( entry.kind === "property" ) {
+
+					const { range } = entry;
+					const { shape: inner } = range;
+
+					switch ( inner.kind ) {
+
+						case "resource":
+
+							return [name, { ...entry, range: { ...range, shape: flatten(inner) } }];
+
+						case "reference":
+
+							return [name, {
+								...entry,
+								range: { ...range, shape: { ...inner, shape: () => materialize(inner.shape) } }
+							}];
+
+						case "union":
+
+							return [name, {
+								...entry, range: {
+									...range,
+									shape: {
+										...inner,
+										variants: Object.fromEntries(Object.entries(inner.variants).map(([key, variant]) =>
+											[key, variant.kind === "resource" ? flatten(variant) : variant]
+										))
+									}
+								}
+							}];
+
+						default:
+
+							return [name, entry];
+
+					}
+
+				} else {
+
+					return [name, entry];
+
+				}
+
+			}))
+
+		}, { [Flattened]: null });
 
 	}
 

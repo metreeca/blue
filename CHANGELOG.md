@@ -30,6 +30,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `classify()` getter/setter for resource `type` metadata on validated resources — getter returns the type or
 	`undefined` if the shape declares no `type` property; setter accepts `undefined` to remove the type and returns an
 	immutable copy preserving validation tagging
+- Add `resource()` overload accepting `Lazy<T>` — validates, materializes, and deeply flattens manual shape definitions
+	with memoized caching; all public API `ResourceShape` parameters are resolved through this factory
+- Add `Eager<S>` type alias for the materialized result of a lazy shape
+- Move `Infer<S>` type to `resource.ts` and widen constraint to `Lazy<ValueShape> | UnionShape`
 
 ### Fixed
 
@@ -44,14 +48,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Reject IRI strings for embedded `ResourceShape` properties in model validation — only nested models are accepted; IRI
 	references are exclusive to `ReferenceShape` properties
 - Support `UnionShape` as non-lazy shape in cardinality type constraints
+- Propagate `stats` option through recursive `validateModel` calls — previously lost on nested resource shapes
 
 ### Changed
 
 - Add `TraceError` class extending `RangeError` with a typed `cause: Trace` and pretty-printed trace in the error
 	message — replaces `Object.assign(new RangeError(…), { trace })` for visible diagnostics in stack traces
 - Rename `Union` type to `UnionShape` for naming consistency with other shape types
-- Rename `apply()` to `inspect()` and move from `core/probe` into the main index module
-- Move `materialize()` from `index.core` to `index` and restrict to `ValueShape`
+- Move probe resolution from `core/probe` into the main index module as `apply(probe, shape)` — swapped argument order
+	for consistency with probe-first pipeline usage
+- Internalize `materialize()` behind a caching layer — no longer exported; lazy shapes are resolved and flattened
+	through `resource()`
 - Extract internal operators (`brand`, `trace`) to `core/` submodules and use `import type` for index re-exports
 - Replace `Some<Lazy<ResourceShape>>` with inline non-empty tuple for `ResourceConstraints.extends`
 - Shape factories now validate constraint consistency on construction via check functions — contradictory constraints
