@@ -29,14 +29,14 @@ import { defaultBase } from "@metreeca/qest/index";
 import { decodeProbe, isAggregate, type Probe } from "@metreeca/qest/model";
 import { type Reference, type Resource } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
-import { apply, brand, branded, materialize, mergeValue, validateValue } from "./index.core.js";
-import type { ValueShape } from "./index.js";
+import { brand, branded } from "./core/brand.js";
+import { collect, every, group, normalise, TraceError, wrap } from "./core/trace.js";
+import { mergeValue, validateValue } from "./index.core.js";
+import { inspect, materialize, type Trace, type ValueShape } from "./index.js";
 import type { LocalShape, LocalsShape } from "./local.js";
 import type { NumberShape } from "./number.js";
-import { type Property, type Range, type ReferenceShape, type ResourceShape, type Union } from "./resource.js";
+import { type Property, type Range, type ReferenceShape, type ResourceShape, type UnionShape } from "./resource.js";
 import type { StringShape } from "./string.js";
-import { collect, every, group, normalise, wrap } from "./trace.core.js";
-import { type Trace, TraceError } from "./trace.js";
 
 
 /**
@@ -328,7 +328,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 	}
 
-	function validateUnion(values: readonly unknown[], union: Union): undefined | Trace {
+	function validateUnion(values: readonly unknown[], union: UnionShape): undefined | Trace {
 
 		const variants = Object.values(union.variants);
 
@@ -788,7 +788,7 @@ export function mergeRange(target: Range, source: Range): Range {
 		maxCount,
 
 		shape: target.shape.kind === "union"
-			? mergeUnion(target.shape, source.shape as Union)
+			? mergeUnion(target.shape, source.shape as UnionShape)
 			: mergeValue(target.shape as ValueShape, source.shape as ValueShape)
 
 	});
@@ -808,7 +808,7 @@ export function mergeRange(target: Range, source: Range): Range {
  *
  * @throws {TraceError} On variant key mismatch or incompatible variant overrides
  */
-export function mergeUnion(target: Union, source: Union): Union {
+export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
 
 	const targetKeys = Object.keys(target.variants).sort();
 	const sourceKeys = Object.keys(source.variants).sort();
@@ -1018,7 +1018,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 		} else {
 
-			const effective = apply(binding, shape);
+			const effective = inspect(shape, binding);
 
 			// undefined effective range means the binding cannot be populated at runtime; template is immaterial
 
@@ -1052,7 +1052,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateScalar(value: unknown, shape: ValueShape | Union, depth: null | number): undefined | Trace {
+	function validateScalar(value: unknown, shape: ValueShape | UnionShape, depth: null | number): undefined | Trace {
 
 		switch ( shape.kind ) {
 
@@ -1097,7 +1097,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateCollection(value: unknown, shape: ValueShape | Union, depth: null | number): undefined | Trace {
+	function validateCollection(value: unknown, shape: ValueShape | UnionShape, depth: null | number): undefined | Trace {
 
 		switch ( shape.kind ) {
 
@@ -1224,17 +1224,17 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 						case "<=":
 						case ">=":
 
-							return [key, validateLimit(v, apply(probe, shape)?.shape)];
+							return [key, validateLimit(v, inspect(shape, probe)?.shape)];
 
 						case "~":
 
-							return [key, validateKeywords(v, apply(probe, shape)?.shape)];
+							return [key, validateKeywords(v, inspect(shape, probe)?.shape)];
 
 						case "?":
 						case "!":
 						case "*":
 
-							return [key, validateOptions(v, apply(probe, shape)?.shape)];
+							return [key, validateOptions(v, inspect(shape, probe)?.shape)];
 
 						case "^":
 
@@ -1268,7 +1268,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 	}
 
 
-	function validateLimit(value: unknown, shape: undefined | ValueShape | Union): undefined | Trace {
+	function validateLimit(value: unknown, shape: undefined | ValueShape | UnionShape): undefined | Trace {
 
 		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
 
@@ -1311,7 +1311,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateKeywords(value: unknown, shape: ValueShape | Union | undefined): undefined | Trace {
+	function validateKeywords(value: unknown, shape: ValueShape | UnionShape | undefined): undefined | Trace {
 
 		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
 
@@ -1348,7 +1348,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateOptions(value: unknown, shape: undefined | ValueShape | Union): undefined | Trace {
+	function validateOptions(value: unknown, shape: undefined | ValueShape | UnionShape): undefined | Trace {
 
 		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
 
@@ -1370,7 +1370,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateOption(value: unknown, shape: ValueShape | Union): undefined | Trace {
+	function validateOption(value: unknown, shape: ValueShape | UnionShape): undefined | Trace {
 
 		if ( value === null ) { // null is a valid option for any value type
 

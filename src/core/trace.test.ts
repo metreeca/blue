@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { collect, every, group, normalise } from "./trace.core.js";
+import { collect, every, group, normalise } from "./trace.js";
 
 
 describe("collect", () => {

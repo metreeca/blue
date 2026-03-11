@@ -206,14 +206,14 @@
  * @see {@link https://www.w3.org/TR/shacl/#ClosedConstraintComponent SHACL § 4.8.1 sh:closed}
  */
 
-import { type Identifier, isString, type Lazy } from "@metreeca/core";
+import { type Identifier, isFunction, isString, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
 import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
 import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
-import { materialize } from "./index.core.js";
-import type { Infer, ValueShape } from "./index.js";
+import { TraceError } from "./core/trace.js";
+import type { Infer, Validator, ValueShape } from "./index.js";
+import { materialize } from "./index.js";
 import { checkSingletons, flatten } from "./resource.core.js";
-import { TraceError, type Validator } from "./trace.js";
 
 
 /**
@@ -752,12 +752,12 @@ export interface PropertyConstraints {
  * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, each
  * property's range is merged according to the following rules.
  *
- * | Field      | Override Rule                                                                |
- * | ---------- | --------------------------------------------------------------------------- |
- * | `kind`     | Cannot be overridden                                                        |
- * | `minCount` | Child ≥ parent, narrowing the minimum cardinality                           |
- * | `maxCount` | Child ≤ parent, narrowing the maximum cardinality                           |
- * | `shape`    | `kind` must match; delegated to value shape or {@link Union} merge rules    |
+ * | Field      | Override Rule                                                                     |
+ * | ---------- | ------------------------------------------------------------------------------- |
+ * | `kind`     | Cannot be overridden                                                              |
+ * | `minCount` | Child ≥ parent, narrowing the minimum cardinality                                |
+ * | `maxCount` | Child ≤ parent, narrowing the maximum cardinality                                |
+ * | `shape`    | `kind` must match; delegated to value shape or {@link UnionShape} merge rules    |
  *
  * **Cross-Field Validation**
  *
@@ -809,18 +809,17 @@ export interface Range<
 	/**
 	 * Shape for all values in the linked set, or a union of value shapes for polymorphic values.
 	 *
-	 * **Inheritance** — `kind` must match; delegated to value shape or {@link Union} merge rules.
+	 * **Inheritance** — `kind` must match; delegated to value shape or {@link UnionShape} merge rules.
 	 */
-	readonly shape: (ValueShape | Union) & { readonly model: T };
+	readonly shape: (ValueShape | UnionShape) & { readonly model: T };
 
 }
 
 /**
  * Discriminated type alternatives for polymorphic property values.
  *
- * Values for union properties are represented as `Indexed` records mapping variant
- * identifiers to values. In JSON-LD, this maps to an indexed container (`@container: @index`), where variant keys
- * serve as type discriminators.
+ * Values for union properties are represented as `Indexed` records mapping variant identifiers to values. In JSON-LD,
+ * this maps to an indexed container (`@container: @index`), where variant keys serve as type discriminators.
  *
  * Unions are pure type discriminators — cardinality constraints belong on the enclosing {@link Range}, not on
  * individual variants.
@@ -848,9 +847,15 @@ export interface Range<
  * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.2 sh:or}
  * @see {@link https://www.w3.org/TR/json-ld11/#data-indexing JSON-LD 1.1 § 4.6.1 Data Indexing}
  */
-export interface Union<
-	V extends { readonly [variant: Identifier]: ValueShape } = { readonly [variant: Identifier]: ValueShape }
-> {
+export interface UnionShape<V extends {
+
+	readonly [variant: Identifier]: ValueShape
+
+} = {
+
+	readonly [variant: Identifier]: ValueShape
+
+}> {
 
 	/**
 	 * Discriminator identifying this as a union.
@@ -1158,7 +1163,7 @@ export function resource(
 	if ( b === undefined ) {
 
 		const properties = a as Entries;
-		const namespace = identify({});
+		const namespace = locate({});
 		const resolved = resolve(normalize(properties), namespace);
 
 		return flatten({
@@ -1175,7 +1180,7 @@ export function resource(
 		const constraints = a as ResourceConstraints;
 		const properties = b;
 
-		const namespace = identify(constraints);
+		const namespace = locate(constraints);
 		const resolved = resolve(normalize(properties, constraints.extends), namespace);
 
 		return flatten({
@@ -1199,7 +1204,7 @@ export function resource(
 	 *
 	 * @returns The effective namespace, resolved in order: declared → inherited → app
 	 */
-	function identify({ namespace, extends: parents }: ResourceConstraints): Namespace {
+	function locate({ namespace, extends: parents }: ResourceConstraints): Namespace {
 
 		if ( namespace !== undefined ) {
 
@@ -1524,7 +1529,7 @@ export function property(a: Range | PropertyConstraints, b?: Range): Property {
  */
 export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShape> }>(
 	variants: V
-): Union<{ readonly [K in keyof V]: V[K] extends Lazy<infer S extends ValueShape> ? S : never }> {
+): UnionShape<{ readonly [K in keyof V]: V[K] extends Lazy<infer S extends ValueShape> ? S : never }> {
 
 	const materialized = Object.fromEntries(
 		Object.entries(variants)
@@ -1541,7 +1546,7 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
 
 		variants: materialized
 
-	}) as Union<{ readonly [K in keyof V]: V[K] extends Lazy<infer S extends ValueShape> ? S : never }>;
+	}) as UnionShape<{ readonly [K in keyof V]: V[K] extends Lazy<infer S extends ValueShape> ? S : never }>;
 
 }
 
@@ -1558,7 +1563,7 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
  *
  * @returns An immutable range with no minimum or maximum count
  */
-export function multiple<S extends ValueShape | Union>(shape: Lazy<S>): Range<S["model"], undefined, undefined> {
+export function multiple<S extends Lazy<ValueShape> | UnionShape>(shape: S): Range<Infer<S>, undefined, undefined> {
 
 	return cardinality(undefined, undefined)(shape);
 
@@ -1576,7 +1581,7 @@ export function multiple<S extends ValueShape | Union>(shape: Lazy<S>): Range<S[
  *
  * @returns An immutable range with minCount=1 and no maximum count
  */
-export function repeatable<S extends ValueShape | Union>(shape: Lazy<S>): Range<S["model"], 1, undefined> {
+export function repeatable<S extends Lazy<ValueShape> | UnionShape>(shape: S): Range<Infer<S>, 1, undefined> {
 
 	return cardinality(1, undefined)(shape);
 
@@ -1594,7 +1599,7 @@ export function repeatable<S extends ValueShape | Union>(shape: Lazy<S>): Range<
  *
  * @returns An immutable range with no minimum count and maxCount=1
  */
-export function optional<S extends ValueShape | Union>(shape: Lazy<S>): Range<S["model"], undefined, 1> {
+export function optional<S extends Lazy<ValueShape> | UnionShape>(shape: S): Range<Infer<S>, undefined, 1> {
 
 	return cardinality(undefined, 1)(shape);
 
@@ -1612,7 +1617,7 @@ export function optional<S extends ValueShape | Union>(shape: Lazy<S>): Range<S[
  *
  * @returns An immutable range with minCount=1 and maxCount=1
  */
-export function required<S extends ValueShape | Union>(shape: Lazy<S>): Range<S["model"], 1, 1> {
+export function required<S extends Lazy<ValueShape> | UnionShape>(shape: S): Range<Infer<S>, 1, 1> {
 
 	return cardinality(1, 1)(shape);
 
@@ -1645,7 +1650,7 @@ export function cardinality<
 >(
 	lower: L,
 	upper?: U
-): <S extends ValueShape | Union>(shape: Lazy<S>) => Range<S["model"], L, U> {
+): <S extends Lazy<ValueShape> | UnionShape>(shape: S) => Range<Infer<S>, L, U> {
 
 	const $lower = lower as L;
 	const $upper = upper as U;
@@ -1662,14 +1667,17 @@ export function cardinality<
 		throw new TypeError(`minCount (${$lower}) cannot exceed maxCount (${$upper})`);
 	}
 
-	return shape => immutable({
+	return <S extends Lazy<ValueShape> | UnionShape>(shape: S) => immutable({
 
 		kind: "range",
 
 		minCount: $lower,
 		maxCount: $upper,
 
-		shape: materialize(shape)
+		shape: (isFunction(shape) ? materialize(shape) : shape) as (ValueShape | UnionShape) & {
+			readonly model: Infer<S>
+		}
 
 	});
+
 }

@@ -22,9 +22,9 @@
 
 import { isNumber } from "@metreeca/core";
 import { immutable } from "@metreeca/core/nested";
+import { collect, every, group, TraceError, wrap } from "./core/trace.js";
+import type { Trace } from "./index.js";
 import type { NumberShape } from "./number.js";
-import { collect, every, group, wrap } from "./trace.core.js";
-import { type Trace, TraceError } from "./trace.js";
 
 
 /**

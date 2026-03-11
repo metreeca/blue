@@ -40,7 +40,10 @@
       "Binding": "https://metreeca.github.io/qest/types/model.Binding.html",
       "isValue": "https://metreeca.github.io/qest/functions/state.isValue.html",
       "isModel": "https://metreeca.github.io/qest/functions/model.isModel.html",
-      "isQuery": "https://metreeca.github.io/qest/functions/model.isQuery.html"
+      "isQuery": "https://metreeca.github.io/qest/functions/model.isQuery.html",
+      "Probe": "https://metreeca.github.io/qest/types/model.Probe.html",
+      "__type.path": "https://metreeca.github.io/qest/types/model.Probe.html",
+      "__type.pipe": "https://metreeca.github.io/qest/types/model.Probe.html"
     }
   },
   "navigationLinks": {

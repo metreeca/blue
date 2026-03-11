@@ -102,6 +102,20 @@
  * audit(validated, { scope: "*" }); // matches both value and entry scopes
  * ```
  *
+ * **Resource Metadata**
+ *
+ * Use {@link identify} and {@link classify} to get or set the `id` and `type` metadata of validated resources.
+ * Both require the resource to have been previously {@link validate | validated}.
+ *
+ * ```typescript
+ * identify(product); // resource identifier or undefined
+ * identify(product, "https://example.com/products/99"); // copy with updated id
+ *
+ * classify(product); // resource type or undefined
+ * classify(product, "https://example.com/types/Product"); // copy with updated type
+ * classify(product, undefined); // copy with type removed
+ * ```
+ *
  * **Custom Validators**
  *
  * Implement custom resource-level constraints using {@link Validator} functions, returning keyed
@@ -137,30 +151,33 @@
  *
  * **Probe Resolution**
  *
- * Use {@link apply} to resolve the effective output shape after applying a probe to a value shape.
+ * Use {@link inspect} to resolve the effective shape after applying a probe to a value shape.
  * Supports type-aware shape inference in interactive UIs, resolving property paths through nested resources
- * and deriving the output type through each transform pipe stage.
+ * and deriving the effective type through each transform pipe stage.
  *
  * @module index
  *
  * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
  */
 
-import { type Lazy } from "@metreeca/core";
-import { message } from "@metreeca/core/error";
+import { type Identifier, isFunction, type Lazy } from "@metreeca/core";
+import { error as report, message } from "@metreeca/core/error";
+import { immutable } from "@metreeca/core/nested";
 import { createRelay, type Relay } from "@metreeca/core/relay";
-import type { Model } from "@metreeca/qest/model";
+import { isIRI } from "@metreeca/core/resource";
+import type { Model, Probe, Transform } from "@metreeca/qest/model";
 import type { Reference, Resource, Value } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
-import { apply, brand, branded, materialize, validateValue } from "./index.core.js";
+import { brand, branded } from "./core/brand.js";
+import { TraceError } from "./core/trace.js";
+import { validateValue } from "./index.core.js";
 import type { LocalShape, LocalsShape } from "./local.js";
-import type { NumberShape } from "./number.js";
+import { decimal, integer, type NumberShape } from "./number.js";
 import { flatten, validateEntry, validateModel, validateResource } from "./resource.core.js";
-import type { ReferenceShape, ResourceShape } from "./resource.js";
-import type { StringShape } from "./string.js";
-import { type Trace, TraceError, type Validator } from "./trace.js";
+import type { Range, ReferenceShape, ResourceShape, UnionShape } from "./resource.js";
+import { date, duration, instant, iri, string, type StringShape, time, timestamp, year } from "./string.js";
 
-export { apply, Trace, TraceError, Validator };
+export { TraceError };
 
 
 /**
@@ -172,6 +189,77 @@ const ValidationScope: unique symbol = Symbol("ValidationScope");
  * Symbol key for storing the associated shape on branded resources.
  */
 const ValidationShape: unique symbol = Symbol("ValidationShape");
+
+
+/**
+ * Registry of transforms mapped to their shape-level type metadata.
+ */
+const Transforms: Record<Transform, {
+
+	/**
+	 * Whether the transform is an aggregate.
+	 *
+	 * Aggregate transforms set `maxCount` to `1`; scalar transforms preserve `maxCount` from the path. All
+	 * transforms set `minCount` to undefined.
+	 */
+	readonly aggregate: boolean,
+
+	readonly accepts: "*" | "numeric" | "temporal" | "string",
+	readonly returns: "*" | "integer" | "decimal" | "string"
+
+}> = immutable({
+
+	count: { aggregate: true, accepts: "*", returns: "integer" },
+	min: { aggregate: true, accepts: "*", returns: "*" },
+	max: { aggregate: true, accepts: "*", returns: "*" },
+	sum: { aggregate: true, accepts: "numeric", returns: "*" },
+	avg: { aggregate: true, accepts: "numeric", returns: "decimal" },
+
+	abs: { aggregate: false, accepts: "numeric", returns: "*" },
+	floor: { aggregate: false, accepts: "numeric", returns: "*" },
+	ceil: { aggregate: false, accepts: "numeric", returns: "*" },
+	round: { aggregate: false, accepts: "numeric", returns: "*" },
+
+	lower: { aggregate: false, accepts: "string", returns: "*" },
+	upper: { aggregate: false, accepts: "string", returns: "*" },
+	length: { aggregate: false, accepts: "string", returns: "integer" },
+
+	year: { aggregate: false, accepts: "temporal", returns: "integer" },
+	month: { aggregate: false, accepts: "temporal", returns: "integer" },
+	day: { aggregate: false, accepts: "temporal", returns: "integer" },
+	hours: { aggregate: false, accepts: "temporal", returns: "integer" },
+	minutes: { aggregate: false, accepts: "temporal", returns: "integer" },
+	seconds: { aggregate: false, accepts: "temporal", returns: "decimal" }
+
+});
+
+/**
+ * Known temporal string shape models.
+ *
+ * Closed set of all model values produced by temporal string shape factories. Used by {@link inspect}
+ * to distinguish temporal strings from plain strings when checking transform compatibility.
+ */
+const Temporal: ReadonlySet<string> = new Set([
+
+	year,
+	date,
+	time,
+	instant,
+	timestamp,
+	duration
+
+].map(factory =>
+	factory().model
+));
+
+
+/**
+ * Cache for materialized values from factory functions.
+ *
+ * Uses WeakMap so factories with unstable identity (local functions, lambdas)
+ * can be garbage collected when they go out of scope.
+ */
+const cache = new WeakMap<() => unknown, unknown>();
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -194,6 +282,39 @@ export type ValueShape =
 	| ResourceShape;
 
 
+/**
+ * Validation trace.
+ *
+ * Represents the result of validating a resource against a shape as a recursive union of violation messages and keyed
+ * reports. An `undefined` trace signals successful validation; a non-empty trace is always a failure.
+ *
+ * Key semantics shift by nesting depth:
+ *
+ * - **Collection level**: resource identifier values
+ * - **Resource level**: property keys (`name`, `type`, …)
+ * - **Property level**: SHACL-derived constraint names (`minLength`, `pattern`, `in`, …)
+ * - **Leaf level**: human-readable error message
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#validation-report | SHACL § 3.6 Validation Report}
+ */
+export type Trace =
+	| string
+	| { readonly [key: string]: Trace }
+
+/**
+ * Value validator.
+ *
+ * A function that examines a value and returns a {@link Trace} describing any constraint violations:
+ *
+ * - `undefined` or `true` signals successful validation with no issues
+ * - A trace describes constraint failures as a keyed report or violation message
+ *
+ * @typeParam T The value type being validated
+ */
+export type Validator<T = unknown> =
+	(value: T) => undefined | true | Trace;
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -211,7 +332,7 @@ export type Infer<S extends Lazy<{ readonly model: unknown }>> =
 			: never;
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Value Methods /////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Checks whether a value was validated with a given scope.
@@ -533,6 +654,500 @@ export function validate(value: unknown, {
 	} catch ( e ) {
 
 		return createRelay({ trace: e instanceof TraceError ? e.cause : message(e) });
+
+	}
+
+}
+
+
+//// Resource Metadata /////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Retrieves the identifier of a validated resource.
+ *
+ * @typeParam T The resource type
+ *
+ * @param resource The resource to inspect; must be already {@link validate | validated} with either `"value"` or
+ *     `"entry"` scope
+ *
+ * @returns The resource identifier or `undefined` if the associated {@link ResourceShape} declares no {@link Id | id}
+ *     property
+ *
+ * @throws Error If `resource` was not previously validated with either `"value"` or `"entry"` scope
+ */
+export function identify<T extends Resource>(resource: T): undefined | Reference ;
+
+/**
+ * Configures the identifier of a validated resource.
+ *
+ * @typeParam T The resource type
+ *
+ * @param resource The resource to configure; must be already {@link validate | validated} with either `"value"` or
+ *     `"entry"` scope
+ * @param id The new identifier to assign
+ *
+ * @returns An immutable copy of `resource` with the identifier set to `id`, preserving validation tagging
+ *
+ * @throws Error If `resource` was not previously validated with either `"value"` or `"entry"` scope
+ * @throws Error If the associated {@link ResourceShape} declares no {@link Id | id} property
+ * @throws Error If `id` is not an absolute IRI
+ */
+export function identify<T extends Resource>(resource: T, id: Reference): T ;
+
+/**
+ * Retrieves or configures the identifier of a validated resource.
+ */
+export function identify<T extends Resource>(resource: T, id?: Reference): undefined | Reference | T {
+
+	const shape = audit(resource, { scope: "*" });
+
+	if ( shape === undefined ) {
+		throw new TypeError("resource is not validated with \"value\" or \"entry\" scope");
+	}
+
+	// find the id property key in the shape
+
+	const entry = Object.entries(shape.properties).find(([, p]) => p.kind === "id");
+
+	if ( id === undefined ) { // getter
+
+		return entry === undefined ? undefined : resource[entry[0]] as Reference;
+
+	} else { // setter
+
+		if ( entry === undefined ) {
+			throw new RangeError("shape declares no id property");
+		}
+
+		if ( !isIRI(id, "absolute") ) {
+			throw new TypeError("id is not an absolute IRI");
+		}
+
+		return brand({ ...resource, [entry[0]]: id }, {
+			[ValidationScope]: branded(resource, ValidationScope),
+			[ValidationShape]: branded(resource, ValidationShape)
+		});
+
+	}
+
+}
+
+
+/**
+ * Retrieves the type of a validated resource.
+ *
+ * @typeParam T The resource type
+ *
+ * @param resource The resource to inspect; must be already {@link validate | validated} with `"value"` scope
+ *
+ * @returns The resource type or `undefined` if the associated {@link ResourceShape} declares no
+ *     {@link Type | type} property
+ *
+ * @throws Error If `resource` was not previously validated with `"value"` scope
+ */
+export function classify<T extends Resource>(resource: T): undefined | Reference ;
+
+/**
+ * Configures the type of a validated resource.
+ *
+ * @typeParam T The resource type
+ *
+ * @param resource The resource to configure; must be already {@link validate | validated} with `"value"` scope
+ * @param type The new type to assign, or `undefined` to remove it
+ *
+ * @returns An immutable copy of `resource` with the type set to `type` or removed, preserving validation tagging
+ *
+ * @throws Error If `resource` was not previously validated with `"value"` scope
+ * @throws Error If the associated {@link ResourceShape} declares no {@link Type | type} property
+ * @throws Error If `type` is defined and not an absolute IRI
+ */
+export function classify<T extends Resource>(resource: T, type: undefined | Reference): T ;
+
+/**
+ * Retrieves or configures the type of a validated resource.
+ */
+export function classify<T extends Resource>(resource: T, type?: Reference): undefined | Reference | T {
+
+	const shape = audit(resource, { scope: "value" });
+
+	if ( shape === undefined ) {
+		throw new TypeError("resource is not validated with \"value\" scope");
+	}
+
+	// find the type property key in the shape
+
+	const entry = Object.entries(shape.properties).find(([, p]) => p.kind === "type");
+
+	if ( arguments.length === 1 ) { // getter
+
+		return entry === undefined ? undefined : resource[entry[0]] as Reference;
+
+	} else { // setter
+
+		if ( entry === undefined ) {
+			throw new RangeError("shape declares no type property");
+		}
+
+		if ( type !== undefined && !isIRI(type, "absolute") ) {
+			throw new TypeError("type is not an absolute IRI");
+		}
+
+		const updated = type !== undefined
+			? { ...resource, [entry[0]]: type }
+			: Object.fromEntries(Object.entries(resource).filter(([k]) => k !== entry[0]));
+
+		return brand(updated as T, {
+			[ValidationScope]: branded(resource, ValidationScope),
+			[ValidationShape]: branded(resource, ValidationShape)
+		});
+
+	}
+
+}
+
+
+//// Shape Methods /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves a lazy value shape, caching factory results for idempotent materialisation.
+ *
+ * When given a factory function, returns the cached result if available, otherwise calls the factory, caches the
+ * result, and returns it. Direct shapes are returned unchanged.
+ *
+ * @param shape A value shape or factory function returning a value shape
+ *
+ * @returns The resolved value shape
+ */
+export function materialize<T extends ValueShape>(shape: Lazy<T>): T {
+
+	if ( isFunction(shape) ) {
+
+		const cached = cache.get(shape) as T;
+
+		if ( cached === undefined ) {
+
+			const resolved = shape();
+
+			cache.set(shape, resolved);
+
+			return resolved;
+
+		} else {
+
+			return cached;
+
+		}
+
+	} else {
+
+		return shape;
+
+	}
+
+}
+
+/**
+ * Inspects a shape through a {@link Probe}, resolving the effective {@link Range}.
+ *
+ * Traverses the {@link Probe.path} segments through nested resource properties to locate the target shape, then applies
+ * the {@link Probe.pipe} transforms to compute the effective range with accumulated cardinality.
+ *
+ * **Shape dispatch:**
+ *
+ * - {@link ResourceShape}: traverses path segments through nested properties
+ * - {@link ReferenceShape}: materialises the lazy target shape, then proceeds as for {@link ResourceShape}
+ * - Other shapes: returns `undefined` for any non-empty path, otherwise applies the transform pipe directly
+ *
+ * **Path traversal** — at each step, flattens inheritance and looks up the next property. Unknown properties resolve
+ * to `undefined`. At {@link UnionShape} boundaries, variants lacking the property are skipped; the path resolves to
+ * `undefined` only when no variant defines it.
+ *
+ * **Pipe application** — applies transforms to the shape resolved by path traversal. Domain violations (a transform
+ * applied outside its declared domain) and invalid compositions (aggregate after aggregate) resolve to `undefined`.
+ *
+ * **Cardinality** — the effective cardinality is the accumulated product of per-step constraints:
+ *
+ * - `minCount`: product across steps; `undefined` if any step has `minCount` undefined or `0`
+ * - `maxCount`: product across steps; `undefined` if any step has `maxCount` undefined
+ * - {@link UnionShape} steps do not introduce additional cardinality
+ * - All transforms set `minCount` to `undefined`; scalar transforms preserve `maxCount`; aggregate transforms set
+ *   `maxCount` to `1`
+ *
+ * @param shape The input value shape to inspect
+ * @param probe The probe containing the property path and transform pipe
+ *
+ * @returns An immutable {@link Range} with accumulated cardinality, or `undefined` when the probe is
+ *     demonstrated to never produce a valid value at runtime
+ *
+ * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
+ */
+export function inspect(shape: Lazy<ValueShape>, { pipe, path }: Probe): Range | undefined {
+
+	type Focus = {
+
+		readonly minCount?: number
+		readonly maxCount?: number
+
+		readonly variants: readonly ValueShape[]
+
+	}
+
+
+	const materialized = materialize(shape);
+
+	return transform(traverse(
+		materialized.kind === "reference" // materialise reference shapes to their target resource shape
+			? materialize(materialized.shape)
+			: materialized
+	));
+
+
+	/**
+	 * Traverse the property path, accumulating cardinality and collecting resolved variants.
+	 */
+	function traverse(shape: ValueShape): Focus | undefined {
+
+		return path.reduce<Focus | undefined>((accumulated, segment) => {
+
+			return accumulated?.variants.reduce<Focus | undefined>((merged, variant) => {
+
+				const resolved = resolve(variant, segment);
+
+				if ( resolved === undefined ) { // skip variants that lack the property
+
+					return merged;
+
+				} else if ( merged === undefined ) { // seed with accumulated cardinality
+
+					return {
+
+						minCount: multiply(accumulated.minCount, resolved.minCount),
+						maxCount: multiply(accumulated.maxCount, resolved.maxCount),
+
+						variants: resolved.variants
+
+					};
+
+				} else { // merge variants
+
+					return {
+
+						minCount: merged.minCount,
+						maxCount: merged.maxCount,
+
+						variants: [...merged.variants, ...resolved.variants]
+					};
+
+				}
+
+			}, undefined);
+
+		}, {
+
+			minCount: 1,
+			maxCount: 1,
+
+			variants: [shape]
+		});
+
+	}
+
+	/**
+	 * Resolve a single property step, returning its cardinality and value shape variants.
+	 */
+	function resolve(shape: ValueShape, property: Identifier): Focus | undefined {
+
+		const resolved = shape.kind === "resource" ? flatten(shape)
+			: shape.kind === "reference" ? flatten(materialize(shape.shape))
+				: undefined;
+
+		const properties = resolved !== undefined
+			? resolved.properties
+			: undefined;
+
+		if ( properties === undefined ) {
+
+			return undefined; // non-traversable leaf type: skip in union context
+
+		} else {
+
+			const entry = properties[property];
+
+			if ( entry === undefined ) {
+
+				return undefined; // undefined property: resolution fails
+
+			} else if ( entry.kind === "id" ) {
+
+				return {
+
+					minCount: 1,
+					maxCount: 1,
+
+					variants: [iri({ variant: "absolute" })]
+
+				};
+
+			} else if ( entry.kind === "type" ) {
+
+				return {
+
+					maxCount: 1,
+
+					variants: [iri({ variant: "absolute" })]
+
+				};
+
+			} else {
+
+				const { range } = entry;
+
+				return {
+
+					minCount: range.minCount,
+					maxCount: range.maxCount,
+
+					variants: range.shape.kind === "union"
+						? Object.values(range.shape.variants)
+						: [range.shape]
+
+				};
+
+			}
+
+		}
+
+	}
+
+	/**
+	 * Multiply optional cardinalities, propagating undefined.
+	 */
+	function multiply(a: number | undefined, b: number | undefined): number | undefined {
+
+		if ( a === undefined || b === undefined ) {
+			return undefined;
+		} else {
+			return a*b === 0 ? undefined : a*b;
+		}
+
+	}
+
+
+	/**
+	 * Apply the transform pipe to each variant, adjusting cardinality and assembling the effective range.
+	 */
+	function transform(focus: Focus | undefined): Range | undefined {
+
+		if ( focus === undefined ) { return undefined; } else {
+
+			const successes = focus.variants
+				.map(reduce)
+				.filter(r => r !== undefined);
+
+			if ( successes.length === 0 ) {
+
+				return undefined;
+
+			} else {
+
+				const piped = pipe.length > 0;
+				const aggregate = pipe.some(name => Transforms[name].aggregate);
+
+				return toRange({
+
+					minCount: piped ? undefined : focus.minCount,
+					maxCount: aggregate ? 1 : focus.maxCount,
+
+					variants: successes
+
+				});
+
+			}
+		}
+	}
+
+	/**
+	 * Apply the transform pipe to a single shape, returning undefined on type incompatibility.
+	 */
+	function reduce(shape: ValueShape): ValueShape | undefined {
+
+		return pipe.reduce<{ shape: ValueShape; aggregate: boolean } | undefined>((state, name) => {
+
+			if ( state === undefined ) { return undefined; } else {
+
+				const localised = isLocalised(state.shape);
+				const transform = Transforms[name];
+
+				const accepted = localised ? (transform.accepts === "string" && transform.returns === "*")
+					: transform.accepts === "*" ? true
+						: transform.accepts === "numeric" ? isNumeric(state.shape)
+							: transform.accepts === "string" ? isTextual(state.shape)
+								: transform.accepts === "temporal" ? isTemporal(state.shape)
+									: false;
+
+				return !accepted || (transform.aggregate && state.aggregate) ? undefined : {
+
+					aggregate: state.aggregate || transform.aggregate,
+
+					shape: transform.returns === "*" ? state.shape
+						: transform.returns === "integer" ? integer()
+							: transform.returns === "decimal" ? decimal()
+								: transform.returns === "string" ? (localised ? state.shape : string())
+									: report<ValueShape>(`unsupported transform output type '${transform.returns}'`)
+
+				};
+
+			}
+
+		}, {
+
+			aggregate: false,
+			shape
+
+		})?.shape;
+
+	}
+
+
+	function isNumeric(shape: ValueShape) {
+		return shape.kind === "number";
+	}
+
+	function isTextual(shape: ValueShape) {
+		return shape.kind === "string" && !Temporal.has(shape.model);
+	}
+
+	function isTemporal(shape: ValueShape) {
+		return shape.kind === "string" && Temporal.has(shape.model);
+	}
+
+	function isLocalised(shape: ValueShape) {
+		return shape.kind === "local" || shape.kind === "locals";
+	}
+
+
+	/**
+	 * Convert a focus to range, wrapping multiple variants into a union.
+	 */
+	function toRange({ minCount, maxCount, variants }: Focus): Range {
+
+		return immutable({
+
+			kind: "range",
+
+			minCount,
+			maxCount,
+
+			shape: variants.length === 1 ? variants[0] : {
+
+				kind: "union",
+
+				model: Object.fromEntries(variants.map((s, i) => [s.kind+"#"+i, s.model])),
+				variants: Object.fromEntries(variants.map((s, i) => [s.kind+"#"+i, s]))
+
+			}
+
+		});
 
 	}
 

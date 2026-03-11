@@ -24,6 +24,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `url()` string factory as a convenience alias for `iri({ variant: "hierarchical" })`
 - Add `const` type parameters to `local()`, `number()`, and `string()` constraint overloads — non-empty array
 	constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
+- Add `identify()` getter/setter for resource `id` metadata on validated resources — getter returns the identifier or
+	`undefined` if the shape declares no `id` property; setter returns an immutable copy with the identifier updated,
+	preserving validation tagging
+- Add `classify()` getter/setter for resource `type` metadata on validated resources — getter returns the type or
+	`undefined` if the shape declares no `type` property; setter accepts `undefined` to remove the type and returns an
+	immutable copy preserving validation tagging
 
 ### Fixed
 
@@ -37,11 +43,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	validation — child shapes can only restrict, never bypass, inherited constraints
 - Reject IRI strings for embedded `ResourceShape` properties in model validation — only nested models are accepted; IRI
 	references are exclusive to `ReferenceShape` properties
+- Support `UnionShape` as non-lazy shape in cardinality type constraints
 
 ### Changed
 
 - Add `TraceError` class extending `RangeError` with a typed `cause: Trace` and pretty-printed trace in the error
 	message — replaces `Object.assign(new RangeError(…), { trace })` for visible diagnostics in stack traces
+- Rename `Union` type to `UnionShape` for naming consistency with other shape types
+- Rename `apply()` to `inspect()` and move from `core/probe` into the main index module
+- Move `materialize()` from `index.core` to `index` and restrict to `ValueShape`
+- Extract internal operators (`brand`, `trace`) to `core/` submodules and use `import type` for index re-exports
 - Replace `Some<Lazy<ResourceShape>>` with inline non-empty tuple for `ResourceConstraints.extends`
 - Shape factories now validate constraint consistency on construction via check functions — contradictory constraints
 	(e.g. `minLength > maxLength`, `hasValue` entries outside `in` set) are rejected with `TraceError`

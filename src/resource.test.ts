@@ -18,6 +18,8 @@ import { asTag } from "@metreeca/core/language";
 import { createNamespace } from "@metreeca/core/resource";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
+import { TraceError } from "./core/trace.js";
+import { type Trace, type Validator } from "./index.js";
 import { local, locals } from "./local.js";
 import { integer } from "./number.js";
 import {
@@ -54,10 +56,9 @@ import {
 	type ResourceShape,
 	type,
 	union,
-	type Union
+	type UnionShape
 } from "./resource.js";
 import { string, year } from "./string.js";
-import { type Trace, TraceError, type Validator } from "./trace.js";
 
 
 describe("factories", () => {
@@ -89,8 +90,8 @@ describe("factories", () => {
 
 				const rangeShape = ((shape.properties.value as Property).range as Range).shape;
 				expect(rangeShape.kind).toBe("union");
-				expect((rangeShape as Union).variants.string.kind).toBe("string");
-				expect((rangeShape as Union).variants.number.kind).toBe("number");
+				expect((rangeShape as UnionShape).variants.string.kind).toBe("string");
+				expect((rangeShape as UnionShape).variants.number.kind).toBe("number");
 
 			});
 
@@ -1035,8 +1036,8 @@ describe("factories", () => {
 
 				const rangeShape = (prop.range as Range).shape;
 				expect(rangeShape.kind).toBe("union");
-				expect((rangeShape as Union).variants.string.kind).toBe("string");
-				expect((rangeShape as Union).variants.number.kind).toBe("number");
+				expect((rangeShape as UnionShape).variants.string.kind).toBe("string");
+				expect((rangeShape as UnionShape).variants.number.kind).toBe("number");
 
 			});
 

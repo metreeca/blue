@@ -24,7 +24,7 @@
  */
 
 import { isObject, isString } from "@metreeca/core";
-import type { Trace, Validator } from "./trace.js";
+import type { Trace, Validator } from "../index.js";
 
 
 /**
@@ -138,4 +138,26 @@ export function normalise(trace: undefined | true | Trace): undefined | Trace {
  */
 export function wrap(value: undefined | Trace): Record<string, Trace> {
 	return isString(value) ? { "{}": value } : value ?? {};
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Error carrying a structured validation {@link Trace}.
+ *
+ * Extends `RangeError` with a typed {@link Trace} as `cause` and includes a pretty-printed trace in the message
+ * for visibility in stack traces and test output.
+ */
+export class TraceError extends RangeError {
+
+	override readonly cause: Trace;
+
+	constructor(message: string, cause: Trace) {
+
+		super(`${message} <${JSON.stringify(cause, undefined, 2)}>`, { cause });
+
+		this.cause = cause;
+	}
+
 }

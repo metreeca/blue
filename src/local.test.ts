@@ -727,7 +727,11 @@ describe("operators", () => {
 				source: { model: { en: ["hello"], fr: ["bonjour"] } }
 			},
 			{ equal: { en: ["hello"], fr: ["bonjour"] } },
-			{ target: { model: { en: ["hello"] } }, source: { model: { fr: ["bonjour"] } }, expected: { en: ["hello"] } }
+			{
+				target: { model: { en: ["hello"] } },
+				source: { model: { fr: ["bonjour"] } },
+				expected: { en: ["hello"] }
+			}
 		]
 
 	] as const)("%s", (_name, merge, factory, kind, defaultModel, nonDefaultModels, equalModel, differentModels) => {
