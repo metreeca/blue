@@ -81,7 +81,7 @@ export function validateLocal(values: readonly unknown[], {
 							|| `expected string length <= <${maxLength}>`,
 
 						"{languageIn}": languageIn === undefined || languageIn.some(range => matchTag(key, range))
-							|| `tag not in allowed languages [${languageIn.join(", ")}]`
+							|| `unsupported tag for allowed languages [${languageIn.join(", ")}]`
 
 					})];
 
@@ -150,7 +150,7 @@ export function validateLocals(values: readonly unknown[], {
 						),
 
 						"{languageIn}": languageIn === undefined || languageIn.some(range => matchTag(key, range))
-							|| `tag not in allowed languages [${languageIn.join(", ")}]`
+							|| `unsupported tag for allowed languages [${languageIn.join(", ")}]`
 
 					})];
 

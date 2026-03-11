@@ -334,7 +334,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 		return every(values, v =>
 			variants.some(variantShape => validateValue([v], variantShape) === undefined)
-			|| "value does not match any union variant"
+			|| "expected value matching at least a union variant"
 		);
 
 	}
@@ -1014,7 +1014,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 		if ( !stats && binding.pipe.some(isAggregate) ) {
 
-			return "aggregate transforms are not enabled";
+			return "disabled aggregate transforms";
 
 		} else {
 
@@ -1091,7 +1091,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 				return Object.values(shape.variants)
 					.some(variant => validateScalar(value, variant, depth) === undefined)
-					? undefined : "value does not match any union variant";
+					? undefined : "expected value matching at least a union variant";
 
 		}
 
@@ -1136,7 +1136,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 				return Object.values(shape.variants)
 					.some(variant => validateCollection(value, variant, depth) === undefined)
-					? undefined : "value does not match any union variant";
+					? undefined : "expected value matching at least a union variant";
 
 		}
 
@@ -1239,7 +1239,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 						case "^":
 
 							return [key, v === "asc" || v === "desc" || isNumber(v) ? undefined
-								: "expected 'asc', 'desc', or number value"
+								: "expected <asc>, <desc>, or number value"
 							];
 
 						case "@":
@@ -1303,7 +1303,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 					return Object.values(shape.variants)
 						.some(variant => validateLimit(value, variant) === undefined)
-						? undefined : "limit does not match any union variant";
+						? undefined : "expected limit matching at least a union variant";
 
 			}
 
@@ -1340,7 +1340,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 					return Object.values(shape.variants)
 						.some(variant => validateKeywords(value, variant) === undefined)
-						? undefined : "keywords do not match any union variant";
+						? undefined : "expected keywords matching at least a union variant";
 
 			}
 
@@ -1409,7 +1409,7 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 					return Object.values(shape.variants)
 						.some(variant => validateOption(value, variant) === undefined)
-						? undefined : "option does not match any union variant";
+						? undefined : "expected option matching at least a union variant";
 
 			}
 

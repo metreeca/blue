@@ -1656,15 +1656,15 @@ export function cardinality<
 	const $upper = upper as U;
 
 	if ( $lower !== undefined && $lower < 0 ) {
-		throw new TypeError(`minCount (${$lower}) cannot be negative`);
+		throw new TypeError(`expected non-negative minCount <${$lower}>`);
 	}
 
 	if ( $upper !== undefined && $upper < 0 ) {
-		throw new TypeError(`maxCount (${$upper}) cannot be negative`);
+		throw new TypeError(`expected non-negative maxCount <${$upper}>`);
 	}
 
 	if ( $lower !== undefined && $upper !== undefined && $lower > $upper ) {
-		throw new TypeError(`minCount (${$lower}) cannot exceed maxCount (${$upper})`);
+		throw new TypeError(`inconsistent bounds <${$lower}> > <${$upper}>`);
 	}
 
 	return <S extends Lazy<ValueShape> | UnionShape>(shape: S) => immutable({

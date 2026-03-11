@@ -670,8 +670,8 @@ export function validate(value: unknown, {
  * @param resource The resource to inspect; must be already {@link validate | validated} with either `"value"` or
  *     `"entry"` scope
  *
- * @returns The resource identifier or `undefined` if the associated {@link ResourceShape} declares no {@link Id | id}
- *     property
+ * @returns The resource identifier or `undefined` if the associated {@link ResourceShape} declares no
+ *     {@link resource.Id | id} property
  *
  * @throws Error If `resource` was not previously validated with either `"value"` or `"entry"` scope
  */
@@ -689,7 +689,7 @@ export function identify<T extends Resource>(resource: T): undefined | Reference
  * @returns An immutable copy of `resource` with the identifier set to `id`, preserving validation tagging
  *
  * @throws Error If `resource` was not previously validated with either `"value"` or `"entry"` scope
- * @throws Error If the associated {@link ResourceShape} declares no {@link Id | id} property
+ * @throws Error If the associated {@link ResourceShape} declares no {@link resource.Id | id} property
  * @throws Error If `id` is not an absolute IRI
  */
 export function identify<T extends Resource>(resource: T, id: Reference): T ;
@@ -702,7 +702,7 @@ export function identify<T extends Resource>(resource: T, id?: Reference): undef
 	const shape = audit(resource, { scope: "*" });
 
 	if ( shape === undefined ) {
-		throw new TypeError("resource is not validated with \"value\" or \"entry\" scope");
+		throw new TypeError("unvalidated resource for <value> or <entry> scope");
 	}
 
 	// find the id property key in the shape
@@ -716,11 +716,11 @@ export function identify<T extends Resource>(resource: T, id?: Reference): undef
 	} else { // setter
 
 		if ( entry === undefined ) {
-			throw new RangeError("shape declares no id property");
+			throw new RangeError("missing id property in shape");
 		}
 
 		if ( !isIRI(id, "absolute") ) {
-			throw new TypeError("id is not an absolute IRI");
+			throw new TypeError("expected absolute IRI");
 		}
 
 		return brand({ ...resource, [entry[0]]: id }, {
@@ -741,7 +741,7 @@ export function identify<T extends Resource>(resource: T, id?: Reference): undef
  * @param resource The resource to inspect; must be already {@link validate | validated} with `"value"` scope
  *
  * @returns The resource type or `undefined` if the associated {@link ResourceShape} declares no
- *     {@link Type | type} property
+ *     {@link resource.Type | type} property
  *
  * @throws Error If `resource` was not previously validated with `"value"` scope
  */
@@ -758,7 +758,7 @@ export function classify<T extends Resource>(resource: T): undefined | Reference
  * @returns An immutable copy of `resource` with the type set to `type` or removed, preserving validation tagging
  *
  * @throws Error If `resource` was not previously validated with `"value"` scope
- * @throws Error If the associated {@link ResourceShape} declares no {@link Type | type} property
+ * @throws Error If the associated {@link ResourceShape} declares no {@link resource.Type | type} property
  * @throws Error If `type` is defined and not an absolute IRI
  */
 export function classify<T extends Resource>(resource: T, type: undefined | Reference): T ;
@@ -771,7 +771,7 @@ export function classify<T extends Resource>(resource: T, type?: Reference): und
 	const shape = audit(resource, { scope: "value" });
 
 	if ( shape === undefined ) {
-		throw new TypeError("resource is not validated with \"value\" scope");
+		throw new TypeError("unvalidated resource for <value> scope");
 	}
 
 	// find the type property key in the shape
@@ -785,11 +785,11 @@ export function classify<T extends Resource>(resource: T, type?: Reference): und
 	} else { // setter
 
 		if ( entry === undefined ) {
-			throw new RangeError("shape declares no type property");
+			throw new RangeError("missing type property in shape");
 		}
 
 		if ( type !== undefined && !isIRI(type, "absolute") ) {
-			throw new TypeError("type is not an absolute IRI");
+			throw new TypeError("expected absolute IRI");
 		}
 
 		const updated = type !== undefined
