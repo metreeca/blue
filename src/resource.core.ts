@@ -47,7 +47,6 @@ import type { StringShape } from "./string.js";
  */
 const Flattened = Symbol("Flattened");
 
-
 /**
  * Pattern format: absolute or root-relative IRI-like template with `{name}` placeholders and `/*` wildcard.
  */

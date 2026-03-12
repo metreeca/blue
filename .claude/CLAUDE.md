@@ -3,6 +3,11 @@ title: Project Guidelines
 description: Development guidelines and conventions for the @metreeca/blue package.
 ---
 
+> [!CAUTION]
+> Activating and following skill guidance is **MANDATORY** for every task. Before starting any work, identify and
+> activate all relevant skills. Skill instructions are binding and override default behaviours. When in doubt about
+> whether skill guidance is current, relevant skills MUST be reloaded.
+
 # References
 
 ## Standards

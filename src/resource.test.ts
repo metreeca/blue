@@ -7592,6 +7592,68 @@ describe("utilities", () => {
 
 		});
 
+		describe("circular extends", () => {
+
+			it("rejects direct self-extension", async () => {
+
+				function Self(): ResourceShape {
+					return resource({ extends: Self }, { name: required(string()) });
+				}
+
+				expect(() => flatten(Self())).toThrow(TraceError);
+
+			});
+
+			it("rejects two-node cycle", async () => {
+
+				function A(): ResourceShape {
+					return resource({ extends: B }, { a: required(string()) });
+				}
+
+				function B(): ResourceShape {
+					return resource({ extends: A }, { b: required(string()) });
+				}
+
+				expect(() => flatten(A())).toThrow(TraceError);
+
+			});
+
+			it("rejects three-node cycle", async () => {
+
+				function A(): ResourceShape {
+					return resource({ extends: B }, { a: required(string()) });
+				}
+
+				function B(): ResourceShape {
+					return resource({ extends: C }, { b: required(string()) });
+				}
+
+				function C(): ResourceShape {
+					return resource({ extends: A }, { c: required(string()) });
+				}
+
+				expect(() => flatten(A())).toThrow(TraceError);
+
+			});
+
+			it("rejects cycle in multi-parent extends", async () => {
+
+				const Base = resource({ base: required(string()) });
+
+				function X(): ResourceShape {
+					return resource({ extends: [Base, Y] }, { x: required(string()) });
+				}
+
+				function Y(): ResourceShape {
+					return resource({ extends: X }, { y: required(string()) });
+				}
+
+				expect(() => flatten(X())).toThrow(TraceError);
+
+			});
+
+		});
+
 	});
 
 	describe("match", () => {

@@ -34,6 +34,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	with memoized caching; all public API `ResourceShape` parameters are resolved through this factory
 - Add `Eager<S>` type alias for the materialized result of a lazy shape
 - Move `Infer<S>` type to `resource.ts` and widen constraint to `Lazy<ValueShape> | UnionShape`
+- Detect circular `extends` chains in `materialize()` — throws `TraceError` with `{ <factory>: "circular dependency" }`
+	keyed by the factory function name
 
 ### Fixed
 

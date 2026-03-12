@@ -1233,7 +1233,7 @@ export function resource(
 
 	if ( isFunction(a) ) {
 
-		return materialize(a) as ResourceShape;
+		return materialize(a as Lazy<ResourceShape>);
 
 	} else if ( "kind" in a && a.kind === "resource" ) {
 
@@ -1261,22 +1261,7 @@ export function resource(
 
 		}
 
-	} else if ( b === undefined ) {
-
-		const properties = a as Entries;
-		const namespace = locate({});
-		const resolved = resolve(normalize(properties), namespace);
-
-		return flatten({
-
-			kind: "resource",
-			model: build(resolved),
-
-			properties: resolved
-
-		});
-
-	} else {
+	} else if ( b !== undefined ) {
 
 		const constraints = a as ResourceConstraints;
 		const properties = b;
@@ -1290,6 +1275,21 @@ export function resource(
 			model: build(resolved, constraints),
 
 			...constraints,
+
+			properties: resolved
+
+		});
+
+	} else {
+
+		const properties = a as Entries;
+		const namespace = locate({});
+		const resolved = resolve(normalize(properties), namespace);
+
+		return flatten({
+
+			kind: "resource",
+			model: build(resolved),
 
 			properties: resolved
 

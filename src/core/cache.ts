@@ -23,14 +23,16 @@
 import { isFunction, type Lazy } from "@metreeca/core";
 import type { ValueShape } from "../index.js";
 import { flatten } from "../resource.core.js";
+import { TraceError } from "./trace.js";
 
 
 /**
  * Cache for materialised shapes from lazy factories.
  *
  * Uses WeakMap so entries are automatically released when the factory function is no longer referenced.
+ * A `null` entry signals a factory currently being resolved, enabling circular dependency detection.
  */
-const cache = new WeakMap<() => ValueShape, ValueShape>();
+const cache = new WeakMap<() => ValueShape, null | ValueShape>();
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -52,14 +54,32 @@ export function materialize<T extends ValueShape>(shape: Lazy<T>): T {
 
 		const cached = cache.get(shape);
 
-		if ( cached === undefined ) {
+		if ( cached === null ) {
 
-			const resolved = shape();
-			const flattened = (resolved.kind === "resource" ? flatten(resolved) : resolved);
+			throw new TraceError("circular extends chain", {
+				[shape.name || "<anonymous>"]: "circular dependency"
+			});
 
-			cache.set(shape, flattened);
+		} else if ( cached === undefined ) {
 
-			return flattened as T;
+			cache.set(shape, null);
+
+			try {
+
+				const resolved = shape();
+				const flattened = (resolved.kind === "resource" ? flatten(resolved) : resolved);
+
+				cache.set(shape, flattened);
+
+				return flattened as T;
+
+			} catch ( error ) {
+
+				cache.delete(shape);
+
+				throw error;
+
+			}
 
 		} else {
 
