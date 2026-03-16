@@ -3075,6 +3075,92 @@ describe("operators", () => {
 
 			});
 
+			describe("indexed union containers", () => {
+
+				const PostalAddress = resource({
+					street: required(string()),
+					city: required(string())
+				});
+
+				const textOrAddress = resource({
+					address: optional(union({
+						text: string(),
+						PostalAddress: reference(PostalAddress)
+					}))
+				});
+
+				const multiTextOrCount = resource({
+					value: repeatable(union({
+						text: string(),
+						count: integer()
+					}))
+				});
+
+
+				it("accepts indexed container with scalar variant", async () => {
+
+					expect(validateResource([{ address: { text: "123 Main St" } }], textOrAddress)).toBeUndefined();
+
+				});
+
+				it("accepts indexed container with reference variant", async () => {
+
+					expect(validateResource([{
+						address: {
+							PostalAddress: {
+								street: "12 Harbour Street",
+								city: "Copenhagen"
+							}
+						}
+					}], textOrAddress)).toBeUndefined();
+
+				});
+
+				it("rejects indexed container with unknown variant key", async () => {
+
+					expect(validateResource([{
+						address: { unknown: "value" }
+					}], textOrAddress)).toHaveProperty(["[0]", "address"]);
+
+				});
+
+				it("rejects indexed container with invalid variant value", async () => {
+
+					expect(validateResource([{
+						address: { text: 42 }
+					}], textOrAddress)).toHaveProperty(["[0]", "address"]);
+
+				});
+
+				it("rejects indexed container with invalid reference variant value", async () => {
+
+					expect(validateResource([{
+						address: {
+							PostalAddress: {
+								street: "12 Harbour Street"
+								// missing required city
+							}
+						}
+					}], textOrAddress)).toHaveProperty(["[0]", "address"]);
+
+				});
+
+				it("accepts indexed container array for repeatable union", async () => {
+
+					expect(validateResource([{
+						value: [{ text: "hello" }, { count: 42 }]
+					}], multiTextOrCount)).toBeUndefined();
+
+				});
+
+				it("accepts absent optional indexed union property", async () => {
+
+					expect(validateResource([{}], textOrAddress)).toBeUndefined();
+
+				});
+
+			});
+
 		});
 
 		describe("combined constraints", () => {

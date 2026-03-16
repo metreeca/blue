@@ -330,10 +330,38 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 		const variants = Object.values(union.variants);
 
-		return every(values, v =>
-			variants.some(variantShape => validateValue([v], variantShape) === undefined)
-			|| "expected value matching at least a union variant"
-		);
+		return every(values, v => {
+
+			if ( isObject(v) ) { // unwrap indexed containers ({ [variant]: value })
+
+				const keys = Object.keys(v);
+				const key = keys[0];
+
+				if ( keys.length === 1 && key in union.variants ) { //indexed container with a recognised variant name
+
+					const variant = union.variants[key];
+
+					// dereference through reference shapes to validate against the target resource
+
+					return variant.kind === "reference"
+						? validateResource([v[key]], materialize(variant.shape))
+						: validateValue([v[key]], variant);
+
+				} else { // not an indexed container: try matching as plain scalar
+
+					return variants.some(variantShape => validateValue([v], variantShape) === undefined)
+						|| "expected value matching at least a union variant";
+
+				}
+
+			} else { // not an object: try matching as plain scalar
+
+				return variants.some(variantShape => validateValue([v], variantShape) === undefined)
+					|| "expected value matching at least a union variant";
+
+			}
+
+		});
 
 	}
 

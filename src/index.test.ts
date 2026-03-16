@@ -388,6 +388,102 @@ describe("shape methods", () => {
 
 		});
 
+		describe("indexed union containers", () => {
+
+			const PostalAddress = resource({
+				street: required(string()),
+				city: required(string())
+			});
+
+			const Contact = resource({
+				address: optional(union({
+					text: string(),
+					PostalAddress: reference(PostalAddress)
+				}))
+			});
+
+
+			it("accepts indexed container with scalar variant in value scope", async () => {
+
+				const result = validate({ address: { text: "123 Main St" } }, { scope: "value", shape: Contact });
+				expect(result({ value: v => v })).toEqual({ address: { text: "123 Main St" } });
+
+			});
+
+			it("accepts indexed container with reference variant in value scope", async () => {
+
+				const result = validate({
+					address: { PostalAddress: { street: "12 Harbour St", city: "Copenhagen" } }
+				}, { scope: "value", shape: Contact });
+
+				expect(result({ value: v => v })).toEqual({
+					address: { PostalAddress: { street: "12 Harbour St", city: "Copenhagen" } }
+				});
+
+			});
+
+			it("rejects indexed container with unknown variant key in value scope", async () => {
+
+				const result = validate({ address: { unknown: "value" } }, { scope: "value", shape: Contact });
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("rejects indexed container with invalid variant value in value scope", async () => {
+
+				const result = validate({ address: { text: 42 } }, { scope: "value", shape: Contact });
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("accepts absent optional indexed union property in value scope", async () => {
+
+				const result = validate({}, { scope: "value", shape: Contact });
+				expect(result({ value: v => v })).toEqual({});
+
+			});
+
+		});
+
+		describe("non-resource shapes", () => {
+
+			it("accepts valid string in value scope", async () => {
+
+				const result = validate("hello", { scope: "value", shape: string() });
+				expect(result({ value: v => v })).toBe("hello");
+
+			});
+
+			it("rejects invalid string in value scope", async () => {
+
+				const result = validate(42, { scope: "value", shape: string() });
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("accepts any value in entry scope for non-resource shape", async () => {
+
+				const result = validate(42, { scope: "entry", shape: string() });
+				expect(result({ entry: v => v })).toBe(42);
+
+			});
+
+			it("accepts valid value in model scope for non-resource shape", async () => {
+
+				const result = validate(42, { scope: "model", shape: integer() });
+				expect(result({ model: v => v })).toBe(42);
+
+			});
+
+			it("rejects invalid value in model scope for non-resource shape", async () => {
+
+				const result = validate("hello", { scope: "model", shape: integer() });
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+		});
+
 		describe("model mode", () => {
 
 			it("returns value for valid model", async () => {

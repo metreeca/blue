@@ -39,6 +39,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Unwrap indexed union containers in value scope validation — previously `validateUnion` passed the whole
+	`{ variantKey: innerValue }` object to each variant without unwrapping, rejecting valid indexed container format
+	documented for union properties; reference variants are now dereferenced through their target resource shape
 - Allow child local/locals shapes to override the parent model during merge — previously required strict deep equality,
 	blocking template labels like `local("{posted} / {author}")` in extending shapes
 - Inherit `forward`/`reverse` metadata when overriding inherited properties with naked Range — previously lost during
