@@ -260,7 +260,7 @@ export interface ReferenceShape {
 	 *
 	 * **Inheritance** — must be strictly equal between parent and child.
 	 *
-	 * @defaultValue `"/"`
+	 * @defaultValue `"app:/"`
 	 */
 	readonly model: Reference;
 
@@ -560,7 +560,7 @@ export interface Id {
 	readonly kind: "id";
 
 	/**
-	 * Excludes the property from default serialization.
+	 * Excludes the property from default serialisation.
 	 *
 	 * **Inheritance** — inherited from the single entry in the hierarchy.
 	 *
@@ -578,7 +578,7 @@ export interface Id {
  *
  * > [!WARNING]
  * > This property is system-managed: its value is derived from the {@link ResourceConstraints.class | class}
- * > constraint defined in the shape. Client-supplied values, for in state updates, are silently ignored.
+ * > constraint defined in the shape. Client-supplied values, for instance in state updates, are silently ignored.
  *
  * **Inheritance**
  *
@@ -604,7 +604,7 @@ export interface Type {
 	readonly kind: "type";
 
 	/**
-	 * Excludes the property from default serialization.
+	 * Excludes the property from default serialisation.
 	 *
 	 * **Inheritance** — inherited from the single entry in the hierarchy.
 	 *
@@ -633,9 +633,12 @@ export interface Type {
  * | `forward`     | Cannot be overridden                                                                  |
  * | `reverse`     | Cannot be overridden                                                                  |
  *
+ * @typeParam P The predicate type for IRI mappings, defaulting to resolved {@link Reference}
+ * @typeParam R The value {@link Range} type, defaulting to unconstrained
+ *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
  */
-export interface Property<R extends Range = Range> extends PropertyConstraints {
+export interface Property<P extends Predicate = Reference, R extends Range = Range> extends PropertyConstraints<P> {
 
 	/**
 	 * Discriminator identifying this as a property shape.
@@ -664,12 +667,14 @@ export interface Property<R extends Range = Range> extends PropertyConstraints {
  * 2. The common inherited namespace from parent shapes
  * 3. The default {@link defaultNamespace} namespace
  *
+ * @typeParam P The predicate type for IRI mappings, defaulting to resolved {@link Reference}
+ *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
  */
-export interface PropertyConstraints {
+export interface PropertyConstraints<P extends Predicate = Reference> {
 
 	/**
-	 * Excludes the property from default serialization.
+	 * Excludes the property from default serialisation.
 	 *
 	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
 	 *
@@ -724,7 +729,7 @@ export interface PropertyConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/json-ld11/#iris JSON-LD 1.1 § 3.2 IRIs}
 	 */
-	readonly forward?: IRI | Namespace;
+	readonly forward?: P;
 
 	/**
 	 * The absolute IRI identifying the property for inverse mapping.
@@ -738,10 +743,20 @@ export interface PropertyConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/json-ld11/#reverse-properties JSON-LD 1.1 § 4.8 Reverse Properties}
 	 */
-	readonly reverse?: IRI | Namespace;
+	readonly reverse?: P;
 
 }
 
+
+/**
+ * Predicate type for property IRI mappings.
+ *
+ * Accepts either a resolved absolute IRI ({@link Reference}) or a {@link Namespace} function that resolves property
+ * names to absolute IRIs. Namespace predicates are resolved to concrete IRIs by the {@link resource} factory.
+ */
+export type Predicate =
+	| Reference
+	| Namespace;
 
 /**
  * Shape for a set of values linked from a resource by a property.
@@ -816,6 +831,7 @@ export interface Range<
 	readonly shape: (ValueShape | UnionShape) & { readonly model: T };
 
 }
+
 
 /**
  * Discriminated type alternatives for polymorphic property values.
@@ -909,7 +925,7 @@ export type Entry =
 	| Id
 	| Type
 	| Range
-	| Property;
+	| Property<Predicate>;
 
 
 //// Type Inferences ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -968,7 +984,8 @@ export type Cardinality<V, L extends undefined | number, U extends undefined | n
 export type Content<E extends Entry> =
 	E extends Id ? IRI
 		: E extends Type ? undefined | IRI
-			: (E extends Property<infer R> ? R : E extends Range ? E : never) extends Range<infer T, infer L, infer U>
+			: (E extends Property<Predicate, infer R> ? R
+			: E extends Range ? E : never) extends Range<infer T, infer L, infer U>
 				? Cardinality<T, L, U>
 				: never;
 
@@ -1155,7 +1172,7 @@ export function resource<T extends ResourceShape>(shape: Lazy<T>): T;
  *
  * @returns An immutable resource shape with the specified properties
  *
- * @throws {TraceError} If entry definitions are invalid (e.g., duplicate id/type markers)
+ * @throws {TraceError} If entry definitions are invalid (for example, duplicate id/type markers)
  *
  * @example
  *
@@ -1228,7 +1245,7 @@ export function resource(
 ): ResourceShape {
 
 	type Parents = ResourceConstraints["extends"];
-	type Properties = ResourceShape["properties"];
+	type Properties<P extends Predicate> = { readonly [property: Identifier]: Id | Type | Property<P> };
 
 
 	if ( isFunction(a) ) {
@@ -1337,9 +1354,9 @@ export function resource(
 	 *
 	 * @returns Normalized properties with range wrapped
 	 */
-	function normalize(entries: Entries, parents?: Parents): Properties {
+	function normalize(entries: Entries, parents?: Parents): Properties<Predicate> {
 
-		const bases: Properties[] = parents === undefined ? []
+		const bases: Properties<Reference>[] = parents === undefined ? []
 			: (Array.isArray(parents) ? parents : [parents])
 				.map(parent => resource(parent).properties);
 
@@ -1396,7 +1413,7 @@ export function resource(
 	 *
 	 * @returns Properties with `forward` and `reverse` resolved to IRIs
 	 */
-	function resolve(properties: Properties, namespace: Namespace): Properties {
+	function resolve(properties: Properties<Predicate>, namespace: Namespace): Properties<Reference> {
 		return Object.fromEntries(Object.entries(properties).map(([name, property]) => {
 
 			if ( property.kind === "id" || property.kind === "type" ) {
@@ -1447,7 +1464,7 @@ export function resource(
 	 *
 	 * @returns An immutable resource model
 	 */
-	function build(properties: Properties, { extends: parents }: ResourceConstraints = {}): Resource {
+	function build(properties: Properties<Reference>, { extends: parents }: ResourceConstraints = {}): Resource {
 
 		const inherited = parents === undefined ? {} : (Array.isArray(parents) ? parents : [parents])
 			.map(parent => resource(parent).model)
@@ -1548,15 +1565,15 @@ export function type(constraints: {
  * Creates a property shape from a value range.
  *
  *
- * @typeParam V The range type
+ * @typeParam R The range type
  *
  * @param range The value range for this property
  *
  * @returns An immutable {@link Property} with the specified range
  */
-export function property<V extends Range>(
-	range: V
-): Property<V>;
+export function property<R extends Range>(
+	range: R
+): Property<Predicate, R>;
 
 /**
  * Creates a property shape with constraints from a value range.
@@ -1567,26 +1584,29 @@ export function property<V extends Range>(
  * internally.
  *
  *
- * @typeParam V The range type
+ * @typeParam R The range type
  *
  * @param constraints Property constraints including IRI mappings and labels
  * @param range The value range for this property
  *
  * @returns An immutable {@link Property} with the specified range
  */
-export function property<V extends Range>(
-	constraints: PropertyConstraints,
-	range: V
-): Property<V>;
+export function property<R extends Range>(
+	constraints: PropertyConstraints<Predicate>,
+	range: R
+): Property<Predicate, R>;
 
 /**
  * Creates property shapes.
  *
  */
-export function property(a: Range | PropertyConstraints, b?: Range): Property {
+export function property<R extends Range>(
+	a: Range | PropertyConstraints<Predicate>,
+	b?: Range
+): Property<Predicate, R> {
 
-	const constraints = (b !== undefined ? a : {}) as PropertyConstraints;
-	const range = (b !== undefined ? b : a) as Range;
+	const constraints = (b !== undefined ? a : {}) as PropertyConstraints<Predicate>;
+	const range = (b !== undefined ? b : a) as R;
 
 	return immutable({
 		kind: "property",
@@ -1768,7 +1788,7 @@ export function cardinality<
 
 	return <S extends Lazy<ValueShape> | UnionShape>(shape: S) => {
 
-		const materialized = "kind" in shape ? shape as ValueShape | UnionShape : materialize(shape as Lazy<ValueShape>);
+		const materialized = "kind" in shape ? shape : materialize(shape);
 
 		return immutable({
 

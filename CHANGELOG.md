@@ -70,6 +70,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	(e.g. `minLength > maxLength`, `hasValue` entries outside `in` set) are rejected with `TraceError`
 - Standardize all trace messages — wrap scalar parameters in `<>` and list parameters in `[]`, start checker messages
 	with adjectives, include offending values in checker diagnostics
+- Parameterise `Property<P, R>` and `PropertyConstraints<P>` with a `Predicate` type parameter distinguishing unresolved
+	namespace predicates from resolved IRI references; export `Predicate` type for consumer use
 - Replace internal `walk` with `flatten` for validation and probe resolution
 - Always key per-resource validation traces by `@id` or blank node in `validateResource`, removing the flat-trace
 	special case for single-resource arrays

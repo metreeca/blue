@@ -3844,14 +3844,13 @@ describe("operators", () => {
 
 	describe("mergeProperty", () => {
 
+		const base: Property = { kind: "property", range: required(string()) };
+
 		describe("kind", () => {
 
 			it("preserves kind as 'property'", async () => {
 
-				const merged = mergeProperty(
-					property(required(string())),
-					property(required(string()))
-				);
+				const merged = mergeProperty(base, base);
 
 				expect(merged.kind).toBe("property");
 
@@ -3864,8 +3863,8 @@ describe("operators", () => {
 			it("delegates range merge", async () => {
 
 				const merged = mergeProperty(
-					property(required(string({ minLength: 5 }))),
-					property(required(string()))
+					{ ...base, range: required(string({ minLength: 5 })) },
+					base
 				);
 
 				expect((merged.range.shape as any).minLength).toBe(5);
@@ -3882,8 +3881,8 @@ describe("operators", () => {
 			it("inherits source value when target has none", async () => {
 
 				const merged = mergeProperty(
-					property(required(string())),
-					property({ [field]: true }, required(string()))
+					base,
+					{ ...base, [field]: true }
 				);
 
 				expect(merged[field]).toBe(true);
@@ -3893,8 +3892,8 @@ describe("operators", () => {
 			it("keeps target value when source has none", async () => {
 
 				const merged = mergeProperty(
-					property({ [field]: true }, required(string())),
-					property(required(string()))
+					{ ...base, [field]: true },
+					base
 				);
 
 				expect(merged[field]).toBe(true);
@@ -3908,8 +3907,8 @@ describe("operators", () => {
 			it("uses target hidden over source hidden", async () => {
 
 				const merged = mergeProperty(
-					property({ hidden: false }, required(string())),
-					property({ hidden: true }, required(string()))
+					{ ...base, hidden: false },
+					{ ...base, hidden: true }
 				);
 
 				expect(merged.hidden).toBe(false);
@@ -3926,8 +3925,8 @@ describe("operators", () => {
 			it("inherits source value when target has none", async () => {
 
 				const merged = mergeProperty(
-					property(required(string())),
-					property({ [field]: "http://example.org/term" }, required(string()))
+					base,
+					{ ...base, [field]: "http://example.org/term" }
 				);
 
 				expect(merged[field]).toBe("http://example.org/term");
@@ -3937,8 +3936,8 @@ describe("operators", () => {
 			it("keeps target value when both define it", async () => {
 
 				const merged = mergeProperty(
-					property({ [field]: "http://target.org/term" }, required(string())),
-					property({ [field]: "http://source.org/term" }, required(string()))
+					{ ...base, [field]: "http://target.org/term" },
+					{ ...base, [field]: "http://source.org/term" }
 				);
 
 				expect(merged[field]).toBe("http://target.org/term");
@@ -3948,8 +3947,8 @@ describe("operators", () => {
 			it("keeps target value when source has none", async () => {
 
 				const merged = mergeProperty(
-					property({ [field]: "http://target.org/term" }, required(string())),
-					property(required(string()))
+					{ ...base, [field]: "http://target.org/term" },
+					base
 				);
 
 				expect(merged[field]).toBe("http://target.org/term");
@@ -3963,8 +3962,8 @@ describe("operators", () => {
 			it("preserves name from target", async () => {
 
 				const merged = mergeProperty(
-					property({ name: { en: "Name" } }, required(string())),
-					property(required(string()))
+					{ ...base, name: { en: "Name" } },
+					base
 				);
 
 				expect(merged.name).toEqual({ en: "Name" });
@@ -3974,8 +3973,8 @@ describe("operators", () => {
 			it("preserves description from target", async () => {
 
 				const merged = mergeProperty(
-					property({ description: { en: "Desc" } }, required(string())),
-					property(required(string()))
+					{ ...base, description: { en: "Desc" } },
+					base
 				);
 
 				expect(merged.description).toEqual({ en: "Desc" });
@@ -7512,7 +7511,7 @@ describe("utilities", () => {
 					...base,
 					properties: {
 						...base.properties,
-						label: property({ forward: "http://example.org/name" }, required(string()))
+						label: { kind: "property", forward: "http://example.org/name", range: required(string()) }
 					}
 				};
 
@@ -7539,7 +7538,7 @@ describe("utilities", () => {
 					...base,
 					properties: {
 						...base.properties,
-						creator: property({ reverse: "http://example.org/owns" }, required(string()))
+						creator: { kind: "property", reverse: "http://example.org/owns", range: required(string()) }
 					}
 				};
 
