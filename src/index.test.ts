@@ -728,6 +728,32 @@ describe("shape methods", () => {
 
 		});
 
+		describe("local shorthand on scalar cardinality", () => {
+
+			it("accepts local object shorthand on optional property", async () => {
+
+				const shape = resource({ label: optional(local()) });
+				const result = validate({ label: { en: "hello" } }, { scope: "value", shape });
+
+				expect(result({ value: v => v })).toEqual({ label: { en: "hello" } });
+
+			});
+
+		});
+
+		describe("locals shorthand on scalar cardinality", () => {
+
+			it("accepts locals array shorthand on optional property", async () => {
+
+				const shape = resource({ labels: optional(locals()) });
+				const result = validate({ labels: ["hello"] }, { scope: "value", shape });
+
+				expect(result({ value: v => v })).toEqual({ labels: ["hello"] });
+
+			});
+
+		});
+
 	});
 
 	describe("apply", () => {

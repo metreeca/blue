@@ -284,12 +284,17 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	}: Range): undefined | Trace {
 
 		const isScalar = maxCount === 1;
+		const isLocals = shape.kind === "locals";
+
+		// wrap locals arrays as a single value: ["v"] is shorthand for { und: ["v"] }
 
 		const values = value === undefined ? []
-			: isArray(value) ? value
+			: isArray(value) && !isLocals ? value
 				: [value];
 
-		if ( isScalar && value !== undefined && isArray(value) ) {
+		if ( isScalar && !isLocals && value !== undefined && isArray(value) ) {
+
+			// bypass array rejection for locals: its array shorthand ["v"] is a valid scalar representation
 
 			return collect({
 
@@ -1064,10 +1069,13 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 		const { maxCount, shape } = range;
 
 		const isScalar = maxCount === 1;
+		const isLocals = shape.kind === "locals";
 
 		if ( isScalar ) {
 
-			return collect(Array.isArray(value)
+			// bypass array rejection for locals: its array shorthand ["v"] is a valid scalar representation
+
+			return collect(Array.isArray(value) && !isLocals
 				? { "{kind}": "expected scalar value" }
 				: wrap(validateScalar(value, shape, depth))
 			);

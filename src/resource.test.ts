@@ -4574,6 +4574,56 @@ describe("operators", () => {
 
 				});
 
+				describe("local shorthand on scalar cardinality", () => {
+
+					it("accepts local string shorthand on scalar property", async () => {
+
+						const shape = resource({ label: required(local()) });
+
+						expect(validateModel([{ label: "hello" }], shape, { depth: 0 })).toBeUndefined();
+
+					});
+
+					it("accepts local object shorthand on scalar property", async () => {
+
+						const shape = resource({ label: required(local()) });
+
+						expect(validateModel([{ label: { en: "hello" } }], shape, { depth: 0 })).toBeUndefined();
+
+					});
+
+				});
+
+				describe("locals shorthand on scalar cardinality", () => {
+
+					it("accepts locals singleton array shorthand on scalar property", async () => {
+
+						const shape = resource({ labels: required(locals()) });
+
+						expect(validateModel([{ labels: ["hello"] }], shape, { depth: 0 })).toBeUndefined();
+
+					});
+
+					it("accepts locals object shorthand on scalar property", async () => {
+
+						const shape = resource({ labels: required(locals()) });
+
+						expect(validateModel([{ labels: { en: ["hello"] } }], shape, { depth: 0 })).toBeUndefined();
+
+					});
+
+					it("rejects locals multi-element array with cardinality error on scalar property", async () => {
+
+						const shape = resource({ labels: optional(locals()) });
+						const trace = validateModel([{ labels: ["alpha", "beta"] } as any], shape, { depth: 0 });
+
+						expect(trace).toBeDefined();
+						expect(JSON.stringify(trace)).not.toContain("expected scalar value");
+
+					});
+
+				});
+
 			});
 
 			describe("undefined template rejected", () => {

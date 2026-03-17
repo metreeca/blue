@@ -39,6 +39,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Accept `locals` array shorthand on scalar cardinality properties in both constraint and value scope validation —
+	previously `validateRange` rejected any array when `maxCount === 1`, blocking the `["v"]` shorthand for `{ und: ["v"] }`
 - Unwrap indexed union containers in value scope validation — previously `validateUnion` passed the whole
 	`{ variantKey: innerValue }` object to each variant without unwrapping, rejecting valid indexed container format
 	documented for union properties; reference variants are now dereferenced through their target resource shape
