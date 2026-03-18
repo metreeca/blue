@@ -135,7 +135,7 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 		kind: target.kind,
 		model: target.model,
 
-		...target.backlink !== undefined && { backlink: target.backlink },
+		...target.foreign !== undefined && { foreign: target.foreign },
 
 		shape: target.shape
 

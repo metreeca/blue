@@ -41,7 +41,7 @@ import {
 	validateResource
 } from "./resource.core.js";
 import {
-	backlink,
+	foreign,
 	cardinality,
 	id,
 	multiple,
@@ -1566,34 +1566,34 @@ describe("factories", () => {
 
 	});
 
-	describe("backlink", () => {
+	describe("foreign", () => {
 
 		describe("shape", () => {
 
 			it("returns a shape with kind 'reference'", async () => {
 
-				expect(backlink(resource({})).kind).toBe("reference");
+				expect(foreign(resource({})).kind).toBe("reference");
 
 			});
 
-			it("returns a shape with backlink set to true", async () => {
+			it("returns a shape with foreign set to true", async () => {
 
-				expect(backlink(resource({})).backlink).toBe(true);
+				expect(foreign(resource({})).foreign).toBe(true);
 
 			});
 
 			it("returns a shape with default model", async () => {
 
-				expect(backlink(resource({})).model).toBe("app:/");
+				expect(foreign(resource({})).model).toBe("app:/");
 
 			});
 
 			it("returns an immutable shape", async () => {
 
-				const shape = backlink(resource({}));
+				const shape = foreign(resource({}));
 
 				expect(() => (shape as any).kind = "string").toThrow();
-				expect(() => (shape as any).backlink = false).toThrow();
+				expect(() => (shape as any).foreign = false).toThrow();
 
 			});
 
@@ -1758,21 +1758,21 @@ describe("operators", () => {
 
 		});
 
-		describe("backlink", () => {
+		describe("foreign", () => {
 
-			it("preserves backlink from target", async () => {
+			it("preserves foreign from target", async () => {
 
-				const merged = mergeReference(backlink(resource({})), backlink(resource({})));
+				const merged = mergeReference(foreign(resource({})), foreign(resource({})));
 
-				expect(merged.backlink).toBe(true);
+				expect(merged.foreign).toBe(true);
 
 			});
 
-			it("preserves absent backlink from target", async () => {
+			it("preserves absent foreign from target", async () => {
 
 				const merged = mergeReference(reference(resource({})), reference(resource({})));
 
-				expect(merged.backlink).toBeUndefined();
+				expect(merged.foreign).toBeUndefined();
 
 			});
 
@@ -4950,24 +4950,24 @@ describe("operators", () => {
 
 			});
 
-			it("accepts backlink property with IRI value", async () => {
+			it("accepts foreign property with IRI value", async () => {
 
 				const Target = resource({ id: id(), name: required(string()) });
 
 				const shape = resource({
-					children: multiple(backlink(Target))
+					children: multiple(foreign(Target))
 				});
 
 				expect(validateModel([{ children: ["app:/items/1"] } as any], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
-			it("accepts backlink property with nested model", async () => {
+			it("accepts foreign property with nested model", async () => {
 
 				const Target = resource({ id: id(), name: required(string()) });
 
 				const shape = resource({
-					children: multiple(backlink(Target))
+					children: multiple(foreign(Target))
 				});
 
 				expect(validateModel([{ children: [{ name: "Child" }] }], shape, { depth: null })).toBeUndefined();

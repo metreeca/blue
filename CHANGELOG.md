@@ -61,6 +61,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Add `TraceError` class extending `RangeError` with a typed `cause: Trace` and pretty-printed trace in the error
 	message — replaces `Object.assign(new RangeError(…), { trace })` for visible diagnostics in stack traces
+- Rename `ReferenceShape.backlink` property and `backlink()` factory to `foreign` for clarity
 - Rename `Union` type to `UnionShape` for naming consistency with other shape types
 - Move probe resolution from `core/probe` into the main index module as `apply(probe, shape)` — swapped argument order
 	for consistency with probe-first pipeline usage
