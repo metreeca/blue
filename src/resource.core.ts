@@ -21,9 +21,9 @@
  */
 
 import { type Identifier, isArray, isBoolean, isNumber, isObject, isString } from "@metreeca/core";
-import { message } from "@metreeca/core/error";
+import { message } from "@metreeca/core/report";
 import { isTagRange } from "@metreeca/core/language";
-import { immutable } from "@metreeca/core/nested";
+import { immutable } from "@metreeca/core/deep";
 import { type IRI, isIRI } from "@metreeca/core/resource";
 import { defaultBase } from "@metreeca/qest/index";
 import { decodeProbe, isAggregate, type Probe } from "@metreeca/qest/model";

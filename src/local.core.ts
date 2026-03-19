@@ -22,7 +22,7 @@
 
 import { isArray, isObject, isString } from "@metreeca/core";
 import { isTag, matchTag } from "@metreeca/core/language";
-import { immutable } from "@metreeca/core/nested";
+import { immutable } from "@metreeca/core/deep";
 import { collect, every, TraceError, wrap } from "./core/trace.js";
 import type { Trace } from "./index.js";
 import type { LocalShape, LocalsShape } from "./local.js";

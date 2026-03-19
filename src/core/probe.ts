@@ -32,8 +32,8 @@ import { decimal, integer } from "../number.js";
 import type { Range, ReferenceShape, ResourceShape, UnionShape } from "../resource.js";
 import { date, duration, instant, iri, string, time, timestamp, year } from "../string.js";
 import { materialize } from "./cache.js";
-import { immutable } from "@metreeca/core/nested";
-import { error } from "@metreeca/core/error";
+import { immutable } from "@metreeca/core/deep";
+import { error } from "@metreeca/core/report";
 
 
 /**

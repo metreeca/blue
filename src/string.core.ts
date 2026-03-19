@@ -21,7 +21,7 @@
  */
 
 import { isString } from "@metreeca/core";
-import { immutable } from "@metreeca/core/nested";
+import { immutable } from "@metreeca/core/deep";
 import { collect, every, group, TraceError, wrap } from "./core/trace.js";
 import type { Trace } from "./index.js";
 import type { StringShape } from "./string.js";

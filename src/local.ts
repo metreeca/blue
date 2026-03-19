@@ -64,7 +64,7 @@
 
 import { isObject, isString } from "@metreeca/core";
 import { type TagRange } from "@metreeca/core/language";
-import { immutable } from "@metreeca/core/nested";
+import { immutable } from "@metreeca/core/deep";
 import { type Locale, type Locales } from "@metreeca/qest/model";
 import { type Local, type Locals } from "@metreeca/qest/state";
 import { TraceError } from "./core/trace.js";

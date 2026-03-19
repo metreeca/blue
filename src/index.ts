@@ -161,7 +161,7 @@
  */
 
 import { type Lazy } from "@metreeca/core";
-import { message } from "@metreeca/core/error";
+import { message } from "@metreeca/core/report";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { isIRI } from "@metreeca/core/resource";
 import type { Model } from "@metreeca/qest/model";

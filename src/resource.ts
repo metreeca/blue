@@ -207,7 +207,7 @@
  */
 
 import { type Identifier, isFunction, isString, type Lazy } from "@metreeca/core";
-import { immutable } from "@metreeca/core/nested";
+import { immutable } from "@metreeca/core/deep";
 import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
 import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
 import { materialize } from "./core/cache.js";

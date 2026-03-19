@@ -106,7 +106,7 @@
  */
 
 import { isNumber } from "@metreeca/core";
-import { immutable } from "@metreeca/core/nested";
+import { immutable } from "@metreeca/core/deep";
 import { TraceError } from "./core/trace.js";
 import { checkNumber } from "./number.core.js";
 

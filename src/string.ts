@@ -118,7 +118,7 @@
  */
 
 import { isRegExp, isString } from "@metreeca/core";
-import { immutable } from "@metreeca/core/nested";
+import { immutable } from "@metreeca/core/deep";
 import type { Variant } from "@metreeca/core/resource";
 import { TraceError } from "./core/trace.js";
 import { checkString } from "./string.core.js";

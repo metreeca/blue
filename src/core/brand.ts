@@ -21,7 +21,7 @@
  */
 
 import { isObject } from "@metreeca/core";
-import { immutable } from "@metreeca/core/nested";
+import { immutable } from "@metreeca/core/deep";
 
 /**
  * Retrieves the payload associated with a symbol-keyed brand property on a value.
