@@ -31,6 +31,16 @@
  * > [decodeResource](https://metreeca.github.io/qest/functions/state.decodeResource.html) or
  * > [decodeQuery](https://metreeca.github.io/qest/functions/query.decodeQuery.html).
  *
+ * **Resource Metadata**
+ *
+ * Use {@link identify} and {@link classify} to retrieve the `id` and `type` metadata of resources given
+ * the associated {@link ResourceShape}.
+ *
+ * ```typescript
+ * identify(product, shape); // resource identifier or undefined
+ * classify(product, shape); // resource type or undefined
+ * ```
+ *
  * **Defining Resource Shapes**
  *
  * Combine property definitions with value ranges to define resource structures:
@@ -199,6 +209,39 @@
  * }
  * ```
  *
+ * **Custom Validators**
+ *
+ * Implement custom resource-level constraints using {@link index!Validator | Validator} functions, returning keyed
+ * {@link index!Trace | Trace} reports:
+ *
+ * ```typescript
+ * import type { Validator } from '@metreeca/blue';
+ *
+ * interface Product { minPrice?: number; maxPrice?: number; startDate?: string; endDate?: string }
+ *
+ * const checkProduct: Validator<Product> = value => {
+ *
+ *   const priceIssue = value.minPrice !== undefined && value.maxPrice !== undefined
+ *       && value.minPrice > value.maxPrice
+ *       ? "minPrice must not exceed maxPrice" : undefined;
+ *
+ *   const dateIssue = value.startDate !== undefined && value.endDate !== undefined
+ *       && value.startDate > value.endDate
+ *       ? "startDate must not follow endDate" : undefined;
+ *
+ *   return priceIssue || dateIssue
+ *       ? { minPrice: priceIssue, startDate: dateIssue } : undefined;
+ *
+ * };
+ *
+ * const Product = resource({ validators: [checkProduct] }, {
+ *   minPrice: optional(integer()),
+ *   maxPrice: optional(integer()),
+ *   startDate: optional(date()),
+ *   endDate: optional(date())
+ * });
+ * ```
+ *
  * @module
  *
  *
@@ -208,7 +251,7 @@
 
 import { type Identifier, isFunction, isString, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
-import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
+import { asIRI, createNamespace, type IRI, isIRI, type Namespace } from "@metreeca/core/resource";
 import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
 import { materialize } from "./core/cache.js";
 import { TraceError } from "./core/trace.js";
@@ -986,7 +1029,7 @@ export type Content<E extends Entry> =
 	E extends Id ? IRI
 		: E extends Type ? undefined | IRI
 			: (E extends Property<Predicate, infer R> ? R
-			: E extends Range ? E : never) extends Range<infer T, infer L, infer U>
+				: E extends Range ? E : never) extends Range<infer T, infer L, infer U>
 				? Cardinality<T, L, U>
 				: never;
 
@@ -1045,6 +1088,49 @@ export type Infer<S extends Lazy<ValueShape> | UnionShape> =
 	S extends () => { readonly model: infer T } ? T
 		: S extends { readonly model: infer T } ? T
 			: never;
+
+
+//// Metadata //////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Retrieves the identifier of a resource.
+ *
+ * @typeParam T The resource type
+ *
+ * @param resource The resource to inspect
+ * @param shape The {@link ResourceShape} describing `resource`
+ *
+ * @returns The resource identifier, if `shape` declares an {@link Id | id} property, `resource` includes one, and the
+ *     value is a well-formed absolute IRI; `undefined` otherwise
+ */
+export function identify<T extends Resource>(resource: T, shape: ResourceShape): undefined | Reference {
+
+	const key = Object.entries(shape.properties).find(([, p]) => p.kind === "id")?.[0];
+	const value = key !== undefined ? resource[key] : undefined;
+
+	return value !== undefined && isIRI(value, "absolute") ? value : undefined;
+
+}
+
+/**
+ * Retrieves the type of a resource.
+ *
+ * @typeParam T The resource type
+ *
+ * @param resource The resource to inspect
+ * @param shape The {@link ResourceShape} describing `resource`
+ *
+ * @returns The resource type if `shape` declares a {@link Type | type} property, `resource` includes one, and the
+ *     value is a well-formed absolute IRI; `undefined` otherwise
+ */
+export function classify<T extends Resource>(resource: T, shape: ResourceShape): undefined | Reference {
+
+	const key = Object.entries(shape.properties).find(([, p]) => p.kind === "type")?.[0];
+	const value = key !== undefined ? resource[key] : undefined;
+
+	return value !== undefined && isIRI(value, "absolute") ? value : undefined;
+
+}
 
 
 //// Resources /////////////////////////////////////////////////////////////////////////////////////////////////////////

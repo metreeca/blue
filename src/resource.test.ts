@@ -41,9 +41,11 @@ import {
 	validateResource
 } from "./resource.core.js";
 import {
+	classify,
 	foreign,
 	cardinality,
 	id,
+	identify,
 	multiple,
 	optional,
 	property,
@@ -60,6 +62,58 @@ import {
 } from "./resource.js";
 import { string, year } from "./string.js";
 
+
+describe("metadata", () => {
+
+	describe("identify", () => {
+
+		it("returns undefined if shape declares no id property", async () => {
+
+			const shape = resource({ name: required(string()) });
+
+			expect(identify({ name: "Alice" }, shape)).toBeUndefined();
+
+		});
+
+		it("returns the identifier from a resource", async () => {
+
+			const shape = resource({ id: id(), name: required(string()) });
+
+			expect(identify({ id: "https://example.com/1", name: "Alice" }, shape)).toBe("https://example.com/1");
+
+		});
+
+	});
+
+	describe("classify", () => {
+
+		it("returns undefined if shape declares no type property", async () => {
+
+			const shape = resource({ name: required(string()) });
+
+			expect(classify({ name: "Alice" }, shape)).toBeUndefined();
+
+		});
+
+		it("returns the type from a resource", async () => {
+
+			const shape = resource({ type: type(), name: required(string()) });
+
+			expect(classify({ type: "https://example.com/Person", name: "Alice" }, shape)).toBe("https://example.com/Person");
+
+		});
+
+		it("returns undefined if type is absent on the resource", async () => {
+
+			const shape = resource({ type: type(), name: required(string()) });
+
+			expect(classify({ name: "Alice" }, shape)).toBeUndefined();
+
+		});
+
+	});
+
+});
 
 describe("factories", () => {
 

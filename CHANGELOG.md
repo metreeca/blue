@@ -24,12 +24,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `url()` string factory as a convenience alias for `iri({ variant: "hierarchical" })`
 - Add `const` type parameters to `local()`, `number()`, and `string()` constraint overloads — non-empty array
 	constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
-- Add `identify()` getter/setter for resource `id` metadata on validated resources — getter returns the identifier or
-	`undefined` if the shape declares no `id` property; setter returns an immutable copy with the identifier updated,
-	preserving validation tagging
-- Add `classify()` getter/setter for resource `type` metadata on validated resources — getter returns the type or
-	`undefined` if the shape declares no `type` property; setter accepts `undefined` to remove the type and returns an
-	immutable copy preserving validation tagging
+- Add `identify(resource, shape)` to retrieve the resource identifier as an absolute IRI given the associated
+	`ResourceShape`; returns `undefined` if the shape declares no `id` property, the resource doesn't include one, or the
+	value is not a well-formed absolute IRI
+- Add `classify(resource, shape)` to retrieve the resource type as an absolute IRI given the associated `ResourceShape`;
+	returns `undefined` if the shape declares no `type` property, the resource doesn't include one, or the value is not a
+	well-formed absolute IRI
 - Add `resource()` overload accepting `Lazy<T>` — validates, materializes, and deeply flattens manual shape definitions
 	with memoized caching; all public API `ResourceShape` parameters are resolved through this factory
 - Add `Eager<S>` type alias for the materialized result of a lazy shape
