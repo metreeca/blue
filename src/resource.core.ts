@@ -21,9 +21,9 @@
  */
 
 import { type Identifier, isArray, isBoolean, isNumber, isObject, isString } from "@metreeca/core";
-import { message } from "@metreeca/core/report";
-import { isTagRange } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/deep";
+import { isTagRange } from "@metreeca/core/language";
+import { message } from "@metreeca/core/report";
 import { type IRI, isIRI } from "@metreeca/core/resource";
 import { defaultBase } from "@metreeca/qest/index";
 import { decodeProbe, isAggregate, type Probe } from "@metreeca/qest/model";
@@ -32,11 +32,12 @@ import type { BooleanShape } from "./boolean.js";
 import { brand, branded } from "./core/brand.js";
 import { materialize } from "./core/cache.js";
 import { collect, every, group, normalise, TraceError, wrap } from "./core/trace.js";
-import { mergeValue, validateValue } from "./index.core.js";
-import { apply, type Trace, type ValueShape } from "./index.js";
+import { mergeValues, validateArrayUnion, validateScalarUnion, validateValue } from "./index.core.js";
+import type { ValuesShape } from "./index.js";
+import { apply, type Trace, type UnionShape, type ValueShape } from "./index.js";
 import type { LocalShape, LocalsShape } from "./local.js";
 import type { NumberShape } from "./number.js";
-import type { Property, Range, ReferenceShape, ResourceShape, UnionShape } from "./resource.js";
+import type { Property, ReferenceShape, ResourceShape } from "./resource.js";
 import type { StringShape } from "./string.js";
 
 
@@ -60,489 +61,6 @@ const PatternFormat = new RegExp(
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates values against a {@link ReferenceShape}.
- *
- * Filters input values by type, reporting non-reference values under the `kind` key, then enforces
- * reference constraints on matched values.
- */
-export function validateReference(values: readonly unknown[], shape: ReferenceShape): undefined | Trace {
-
-	const matching = values.filter(isReference);
-	const mistyped = values.length-matching.length;
-
-	const target = materialize(shape.shape);
-
-	const patterns = target.pattern !== undefined ? [target.pattern] : [];
-	const allowed = target.in !== undefined ? [target.in] : [];
-	const required = target.hasValue !== undefined ? [target.hasValue] : [];
-
-	return collect({
-
-		"{kind}": mistyped === 0
-			|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
-
-		...Object.fromEntries([
-
-			...patterns.map((pattern, i) => [patterns.length > 1 ? `{pattern}[${i}]` : "{pattern}",
-				every(matching, value => match(value, pattern) || `expected IRI matching pattern <${pattern}>`)
-			]),
-
-			...allowed.map((items, i) => [allowed.length > 1 ? `{in}[${i}]` : "{in}",
-				every(matching, value => items.includes(value) || `expected values in [${items.join(", ")}]`)
-			]),
-
-			...required.map((items, i) => [required.length > 1 ? `{hasValue}[${i}]` : "{hasValue}",
-				group(matching, group => items.every(v => group.includes(v)) || `expected values to include [${items.join(", ")}]`)
-			])
-
-		])
-
-	});
-
-}
-
-/**
- * Merges an overriding reference shape with an inherited base shape.
- *
- * All fields are immutable — only model strict equality is checked.
- *
- * @param target The overriding child shape
- * @param source The inherited parent shape
- *
- * @returns The merged shape with combined constraints
- *
- * @throws {TraceError} On incompatible overrides
- */
-export function mergeReference(target: ReferenceShape, source: ReferenceShape): ReferenceShape {
-
-	const trace = collect({
-
-		// structural: model must be strictly equal
-
-		"{model}": target.model === source.model
-			|| `mismatched types <${target.model}> and <${source.model}>`
-
-	});
-
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible reference shape override", trace);
-	}
-
-	return immutable({
-
-		kind: target.kind,
-		model: target.model,
-
-		...target.foreign !== undefined && { foreign: target.foreign },
-
-		shape: target.shape
-
-	});
-
-}
-
-
-/**
- * Validates complete resource states against a {@link ResourceShape}.
- *
- * Checks resource-level constraints (pattern, in, hasValue), property cardinality and value constraints, closed shape
- * enforcement, custom validators, and inherited properties. Unknown and missing properties are both rejected. Returns
- * a keyed trace where outer keys are property names and inner keys are constraint names, or `undefined` if all
- * resources are valid.
- *
- * @param values The resource instances to validate
- * @param shape The resource shape defining the expected structure
- *
- * @returns A keyed trace of constraint violations per property, or `undefined` if all resources are valid
- */
-export function validateResource(values: readonly unknown[], shape: ResourceShape): undefined | Trace {
-
-	const matching = values.filter(value => isObject(value));
-	const mistyped = values.length-matching.length;
-
-
-	// resolve the identifier property key
-
-	const identifier = Object.entries(shape.properties)
-		.find(([, entry]) => entry.kind === "id")
-		?.[0];
-
-	// collect properties
-
-	const entries = new Map(Object.entries(shape.properties));
-
-	// collect validators
-
-	const validators = shape.validators ?? [];
-
-
-	return collect({
-
-		"{kind}": mistyped === 0
-			|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
-
-		...Object.fromEntries(matching.map((resource, index) => [key(resource, index, identifier),
-
-			collect(Object.fromEntries([
-
-				// property validation — validate merged shape properties
-
-				...[...entries].map(([name, entry]) => [name,
-					entry.kind === "id" ? validateId(resource[name], shape)
-						: entry.kind === "type" ? validateType(resource[name])
-							: validateProperty(resource[name], name, shape)
-				]),
-
-
-				// envelope validation — reject unknown properties
-
-				...Object.keys(resource)
-					.filter(key => !entries.has(key))
-					.map(key => [key, "unexpected property"]),
-
-				// custom validators
-
-				...validators
-					.map(validator => [validator.name, normalise(validator(resource as Resource))] as const)
-					.filter(([, trace]) => trace !== undefined)
-					.map(([name, trace], i) => [`{${name || `validator[${i}]`}}`, trace])
-
-			]))
-
-		]))
-
-	});
-
-
-	function validateId(value: unknown, shape: ResourceShape): undefined | Trace {
-
-		const patterns = shape.pattern !== undefined ? [shape.pattern] : [];
-		const allowed = shape.in !== undefined ? [shape.in] : [];
-		const required = shape.hasValue !== undefined ? [shape.hasValue] : [];
-
-		return collect({
-
-			// format validation
-
-			"{kind}": value === undefined ? "expected required id"
-				: Array.isArray(value) ? "expected single value"
-					: !isReference(value) ? "expected absolute IRI"
-						: undefined,
-
-			// constraint validation (conjunctive across inheritance lineage)
-
-			...Object.fromEntries([
-
-				...patterns.map((pattern, i) => [patterns.length > 1 ? `{pattern}[${i}]` : "{pattern}",
-					isReference(value) && match(value, pattern) || `expected IRI matching pattern <${pattern}>`
-				]),
-
-				...allowed.map((items, i) => [allowed.length > 1 ? `{in}[${i}]` : "{in}",
-					isReference(value) && items.includes(value) || `expected values in [${items.join(", ")}]`
-				]),
-
-				...required.map((items, i) => [required.length > 1 ? `{hasValue}[${i}]` : "{hasValue}",
-					isReference(value) && items.includes(value) || `expected values to include [${items.join(", ")}]`
-				])
-
-			])
-
-		});
-
-	}
-
-	function validateType(value: unknown): undefined | Trace {
-
-		return value === undefined ? undefined : collect({
-
-			"{kind}": Array.isArray(value) ? "expected single value"
-				: !isReference(value) ? "expected absolute IRI"
-					: undefined
-
-		});
-
-	}
-
-	function validateProperty(value: unknown, name: Identifier, shape: ResourceShape): undefined | Trace {
-
-		const entry = shape.properties[name];
-
-		return entry?.kind !== "property" ? undefined : collect(Object.fromEntries(
-			Object.entries(validateRange(value, entry.range) ?? {})
-		));
-
-	}
-
-	function validateRange(value: unknown, {
-
-		minCount,
-		maxCount,
-		shape
-
-	}: Range): undefined | Trace {
-
-		const isScalar = maxCount === 1;
-		const isLocals = shape.kind === "locals";
-
-		// wrap locals arrays as a single value: ["v"] is shorthand for { und: ["v"] }
-
-		const values = value === undefined ? []
-			: isArray(value) && !isLocals ? value
-				: [value];
-
-		if ( isScalar && !isLocals && value !== undefined && isArray(value) ) {
-
-			// bypass array rejection for locals: its array shorthand ["v"] is a valid scalar representation
-
-			return collect({
-
-				"{kind}": "expected scalar value"
-
-			});
-
-		} else if ( !isScalar && value !== undefined && !isArray(value) ) {
-
-			return collect({
-
-				"{kind}": "expected array value"
-
-			});
-
-		} else {
-
-			return collect({
-
-				"{minCount}": minCount === undefined || values.length >= minCount
-					|| `expected at least <${minCount}> value(s)`,
-
-				"{maxCount}": maxCount === undefined || values.length <= maxCount
-					|| `expected at most <${maxCount}> value(s)`,
-
-				...wrap(shape.kind === "union"
-					? validateUnion(values, shape)
-					: validateValue(values, shape)
-				)
-
-			});
-
-		}
-
-	}
-
-	function validateUnion(values: readonly unknown[], union: UnionShape): undefined | Trace {
-
-		const variants = Object.values(union.variants);
-
-		return every(values, v => {
-
-			if ( isObject(v) ) { // unwrap indexed containers ({ [variant]: value })
-
-				const keys = Object.keys(v);
-				const key = keys[0];
-
-				if ( keys.length === 1 && key in union.variants ) { //indexed container with a recognised variant name
-
-					const variant = union.variants[key];
-
-					// dereference through reference shapes to validate against the target resource
-
-					return variant.kind === "reference"
-						? validateResource([v[key]], materialize(variant.shape))
-						: validateValue([v[key]], variant);
-
-				} else { // not an indexed container: try matching as plain scalar
-
-					return variants.some(variantShape => validateValue([v], variantShape) === undefined)
-						|| "expected value matching at least a union variant";
-
-				}
-
-			} else { // not an object: try matching as plain scalar
-
-				return variants.some(variantShape => validateValue([v], variantShape) === undefined)
-					|| "expected value matching at least a union variant";
-
-			}
-
-		});
-
-	}
-
-}
-
-/**
- * Merges an overriding resource shape with an inherited base shape.
- *
- * @param target The overriding child shape
- * @param source The inherited parent shape
- *
- * @returns The merged shape with combined constraints
- *
- * @throws {TraceError} On incompatible overrides
- */
-export function mergeResource(target: ResourceShape, source: ResourceShape): ResourceShape {
-
-	// conjunctive: classes — union of parent class and own/parent classes
-
-	const classes: readonly IRI[] = [...new Set([
-		...source.class !== undefined ? [source.class] : [],
-		...source.classes ?? [],
-		...target.classes ?? []
-	])];
-
-	// conjunctive: in — intersection
-
-	const allowed = target.in !== undefined && source.in !== undefined
-		? target.in.filter(v => source.in!.includes(v))
-		: target.in ?? source.in;
-
-	// conjunctive: hasValue — union
-
-	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
-		? [...new Set([...target.hasValue, ...source.hasValue])]
-		: target.hasValue ?? source.hasValue;
-
-	// conjunctive: validators — union (deduplicated)
-
-	const validators = target.validators !== undefined && source.validators !== undefined
-		? [...new Set([...target.validators, ...source.validators])]
-		: target.validators ?? source.validators;
-
-	// conjunctive: properties — union with per-key merge
-
-	const keys = [...new Set([
-
-		...Object.keys(target.properties),
-		...Object.keys(source.properties)
-
-	])];
-
-	const properties = Object.fromEntries(keys.map(key => {
-
-		const t = target.properties[key];
-		const s = source.properties[key];
-
-		if ( t === undefined || s === undefined ) {
-
-			return [key, t ?? s];
-
-		} else if ( t.kind === "property" && s.kind === "property" ) {
-
-			return [key, mergeProperty(t, s)];
-
-		} else {
-
-			return [key, t]; // immutable (id/type) or validated below
-
-		}
-
-	}));
-
-	// validate
-
-	const trace = collect({
-
-		// conjunctive: pattern — IRI pattern compatibility
-
-		"{pattern}": target.pattern === undefined || source.pattern === undefined
-			|| narrows(target.pattern, source.pattern)
-			|| `incompatible IRI templates <${target.pattern}> and <${source.pattern}>`,
-
-		// conjunctive: in — empty intersection
-
-		"{in}": target.in === undefined || source.in === undefined
-			|| allowed!.length !== 0
-			|| `disjoint sets [${target.in}] and [${source.in}]`,
-
-		// conjunctive: properties — kind mismatches
-
-		...Object.fromEntries(keys
-			.filter(key => !(
-				target.properties[key] === undefined || source.properties[key] === undefined
-				|| target.properties[key].kind === source.properties[key].kind
-			))
-			.map(key => [`{${key}}`,
-				`mismatched entry kinds <${target.properties[key].kind}> vs <${source.properties[key].kind}>`
-			])
-		),
-
-		// post-merge constraint consistency
-
-		...wrap(checkResource({
-
-			in: allowed,
-			hasValue
-
-		}))
-
-	});
-
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible resource shape override", trace);
-	}
-
-	// build shape — casts are safe: non-emptiness validated above
-
-	return immutable({
-
-		kind: target.kind,
-
-		model: {
-
-			...source.model,
-
-			...Object.fromEntries(Object.entries(properties).map(([name, entry]) => [name,
-				entry.kind === "id" || entry.kind === "type" ? defaultBase
-					: entry.range.maxCount === 1 ? entry.range.shape.model
-						: [entry.range.shape.model]
-			]))
-
-		},
-
-		virtual: target.virtual ?? source.virtual,
-
-		name: target.name,
-		description: target.description,
-
-		namespace: target.namespace ?? source.namespace,
-		extends: target.extends,
-
-		class: target.class,
-		classes: classes as ResourceShape["classes"],
-
-		pattern: target.pattern ?? source.pattern,
-
-		in: allowed as ResourceShape["in"],
-		hasValue: hasValue as ResourceShape["hasValue"],
-		validators: validators as ResourceShape["validators"],
-
-		properties
-
-	});
-
-
-	/**
-	 * Checks whether a target IRI pattern narrows a source pattern.
-	 *
-	 * Only trailing `/*` wildcards admit narrowing: the target may replace `/*` with more specific segments,
-	 * provided the fixed prefix matches. All other cases require exact equality.
-	 *
-	 * @param target The overriding child pattern
-	 * @param source The inherited parent pattern
-	 *
-	 * @returns `true` if the target narrows or equals the source
-	 */
-	function narrows(target: string, source: string): boolean {
-
-		return target === source ? true
-			: source.endsWith("/*") ? target.startsWith(source.slice(0, -1))
-				: false;
-
-	}
-
-}
 
 /**
  * Checks internal consistency of resource shape constraints.
@@ -714,187 +232,265 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
 
 
 /**
- * Merges an overriding property with an inherited base property.
+ * Validates values against a {@link ReferenceShape}.
  *
- * Delegates range merge to {@link mergeRange}. Inheritable fields (`hidden`, `computed`) fall back
- * to the source value when the target doesn't define them. Immutable fields (`name`, `description`,
- * `forward`, `reverse`) are preserved from the target.
- *
- * @param target The overriding child property
- * @param source The inherited parent property
- *
- * @returns The merged property
- *
- * @throws {TraceError} On incompatible overrides
+ * Filters input values by type, reporting non-reference values under the `kind` key, then enforces
+ * reference constraints on matched values.
  */
-export function mergeProperty(target: Property, source: Property): Property {
+export function validateReference(values: readonly unknown[], shape: ReferenceShape): undefined | Trace {
 
-	return immutable({
+	const matching = values.filter(isReference);
+	const mistyped = values.length-matching.length;
 
-		kind: target.kind,
+	const target = materialize(shape.shape);
 
-		...target.hidden !== undefined ? { hidden: target.hidden }
-			: source.hidden !== undefined ? { hidden: source.hidden }
-				: {},
+	const patterns = target.pattern !== undefined ? [target.pattern] : [];
+	const allowed = target.in !== undefined ? [target.in] : [];
+	const required = target.hasValue !== undefined ? [target.hasValue] : [];
 
-		...target.computed !== undefined ? { computed: target.computed }
-			: source.computed !== undefined ? { computed: source.computed }
-				: {},
+	return collect({
 
-		name: target.name,
-		description: target.description,
+		"{kind}": mistyped === 0
+			|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
-		...target.forward !== undefined ? { forward: target.forward }
-			: source.forward !== undefined ? { forward: source.forward }
-				: {},
+		...Object.fromEntries([
 
-		...target.reverse !== undefined ? { reverse: target.reverse }
-			: source.reverse !== undefined ? { reverse: source.reverse }
-				: {},
+			...patterns.map((pattern, i) => [patterns.length > 1 ? `{pattern}[${i}]` : "{pattern}",
+				every(matching, value => match(value, pattern) || `expected IRI matching pattern <${pattern}>`)
+			]),
 
-		range: mergeRange(target.range, source.range)
+			...allowed.map((items, i) => [allowed.length > 1 ? `{in}[${i}]` : "{in}",
+				every(matching, value => items.includes(value) || `expected values in [${items.join(", ")}]`)
+			]),
+
+			...required.map((items, i) => [required.length > 1 ? `{hasValue}[${i}]` : "{hasValue}",
+				group(matching, group => items.every(v => group.includes(v)) || `expected values to include [${items.join(", ")}]`)
+			])
+
+		])
 
 	});
 
 }
 
 /**
- * Merges an overriding range with an inherited base range.
+ * Validates complete resource states against a {@link ResourceShape}.
  *
- * Narrows cardinality bounds and delegates value shape merge to the appropriate shape-specific
- * merge function via {@link mergeValue} or {@link mergeUnion}.
+ * Checks resource-level constraints (pattern, in, hasValue), property cardinality and value constraints, closed shape
+ * enforcement, custom validators, and inherited properties. Unknown and missing properties are both rejected. Returns
+ * a keyed trace where outer keys are property names and inner keys are constraint names, or `undefined` if all
+ * resources are valid.
  *
- * @param target The overriding child range
- * @param source The inherited parent range
+ * @param values The resource instances to validate
+ * @param shape The resource shape defining the expected structure
  *
- * @returns The merged range
- *
- * @throws {TraceError} On incompatible overrides
+ * @returns A keyed trace of constraint violations per property, or `undefined` if all resources are valid
  */
-export function mergeRange(target: Range, source: Range): Range {
+export function validateResource(values: readonly unknown[], shape: ResourceShape): undefined | Trace {
 
-	// merged constraints
+	const matching = values.filter(value => isObject(value));
+	const mistyped = values.length-matching.length;
 
-	const minCount = target.minCount ?? source.minCount;
-	const maxCount = target.maxCount ?? source.maxCount;
 
-	// validate
+	// resolve the identifier property key
 
-	const trace = collect({
+	const identifier = Object.entries(shape.properties)
+		.find(([, entry]) => entry.kind === "id")
+		?.[0];
 
-		// narrow: minCount — child >= parent
+	// collect properties
 
-		"{minCount}": target.minCount === undefined || source.minCount === undefined
-			|| target.minCount >= source.minCount
-			|| `widened limit <${target.minCount}> beyond <${source.minCount}>`,
+	const entries = new Map(Object.entries(shape.properties));
 
-		// narrow: maxCount — child <= parent
+	// collect validators
 
-		"{maxCount}": target.maxCount === undefined || source.maxCount === undefined
-			|| target.maxCount <= source.maxCount
-			|| `widened limit <${target.maxCount}> beyond <${source.maxCount}>`,
+	const validators = shape.validators ?? [];
 
-		// structural: shape kind must match
 
-		"{shape}": target.shape.kind === source.shape.kind
-			|| `mismatched kinds <${target.shape.kind}> vs <${source.shape.kind}>`,
+	return collect({
 
-		// post-merge constraint consistency
+		"{kind}": mistyped === 0
+			|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
-		...wrap(checkRange({ minCount, maxCount }))
+		...Object.fromEntries(matching.map((resource, index) => [key(resource, index, identifier),
+
+			collect(Object.fromEntries([
+
+				// property validation — validate merged shape properties
+
+				...[...entries].map(([name, entry]) => [name,
+					entry.kind === "id" ? validateId(resource[name], shape)
+						: entry.kind === "type" ? validateType(resource[name])
+							: validateProperty(resource[name], name, shape)
+				]),
+
+
+				// envelope validation — reject unknown properties
+
+				...Object.keys(resource)
+					.filter(key => !entries.has(key))
+					.map(key => [key, "unexpected property"]),
+
+				// custom validators
+
+				...validators
+					.map(validator => [validator.name, normalise(validator(resource as Resource))] as const)
+					.filter(([, trace]) => trace !== undefined)
+					.map(([name, trace], i) => [`{${name || `validator[${i}]`}}`, trace])
+
+			]))
+
+		]))
 
 	});
 
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible range override", trace);
+
+	function validateId(value: unknown, shape: ResourceShape): undefined | Trace {
+
+		const patterns = shape.pattern !== undefined ? [shape.pattern] : [];
+		const allowed = shape.in !== undefined ? [shape.in] : [];
+		const required = shape.hasValue !== undefined ? [shape.hasValue] : [];
+
+		return collect({
+
+			// format validation
+
+			"{kind}": value === undefined ? "expected required id"
+				: Array.isArray(value) ? "expected single value"
+					: !isReference(value) ? "expected absolute IRI"
+						: undefined,
+
+			// constraint validation (conjunctive across inheritance lineage)
+
+			...Object.fromEntries([
+
+				...patterns.map((pattern, i) => [patterns.length > 1 ? `{pattern}[${i}]` : "{pattern}",
+					isReference(value) && match(value, pattern) || `expected IRI matching pattern <${pattern}>`
+				]),
+
+				...allowed.map((items, i) => [allowed.length > 1 ? `{in}[${i}]` : "{in}",
+					isReference(value) && items.includes(value) || `expected values in [${items.join(", ")}]`
+				]),
+
+				...required.map((items, i) => [required.length > 1 ? `{hasValue}[${i}]` : "{hasValue}",
+					isReference(value) && items.includes(value) || `expected values to include [${items.join(", ")}]`
+				])
+
+			])
+
+		});
+
 	}
 
-	// build range
+	function validateType(value: unknown): undefined | Trace {
 
-	return immutable({
+		return value === undefined ? undefined : collect({
 
-		kind: target.kind,
+			"{kind}": Array.isArray(value) ? "expected single value"
+				: !isReference(value) ? "expected absolute IRI"
+					: undefined
+
+		});
+
+	}
+
+	function validateProperty(value: unknown, name: Identifier, shape: ResourceShape): undefined | Trace {
+
+		const entry = shape.properties[name];
+
+		return entry?.kind !== "property" ? undefined : collect(Object.fromEntries(
+			Object.entries(validateValues(value, entry.range) ?? {})
+		));
+
+	}
+
+	function validateValues(value: unknown, {
 
 		minCount,
 		maxCount,
 
-		shape: target.shape.kind === "union"
-			? mergeUnion(target.shape, source.shape as UnionShape)
-			: mergeValue(target.shape as ValueShape, source.shape as ValueShape)
+		shape
 
-	});
+	}: ValuesShape): undefined | Trace {
 
-}
+		const isScalar = maxCount === 1;
+		const isLocalised = shape.kind === "local" || shape.kind === "locals";
 
-/**
- * Merges an overriding union with an inherited base union.
- *
- * Variant keys must match exactly between target and source. Each matched variant is merged
- * using the appropriate value shape merge function.
- *
- * @param target The overriding child union
- * @param source The inherited parent union
- *
- * @returns The merged union
- *
- * @throws {TraceError} On variant key mismatch or incompatible variant overrides
- */
-export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
+		const count = cardinality(value);
 
-	const targetKeys = Object.keys(target.variants).sort();
-	const sourceKeys = Object.keys(source.variants).sort();
+		// wrap locals arrays as a single value: ["v"] is shorthand for { und: ["v"] }
 
-	if ( targetKeys.join(",") !== sourceKeys.join(",") ) {
-		throw new RangeError(`mismatched variant keys [${targetKeys.join(", ")}] and [${sourceKeys.join(", ")}]`);
+		const values = value === undefined ? []
+			: isLocalised || !isArray(value) ? [value]
+				: value;
+
+		return collect({
+
+			"{minCount}": minCount === undefined || count >= minCount
+				|| `expected at least <${minCount}> value(s)`,
+
+			"{maxCount}": maxCount === undefined || count <= maxCount
+				|| `expected at most <${maxCount}> value(s)`,
+
+			...wrap(shape.kind === "union"
+
+				? isScalar
+					? validateScalarUnion(values, shape)
+					: validateArrayUnion(values, shape)
+
+				: isLocalised // scalar/array guard handled internally by validateLocal/s
+
+					? validateValue(values, shape)
+
+					: isScalar
+
+						? isArray(value)
+							? collect({ "{kind}": "expected scalar value" })
+							: validateValue(values, shape)
+
+						: value !== undefined && !isArray(value)
+							? collect({ "{kind}": "expected array value" })
+							: validateValue(values, shape)
+			)
+
+		});
+
+
+		function cardinality(value: unknown): number {
+
+			if ( value === undefined ) {
+
+				return 0;
+
+			} else {
+
+				switch ( shape.kind ) {
+
+					case "union":
+					case "local":
+					case "locals":
+
+						return isObject(value)
+							? Object.values(value).reduce<number>(
+								(total, value) => total+(isArray(value) ? value.length : 1),
+								0
+							)
+							: isArray(value) ? value.length // array locals shorthand
+								: 1; // scalar local shorthand
+
+					default:
+
+						return isArray(value) ? value.length : 1;
+
+				}
+
+			}
+
+		}
+
 	}
 
-	const variants = Object.fromEntries(
-		targetKeys.map(key => [key, mergeValue(target.variants[key], source.variants[key])])
-	);
-
-	return immutable({
-
-		kind: target.kind,
-
-		model: Object.fromEntries(
-			Object.entries(variants).map(([key, shape]) => [key, shape.model])
-		),
-
-		variants
-
-	});
-
 }
-
-/**
- * Checks internal consistency of range constraints.
- *
- * @param constraints The constraint fields to check
- *
- * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
- */
-export function checkRange({
-
-	minCount,
-	maxCount
-
-}: {
-
-	readonly minCount?: number;
-	readonly maxCount?: number;
-
-}): undefined | Trace {
-
-	return collect({
-
-		"{minCount/maxCount}": minCount === undefined || maxCount === undefined
-			|| minCount <= maxCount
-			|| `inconsistent bounds <${minCount}> > <${maxCount}>`
-
-	});
-
-}
-
 
 /**
  * Validates entry identity against a {@link ResourceShape}.
@@ -1060,11 +656,11 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 		// undefined effective range means the binding cannot be populated at runtime; template is immaterial
 
-		return effective === undefined ? undefined : validateRange(value, effective, depth);
+		return effective === undefined ? undefined : validateValues(value, effective, depth);
 
 	}
 
-	function validateRange(value: unknown, range: Range, depth: null | number): undefined | Trace {
+	function validateValues(value: unknown, range: ValuesShape, depth: null | number): undefined | Trace {
 
 		const { maxCount, shape } = range;
 
@@ -1465,6 +1061,263 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 		}
 
 	}
+
+}
+
+
+/**
+ * Merges an overriding reference shape with an inherited base shape.
+ *
+ * All fields are immutable — only model strict equality is checked.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns The merged shape with combined constraints
+ *
+ * @throws {TraceError} On incompatible overrides
+ */
+export function mergeReference(target: ReferenceShape, source: ReferenceShape): ReferenceShape {
+
+	const trace = collect({
+
+		// structural: model must be strictly equal
+
+		"{model}": target.model === source.model
+			|| `mismatched types <${target.model}> and <${source.model}>`
+
+	});
+
+	if ( trace !== undefined ) {
+		throw new TraceError("incompatible reference shape override", trace);
+	}
+
+	return immutable({
+
+		kind: target.kind,
+		model: target.model,
+
+		...target.foreign !== undefined && { foreign: target.foreign },
+
+		shape: target.shape
+
+	});
+
+}
+
+/**
+ * Merges an overriding resource shape with an inherited base shape.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns The merged shape with combined constraints
+ *
+ * @throws {TraceError} On incompatible overrides
+ */
+export function mergeResource(target: ResourceShape, source: ResourceShape): ResourceShape {
+
+	// conjunctive: classes — union of parent class and own/parent classes
+
+	const classes: readonly IRI[] = [...new Set([
+		...source.class !== undefined ? [source.class] : [],
+		...source.classes ?? [],
+		...target.classes ?? []
+	])];
+
+	// conjunctive: in — intersection
+
+	const allowed = target.in !== undefined && source.in !== undefined
+		? target.in.filter(v => source.in!.includes(v))
+		: target.in ?? source.in;
+
+	// conjunctive: hasValue — union
+
+	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
+		? [...new Set([...target.hasValue, ...source.hasValue])]
+		: target.hasValue ?? source.hasValue;
+
+	// conjunctive: validators — union (deduplicated)
+
+	const validators = target.validators !== undefined && source.validators !== undefined
+		? [...new Set([...target.validators, ...source.validators])]
+		: target.validators ?? source.validators;
+
+	// conjunctive: properties — union with per-key merge
+
+	const keys = [...new Set([
+
+		...Object.keys(target.properties),
+		...Object.keys(source.properties)
+
+	])];
+
+	const properties = Object.fromEntries(keys.map(key => {
+
+		const t = target.properties[key];
+		const s = source.properties[key];
+
+		if ( t === undefined || s === undefined ) {
+
+			return [key, t ?? s];
+
+		} else if ( t.kind === "property" && s.kind === "property" ) {
+
+			return [key, mergeProperty(t, s)];
+
+		} else {
+
+			return [key, t]; // immutable (id/type) or validated below
+
+		}
+
+	}));
+
+	// validate
+
+	const trace = collect({
+
+		// conjunctive: pattern — IRI pattern compatibility
+
+		"{pattern}": target.pattern === undefined || source.pattern === undefined
+			|| narrows(target.pattern, source.pattern)
+			|| `incompatible IRI templates <${target.pattern}> and <${source.pattern}>`,
+
+		// conjunctive: in — empty intersection
+
+		"{in}": target.in === undefined || source.in === undefined
+			|| allowed!.length !== 0
+			|| `disjoint sets [${target.in}] and [${source.in}]`,
+
+		// conjunctive: properties — kind mismatches
+
+		...Object.fromEntries(keys
+			.filter(key => !(
+				target.properties[key] === undefined || source.properties[key] === undefined
+				|| target.properties[key].kind === source.properties[key].kind
+			))
+			.map(key => [`{${key}}`,
+				`mismatched entry kinds <${target.properties[key].kind}> vs <${source.properties[key].kind}>`
+			])
+		),
+
+		// post-merge constraint consistency
+
+		...wrap(checkResource({
+
+			in: allowed,
+			hasValue
+
+		}))
+
+	});
+
+	if ( trace !== undefined ) {
+		throw new TraceError("incompatible resource shape override", trace);
+	}
+
+	// build shape — casts are safe: non-emptiness validated above
+
+	return immutable({
+
+		kind: target.kind,
+
+		model: {
+
+			...source.model,
+
+			...Object.fromEntries(Object.entries(properties).map(([name, entry]) => [name,
+				entry.kind === "id" || entry.kind === "type" ? defaultBase : entry.range.model
+			]))
+
+		},
+
+		virtual: target.virtual ?? source.virtual,
+
+		name: target.name,
+		description: target.description,
+
+		namespace: target.namespace ?? source.namespace,
+		extends: target.extends,
+
+		class: target.class,
+		classes: classes as ResourceShape["classes"],
+
+		pattern: target.pattern ?? source.pattern,
+
+		in: allowed as ResourceShape["in"],
+		hasValue: hasValue as ResourceShape["hasValue"],
+		validators: validators as ResourceShape["validators"],
+
+		properties
+
+	});
+
+
+	/**
+	 * Checks whether a target IRI pattern narrows a source pattern.
+	 *
+	 * Only trailing `/*` wildcards admit narrowing: the target may replace `/*` with more specific segments,
+	 * provided the fixed prefix matches. All other cases require exact equality.
+	 *
+	 * @param target The overriding child pattern
+	 * @param source The inherited parent pattern
+	 *
+	 * @returns `true` if the target narrows or equals the source
+	 */
+	function narrows(target: string, source: string): boolean {
+
+		return target === source ? true
+			: source.endsWith("/*") ? target.startsWith(source.slice(0, -1))
+				: false;
+
+	}
+
+}
+
+
+/**
+ * Merges an overriding property with an inherited base property.
+ *
+ * Delegates range merge to {@link mergeValues}. Inheritable fields (`hidden`, `computed`) fall back
+ * to the source value when the target doesn't define them. Immutable fields (`name`, `description`,
+ * `forward`, `reverse`) are preserved from the target.
+ *
+ * @param target The overriding child property
+ * @param source The inherited parent property
+ *
+ * @returns The merged property
+ *
+ * @throws {TraceError} On incompatible overrides
+ */
+export function mergeProperty(target: Property, source: Property): Property {
+
+	return immutable({
+
+		kind: target.kind,
+
+		...target.hidden !== undefined ? { hidden: target.hidden }
+			: source.hidden !== undefined ? { hidden: source.hidden }
+				: {},
+
+		...target.computed !== undefined ? { computed: target.computed }
+			: source.computed !== undefined ? { computed: source.computed }
+				: {},
+
+		name: target.name,
+		description: target.description,
+
+		...target.forward !== undefined ? { forward: target.forward }
+			: source.forward !== undefined ? { forward: source.forward }
+				: {},
+
+		...target.reverse !== undefined ? { reverse: target.reverse }
+			: source.reverse !== undefined ? { reverse: source.reverse }
+				: {},
+
+		range: mergeValues(target.range, source.range)
+
+	});
 
 }
 

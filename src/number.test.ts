@@ -134,6 +134,72 @@ describe("factories", () => {
 
 describe("operators", () => {
 
+	describe("checkNumber", () => {
+
+		it("returns undefined for consistent constraints", async () => {
+
+			expect(checkNumber({ minInclusive: 0, maxInclusive: 100 })).toBeUndefined();
+			expect(checkNumber({ minExclusive: 0, maxExclusive: 100 })).toBeUndefined();
+			expect(checkNumber({ minInclusive: 5, maxInclusive: 5 })).toBeUndefined();
+			expect(checkNumber({ hasValue: [1], in: [1, 2, 3] })).toBeUndefined();
+			expect(checkNumber({})).toBeUndefined();
+
+		});
+
+		it("returns trace for minExclusive >= maxExclusive", async () => {
+
+			expect(checkNumber({ minExclusive: 10, maxExclusive: 10 })).toHaveProperty("{minExclusive/maxExclusive}");
+			expect(checkNumber({ minExclusive: 10, maxExclusive: 5 })).toHaveProperty("{minExclusive/maxExclusive}");
+
+		});
+
+		it("returns trace for minInclusive > maxInclusive", async () => {
+
+			expect(checkNumber({ minInclusive: 10, maxInclusive: 5 })).toHaveProperty("{minInclusive/maxInclusive}");
+
+		});
+
+		it("returns undefined for minInclusive equal to maxInclusive", async () => {
+
+			expect(checkNumber({ minInclusive: 5, maxInclusive: 5 })).toBeUndefined();
+
+		});
+
+		it("returns trace for minExclusive >= maxInclusive", async () => {
+
+			expect(checkNumber({ minExclusive: 10, maxInclusive: 10 })).toHaveProperty("{minExclusive/maxInclusive}");
+			expect(checkNumber({ minExclusive: 10, maxInclusive: 5 })).toHaveProperty("{minExclusive/maxInclusive}");
+
+		});
+
+		it("returns trace for minInclusive >= maxExclusive", async () => {
+
+			expect(checkNumber({ minInclusive: 10, maxExclusive: 10 })).toHaveProperty("{minInclusive/maxExclusive}");
+			expect(checkNumber({ minInclusive: 10, maxExclusive: 5 })).toHaveProperty("{minInclusive/maxExclusive}");
+
+		});
+
+		it("returns trace for hasValue entries not in the in set", async () => {
+
+			expect(checkNumber({ hasValue: [5], in: [1, 2, 3] })).toHaveProperty("{hasValue/in}");
+
+		});
+
+		it("returns undefined when hasValue entries are in the in set", async () => {
+
+			expect(checkNumber({ hasValue: [1], in: [1, 2, 3] })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only one bound is specified", async () => {
+
+			expect(checkNumber({ minInclusive: 5 })).toBeUndefined();
+			expect(checkNumber({ maxExclusive: 10 })).toBeUndefined();
+
+		});
+
+	});
+
 	describe("validateNumber", () => {
 
 		describe("type filtering", () => {
@@ -695,72 +761,6 @@ describe("operators", () => {
 				expect(merged.hasValue).toEqual([1]);
 
 			});
-
-		});
-
-	});
-
-	describe("checkNumber", () => {
-
-		it("returns undefined for consistent constraints", async () => {
-
-			expect(checkNumber({ minInclusive: 0, maxInclusive: 100 })).toBeUndefined();
-			expect(checkNumber({ minExclusive: 0, maxExclusive: 100 })).toBeUndefined();
-			expect(checkNumber({ minInclusive: 5, maxInclusive: 5 })).toBeUndefined();
-			expect(checkNumber({ hasValue: [1], in: [1, 2, 3] })).toBeUndefined();
-			expect(checkNumber({})).toBeUndefined();
-
-		});
-
-		it("returns trace for minExclusive >= maxExclusive", async () => {
-
-			expect(checkNumber({ minExclusive: 10, maxExclusive: 10 })).toHaveProperty("{minExclusive/maxExclusive}");
-			expect(checkNumber({ minExclusive: 10, maxExclusive: 5 })).toHaveProperty("{minExclusive/maxExclusive}");
-
-		});
-
-		it("returns trace for minInclusive > maxInclusive", async () => {
-
-			expect(checkNumber({ minInclusive: 10, maxInclusive: 5 })).toHaveProperty("{minInclusive/maxInclusive}");
-
-		});
-
-		it("returns undefined for minInclusive equal to maxInclusive", async () => {
-
-			expect(checkNumber({ minInclusive: 5, maxInclusive: 5 })).toBeUndefined();
-
-		});
-
-		it("returns trace for minExclusive >= maxInclusive", async () => {
-
-			expect(checkNumber({ minExclusive: 10, maxInclusive: 10 })).toHaveProperty("{minExclusive/maxInclusive}");
-			expect(checkNumber({ minExclusive: 10, maxInclusive: 5 })).toHaveProperty("{minExclusive/maxInclusive}");
-
-		});
-
-		it("returns trace for minInclusive >= maxExclusive", async () => {
-
-			expect(checkNumber({ minInclusive: 10, maxExclusive: 10 })).toHaveProperty("{minInclusive/maxExclusive}");
-			expect(checkNumber({ minInclusive: 10, maxExclusive: 5 })).toHaveProperty("{minInclusive/maxExclusive}");
-
-		});
-
-		it("returns trace for hasValue entries not in the in set", async () => {
-
-			expect(checkNumber({ hasValue: [5], in: [1, 2, 3] })).toHaveProperty("{hasValue/in}");
-
-		});
-
-		it("returns undefined when hasValue entries are in the in set", async () => {
-
-			expect(checkNumber({ hasValue: [1], in: [1, 2, 3] })).toBeUndefined();
-
-		});
-
-		it("returns undefined when only one bound is specified", async () => {
-
-			expect(checkNumber({ minInclusive: 5 })).toBeUndefined();
-			expect(checkNumber({ maxExclusive: 10 })).toBeUndefined();
 
 		});
 

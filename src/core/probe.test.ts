@@ -17,24 +17,12 @@
 import type { Probe, Transform } from "@metreeca/qest/model";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean.js";
-import { apply } from "./probe.js";
-import { type ValueShape } from "../index.js";
+import { optional, type ValuesShape, repeatable, required, union, type UnionShape, type ValueShape } from "../index.js";
 import { local, locals } from "../local.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "../number.js";
-import {
-	id,
-	optional,
-	type Range,
-	reference,
-	repeatable,
-	required,
-	resource,
-	type ResourceShape,
-	type,
-	union,
-	type UnionShape
-} from "../resource.js";
+import { id, reference, resource, type ResourceShape, type } from "../resource.js";
 import { date, duration, instant, iri, string, time, timestamp, year } from "../string.js";
+import { apply } from "./probe.js";
 
 
 describe("apply", () => {
@@ -45,7 +33,7 @@ describe("apply", () => {
 
 	// transform-focused helpers: wrap leaf shape in a resource property
 
-	function transformRange(pipe: readonly Transform[], s: ValueShape): Range | undefined {
+	function transformRange(pipe: readonly Transform[], s: ValueShape): ValuesShape | undefined {
 		return apply(probe(["_"], pipe), resource({ _: required(s) }));
 	}
 
@@ -329,7 +317,7 @@ describe("apply", () => {
 
 	describe("path cardinality accumulation", () => {
 
-		function pathRange(p: Probe, s: ReturnType<typeof resource>): Range | undefined {
+		function pathRange(p: Probe, s: ReturnType<typeof resource>): ValuesShape | undefined {
 			return apply(p, s);
 		}
 
@@ -400,7 +388,7 @@ describe("apply", () => {
 
 	describe("path traversal", () => {
 
-		function probeRange(p: Probe, s: ReturnType<typeof resource>): Range | undefined {
+		function probeRange(p: Probe, s: ReturnType<typeof resource>): ValuesShape | undefined {
 			return apply(p, s);
 		}
 
@@ -610,7 +598,7 @@ describe("apply", () => {
 
 	describe("id/type path resolution", () => {
 
-		function probeRange(p: Probe, s: ResourceShape): Range | undefined {
+		function probeRange(p: Probe, s: ResourceShape): ValuesShape | undefined {
 			return apply(p, s);
 		}
 

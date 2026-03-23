@@ -18,7 +18,7 @@
  * Probe resolution engine.
  *
  * Resolves {@link Probe} descriptors against shape trees, traversing property paths through nested resources and
- * applying transform pipes to derive the effective {@link Range} with accumulated cardinality.
+ * applying transform pipes to derive the effective {@link ValuesShape} with accumulated cardinality.
  *
  * @module
  *
@@ -26,14 +26,14 @@
  */
 
 import type { Identifier, Lazy } from "@metreeca/core";
-import type { Probe, Transform } from "@metreeca/qest/model";
-import type { ValueShape } from "../index.js";
-import { decimal, integer } from "../number.js";
-import type { Range, ReferenceShape, ResourceShape, UnionShape } from "../resource.js";
-import { date, duration, instant, iri, string, time, timestamp, year } from "../string.js";
-import { materialize } from "./cache.js";
 import { immutable } from "@metreeca/core/deep";
 import { error } from "@metreeca/core/report";
+import type { Probe, Transform } from "@metreeca/qest/model";
+import type { ValuesShape, UnionShape, ValueShape } from "../index.js";
+import { decimal, integer } from "../number.js";
+import type { ReferenceShape, ResourceShape } from "../resource.js";
+import { date, duration, instant, iri, string, time, timestamp, year } from "../string.js";
+import { materialize } from "./cache.js";
 
 
 /**
@@ -102,10 +102,10 @@ const Temporal: ReadonlySet<string> = new Set([
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Apply a {@link Probe} to a shape, resolving the effective {@link Range}.
+ * Apply a {@link Probe} to a shape, resolving the effective {@link ValuesShape}.
  *
  * Traverses the {@link Probe.path} segments through nested resource properties to locate the target shape, then applies
- * the {@link Probe.pipe} transforms to compute the effective range with accumulated cardinality.
+ * the {@link Probe.pipe} transforms to compute the effective value set with accumulated cardinality.
  *
  * **Shape dispatch:**
  *
@@ -131,12 +131,12 @@ const Temporal: ReadonlySet<string> = new Set([
  * @param probe The probe containing property path and transform pipe
  * @param shape The value shape to inspect
  *
- * @returns An immutable {@link Range} with accumulated cardinality, or `undefined` when the probe is
+ * @returns An immutable {@link ValuesShape} with accumulated cardinality, or `undefined` when the probe is
  *     demonstrated to never produce a valid value at runtime
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined | Range {
+export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined | ValuesShape {
 
 	type Focus = {
 
@@ -289,9 +289,9 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 
 
 	/**
-	 * Apply the transform pipe to each variant, adjusting cardinality and assembling the effective range.
+	 * Apply the transform pipe to each variant, adjusting cardinality and assembling the effective value set.
 	 */
-	function transform(focus: Focus | undefined): Range | undefined {
+	function transform(focus: Focus | undefined): ValuesShape | undefined {
 
 		if ( focus === undefined ) { return undefined; } else {
 
@@ -382,9 +382,27 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 
 
 	/**
-	 * Convert a focus to range, wrapping multiple variants into a union.
+	 * Convert a focus to a value set shape, wrapping multiple variants into a union.
 	 */
-	function toRange({ minCount, maxCount, variants }: Focus): Range {
+	function toRange({ minCount, maxCount, variants }: Focus): ValuesShape {
+
+		const isScalar = maxCount === 1;
+
+		const shape = variants.length === 1 ? variants[0] : {
+
+			kind: "union",
+
+			model: Object.fromEntries(variants.map((s, i) => [s.kind+"#"+i, s.model])),
+			variants: Object.fromEntries(variants.map((s, i) => [s.kind+"#"+i, s]))
+
+		};
+
+		const model = shape.kind === "union"
+			? Object.fromEntries(Object.entries(shape.model).map(([key, value]) =>
+				[key, isScalar ? value : [value]]
+			))
+			: isScalar ? shape.model
+				: [shape.model];
 
 		return immutable({
 
@@ -393,16 +411,10 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 			minCount,
 			maxCount,
 
-			shape: variants.length === 1 ? variants[0] : {
+			shape,
+			model
 
-				kind: "union",
-
-				model: Object.fromEntries(variants.map((s, i) => [s.kind+"#"+i, s.model])),
-				variants: Object.fromEntries(variants.map((s, i) => [s.kind+"#"+i, s]))
-
-			}
-
-		});
+		}) as ValuesShape;
 
 	}
 

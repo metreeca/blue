@@ -33,13 +33,21 @@
  * - {@link ReferenceShape} - Resource IRI references
  * - {@link ResourceShape} - Resources
  *
+ * Composite shapes:
+ *
+ * - {@link ValuesShape} - Value set shape with cardinality constraints
+ * - {@link UnionShape} - Discriminated type alternatives for polymorphic values
+ *
+ * <img src="index.svg" alt="Shape type hierarchy" style="width: 100%" />
+ *
  * **Defining Shapes**
  *
  * Define resource shapes with property constraints and value ranges:
  *
  * ```typescript
- * import { resource, id, required, optional, repeatable } from '@metreeca/blue';
+ * import { required, optional, repeatable } from '@metreeca/blue';
  * import { string, integer, boolean, date } from '@metreeca/blue';
+ * import { resource, id } from '@metreeca/blue/resource';
  *
  * const Product = resource({
  *   id: id(),
@@ -113,22 +121,23 @@
  * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
  */
 
-import { type Lazy } from "@metreeca/core";
-import { message } from "@metreeca/core/report";
+import { type Identifier, type Lazy } from "@metreeca/core";
+import { immutable } from "@metreeca/core/deep";
 import { createRelay, type Relay } from "@metreeca/core/relay";
+import { message } from "@metreeca/core/report";
 import type { Model } from "@metreeca/qest/model";
 import type { Reference, Resource, Value } from "@metreeca/qest/state";
 import type { BooleanShape } from "./boolean.js";
 import { brand, branded } from "./core/brand.js";
 import { materialize } from "./core/cache.js";
+import { apply } from "./core/probe.js";
 import { TraceError } from "./core/trace.js";
 import { validateValue } from "./index.core.js";
 import type { LocalShape, LocalsShape } from "./local.js";
-import { type NumberShape } from "./number.js";
+import type { NumberShape } from "./number.js";
 import { validateEntry, validateModel, validateResource } from "./resource.core.js";
 import type { ReferenceShape, ResourceShape } from "./resource.js";
-import { type StringShape } from "./string.js";
-import { apply } from "./core/probe.js";
+import type { StringShape } from "./string.js";
 
 export { apply, TraceError };
 
@@ -147,7 +156,7 @@ const ValidationShape: unique symbol = Symbol("ValidationShape");
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Discriminated union of all concrete shape types for validating individual node values.
+ * Discriminated union of all concrete shape types.
  *
  * Each member carries its own `kind` discriminator and `model` type, enabling runtime type narrowing and
  * compile-time type inference without a shared base interface.
@@ -162,6 +171,174 @@ export type ValueShape =
 	| LocalsShape
 	| ReferenceShape
 	| ResourceShape;
+
+/**
+ * Shape for a set of values with cardinality constraints.
+ *
+ * Combines a {@link ValueShape} or {@link UnionShape} with minimum and maximum count constraints to define
+ * the expected size of the value set.
+ *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends}, each
+ * value set shape is merged according to the following rules.
+ *
+ * | Field      | Override Rule                                                                     |
+ * | ---------- | ------------------------------------------------------------------------------- |
+ * | `kind`     | Cannot be overridden                                                              |
+ * | `minCount` | Child ≥ parent, narrowing the minimum cardinality                                |
+ * | `maxCount` | Child ≤ parent, narrowing the maximum cardinality                                |
+ * | `shape`    | `kind` must match; delegated to value shape or {@link UnionShape} merge rules    |
+ *
+ * **Cross-Field Validation**
+ *
+ * - merged `minCount` must be ≤ merged `maxCount`
+ *
+ * @typeParam T The value type
+ * @typeParam L The minimum count constraint type
+ * @typeParam U The maximum count constraint type
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.1.1 sh:minCount}
+ * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.1.2 sh:maxCount}
+ */
+export type ValuesShape<
+	T = unknown,
+	L extends undefined | number = undefined | number,
+	U extends undefined | number = undefined | number,
+	S extends Lazy<ValueShape> | UnionShape = Lazy<ValueShape> | UnionShape
+> = {
+
+	/**
+	 * Discriminator identifying this as a value set shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
+	readonly kind: "range";
+
+	/**
+	 * Prototype value for runtime model assembly.
+	 *
+	 * Scalar value sets hold the shape model directly; multi-valued sets hold an array or, for union shapes,
+	 * a {@link Variants} record with per-key arrays.
+	 *
+	 * **Inheritance** — computed from shape and cardinality, not user-defined.
+	 */
+	readonly model: S extends UnionShape ? Variants<T, U>
+		: U extends 1 ? T
+			: readonly T[];
+
+
+	/**
+	 * Minimum number of expected values.
+	 *
+	 * **Inheritance** — child value must be ≥ parent value, narrowing the minimum cardinality.
+	 *
+	 * @defaultValue `undefined` (no minimum constraint, equivalent to 0)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.1.1 sh:minCount}
+	 */
+	readonly minCount?: L;
+
+	/**
+	 * Maximum number of expected values.
+	 *
+	 * **Inheritance** — child value must be ≤ parent value, narrowing the maximum cardinality.
+	 *
+	 * @defaultValue `undefined` (no maximum constraint)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.1.2 sh:maxCount}
+	 */
+	readonly maxCount?: U;
+
+
+	/**
+	 * The constrained value shape, or a union of value shapes for polymorphic values.
+	 *
+	 * **Inheritance** — `kind` must match; delegated to value shape or {@link UnionShape} merge rules.
+	 */
+	readonly shape: (ValueShape | UnionShape) & { readonly model: T };
+
+}
+
+/**
+ * Discriminated type alternatives for polymorphic values.
+ *
+ * Values for unions are represented as {@link @metreeca/qest!Indexed | Indexed} records mapping variant identifiers to
+ * values. In JSON-LD, this maps to an indexed container (`@container: @index`), where variant keys serve as type
+ * discriminators.
+ *
+ * > [!NOTE]
+ * > Indexed containers are designed exactly to provide JSON structure without affecting JSON-LD graph semantics,
+ * > making unions unambiguous and manageable while preserving interoperability with linked data systems.
+ *
+ * **Cardinality**
+ *
+ * The expected cardinality of the polymorphic value set constrains how many variant entries may be present and the
+ * form of the expected value; for example, given `union({ text: string(), postal: reference(PostalAddress) })`:
+ *
+ * | Cardinality  | Model Type                                                                          |
+ * | ------------ | ----------------------------------------------------------------------------------- |
+ * | scalar       | `{ text?: string, postal?: Reference }` — exactly one entry, holding a scalar value   |
+ * | multi-valued | `{ text?: string[], postal?: Reference[] }` — one or more entries, each holding an array |
+ *
+ * **Inheritance**
+ *
+ * When a {@link ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends}, union-typed
+ * properties are merged according to the following rules.
+ *
+ * | Field      | Override Rule                                                                   |
+ * | ---------- | ------------------------------------------------------------------------------ |
+ * | `kind`     | Cannot be overridden                                                           |
+ * | `model`    | Computed from variants, not user-defined                                       |
+ * | `variants` | Variant keys must match parent's; each variant delegated to value shape merge  |
+ *
+ * Adding or removing variant keys changes the discriminated union structure and is always rejected. Within each
+ * matched variant, the corresponding value shape merge rules apply.
+ *
+ * @typeParam V The variants record type mapping names to value shapes
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.2 sh:or}
+ * @see {@link https://www.w3.org/TR/json-ld11/#data-indexing JSON-LD 1.1 § 4.6.1 Data Indexing}
+ */
+export type UnionShape<V extends {
+
+	readonly [variant: Identifier]: ValueShape
+
+} = {
+
+	readonly [variant: Identifier]: ValueShape
+
+}> = {
+
+	/**
+	 * Discriminator identifying this as a union.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
+	readonly kind: "union";
+
+	/**
+	 * Scalar prototype value for runtime model assembly.
+	 *
+	 * An indexed record mapping variant keys to their model types. Each variant key is individually optional.
+	 * For scalar cardinality, this is the model directly. For multi-valued cardinality, each variant value is
+	 * wrapped in an array.
+	 *
+	 * **Inheritance** — computed from variants, not user-defined.
+	 */
+	readonly model: { readonly [K in keyof Declared<V>]?: V[K] extends ValueShape ? V[K]["model"] : never };
+
+
+	/**
+	 * Named value shape variants.
+	 *
+	 * Each key serves as a type discriminator for polymorphic property values.
+	 *
+	 * **Inheritance** — variant keys must match parent's; each variant delegated to value shape merge rules.
+	 */
+	readonly variants: V;
+
+}
 
 
 /**
@@ -197,7 +374,80 @@ export type Validator<T = unknown> =
 	(value: T) => undefined | true | Trace;
 
 
-//// Shape Methods /////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Type Inference ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Extracts the model type from a {@link Lazy} shape or {@link UnionShape}.
+ *
+ * Resolves lazy factories to their return type and extracts the `model` property from the underlying shape.
+ *
+ * @typeParam S The shape or lazy shape to extract from
+ */
+export type Infer<S extends Lazy<ValueShape> | UnionShape> =
+	S extends () => { readonly model: infer T } ? T
+		: S extends { readonly model: infer T } ? T
+			: never;
+
+/**
+ * Resolves a {@link Lazy} shape to its eager {@link ValueShape}.
+ *
+ * Unwraps lazy factories to their return type; passes direct shapes through unchanged.
+ *
+ * @typeParam S The lazy shape to resolve
+ */
+export type Eager<S extends Lazy<ValueShape>> =
+	S extends Lazy<infer T extends ValueShape> ? T
+		: S extends ValueShape ? S
+			: never;
+
+/**
+ * Extracts explicitly declared entries from a type, stripping index signatures.
+ *
+ * Retains only entries whose keys are literal string or symbol types, filtering out broad `string` or `number`
+ * index signatures. Used to resolve the concrete entries of a type parameter that includes a catch-all index
+ * signature.
+ *
+ * @typeParam T The type to extract declared entries from
+ */
+export type Declared<T> =
+	| { [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K] };
+
+/**
+ * Maps {@link ValuesShape} cardinality constraints to TypeScript content types.
+ *
+ * Resolves `minCount` and `maxCount` to the appropriate TypeScript optionality and collection types:
+ *
+ * - **Scalar** (`maxCount === 1`): `V` or `undefined | V` depending on `minCount`
+ * - **Multi-valued** (`maxCount > 1`): `readonly V[]` or `readonly [V, ...V[]]`
+ *
+ * Union-specific distribution is handled separately by {@link Variants}.
+ *
+ * @typeParam V The value type
+ * @typeParam L The {@link ValuesShape.minCount} constraint
+ * @typeParam U The {@link ValuesShape.maxCount} constraint
+ */
+export type Cardinality<V, L extends undefined | number, U extends undefined | number> =
+	U extends 1
+		? L extends undefined | 0 ? undefined | V : V
+		: L extends undefined | 0 ? undefined | readonly V[] : readonly [V, ...V[]];
+
+/**
+ * Maps a {@link UnionShape} model to its cardinality-aware form.
+ *
+ * For scalar cardinality (`maxCount === 1`), each variant key holds a single value. For multi-valued
+ * cardinality, each variant key holds an array — grouping values by variant rather than wrapping the
+ * whole record in an array.
+ *
+ * @typeParam V The union model type
+ * @typeParam U The {@link ValuesShape.maxCount} constraint
+ */
+export type Variants<V, U extends undefined | number = undefined | number> =
+	U extends 1
+		? { readonly [K in keyof V]?: NonNullable<V[K]> }
+		: { readonly [K in keyof V]?: readonly NonNullable<V[K]>[] };
+
+
+//// Validation API ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Checks whether a value was validated with a given scope.
@@ -521,5 +771,205 @@ export function validate(value: unknown, {
 		return createRelay({ trace: e instanceof TraceError ? e.cause : message(e) });
 
 	}
+
+}
+
+
+//// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Creates a union of named value shapes.
+ *
+ * Each key in the record serves as a type discriminator for polymorphic values,
+ * enabling JSON-LD `@container: @index` patterns while preserving RDF semantics
+ *
+ * @typeParam V The variants record type
+ *
+ * @param variants Record mapping variant names to value shapes
+ *
+ * @returns An immutable union with the specified variants
+ *
+ * @example
+ *
+ * ```typescript
+ * const address = optional(union({
+ *   string: string(),
+ *   PostalAddress: PostalAddress
+ * }));
+ * ```
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.2 sh:or}
+ * @see {@link https://www.w3.org/TR/json-ld11/#data-indexing JSON-LD 1.1 § 4.6.1 Data Indexing}
+ */
+export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShape> }>(variants: V): UnionShape<{
+
+	readonly [K in keyof V]: Eager<V[K]>
+
+}> {
+
+	const materialized = Object.fromEntries(
+		Object.entries(variants)
+			.map(([k, v]) => [k, materialize(v)])
+	);
+
+	return immutable({
+
+		kind: "union",
+
+		model: Object.fromEntries(Object.entries(materialized).map(([k, v]) =>
+			[k, (v as ValueShape).model]
+		)),
+
+		variants: materialized
+
+	}) as UnionShape<{ readonly [K in keyof V]: Eager<V[K]> }>;
+
+}
+
+
+/**
+ * Creates a value set shape with no cardinality constraints (0..*).
+ *
+ * Allows zero or more values, resulting in an optional array type (`undefined | readonly V[]`).
+ *
+ *
+ * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
+ *
+ * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} to constrain
+ *
+ * @returns An immutable value set shape with no minimum or maximum count
+ */
+export function multiple<S extends Lazy<ValueShape> | UnionShape>(shape: S): ValuesShape<Infer<S>, undefined, undefined> {
+
+	return cardinality(undefined, undefined)(shape);
+
+}
+
+/**
+ * Creates a value set shape requiring at least one value (1..*).
+ *
+ * Requires one or more values, resulting in a non-empty array type (`readonly [V, ...V[]]`).
+ *
+ *
+ * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
+ *
+ * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} to constrain
+ *
+ * @returns An immutable value set shape with minCount=1 and no maximum count
+ */
+export function repeatable<S extends Lazy<ValueShape> | UnionShape>(shape: S): ValuesShape<Infer<S>, 1, undefined> {
+
+	return cardinality(1, undefined)(shape);
+
+}
+
+/**
+ * Creates a value set shape for at most one value (0..1).
+ *
+ * Allows zero or one value, resulting in an optional scalar type (`undefined | V`).
+ *
+ *
+ * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
+ *
+ * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} to constrain
+ *
+ * @returns An immutable value set shape with no minimum count and maxCount=1
+ */
+export function optional<S extends Lazy<ValueShape> | UnionShape>(shape: S): ValuesShape<Infer<S>, undefined, 1> {
+
+	return cardinality(undefined, 1)(shape);
+
+}
+
+/**
+ * Creates a value set shape for exactly one value (1..1).
+ *
+ * Requires exactly one value, resulting in a required scalar type (`V`).
+ *
+ *
+ * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
+ *
+ * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} to constrain
+ *
+ * @returns An immutable value set shape with minCount=1 and maxCount=1
+ */
+export function required<S extends Lazy<ValueShape> | UnionShape>(shape: S): ValuesShape<Infer<S>, 1, 1> {
+
+	return cardinality(1, 1)(shape);
+
+}
+
+
+/**
+ * Creates a value set shape factory with custom cardinality constraints.
+ *
+ * Returns a factory function that creates ranges with the specified minimum and maximum counts.
+ *
+ *
+ * @typeParam L The minimum count constraint type
+ * @typeParam U The maximum count constraint type
+ *
+ * @param lower Minimum number of expected values
+ * @param upper Maximum number of expected values
+ *
+ * @returns A factory function that creates immutable ranges with the specified cardinality
+ *
+ * @example
+ *
+ * ```typescript
+ * const twoToFive = cardinality(2, 5);
+ * const tags = twoToFive(string());
+ * ```
+ */
+export function cardinality<
+	L extends undefined | number,
+	U extends undefined | number = undefined
+>(
+	lower: L,
+	upper?: U
+): <S extends Lazy<ValueShape> | UnionShape>(shape: S) => ValuesShape<Infer<S>, L, U> {
+
+	if ( lower !== undefined && lower < 0 ) {
+		throw new TypeError(`expected non-negative minCount <${lower}>`);
+	}
+
+	if ( upper !== undefined && upper < 0 ) {
+		throw new TypeError(`expected non-negative maxCount <${upper}>`);
+	}
+
+	if ( lower !== undefined && upper !== undefined && lower > upper ) {
+		throw new TypeError(`inconsistent bounds <${lower}> > <${upper}>`);
+	}
+
+	return <S extends Lazy<ValueShape> | UnionShape>(shape: S) => {
+
+		type Model = S extends UnionShape ? Variants<Infer<S>, U>
+			: U extends 1 ? Infer<S>
+				: readonly Infer<S>[];
+
+		const materialized: ValueShape | UnionShape = "kind" in shape ? shape : materialize(shape);
+
+		const model = materialized.kind === "union"
+			? Object.fromEntries(Object.entries(materialized.model).map(([key, value]) =>
+				[key, upper === 1 ? value : [value]]
+			))
+			: upper === 1 ? materialized.model
+				: [materialized.model];
+
+		return immutable({
+
+			kind: "range",
+			model: model as Model,
+
+			minCount: lower,
+			maxCount: upper,
+
+			shape: materialized as (ValueShape | UnionShape) & {
+				readonly model: Infer<S>
+			}
+
+		});
+
+	};
 
 }

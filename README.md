@@ -46,14 +46,14 @@ npm install @metreeca/blue
 >
 > This section introduces essential concepts; for complete coverage, see the API reference:
 >
-> | Module                                                                           | Description                                                             |
-> |----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
-> | [@metreeca/blue](https://metreeca.github.io/blue/modules/index.html)             | Linked data validation API                                              |
-> | [@metreeca/blue/boolean](https://metreeca.github.io/blue/modules/boolean.html)   | Boolean shape model and factories                                       |
-> | [@metreeca/blue/number](https://metreeca.github.io/blue/modules/number.html)     | Numeric shape model and factories                                       |
-> | [@metreeca/blue/string](https://metreeca.github.io/blue/modules/string.html)     | Textual shape model and factories                                       |
-> | [@metreeca/blue/local](https://metreeca.github.io/blue/modules/local.html)       | Language-tagged shape model and factories                               |
-> | [@metreeca/blue/resource](https://metreeca.github.io/blue/modules/resource.html) | Resource shape model and factories                                      |
+> | Module                                                                           | Description                               |
+> |----------------------------------------------------------------------------------|-------------------------------------------|
+> | [@metreeca/blue](https://metreeca.github.io/blue/modules/index.html)             | Casic shapes and validation API           |
+> | [@metreeca/blue/boolean](https://metreeca.github.io/blue/modules/boolean.html)   | Boolean shape model and factories         |
+> | [@metreeca/blue/number](https://metreeca.github.io/blue/modules/number.html)     | Numeric shape model and factories         |
+> | [@metreeca/blue/string](https://metreeca.github.io/blue/modules/string.html)     | Textual shape model and factories         |
+> | [@metreeca/blue/local](https://metreeca.github.io/blue/modules/local.html)       | Language-tagged shape model and factories |
+> | [@metreeca/blue/resource](https://metreeca.github.io/blue/modules/resource.html) | Resource shape model and factories        |
 
 ## Defining Schemas
 
@@ -63,7 +63,8 @@ Schemas describe the expected structure of a resource using shape factories:
 import { boolean } from "@metreeca/blue/boolean";
 import { local } from "@metreeca/blue/local";
 import { number } from "@metreeca/blue/number";
-import { id, multiple, optional, reference, required, resource, type, union } from "@metreeca/blue/resource";
+import { multiple, optional, required, union } from "@metreeca/blue";
+import { id, reference, resource, type } from "@metreeca/blue/resource";
 import { string, url } from "@metreeca/blue/string";
 
 function Thing() {

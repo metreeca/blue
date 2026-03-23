@@ -63,8 +63,9 @@
  * Ranges define cardinality constraints for property values:
  *
  * ```typescript
- * import { resource, property, required, optional, multiple, repeatable, cardinality } from '@metreeca/blue';
+ * import { required, optional, multiple, repeatable, cardinality } from '@metreeca/blue';
  * import { string } from '@metreeca/blue';
+ * import { resource, property } from '@metreeca/blue/resource';
  *
  * const Shape = resource({
  *   name: required(string()),           // 1..1
@@ -79,7 +80,9 @@
  * or labels are needed:
  *
  * ```typescript
- * import { resource, property, required, string } from '@metreeca/blue';
+ * import { required } from '@metreeca/blue';
+ * import { string } from '@metreeca/blue';
+ * import { resource, property } from '@metreeca/blue/resource';
  * import { createNamespace } from '@metreeca/core/resource';
  *
  * const schema = createNamespace("http://schema.org/");
@@ -99,8 +102,9 @@
  * > In state validation, embedded resources are always validated as complete states.
  *
  * ```typescript
- * import { resource, id, required, optional, reference } from '@metreeca/blue';
+ * import { required, optional } from '@metreeca/blue';
  * import { string, number } from '@metreeca/blue';
+ * import { resource, id, reference } from '@metreeca/blue/resource';
  *
  * const Rating = resource({
  *   average: required(number({ minInclusive: 0, maxInclusive: 5 })),
@@ -140,7 +144,9 @@
  * Extend parent shapes to inherit properties and constraints:
  *
  * ```typescript
- * import { resource, id, required, string, integer, reference } from '@metreeca/blue';
+ * import { required } from '@metreeca/blue';
+ * import { string, integer } from '@metreeca/blue';
+ * import { resource, id, reference } from '@metreeca/blue/resource';
  *
  * const NamedEntity = resource({
  *   id: id(),
@@ -158,9 +164,9 @@
  * ```
  *
  * > [!IMPORTANT]
- * > Constraints are enforced **conjunctively**: when a child shape overrides an inherited property, values must satisfy
- * > both the child's constraints and all inherited constraints. Overrides can restrict inherited constraints but never
- * > relax them.
+ * > Constraints are enforced **conjunctively**: when a child shape overrides an inherited property, values must
+ * > satisfy both the child's constraints and all inherited constraints. Overrides can restrict inherited constraints
+ * > but never relax them.
  *
  * > [!WARNING]
  * > Constraints that can be expressed in the type system — such as non-empty set requirements on `in`, `hasValue`,
@@ -168,13 +174,16 @@
  *
  * **Polymorphic Properties**
  *
- * Use {@link union} for properties accepting multiple value types. Unions are pure type discriminators — cardinality
- * constraints belong on the enclosing {@link Range}, not on individual variants. At runtime, union values are
- * represented as `Indexed` records mapping variant names to their values, corresponding
- * to JSON-LD [indexed containers](https://www.w3.org/TR/json-ld11/#data-indexing) (`@container: @index`):
+ * Use {@link index!union | union} for properties accepting multiple value types. Unions are pure type
+ * discriminators — cardinality constraints belong on the enclosing {@link ValuesShape}, not on individual variants.
+ * At runtime, union values are represented as {@link @metreeca/qest!Indexed | Indexed} records mapping variant names
+ * to their values, corresponding to JSON-LD [indexed containers](https://www.w3.org/TR/json-ld11/#data-indexing)
+ * (`@container: @index`):
  *
  * ```typescript
- * import { resource, property, union, optional, reference, string } from '@metreeca/blue';
+ * import { union, optional, required } from '@metreeca/blue';
+ * import { string } from '@metreeca/blue';
+ * import { resource, reference } from '@metreeca/blue/resource';
  *
  * const PostalAddress = resource({
  *   street: required(string()),
@@ -252,14 +261,13 @@
 import { type Identifier, isFunction, isString, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { asIRI, createNamespace, type IRI, isIRI, type Namespace } from "@metreeca/core/resource";
+import { defaultBase } from "@metreeca/qest/index";
 import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
 import { materialize } from "./core/cache.js";
 import { TraceError } from "./core/trace.js";
-import type { Validator, ValueShape } from "./index.js";
+import type { Cardinality, Declared, Infer, ValuesShape, Validator } from "./index.js";
 import { checkSingletons, flatten } from "./resource.core.js";
 
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Default application namespace for property IRI resolution (`app:/#`).
@@ -669,7 +677,7 @@ export interface Type {
  * | Field         | Override Rule                                                                          |
  * | ------------- | ------------------------------------------------------------------------------------- |
  * | `kind`        | Cannot be overridden                                                                  |
- * | `range`       | Delegated to {@link Range} merge rules                                                |
+ * | `range`       | Delegated to {@link ValuesShape} merge rules                                                |
  * | `hidden`      | Inherited; conflicting parents without child override are reported as an error         |
  * | `computed`    | Inherited; conflicting parents without child override are reported as an error         |
  * | `name`        | Cannot be overridden                                                                  |
@@ -678,11 +686,11 @@ export interface Type {
  * | `reverse`     | Cannot be overridden                                                                  |
  *
  * @typeParam P The predicate type for IRI mappings, defaulting to resolved {@link Reference}
- * @typeParam R The value {@link Range} type, defaulting to unconstrained
+ * @typeParam R The {@link ValuesShape} type, defaulting to unconstrained
  *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
  */
-export interface Property<P extends Predicate = Reference, R extends Range = Range> extends PropertyConstraints<P> {
+export interface Property<P extends Predicate = Reference, R extends ValuesShape = ValuesShape> extends PropertyConstraints<P> {
 
 	/**
 	 * Discriminator identifying this as a property shape.
@@ -695,7 +703,7 @@ export interface Property<P extends Predicate = Reference, R extends Range = Ran
 	/**
 	 * Value range for this property.
 	 *
-	 * **Inheritance** — delegated to {@link Range} merge rules.
+	 * **Inheritance** — delegated to {@link ValuesShape} merge rules.
 	 */
 	readonly range: R;
 
@@ -802,152 +810,6 @@ export type Predicate =
 	| Reference
 	| Namespace;
 
-/**
- * Shape for a set of values linked from a resource by a property.
- *
- * Combines a value shape with cardinality constraints to define how many values of a given type
- * a property may have.
- *
- * **Inheritance**
- *
- * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, each
- * property's range is merged according to the following rules.
- *
- * | Field      | Override Rule                                                                     |
- * | ---------- | ------------------------------------------------------------------------------- |
- * | `kind`     | Cannot be overridden                                                              |
- * | `minCount` | Child ≥ parent, narrowing the minimum cardinality                                |
- * | `maxCount` | Child ≤ parent, narrowing the maximum cardinality                                |
- * | `shape`    | `kind` must match; delegated to value shape or {@link UnionShape} merge rules    |
- *
- * **Cross-Field Validation**
- *
- * - merged `minCount` must be ≤ merged `maxCount`
- *
- * @typeParam T The type for all values in the linked set
- * @typeParam L The minimum count constraint type
- * @typeParam U The maximum count constraint type
- *
- * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
- */
-export interface Range<
-	T = unknown,
-	L extends undefined | number = undefined | number,
-	U extends undefined | number = undefined | number
-> {
-
-	/**
-	 * Discriminator identifying this as a range.
-	 *
-	 * **Inheritance** — cannot be overridden.
-	 */
-	readonly kind: "range";
-
-
-	/**
-	 * Minimum number of values in the linked set.
-	 *
-	 * **Inheritance** — child value must be ≥ parent value, narrowing the minimum cardinality.
-	 *
-	 * @defaultValue `undefined` (no minimum constraint, equivalent to 0)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.1.1 sh:minCount}
-	 */
-	readonly minCount?: L;
-
-	/**
-	 * Maximum number of values in the linked set.
-	 *
-	 * **Inheritance** — child value must be ≤ parent value, narrowing the maximum cardinality.
-	 *
-	 * @defaultValue `undefined` (no maximum constraint)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.1.2 sh:maxCount}
-	 */
-	readonly maxCount?: U;
-
-
-	/**
-	 * Shape for all values in the linked set, or a union of value shapes for polymorphic values.
-	 *
-	 * **Inheritance** — `kind` must match; delegated to value shape or {@link UnionShape} merge rules.
-	 */
-	readonly shape: (ValueShape | UnionShape) & { readonly model: T };
-
-}
-
-
-/**
- * Discriminated type alternatives for polymorphic property values.
- *
- * Values for union properties are represented as `Indexed` records mapping variant identifiers to values. In JSON-LD,
- * this maps to an indexed container (`@container: @index`), where variant keys serve as type discriminators.
- *
- * Unions are pure type discriminators — cardinality constraints belong on the enclosing {@link Range}, not on
- * individual variants.
- *
- * > [!NOTE]
- * > Indexed containers are designed exactly to provide JSON structure without affecting JSON-LD graph semantics,
- * > making unions unambiguous and manageable while preserving interoperability with linked data systems.
- *
- * **Inheritance**
- *
- * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, union-typed
- * properties are merged according to the following rules.
- *
- * | Field      | Override Rule                                                                   |
- * | ---------- | ------------------------------------------------------------------------------ |
- * | `kind`     | Cannot be overridden                                                           |
- * | `model`    | Computed from variants, not user-defined                                       |
- * | `variants` | Variant keys must match parent's; each variant delegated to value shape merge  |
- *
- * Adding or removing variant keys changes the discriminated union structure and is always rejected. Within each
- * matched variant, the corresponding value shape merge rules apply.
- *
- * @typeParam V The variants record type mapping names to value shapes
- *
- * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.2 sh:or}
- * @see {@link https://www.w3.org/TR/json-ld11/#data-indexing JSON-LD 1.1 § 4.6.1 Data Indexing}
- */
-export interface UnionShape<V extends {
-
-	readonly [variant: Identifier]: ValueShape
-
-} = {
-
-	readonly [variant: Identifier]: ValueShape
-
-}> {
-
-	/**
-	 * Discriminator identifying this as a union.
-	 *
-	 * **Inheritance** — cannot be overridden.
-	 */
-	readonly kind: "union";
-
-	/**
-	 * Prototype value for runtime model assembly.
-	 *
-	 * An indexed record mapping variant keys to their model types. Each variant key is individually optional since
-	 * union values provide one variant at a time.
-	 *
-	 * **Inheritance** — computed from variants, not user-defined.
-	 */
-	readonly model: { readonly [K in keyof DeclaredProperties<V>]?: V[K] extends ValueShape ? V[K]["model"] : never };
-
-
-	/**
-	 * Named value shape variants.
-	 *
-	 * Each key serves as a type discriminator for polymorphic property values.
-	 *
-	 * **Inheritance** — variant keys must match parent's; each variant delegated to value shape merge rules.
-	 */
-	readonly variants: V;
-
-}
-
 
 //// Factory Arguments /////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -962,17 +824,17 @@ export type Entries =
 /**
  * A property definition entry.
  *
- * Accepts {@link Id} and {@link Type} markers, naked {@link Range} values for concise syntax, or full
+ * Accepts {@link Id} and {@link Type} markers, naked {@link ValuesShape} values for concise syntax, or full
  * {@link Property} definitions with additional constraints like IRI mappings and labels.
  */
 export type Entry =
 	| Id
 	| Type
-	| Range
+	| ValuesShape
 	| Property<Predicate>;
 
 
-//// Type Inferences ///////////////////////////////////////////////////////////////////////////////////////////////////
+//// Type Inference .///////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Checks that child property overrides are assignable to inherited types.
@@ -992,7 +854,7 @@ export type Inheritance<C> =
 				| Lazy<ResourceShape>
 				| readonly [Lazy<ResourceShape>, ...Lazy<ResourceShape>[]]
 		}
-		? DeclaredProperties<Intersection<
+		? Declared<Intersection<
 			E extends readonly (infer S extends Lazy<ResourceShape>)[] ? Infer<S>
 				: E extends Lazy<ResourceShape> ? Infer<E>
 					: never
@@ -1008,17 +870,6 @@ export type Composition<E extends Entries> =
 	& { readonly [K in RequiredKeys<E> as K & string]: Content<E[K]> }
 	& { readonly [K in OptionalKeys<E> as K & string]?: Exclude<Content<E[K]>, undefined> };
 
-/**
- * Maps SHACL cardinality constraints to TypeScript types.
- *
- * @typeParam V The value type
- * @typeParam L The {@link Range.minCount} constraint
- * @typeParam U The {@link Range.maxCount} constraint
- */
-export type Cardinality<V, L extends undefined | number, U extends undefined | number> =
-	U extends 1
-		? L extends undefined | 0 ? undefined | V : V
-		: L extends undefined | 0 ? undefined | readonly V[] : readonly [V, ...V[]];
 
 /**
  * Extracts the content type from an {@link Entry}.
@@ -1029,7 +880,7 @@ export type Content<E extends Entry> =
 	E extends Id ? IRI
 		: E extends Type ? undefined | IRI
 			: (E extends Property<Predicate, infer R> ? R
-				: E extends Range ? E : never) extends Range<infer T, infer L, infer U>
+				: E extends ValuesShape ? E : never) extends ValuesShape<infer T, infer L, infer U>
 				? Cardinality<T, L, U>
 				: never;
 
@@ -1050,44 +901,12 @@ export type OptionalKeys<E extends Entries> =
 	| { [K in keyof E]: undefined extends Content<E[K]> ? K : never }[keyof E];
 
 /**
- * Extracts explicitly declared properties, stripping index signatures.
- */
-export type DeclaredProperties<T> = {
-	[K in keyof T as string extends K ? never : number extends K ? never : K]: T[K]
-};
-
-/**
  * Converts a union type to an intersection type.
  *
  * @typeParam U The union type
  */
 export type Intersection<U extends Value> =
 	(U extends unknown ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
-
-
-/**
- * Extracts the eager {@link ValueShape} from a {@link Lazy} shape.
- *
- * Resolves lazy factories to their return type and passes direct shapes through unchanged.
- *
- * @typeParam S The lazy shape to resolve
- */
-export type Eager<S extends Lazy<ValueShape>> =
-	S extends Lazy<infer T extends ValueShape> ? T
-		: S extends ValueShape ? S
-			: never;
-
-/**
- * Infers the model type from a {@link Lazy} shape or {@link UnionShape}.
- *
- * Resolves lazy factories to their return type and extracts the `model` type from the underlying shape.
- *
- * @typeParam S The shape type
- */
-export type Infer<S extends Lazy<ValueShape> | UnionShape> =
-	S extends () => { readonly model: infer T } ? T
-		: S extends { readonly model: infer T } ? T
-			: never;
 
 
 //// Metadata //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1246,7 +1065,7 @@ export function resource<T extends ResourceShape>(shape: Lazy<T>): T;
 /**
  * Creates a resource shape from property definitions.
  *
- * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link Range} values for concise
+ * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link ValuesShape} values for concise
  * syntax, and {@link Id}/{@link Type} markers.
  *
  * > [!TIP]
@@ -1277,7 +1096,7 @@ export function resource<E extends Entries>(
 /**
  * Creates a resource shape from constraints and property definitions.
  *
- * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link Range} values for concise
+ * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link ValuesShape} values for concise
  * syntax, and {@link Id}/{@link Type} markers.
  *
  * > [!TIP]
@@ -1434,7 +1253,7 @@ export function resource(
 	}
 
 	/**
-	 * Wraps naked {@link Range} entries into {@link Property} objects.
+	 * Wraps naked {@link ValuesShape} entries into {@link Property} objects.
 	 *
 	 * @param entries The property definitions to normalize
 	 * @param parents Optional parent shapes for inheritance-aware duplicate detection
@@ -1562,24 +1381,14 @@ export function resource(
 			...Object.fromEntries(Object.entries(properties)
 				.map(([name, property]) => [name, propertyModel(property)])
 			)
-		}) as Resource;
+		});
 
 
 		/**
 		 * Derives the model value for a property entry.
 		 */
 		function propertyModel(entry: Id | Type | Property): unknown {
-			return entry.kind === "id" || entry.kind === "type" ? "/"
-				: rangeModel(entry.range);
-		}
-
-		/**
-		 * Derives the model value for a range.
-		 */
-		function rangeModel(range: Range): unknown {
-			return range.maxCount === 1
-				? range.shape.model
-				: [range.shape.model];
+			return entry.kind === "id" || entry.kind === "type" ? defaultBase : entry.range.model;
 		}
 
 	}
@@ -1658,7 +1467,7 @@ export function type(constraints: {
  *
  * @returns An immutable {@link Property} with the specified range
  */
-export function property<R extends Range>(
+export function property<R extends ValuesShape>(
 	range: R
 ): Property<Predicate, R>;
 
@@ -1678,7 +1487,7 @@ export function property<R extends Range>(
  *
  * @returns An immutable {@link Property} with the specified range
  */
-export function property<R extends Range>(
+export function property<R extends ValuesShape>(
 	constraints: PropertyConstraints<Predicate>,
 	range: R
 ): Property<Predicate, R>;
@@ -1687,9 +1496,9 @@ export function property<R extends Range>(
  * Creates property shapes.
  *
  */
-export function property<R extends Range>(
-	a: Range | PropertyConstraints<Predicate>,
-	b?: Range
+export function property<R extends ValuesShape>(
+	a: ValuesShape | PropertyConstraints<Predicate>,
+	b?: ValuesShape
 ): Property<Predicate, R> {
 
 	const constraints = (b !== undefined ? a : {}) as PropertyConstraints<Predicate>;
@@ -1700,196 +1509,5 @@ export function property<R extends Range>(
 		...constraints,
 		range
 	});
-
-}
-
-
-//// Ranges ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Creates a union of named value shapes.
- *
- * Each key in the record serves as a type discriminator for polymorphic property values,
- * enabling JSON-LD `@container: @index` patterns while preserving RDF semantics.
- *
- * Unions are pure type discriminators — cardinality constraints are applied by wrapping the union in a
- * {@link Range} via cardinality helpers like {@link required}, {@link optional}, etc.
- *
- *
- * @typeParam V The variants record type
- *
- * @param variants Record mapping variant names to value shapes
- *
- * @returns An immutable union with the specified variants
- *
- * @example
- *
- * ```typescript
- * const address = property(optional(union({
- *   string: string(),
- *   PostalAddress: PostalAddress
- * })));
- * ```
- *
- * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.2 sh:or}
- * @see {@link https://www.w3.org/TR/json-ld11/#data-indexing JSON-LD 1.1 § 4.6.1 Data Indexing}
- */
-export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShape> }>(variants: V): UnionShape<{
-
-	readonly [K in keyof V]: Eager<V[K]>
-
-}> {
-
-	const materialized = Object.fromEntries(
-		Object.entries(variants)
-			.map(([k, v]) => [k, materialize(v)])
-	);
-
-	return immutable({
-
-		kind: "union",
-
-		model: Object.fromEntries(Object.entries(materialized).map(([k, v]) =>
-			[k, (v as ValueShape).model]
-		)),
-
-		variants: materialized
-
-	}) as UnionShape<{ readonly [K in keyof V]: Eager<V[K]> }>;
-
-}
-
-
-/**
- * Creates a value range with no cardinality constraints (0..*).
- *
- * Allows zero or more values, resulting in an optional array type (`undefined | readonly V[]`).
- *
- *
- * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
- *
- * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} for the linked set
- *
- * @returns An immutable range with no minimum or maximum count
- */
-export function multiple<S extends Lazy<ValueShape> | UnionShape>(shape: S): Range<Infer<S>, undefined, undefined> {
-
-	return cardinality(undefined, undefined)(shape);
-
-}
-
-/**
- * Creates a value range requiring at least one value (1..*).
- *
- * Requires one or more values, resulting in a non-empty array type (`readonly [V, ...V[]]`).
- *
- *
- * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
- *
- * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} for the linked set
- *
- * @returns An immutable range with minCount=1 and no maximum count
- */
-export function repeatable<S extends Lazy<ValueShape> | UnionShape>(shape: S): Range<Infer<S>, 1, undefined> {
-
-	return cardinality(1, undefined)(shape);
-
-}
-
-/**
- * Creates a value range for at most one value (0..1).
- *
- * Allows zero or one value, resulting in an optional scalar type (`undefined | V`).
- *
- *
- * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
- *
- * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} for the linked set
- *
- * @returns An immutable range with no minimum count and maxCount=1
- */
-export function optional<S extends Lazy<ValueShape> | UnionShape>(shape: S): Range<Infer<S>, undefined, 1> {
-
-	return cardinality(undefined, 1)(shape);
-
-}
-
-/**
- * Creates a value range for exactly one value (1..1).
- *
- * Requires exactly one value, resulting in a required scalar type (`V`).
- *
- *
- * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
- *
- * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} for the linked set
- *
- * @returns An immutable range with minCount=1 and maxCount=1
- */
-export function required<S extends Lazy<ValueShape> | UnionShape>(shape: S): Range<Infer<S>, 1, 1> {
-
-	return cardinality(1, 1)(shape);
-
-}
-
-/**
- * Creates a value range factory with custom cardinality constraints.
- *
- * Returns a factory function that creates ranges with the specified minimum and maximum counts.
- *
- *
- * @typeParam L The minimum count constraint type
- * @typeParam U The maximum count constraint type
- *
- * @param lower Minimum number of values in the linked set
- * @param upper Maximum number of values in the linked set
- *
- * @returns A factory function that creates immutable ranges with the specified cardinality
- *
- * @example
- *
- * ```typescript
- * const twoToFive = cardinality(2, 5);
- * const tags = property(twoToFive(string()));
- * ```
- */
-export function cardinality<
-	L extends undefined | number,
-	U extends undefined | number = undefined
->(
-	lower: L,
-	upper?: U
-): <S extends Lazy<ValueShape> | UnionShape>(shape: S) => Range<Infer<S>, L, U> {
-
-	if ( lower !== undefined && lower < 0 ) {
-		throw new TypeError(`expected non-negative minCount <${lower}>`);
-	}
-
-	if ( upper !== undefined && upper < 0 ) {
-		throw new TypeError(`expected non-negative maxCount <${upper}>`);
-	}
-
-	if ( lower !== undefined && upper !== undefined && lower > upper ) {
-		throw new TypeError(`inconsistent bounds <${lower}> > <${upper}>`);
-	}
-
-	return <S extends Lazy<ValueShape> | UnionShape>(shape: S) => {
-
-		const materialized = "kind" in shape ? shape : materialize(shape);
-
-		return immutable({
-
-			kind: "range",
-
-			minCount: lower,
-			maxCount: upper,
-
-			shape: materialized as (ValueShape | UnionShape) & {
-				readonly model: Infer<S>
-			}
-
-		});
-
-	};
 
 }

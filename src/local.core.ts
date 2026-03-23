@@ -21,11 +21,41 @@
  */
 
 import { isArray, isObject, isString } from "@metreeca/core";
-import { isTag, matchTag } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/deep";
+import { isTag, matchTag } from "@metreeca/core/language";
 import { collect, every, TraceError, wrap } from "./core/trace.js";
 import type { Trace } from "./index.js";
 import type { LocalShape, LocalsShape } from "./local.js";
+
+
+/**
+ * Checks internal consistency of localized shape constraints.
+ *
+ * @param constraints The constraint fields to check
+ *
+ * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
+ */
+export function checkLocalised({
+
+	minLength,
+	maxLength
+
+}: {
+
+	readonly minLength?: number;
+	readonly maxLength?: number;
+
+}): undefined | Trace {
+
+	return collect({
+
+		"{minLength/maxLength}": minLength === undefined || maxLength === undefined
+			|| minLength <= maxLength
+			|| `inconsistent bounds <${minLength}> > <${maxLength}>`
+
+	});
+
+}
 
 
 /**
@@ -37,8 +67,6 @@ import type { LocalShape, LocalsShape } from "./local.js";
  */
 export function validateLocal(values: readonly unknown[], {
 
-	kind,
-
 	minLength,
 	maxLength,
 
@@ -46,21 +74,27 @@ export function validateLocal(values: readonly unknown[], {
 
 }: LocalShape): undefined | Trace {
 
-	const matching = values.filter(value => isString(value) || isObject(value));
-	const mistyped = values.length-matching.length;
+	if ( values.length === 0 ) {
 
-	return collect({
+		return undefined;
 
-		"{kind}": mistyped === 0
-			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+	} else if ( values.length > 1 ) {
 
-		...Object.fromEntries(matching
+		return collect({ "{kind}": "expected at most one <local> value" });
 
-			.flatMap(value =>
-				isString(value) ? [["und", value] as [string, unknown]] : Object.entries(value)
-			)
+	} else if ( !values.every(v => isString(v) || isObject(v)) ) {
 
-			.map(([key, value]) => {
+		return collect({ "{kind}": "expected <local> value" });
+
+	} else {
+
+		const entries = isString(values[0])
+			? [["und", values[0]] as [string, unknown]]
+			: Object.entries(values[0]);
+
+		return collect({
+
+			...Object.fromEntries(entries.map(([key, value]) => {
 
 				if ( !isTag(key) ) {
 
@@ -89,7 +123,9 @@ export function validateLocal(values: readonly unknown[], {
 
 			}))
 
-	});
+		});
+
+	}
 
 }
 
@@ -102,8 +138,6 @@ export function validateLocal(values: readonly unknown[], {
  */
 export function validateLocals(values: readonly unknown[], {
 
-	kind,
-
 	minLength,
 	maxLength,
 
@@ -111,21 +145,27 @@ export function validateLocals(values: readonly unknown[], {
 
 }: LocalsShape): undefined | Trace {
 
-	const matching = values.filter(value => isArray(value) || isObject(value));
-	const mistyped = values.length-matching.length;
+	if ( values.length === 0 ) {
 
-	return collect({
+		return undefined;
 
-		"{kind}": mistyped === 0
-			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+	} else if ( values.length > 1 ) {
 
-		...Object.fromEntries(matching
+		return collect({ "{kind}": "expected at most one <locals> value" });
 
-			.flatMap(value =>
-				isArray(value) ? [["und", value] as [string, unknown]] : Object.entries(value)
-			)
+	} else if ( !values.every(v => isArray(v) || isObject(v)) ) {
 
-			.map(([key, value]) => {
+		return collect({ "{kind}": "expected <locals> value" });
+
+	} else {
+
+		const entries = isArray(values[0])
+			? [["und", values[0]] as [string, unknown]]
+			: Object.entries(values[0]);
+
+		return collect({
+
+			...Object.fromEntries(entries.map(([key, value]) => {
 
 				if ( !isTag(key) ) {
 
@@ -158,7 +198,9 @@ export function validateLocals(values: readonly unknown[], {
 
 			}))
 
-	});
+		});
+
+	}
 
 }
 
@@ -212,7 +254,7 @@ export function mergeLocal(target: LocalShape, source: LocalShape): LocalShape {
 
 		// post-merge constraint consistency
 
-		...wrap(checkLocalized({ minLength, maxLength }))
+		...wrap(checkLocalised({ minLength, maxLength }))
 
 	});
 
@@ -285,7 +327,7 @@ export function mergeLocals(target: LocalsShape, source: LocalsShape): LocalsSha
 
 		// post-merge constraint consistency
 
-		...wrap(checkLocalized({ minLength, maxLength }))
+		...wrap(checkLocalised({ minLength, maxLength }))
 
 	});
 
@@ -304,36 +346,6 @@ export function mergeLocals(target: LocalsShape, source: LocalsShape): LocalsSha
 		maxLength,
 
 		languageIn: languageIn as LocalsShape["languageIn"] // casts are safe: non-emptiness validated above
-
-	});
-
-}
-
-
-/**
- * Checks internal consistency of localized shape constraints.
- *
- * @param constraints The constraint fields to check
- *
- * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
- */
-export function checkLocalized({
-
-	minLength,
-	maxLength
-
-}: {
-
-	readonly minLength?: number;
-	readonly maxLength?: number;
-
-}): undefined | Trace {
-
-	return collect({
-
-		"{minLength/maxLength}": minLength === undefined || maxLength === undefined
-			|| minLength <= maxLength
-			|| `inconsistent bounds <${minLength}> > <${maxLength}>`
 
 	});
 

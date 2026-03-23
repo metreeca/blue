@@ -28,6 +28,62 @@ import type { NumberShape } from "./number.js";
 
 
 /**
+ * Checks internal consistency of number shape constraints.
+ *
+ * @param constraints The constraint fields to validate
+ *
+ * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
+ */
+export function checkNumber({
+
+	minExclusive,
+	maxExclusive,
+	minInclusive,
+	maxInclusive,
+
+	in: allowed,
+	hasValue
+
+}: {
+
+	readonly minExclusive?: number;
+	readonly maxExclusive?: number;
+	readonly minInclusive?: number;
+	readonly maxInclusive?: number;
+
+	readonly in?: readonly number[];
+	readonly hasValue?: readonly number[];
+
+}): undefined | Trace {
+
+	return collect({
+
+		"{minExclusive/maxExclusive}": minExclusive === undefined || maxExclusive === undefined
+			|| minExclusive < maxExclusive
+			|| `inconsistent bounds <${minExclusive}> >= <${maxExclusive}>`,
+
+		"{minInclusive/maxInclusive}": minInclusive === undefined || maxInclusive === undefined
+			|| minInclusive <= maxInclusive
+			|| `inconsistent bounds <${minInclusive}> > <${maxInclusive}>`,
+
+		"{minExclusive/maxInclusive}": minExclusive === undefined || maxInclusive === undefined
+			|| minExclusive < maxInclusive
+			|| `inconsistent bounds <${minExclusive}> >= <${maxInclusive}>`,
+
+		"{minInclusive/maxExclusive}": minInclusive === undefined || maxExclusive === undefined
+			|| minInclusive < maxExclusive
+			|| `inconsistent bounds <${minInclusive}> >= <${maxExclusive}>`,
+
+		"{hasValue/in}": hasValue === undefined || allowed === undefined
+			|| hasValue.every(v => allowed.includes(v))
+			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`
+
+	});
+
+}
+
+
+/**
  * Validates values against a number shape.
  *
  * Filters input values by type, reporting non-numeric values under the `kind` key, then enforces
@@ -196,61 +252,6 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 
 		in: allowed as NumberShape["in"],
 		hasValue: hasValue as NumberShape["hasValue"]
-
-	});
-
-}
-
-/**
- * Checks internal consistency of number shape constraints.
- *
- * @param constraints The constraint fields to validate
- *
- * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
- */
-export function checkNumber({
-
-	minExclusive,
-	maxExclusive,
-	minInclusive,
-	maxInclusive,
-
-	in: allowed,
-	hasValue
-
-}: {
-
-	readonly minExclusive?: number;
-	readonly maxExclusive?: number;
-	readonly minInclusive?: number;
-	readonly maxInclusive?: number;
-
-	readonly in?: readonly number[];
-	readonly hasValue?: readonly number[];
-
-}): undefined | Trace {
-
-	return collect({
-
-		"{minExclusive/maxExclusive}": minExclusive === undefined || maxExclusive === undefined
-			|| minExclusive < maxExclusive
-			|| `inconsistent bounds <${minExclusive}> >= <${maxExclusive}>`,
-
-		"{minInclusive/maxInclusive}": minInclusive === undefined || maxInclusive === undefined
-			|| minInclusive <= maxInclusive
-			|| `inconsistent bounds <${minInclusive}> > <${maxInclusive}>`,
-
-		"{minExclusive/maxInclusive}": minExclusive === undefined || maxInclusive === undefined
-			|| minExclusive < maxInclusive
-			|| `inconsistent bounds <${minExclusive}> >= <${maxInclusive}>`,
-
-		"{minInclusive/maxExclusive}": minInclusive === undefined || maxExclusive === undefined
-			|| minInclusive < maxExclusive
-			|| `inconsistent bounds <${minInclusive}> >= <${maxExclusive}>`,
-
-		"{hasValue/in}": hasValue === undefined || allowed === undefined
-			|| hasValue.every(v => allowed.includes(v))
-			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`
 
 	});
 

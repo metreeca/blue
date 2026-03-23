@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { checkLocalized, mergeLocal, mergeLocals, validateLocal, validateLocals } from "./local.core.js";
+import { checkLocalised, mergeLocal, mergeLocals, validateLocal, validateLocals } from "./local.core.js";
 import { local, locals } from "./local.js";
 
 
@@ -173,6 +173,50 @@ describe("factories", () => {
 
 describe("operators", () => {
 
+	describe("checkLocalised", () => {
+
+		it("returns undefined for consistent constraints", async () => {
+
+			expect(checkLocalised({ minLength: 1, maxLength: 10 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when minLength equals maxLength", async () => {
+
+			expect(checkLocalised({ minLength: 5, maxLength: 5 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only minLength is provided", async () => {
+
+			expect(checkLocalised({ minLength: 5 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only maxLength is provided", async () => {
+
+			expect(checkLocalised({ maxLength: 5 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when no constraints are provided", async () => {
+
+			expect(checkLocalised({})).toBeUndefined();
+
+		});
+
+		it("returns trace when minLength > maxLength", async () => {
+
+			const trace = checkLocalised({ minLength: 10, maxLength: 5 });
+
+			expect(trace).toBeDefined();
+			expect(trace).toHaveProperty("{minLength/maxLength}");
+
+		});
+
+	});
+
+
 	describe("validateLocal", () => {
 
 		describe("type filtering", () => {
@@ -210,7 +254,6 @@ describe("operators", () => {
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
 
 			});
 
@@ -220,6 +263,12 @@ describe("operators", () => {
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{kind}");
+
+			});
+
+			it("rejects multiple object values", async () => {
+
+				expect(validateLocal([{ "en": "hello" }, { "fr": "bonjour" }], local())).toBeDefined();
 
 			});
 
@@ -476,7 +525,6 @@ describe("operators", () => {
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
 
 			});
 
@@ -492,6 +540,12 @@ describe("operators", () => {
 			it("rejects local value for locals shape", async () => {
 
 				expect(validateLocals([{ "en": "hello" }], locals())).toBeDefined();
+
+			});
+
+			it("rejects multiple object values", async () => {
+
+				expect(validateLocals([{ "en": ["hello"] }, { "fr": ["bonjour"] }], locals())).toBeDefined();
 
 			});
 
@@ -906,49 +960,6 @@ describe("operators", () => {
 				)).toThrow(RangeError);
 
 			});
-
-		});
-
-	});
-
-	describe("checkLocalized", () => {
-
-		it("returns undefined for consistent constraints", async () => {
-
-			expect(checkLocalized({ minLength: 1, maxLength: 10 })).toBeUndefined();
-
-		});
-
-		it("returns undefined when minLength equals maxLength", async () => {
-
-			expect(checkLocalized({ minLength: 5, maxLength: 5 })).toBeUndefined();
-
-		});
-
-		it("returns undefined when only minLength is provided", async () => {
-
-			expect(checkLocalized({ minLength: 5 })).toBeUndefined();
-
-		});
-
-		it("returns undefined when only maxLength is provided", async () => {
-
-			expect(checkLocalized({ maxLength: 5 })).toBeUndefined();
-
-		});
-
-		it("returns undefined when no constraints are provided", async () => {
-
-			expect(checkLocalized({})).toBeUndefined();
-
-		});
-
-		it("returns trace when minLength > maxLength", async () => {
-
-			const trace = checkLocalized({ minLength: 10, maxLength: 5 });
-
-			expect(trace).toBeDefined();
-			expect(trace).toHaveProperty("{minLength/maxLength}");
 
 		});
 

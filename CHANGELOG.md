@@ -34,13 +34,37 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	with memoized caching; all public API `ResourceShape` parameters are resolved through this factory
 - Add `Eager<S>` type alias for the materialized result of a lazy shape
 - Move `Infer<S>` type to `resource.ts` and widen constraint to `Lazy<ValueShape> | UnionShape`
+- Add `model` field to `RangeShape` — holds the runtime prototype value, computed from the shape model and cardinality;
+	for union shapes, multi-valued cardinality distributes arrays per variant via the new `Variants<T, U>` type
+- Add `Variants<T, U>` type — maps a union model to its cardinality-aware form: scalar (`maxCount === 1`) holds single
+	values per variant key, multi-valued distributes arrays per variant key
+- Add `Declared<T>` type — extracts explicitly declared entries from a type, stripping index signatures
+- Move `RangeShape`, `Cardinality`, and range factories (`multiple`, `repeatable`, `optional`, `required`,
+	`cardinality`) from `resource` module to main `index` module
+- Move `UnionShape`, `union()`, `Infer`, `Eager` from `resource` module to main `index` module
+- Move `mergeRange`, `checkRange` from `resource.core` to `index.core` module
+- Move `validateScalarUnion`, `validateArrayUnion` to `index.core` module
+
+### Changed
+
+- **Breaking:** Multi-valued union properties now represent values as a single indexed record with per-variant arrays
+	(`{ text?: string[], postal?: Reference[] }`) instead of an array of single-variant containers
+	(`Array<{ text?: string, postal?: Reference }>`)
+- **Breaking:** Union property values must always be indexed objects — bare scalar values are no longer accepted
+- **Breaking:** `Cardinality` type no longer handles union-specific distribution; union distribution is now handled by
+	`Variants` via `RangeShape.model`
+- Cardinality checks now use effective value count for union, local, and locals shapes — counting leaf values inside
+	indexed containers rather than container count
 - Detect circular `extends` chains in `materialize()` — throws `TraceError` with `{ <factory>: "circular dependency" }`
 	keyed by the factory function name
 
 ### Fixed
 
+- Accept local/locals shorthand values in cardinality counting — previously string shorthand for `local` and array
+	shorthand for `locals` were counted as zero values, causing `minCount` violations on `required` properties
 - Accept `locals` array shorthand on scalar cardinality properties in both constraint and value scope validation —
-	previously `validateRange` rejected any array when `maxCount === 1`, blocking the `["v"]` shorthand for `{ und: ["v"] }`
+	previously `validateRange` rejected any array when `maxCount === 1`, blocking the `["v"]` shorthand for
+	`{ und: ["v"] }`
 - Unwrap indexed union containers in value scope validation — previously `validateUnion` passed the whole
 	`{ variantKey: innerValue }` object to each variant without unwrapping, rejecting valid indexed container format
 	documented for union properties; reference variants are now dereferenced through their target resource shape

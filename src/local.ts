@@ -63,12 +63,12 @@
  */
 
 import { isObject, isString } from "@metreeca/core";
-import { type TagRange } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/deep";
+import { type TagRange } from "@metreeca/core/language";
 import { type Locale, type Locales } from "@metreeca/qest/model";
 import { type Local, type Locals } from "@metreeca/qest/state";
 import { TraceError } from "./core/trace.js";
-import { checkLocalized } from "./local.core.js";
+import { checkLocalised } from "./local.core.js";
 
 
 /**
@@ -301,7 +301,7 @@ export function local(constraints: Locale | LocalConstraints = {}): LocalShape {
 
 	});
 
-	const trace = checkLocalized(shape);
+	const trace = checkLocalised(shape);
 
 	if ( trace !== undefined ) {
 		throw new TraceError("inconsistent local shape constraints", trace);
@@ -342,7 +342,7 @@ export function locals(constraints: LocalsConstraints = {}): LocalsShape {
 
 	});
 
-	const trace = checkLocalized(shape);
+	const trace = checkLocalised(shape);
 
 	if ( trace !== undefined ) {
 		throw new TraceError("inconsistent locals shape constraints", trace);
