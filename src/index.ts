@@ -28,8 +28,7 @@
  * - {@link BooleanShape} - Booleans
  * - {@link NumberShape} - Numbers
  * - {@link StringShape} - Strings
- * - {@link LocalShape} - Single-valued language-tagged maps
- * - {@link LocalsShape} - Multi-valued language-tagged maps
+ * - {@link LocalisedShape} - Language-tagged maps (scalar or array per tag, determined by cardinality)
  * - {@link ReferenceShape} - Resource IRI references
  * - {@link ResourceShape} - Resources
  *
@@ -46,7 +45,9 @@
  *
  * ```typescript
  * import { required, optional, repeatable } from '@metreeca/blue';
- * import { string, integer, boolean, date } from '@metreeca/blue';
+ * import { boolean } from '@metreeca/blue/boolean';
+ * import { integer } from '@metreeca/blue/number';
+ * import { string, date } from '@metreeca/blue/string';
  * import { resource, id } from '@metreeca/blue/resource';
  *
  * const Product = resource({
@@ -66,9 +67,10 @@
  * ```typescript
  * import { validate } from '@metreeca/blue';
  *
- * const name = validate(data, { scope: "value", shape: Product })({
- *   value: product => product.name
- * }); // undefined if validation fails
+ * validate(data, { scope: "state", shape: Product })({
+ *   value: product => console.log(product.name),
+ *   error: trace => console.error(trace)
+ * });
  * ```
  *
  * **Validating Entries**
@@ -82,39 +84,31 @@
  * **Validating Models**
  *
  * > [!WARNING]
- * > Model validation is safe against complexity attacks by default: aggregate transforms and nested model expansion
+ * > Query validation is safe against complexity attacks by default: aggregate transforms and nested model expansion
  * > are disabled. Enable `stats` and/or `depth` explicitly only when the additional complexity is required.
  *
  * Validate projection models specifying which properties to retrieve from a resource:
  *
  * ```typescript
- * // validate a projection model
  * validate(data, { scope: "model", shape: Product });
- *
- * // validate a projection model with aggregate transforms
  * validate(data, { scope: "model", shape: Product, stats: true });
- *
- * // validate a projection model with nesting depth
  * validate(data, { scope: "model", shape: Product, depth: 2 });
  * ```
  *
  * **Auditing Validated Data**
  *
- * {@link validate} associates validated data with a shape for a given scope. The scope tracks how
- * the association was established: `value`, `entry`, and `model` scopes are set by {@link validate} after successful
- * validation. Use {@link audit} to check whether a value or model was previously validated and retrieve the associated
- * shape.
+ * Use {@link audit} to check whether a value or model was previously validated by {@link validate} and retrieve the
+ * associated shape:
  *
  * ```typescript
- * audit(validated, { scope: "value" }); // associated shape or undefined
- * audit(validated, { scope: "*" }); // matches both value and entry scopes
+ * audit(validated, { scope: "state" }); // associated shape or undefined
+ * audit(validated, { scope: "*" }); // matches both state and entry scopes
  * ```
  *
  * **Effective Shape Resolution**
  *
- * Use {@link apply} to resolve the effective shape after applying a probe to a value shape. Supports type-aware shape
- * inference in interactive UIs, resolving property paths through nested resources and deriving the effective type
- * through each transform pipe stage.
+ * Use {@link apply} to resolve the effective shape after applying a probe to a value shape, resolving property paths
+ * through nested resources and deriving the effective type through each transform pipe stage.
  *
  * @module index
  *
@@ -125,17 +119,18 @@ import { type Identifier, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { message } from "@metreeca/core/report";
-import type { Model } from "@metreeca/qest/model";
-import type { Reference, Resource, Value } from "@metreeca/qest/state";
+import type { Query } from "@metreeca/qest/model";
+import type { Resource, Value } from "@metreeca/qest/state";
+import { type Reference }from "@metreeca/qest"
 import type { BooleanShape } from "./boolean.js";
 import { brand, branded } from "./core/brand.js";
 import { materialize } from "./core/cache.js";
 import { apply } from "./core/probe.js";
 import { TraceError } from "./core/trace.js";
 import { validateValue } from "./index.core.js";
-import type { LocalShape, LocalsShape } from "./local.js";
+import type { LocalisedShape } from "./localised.js";
 import type { NumberShape } from "./number.js";
-import { validateEntry, validateModel, validateResource } from "./resource.core.js";
+import { validateEntry, validateQuery, validateResource } from "./resource.core.js";
 import type { ReferenceShape, ResourceShape } from "./resource.js";
 import type { StringShape } from "./string.js";
 
@@ -167,8 +162,7 @@ export type ValueShape =
 	| BooleanShape
 	| NumberShape
 	| StringShape
-	| LocalShape
-	| LocalsShape
+	| LocalisedShape
 	| ReferenceShape
 	| ResourceShape;
 
@@ -205,7 +199,7 @@ export type ValuesShape<
 	T = unknown,
 	L extends undefined | number = undefined | number,
 	U extends undefined | number = undefined | number,
-	S extends Lazy<ValueShape> | UnionShape = Lazy<ValueShape> | UnionShape
+	S extends Lazy<ValueShape | UnionShape> = Lazy<ValueShape | UnionShape>
 > = {
 
 	/**
@@ -213,19 +207,23 @@ export type ValuesShape<
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 */
-	readonly kind: "range";
+	readonly kind: "values";
 
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
 	 * Scalar value sets hold the shape model directly; multi-valued sets hold an array or, for union shapes,
-	 * a {@link Variants} record with per-key arrays.
+	 * a {@link Variants} record with per-key arrays. {@link LocalisedShape | Localised} shapes always hold
+	 * a single language map because cardinality applies per tag within the map, not to the map itself.
 	 *
 	 * **Inheritance** — computed from shape and cardinality, not user-defined.
 	 */
 	readonly model: S extends UnionShape ? Variants<T, U>
-		: U extends 1 ? T
-			: readonly T[];
+		: S extends Lazy<LocalisedShape> ? (U extends 1
+				? string | { readonly [tag: string]: string }
+				: readonly string[] | { readonly [tag: string]: readonly string[] })
+			: U extends 1 ? T
+				: readonly T[];
 
 
 	/**
@@ -276,7 +274,7 @@ export type ValuesShape<
  * The expected cardinality of the polymorphic value set constrains how many variant entries may be present and the
  * form of the expected value; for example, given `union({ text: string(), postal: reference(PostalAddress) })`:
  *
- * | Cardinality  | Model Type                                                                          |
+ * | Cardinality  | Query Type                                                                          |
  * | ------------ | ----------------------------------------------------------------------------------- |
  * | scalar       | `{ text?: string, postal?: Reference }` — exactly one entry, holding a scalar value   |
  * | multi-valued | `{ text?: string[], postal?: Reference[] }` — one or more entries, each holding an array |
@@ -383,7 +381,7 @@ export type Validator<T = unknown> =
  *
  * @typeParam S The shape or lazy shape to extract from
  */
-export type Infer<S extends Lazy<ValueShape> | UnionShape> =
+export type Infer<S extends Lazy<ValueShape | UnionShape>> =
 	S extends () => { readonly model: infer T } ? T
 		: S extends { readonly model: infer T } ? T
 			: never;
@@ -454,26 +452,26 @@ export type Variants<V, U extends undefined | number = undefined | number> =
  *
  * @param value The value to inspect
  * @param opts Retrieval options
- * @param opts.scope The scope to check against; `"*"` matches both `"value"` and `"entry"`
+ * @param opts.scope The scope to check against; `"*"` matches both `"state"` and `"entry"`
  *
  * @returns The associated {@link ResourceShape}, or `undefined` if the value was not validated with the expected scope
  */
 export function audit(value: Value, opts: {
 
-	readonly scope: "*" | "value" | "entry"
+	readonly scope: "*" | "state" | "entry"
 
 }): undefined | ResourceShape;
 
 /**
- * Checks whether a model was validated with a given scope.
+ * Checks whether a query was validated with a given scope.
  *
- * @param model The model to inspect
+ * @param query The query to inspect
  * @param opts Retrieval options
  * @param opts.scope The scope to check against
  *
- * @returns The associated {@link ResourceShape}, or `undefined` if the model was not validated with the expected scope
+ * @returns The associated {@link ResourceShape}, or `undefined` if the query was not validated with the expected scope
  */
-export function audit(model: Model, opts: {
+export function audit(query: Query, opts: {
 
 	readonly scope: "model"
 
@@ -482,19 +480,19 @@ export function audit(model: Model, opts: {
 /**
  * Checks whether a value or model was validated with a given scope.
  */
-export function audit(entry: Value | Model, {
+export function audit(entry: Value | Query, {
 
 	scope
 
 }: {
 
-	readonly scope: "*" | "value" | "entry" | "model"
+	readonly scope: "*" | "state" | "entry" | "model"
 
 }): undefined | ResourceShape {
 
 	const actual = branded(entry, ValidationScope);
 
-	if ( scope === "*" ? actual === "value" || actual === "entry" : actual === scope ) {
+	if ( scope === "*" ? actual === "state" || actual === "entry" : actual === scope ) {
 
 		return branded(entry, ValidationShape) as ResourceShape;
 
@@ -508,7 +506,7 @@ export function audit(entry: Value | Model, {
 
 
 /**
- * Validates a value against a shape with a value scope.
+ * Validates a value against a shape with a state scope.
  *
  * Enforces all shape constraints including type, cardinality, closed-shape checks, and custom validators.
  * For {@link Resource} values, which are property maps describing the complete state of a linked data resource,
@@ -521,19 +519,19 @@ export function audit(entry: Value | Model, {
  * > so that you can safely re-validate defensively.
  *
  * > [!TIP]
- * > Use {@link audit} to check whether a value was previously validated with the `value` scope and retrieve the
+ * > Use {@link audit} to check whether a value was previously validated with the `state` scope and retrieve the
  * > associated shape.
  *
  * @typeParam T The {@link Value} type inferred from `opts.shape`
  *
  * @param value The value to validate
  * @param opts Validation options
- * @param opts.scope Selects value-level validation with full constraint enforcement
+ * @param opts.scope Selects state-level validation with full constraint enforcement
  * @param opts.shape The {@link Lazy} shape defining validation constraints
  *
  * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on
  * failure; for
- * {@link Resource} values, on success, the value is an immutable copy associated with the `value` scope and a verified
+ * {@link Resource} values, on success, the value is an immutable copy associated with the `state` scope and a verified
  * and flattened copy of the shape (see {@link resource!resource | resource}), retrievable via {@link audit}
  *
  * @throws {TraceError} If the shape contains invalid or incompatible entry definitions (see
@@ -541,7 +539,7 @@ export function audit(entry: Value | Model, {
  */
 export function validate<T extends Value>(value: unknown, opts: {
 
-	readonly scope: "value"
+	readonly scope: "state"
 	readonly shape: Lazy<ValueShape & { model: T }>
 
 }): Relay<{
@@ -596,10 +594,10 @@ export function validate<T extends Value>(value: unknown, opts: {
 }>;
 
 /**
- * Validates a model against a shape with a model scope.
+ * Validates a query against a shape with a query scope.
  *
- * A {@link Model} is a recursively nested property map specifying which properties to retrieve from a resource.
- * Shape constraints beyond type are skipped as model values are placeholders rather than actual
+ * A {@link Query} is a recursively nested property map specifying which properties to retrieve from a resource.
+ * Shape constraints beyond type are skipped as query values are placeholders rather than actual
  * data; cardinality is checked only for shape consistency (scalar if `maxCount` is 1, singleton tuple otherwise);
  * missing properties are accepted as not requested and unknown properties in expression paths are silently ignored.
  *
@@ -609,34 +607,34 @@ export function validate<T extends Value>(value: unknown, opts: {
  * > re-validate defensively.
  *
  * > [!TIP]
- * > Use {@link audit} to check whether a model was previously validated with the `model` scope and retrieve the
+ * > Use {@link audit} to check whether a query was previously validated with the `query` scope and retrieve the
  * > associated shape.
  *
  * > [!TIP]
- * > Wherever a property specifies a {@link ReferenceShape}, the model may be either an IRI {@link Reference}
- * > (retrieving just the id) or a nested {@link Model} (retrieving a projection of the referenced resource, validated
+ * > Wherever a property specifies a {@link ReferenceShape}, the query may be either an IRI {@link Reference}
+ * > (retrieving just the id) or a nested {@link Query} (retrieving a projection of the referenced resource, validated
  * > against its target shape). Nesting is subject to `depth` limits; set `depth` to the minimum required level to
  * > guard against possible complexity attacks from deeply nested models.
  *
  * > [!WARNING]
  * > Default options are safe against complexity attacks from client-defined models: aggregate transforms are rejected
- * > (`stats` defaults to `false`) and nested model expansion is disabled (`depth` defaults to `0`). Explicitly set
+ * > (`stats` defaults to `false`) and nested query expansion is disabled (`depth` defaults to `0`). Explicitly set
  * > `stats` to `true` and/or `depth` to a positive value or `null` only when the additional complexity is required
  * > and acceptable.
  *
- * @typeParam T The {@link Model} type
+ * @typeParam T The {@link Query} type
  *
- * @param model The model to validate
+ * @param query The query to validate
  * @param opts Validation options
- * @param opts.scope Selects model-level validation with structural checks
+ * @param opts.scope Selects query-level validation with structural checks
  * @param opts.shape The {@link Lazy} shape defining the expected structure
  * @param opts.stats Whether aggregate transforms (count, sum, min, max, avg) are accepted; `true` allows them;
  *     `false` rejects any binding containing aggregate transforms; defaults to `false`
  * @param opts.depth Maximum nesting depth for {@link Reference} and embedded {@link Resource} expansion; `0` rejects
- *     any nested {@link Model} while still accepting IRI references; `null` for unlimited; defaults to `0`
+ *     any nested {@link Query} while still accepting IRI references; `null` for unlimited; defaults to `0`
  *
- * @returns A {@link Relay} resolving to either `{ model }` on success or `{ trace }` on
- * failure; on success, the model is an immutable copy associated with the `model` scope and a verified and
+ * @returns A {@link Relay} resolving to either `{ query }` on success or `{ trace }` on
+ * failure; on success, the query is an immutable copy associated with the `query` scope and a verified and
  * flattened copy of the
  * shape (see {@link resource!resource | resource}), retrievable via {@link audit}
  *
@@ -644,7 +642,7 @@ export function validate<T extends Value>(value: unknown, opts: {
  * @throws RangeError If the shape contains incompatible inherited constraints
  * (see {@link resource!resource | resource})
  */
-export function validate<T extends Model>(model: unknown, opts: {
+export function validate<T extends Query>(query: unknown, opts: {
 
 	readonly scope: "model"
 	readonly shape: Lazy<ValueShape>
@@ -654,7 +652,7 @@ export function validate<T extends Model>(model: unknown, opts: {
 
 }): Relay<{
 
-	readonly model: T,
+	readonly query: T,
 	readonly trace: Trace
 
 }>;
@@ -672,7 +670,7 @@ export function validate(value: unknown, {
 
 }: {
 
-	readonly scope: "value" | "model" | "entry"
+	readonly scope: "state" | "model" | "entry"
 	readonly shape: Lazy<ValueShape>
 
 	readonly stats?: boolean
@@ -682,7 +680,7 @@ export function validate(value: unknown, {
 
 	readonly value: Value
 	readonly entry: Value
-	readonly model: Value | Model
+	readonly query: Value | Query
 	readonly trace: Trace
 
 }> {
@@ -695,18 +693,18 @@ export function validate(value: unknown, {
 
 			if ( branded(value, ValidationScope) === scope && branded(value, ValidationShape) === materialized ) {
 
-				return scope === "value" ? createRelay({ value })
+				return scope === "state" ? createRelay({ value })
 					: scope === "entry" ? createRelay({ entry: value })
-						: createRelay({ model: value });
+						: createRelay({ query: value });
 
-			} else if ( scope === "value" ) {
+			} else if ( scope === "state" ) {
 
 				const trace = validateResource([value], materialized);
 
 				return trace === undefined
 					? createRelay({
 						value: brand(value, {
-							[ValidationScope]: "value",
+							[ValidationScope]: "state",
 							[ValidationShape]: materialized
 						})
 					})
@@ -727,11 +725,11 @@ export function validate(value: unknown, {
 
 			} else {
 
-				const trace = validateModel([value], materialized, { depth, stats });
+				const trace = validateQuery([value], materialized, { depth, stats });
 
 				return trace === undefined
 					? createRelay({
-						model: brand(value, {
+						query: brand(value, {
 							[ValidationScope]: "model",
 							[ValidationShape]: materialized
 						})
@@ -751,7 +749,7 @@ export function validate(value: unknown, {
 				const trace = validateValue([value], materialized);
 
 				return trace === undefined
-					? createRelay({ model: value })
+					? createRelay({ query: value })
 					: createRelay({ trace });
 
 			} else {
@@ -832,6 +830,10 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
  *
  * Allows zero or more values, resulting in an optional array type (`undefined | readonly V[]`).
  *
+ * > [!WARNING]
+ * > For {@link LocalisedShape | localised} shapes, each tag in the map holds a string array.
+ * > `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags — this differs from
+ * > vanilla SHACL aggregate counting, though expressible via per-tag property shapes.
  *
  * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
  *
@@ -839,7 +841,7 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
  *
  * @returns An immutable value set shape with no minimum or maximum count
  */
-export function multiple<S extends Lazy<ValueShape> | UnionShape>(shape: S): ValuesShape<Infer<S>, undefined, undefined> {
+export function multiple<S extends Lazy<ValueShape | UnionShape>>(shape: S): ValuesShape<Infer<S>, undefined, undefined, S> {
 
 	return cardinality(undefined, undefined)(shape);
 
@@ -850,6 +852,11 @@ export function multiple<S extends Lazy<ValueShape> | UnionShape>(shape: S): Val
  *
  * Requires one or more values, resulting in a non-empty array type (`readonly [V, ...V[]]`).
  *
+ * > [!WARNING]
+ * > For {@link LocalisedShape | localised} shapes, each tag in the map holds a non-empty string
+ * > array and the map must contain at least one tag. `minCount`/`maxCount` apply **per tag**, not as
+ * > an aggregate across all tags — this differs from vanilla SHACL aggregate counting, though
+ * > expressible via per-tag property shapes.
  *
  * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
  *
@@ -857,7 +864,7 @@ export function multiple<S extends Lazy<ValueShape> | UnionShape>(shape: S): Val
  *
  * @returns An immutable value set shape with minCount=1 and no maximum count
  */
-export function repeatable<S extends Lazy<ValueShape> | UnionShape>(shape: S): ValuesShape<Infer<S>, 1, undefined> {
+export function repeatable<S extends Lazy<ValueShape | UnionShape>>(shape: S): ValuesShape<Infer<S>, 1, undefined, S> {
 
 	return cardinality(1, undefined)(shape);
 
@@ -868,6 +875,10 @@ export function repeatable<S extends Lazy<ValueShape> | UnionShape>(shape: S): V
  *
  * Allows zero or one value, resulting in an optional scalar type (`undefined | V`).
  *
+ * > [!WARNING]
+ * > For {@link LocalisedShape | localised} shapes, each tag in the map holds a single string.
+ * > `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags — this differs from
+ * > vanilla SHACL aggregate counting, though expressible via per-tag property shapes.
  *
  * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
  *
@@ -875,7 +886,7 @@ export function repeatable<S extends Lazy<ValueShape> | UnionShape>(shape: S): V
  *
  * @returns An immutable value set shape with no minimum count and maxCount=1
  */
-export function optional<S extends Lazy<ValueShape> | UnionShape>(shape: S): ValuesShape<Infer<S>, undefined, 1> {
+export function optional<S extends Lazy<ValueShape | UnionShape>>(shape: S): ValuesShape<Infer<S>, undefined, 1, S> {
 
 	return cardinality(undefined, 1)(shape);
 
@@ -886,6 +897,11 @@ export function optional<S extends Lazy<ValueShape> | UnionShape>(shape: S): Val
  *
  * Requires exactly one value, resulting in a required scalar type (`V`).
  *
+ * > [!WARNING]
+ * > For {@link LocalisedShape | localised} shapes, each tag in the map holds exactly one string and
+ * > the map must contain at least one tag. `minCount`/`maxCount` apply **per tag**, not as an
+ * > aggregate across all tags — this differs from vanilla SHACL aggregate counting, though
+ * > expressible via per-tag property shapes.
  *
  * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
  *
@@ -893,7 +909,7 @@ export function optional<S extends Lazy<ValueShape> | UnionShape>(shape: S): Val
  *
  * @returns An immutable value set shape with minCount=1 and maxCount=1
  */
-export function required<S extends Lazy<ValueShape> | UnionShape>(shape: S): ValuesShape<Infer<S>, 1, 1> {
+export function required<S extends Lazy<ValueShape | UnionShape>>(shape: S): ValuesShape<Infer<S>, 1, 1, S> {
 
 	return cardinality(1, 1)(shape);
 
@@ -927,7 +943,7 @@ export function cardinality<
 >(
 	lower: L,
 	upper?: U
-): <S extends Lazy<ValueShape> | UnionShape>(shape: S) => ValuesShape<Infer<S>, L, U> {
+): <S extends Lazy<ValueShape | UnionShape>>(shape: S) => ValuesShape<Infer<S>, L, U, S> {
 
 	if ( lower !== undefined && lower < 0 ) {
 		throw new TypeError(`expected non-negative minCount <${lower}>`);
@@ -941,15 +957,18 @@ export function cardinality<
 		throw new TypeError(`inconsistent bounds <${lower}> > <${upper}>`);
 	}
 
-	return <S extends Lazy<ValueShape> | UnionShape>(shape: S) => {
+	return <S extends Lazy<ValueShape | UnionShape>>(shape: S) => {
 
-		type Model = S extends UnionShape ? Variants<Infer<S>, U>
-			: U extends 1 ? Infer<S>
-				: readonly Infer<S>[];
+		type Query = S extends UnionShape ? Variants<Infer<S>, U>
+			: S extends Lazy<LocalisedShape> ? (U extends 1
+				? string | { readonly [tag: string]: string }
+				: readonly string[] | { readonly [tag: string]: readonly string[] })
+				: U extends 1 ? Infer<S>
+					: readonly Infer<S>[];
 
-		const materialized: ValueShape | UnionShape = "kind" in shape ? shape : materialize(shape);
+		const materialized = materialize(shape);
 
-		const model = materialized.kind === "union"
+		const model = materialized.kind === "union" || materialized.kind === "localised"
 			? Object.fromEntries(Object.entries(materialized.model).map(([key, value]) =>
 				[key, upper === 1 ? value : [value]]
 			))
@@ -958,8 +977,8 @@ export function cardinality<
 
 		return immutable({
 
-			kind: "range",
-			model: model as Model,
+			kind: "values",
+			model: model as Query,
 
 			minCount: lower,
 			maxCount: upper,

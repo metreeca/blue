@@ -15,7 +15,7 @@
  */
 
 import type { IRI } from "@metreeca/core/resource";
-import type { Local, Locals, Resource } from "@metreeca/qest/state";
+import type { Localised, Resource } from "@metreeca/qest/state";
 import { assertType, describe, expectTypeOf, test } from "vitest";
 import type { BooleanShape } from "./boolean.js";
 import {
@@ -28,8 +28,7 @@ import {
 	union,
 	type ValueShape
 } from "./index.js";
-import type { LocalShape, LocalsShape } from "./local.js";
-import { local, locals } from "./local.js";
+import { localised, type LocalisedShape } from "./localised.js";
 import { integer, type NumberShape } from "./number.js";
 import { property, reference, type ReferenceShape, resource, type ResourceShape } from "./resource.js";
 import { string, type StringShape } from "./string.js";
@@ -51,20 +50,16 @@ describe("Infer", () => {
 			expectTypeOf<Infer<StringShape>>().toEqualTypeOf<string>();
 		});
 
-		test("LocalShape → Local", () => {
-			expectTypeOf<Infer<LocalShape>>().toEqualTypeOf<Local>();
+		test("LocalisedShape → Localised", () => {
+			expectTypeOf<Infer<LocalisedShape>>().toEqualTypeOf<Localised>();
 		});
 
-		test("LocalShape accepts string shorthand", () => {
-			expectTypeOf<string>().toExtend<Infer<LocalShape>>();
+		test("LocalisedShape accepts string shorthand", () => {
+			expectTypeOf<string>().toExtend<Infer<LocalisedShape>>();
 		});
 
-		test("LocalsShape → Locals", () => {
-			expectTypeOf<Infer<LocalsShape>>().toEqualTypeOf<Locals>();
-		});
-
-		test("LocalsShape accepts string array shorthand", () => {
-			expectTypeOf<readonly string[]>().toExtend<Infer<LocalsShape>>();
+		test("LocalisedShape accepts string array shorthand", () => {
+			expectTypeOf<readonly string[]>().toExtend<Infer<LocalisedShape>>();
 		});
 
 		test("ReferenceShape → Reference", () => {
@@ -77,7 +72,7 @@ describe("Infer", () => {
 
 		test("ValueShape → union of all model types", () => {
 			expectTypeOf<Infer<ValueShape>>()
-				.toEqualTypeOf<boolean | number | string | Local | Locals | IRI | Resource>();
+				.toEqualTypeOf<boolean | number | string | Localised | IRI | Resource>();
 		});
 
 		test("lazy resource factory → unwrapped model type", () => {
@@ -212,50 +207,44 @@ describe("Infer", () => {
 	describe("locals", () => {
 
 		const Shape = resource({
-			title: required(local()),
-			keywords: optional(locals())
+			title: required(localised()),
+			keywords: multiple(localised())
 		});
 
-		test("infers Local type", () => {
-			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("title").toEqualTypeOf<Local>();
+		test("infers string | { readonly [tag: string]: string } type for scalar cardinality", () => {
+			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("title").toEqualTypeOf<string | {
+				readonly [tag: string]: string
+			}>();
 		});
 
-		test("infers Locals | undefined type", () => {
-			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("keywords").toEqualTypeOf<Locals | undefined>();
+		test("infers readonly string[] | { readonly [tag: string]: readonly string[] } | undefined type for array cardinality", () => {
+			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("keywords").toEqualTypeOf<readonly string[] | {
+				readonly [tag: string]: readonly string[]
+			} | undefined>();
 		});
 
-		test("local accepts string shorthand", () => {
+		test("scalar local accepts string shorthand", () => {
 			expectTypeOf<string>().toExtend<Infer<typeof Shape>["title"]>();
 		});
 
-		test("locals accepts string array shorthand", () => {
+		test("array local accepts string array shorthand", () => {
 			expectTypeOf<readonly string[]>().toExtend<NonNullable<Infer<typeof Shape>["keywords"]>>();
 		});
 
-		test("accepts tagged object for local", () => {
+		test("accepts tagged object for scalar local", () => {
 			assertType<Infer<typeof Shape>>({ title: { en: "Hello" } });
 		});
 
-		test("accepts string shorthand for local", () => {
+		test("accepts string shorthand for scalar local", () => {
 			assertType<Infer<typeof Shape>>({ title: "Hello" });
 		});
 
-		test("accepts tagged object for locals", () => {
+		test("accepts tagged object for array local", () => {
 			assertType<Infer<typeof Shape>>({ title: "Hello", keywords: { en: ["a", "b"] } });
 		});
 
-		test("accepts string array shorthand for locals", () => {
+		test("accepts string array shorthand for array local", () => {
 			assertType<Infer<typeof Shape>>({ title: "Hello", keywords: ["a", "b"] });
-		});
-
-		test("rejects number for local", () => {
-			// @ts-expect-error - number not assignable to Local
-			assertType<Infer<typeof Shape>>({ title: 42 });
-		});
-
-		test("rejects number array for locals", () => {
-			// @ts-expect-error - number[] not assignable to Locals
-			assertType<Infer<typeof Shape>>({ title: "Hello", keywords: [1, 2] });
 		});
 
 	});

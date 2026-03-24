@@ -22,23 +22,19 @@
 
 import { type Identifier, isArray, isBoolean, isNumber, isObject, isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
-import { isTagRange } from "@metreeca/core/language";
 import { message } from "@metreeca/core/report";
 import { type IRI, isIRI } from "@metreeca/core/resource";
-import { defaultBase } from "@metreeca/qest/index";
+import { defaultBase, type Reference } from "@metreeca/qest";
 import { decodeProbe, isAggregate, type Probe } from "@metreeca/qest/model";
-import { type Reference, type Resource } from "@metreeca/qest/state";
-import type { BooleanShape } from "./boolean.js";
+import { type Resource } from "@metreeca/qest/state";
 import { brand, branded } from "./core/brand.js";
 import { materialize } from "./core/cache.js";
 import { collect, every, group, normalise, TraceError, wrap } from "./core/trace.js";
 import { mergeValues, validateArrayUnion, validateScalarUnion, validateValue } from "./index.core.js";
 import type { ValuesShape } from "./index.js";
 import { apply, type Trace, type UnionShape, type ValueShape } from "./index.js";
-import type { LocalShape, LocalsShape } from "./local.js";
-import type { NumberShape } from "./number.js";
+import { validateArrayLocale, validateArrayLocalised, validateLocalised, validateScalarLocale, validateScalarLocalised } from "./localised.core.js";
 import type { Property, ReferenceShape, ResourceShape } from "./resource.js";
-import type { StringShape } from "./string.js";
 
 
 /**
@@ -114,11 +110,15 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 
 		"{virtual}": shape.virtual !== undefined
 			|| parents.every(p => p.virtual === parents[0].virtual)
-			|| `conflicting parent values <${parents[0].virtual}> vs <${parents.find(p => p.virtual !== parents[0].virtual)?.virtual}> without child override`,
+			|| `conflicting parent values <${parents[0].virtual}> vs <${
+				parents.find(p => p.virtual !== parents[0].virtual)?.virtual
+			}> without child override`,
 
 		"{namespace}": shape.namespace !== undefined
 			|| parents.every(p => p.namespace?.[""] === parents[0].namespace?.[""])
-			|| `conflicting parent values <${parents[0].namespace?.[""]}>  vs <${parents.find(p => p.namespace?.[""] !== parents[0].namespace?.[""])?.namespace?.[""]}>  without child override`,
+			|| `conflicting parent values <${parents[0].namespace?.[""]}>  vs <${parents.find(p =>
+				p.namespace?.[""] !== parents[0].namespace?.[""])?.namespace?.[""]
+			}>  without child override`,
 
 		// property-level inherit fields
 
@@ -137,11 +137,15 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 
 					[`{${key}.hidden}`, inherited.every(p => p.hidden === inherited[0].hidden)
 					|| override?.hidden !== undefined
-					|| `conflicting parent values <${inherited[0].hidden}> vs <${inherited.find(p => p.hidden !== inherited[0].hidden)?.hidden}> without child override`],
+					|| `conflicting parent values <${inherited[0].hidden}> vs <${
+						inherited.find(p => p.hidden !== inherited[0].hidden)?.hidden
+					}> without child override`],
 
 					[`{${key}.computed}`, inherited.every(p => p.computed === inherited[0].computed)
 					|| override?.computed !== undefined
-					|| `conflicting parent values <${inherited[0].computed}> vs <${inherited.find(p => p.computed !== inherited[0].computed)?.computed}> without child override`]
+					|| `conflicting parent values <${inherited[0].computed}> vs <${
+						inherited.find(p => p.computed !== inherited[0].computed)?.computed
+					}> without child override`]
 
 				];
 
@@ -298,7 +302,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 		.find(([, entry]) => entry.kind === "id")
 		?.[0];
 
-	// collect properties
+	// collect entries
 
 	const entries = new Map(Object.entries(shape.properties));
 
@@ -413,74 +417,120 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 	}: ValuesShape): undefined | Trace {
 
-		const isScalar = maxCount === 1;
-		const isLocalised = shape.kind === "local" || shape.kind === "locals";
+		if ( shape.kind === "localised" ) {
 
-		const count = cardinality(value);
+			const values = value === undefined ? [] : [value];
 
-		// wrap locals arrays as a single value: ["v"] is shorthand for { und: ["v"] }
+			const structural = maxCount === 1
+				? validateScalarLocalised(values, shape)
+				: validateArrayLocalised(values, shape);
 
-		const values = value === undefined ? []
-			: isLocalised || !isArray(value) ? [value]
-				: value;
+			if ( structural !== undefined ) {
 
-		return collect({
+				return structural;
 
-			"{minCount}": minCount === undefined || count >= minCount
-				|| `expected at least <${minCount}> value(s)`,
+			} else if ( value === undefined ) {
 
-			"{maxCount}": maxCount === undefined || count <= maxCount
-				|| `expected at most <${maxCount}> value(s)`,
+				return minCount !== undefined && minCount >= 1
+					? collect({ "{minCount}": `expected at least one language tag` })
+					: undefined;
 
-			...wrap(shape.kind === "union"
+			} else {
+
+				const entries = isString(value) ? [["und", value] as [string, unknown]]
+					: isArray(value) ? [["und", value] as [string, unknown]]
+						: Object.entries(value as Record<string, unknown>);
+
+				if ( entries.length === 0 && minCount !== undefined && minCount >= 1  ) {
+
+					return collect({ "{minCount}": `expected at least one language tag` });
+
+				} else {
+
+					return collect(Object.fromEntries(entries.map(([tag, tagValue]) => {
+
+						const count = isArray(tagValue) ? tagValue.length : 1;
+
+						return [tag, collect({
+
+							"{minCount}": minCount === undefined || count >= minCount
+								|| `expected at least <${minCount}> value(s) for tag`,
+
+							"{maxCount}": maxCount === undefined || count <= maxCount
+								|| `expected at most <${maxCount}> value(s) for tag`
+
+						})];
+
+					})));
+
+				}
+			}
+
+		} else {
+
+			const isScalar = maxCount === 1;
+
+			const values = value === undefined ? []
+				: !isArray(value) ? [value]
+					: value;
+
+			const structural = shape.kind === "union"
 
 				? isScalar
 					? validateScalarUnion(values, shape)
 					: validateArrayUnion(values, shape)
 
-				: isLocalised // scalar/array guard handled internally by validateLocal/s
+				: isScalar
 
-					? validateValue(values, shape)
+					? isArray(value)
+						? collect({ "{kind}": "expected scalar value" })
+						: validateValue(values, shape)
 
-					: isScalar
+					: value !== undefined && !isArray(value)
+						? collect({ "{kind}": "expected array value" })
+						: validateValue(values, shape);
 
-						? isArray(value)
-							? collect({ "{kind}": "expected scalar value" })
-							: validateValue(values, shape)
+			if ( structural ) {
 
-						: value !== undefined && !isArray(value)
-							? collect({ "{kind}": "expected array value" })
-							: validateValue(values, shape)
-			)
-
-		});
-
-
-		function cardinality(value: unknown): number {
-
-			if ( value === undefined ) {
-
-				return 0;
+				return structural;
 
 			} else {
 
-				switch ( shape.kind ) {
+				const count = cardinality(value);
 
-					case "union":
-					case "local":
-					case "locals":
+				return collect({
 
-						return isObject(value)
-							? Object.values(value).reduce<number>(
-								(total, value) => total+(isArray(value) ? value.length : 1),
-								0
-							)
-							: isArray(value) ? value.length // array locals shorthand
-								: 1; // scalar local shorthand
+					"{minCount}": minCount === undefined || count >= minCount
+						|| `expected at least <${minCount}> value(s)`,
 
-					default:
+					"{maxCount}": maxCount === undefined || count <= maxCount
+						|| `expected at most <${maxCount}> value(s)`
 
-						return isArray(value) ? value.length : 1;
+				});
+
+			}
+
+
+			function cardinality(value: unknown): number {
+
+				if ( value === undefined ) {
+
+					return 0;
+
+				} else if ( shape.kind !== "union" ) {
+
+					return isArray(value) ? value.length : 1;
+
+				} else if ( isObject(value) ) {
+
+					return Object.values(value).reduce<number>(
+						(total, value) => total+(isArray(value) ? value.length : 1),
+						0
+					);
+
+				} else {
+
+					return 1;
 
 				}
 
@@ -601,7 +651,7 @@ export function validateEntry(values: readonly unknown[], shape: ResourceShape):
  *
  * @returns A keyed trace of constraint violations per property, or `undefined` if all models are valid
  */
-export function validateModel(values: readonly unknown[], shape: ResourceShape, {
+export function validateQuery(values: readonly unknown[], shape: ResourceShape, {
 
 	stats = true,
 	depth
@@ -618,308 +668,172 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	// resolve the identifier property key
 
-	const identifier = Object.entries(shape.properties).find(([, entry]) => entry.kind === "id")?.[0];
+	const identifier = Object.entries(shape.properties)
+		.find(([, entry]) => entry.kind === "id")
+		?.[0];
+
 
 	return collect({
 
 		"{kind}": mistyped === 0
 			|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
-		...Object.fromEntries(matching.map((model, index) => [key(model, index, identifier),
+		...Object.fromEntries(matching.map((query, index) => [key(query, index, identifier),
 
-			collect(Object.fromEntries(Object.entries(model).map(([binding, template]) => {
-
-				try {
-
-					const probe = decodeProbe(binding);
-
-					return !stats && probe.pipe.some(isAggregate)
-						? [binding, "disabled aggregate transforms"]
-						: [binding, validateProjection(probe, template, shape, depth)];
-
-				} catch ( e ) {
-
-					return [binding, message(e)];
-
-				}
-
-			})))
+			validateBindings(query, shape, depth)
 
 		]))
 
 	});
 
 
-	function validateProjection(binding: Probe, value: unknown, shape: ValueShape, depth: null | number): undefined | Trace {
+	function validateBindings(query: Record<string, unknown>, shape: ResourceShape, depth: null | number): undefined | Trace {
 
-		const effective = apply(binding, shape);
+		return collect(Object.fromEntries(Object.entries(query).map(([binding, templates]) => {
 
-		// undefined effective range means the binding cannot be populated at runtime; template is immaterial
+			try {
 
-		return effective === undefined ? undefined : validateValues(value, effective, depth);
+				const probe = decodeProbe(binding);
 
-	}
+				if ( !stats && probe.pipe.some(isAggregate) ) {
 
-	function validateValues(value: unknown, range: ValuesShape, depth: null | number): undefined | Trace {
+					return [binding, "disabled aggregate transforms"];
 
-		const { maxCount, shape } = range;
+				} else {
 
-		const isScalar = maxCount === 1;
-		const isLocals = shape.kind === "locals";
+					switch ( probe.target ) {
 
-		if ( isScalar ) {
+						case "<":
+						case ">":
+						case "<=":
+						case ">=":
 
-			// bypass array rejection for locals: its array shorthand ["v"] is a valid scalar representation
+							return [binding, validateLimit(templates, apply(probe, shape)?.shape)];
 
-			return collect(Array.isArray(value) && !isLocals
-				? { "{kind}": "expected scalar value" }
-				: wrap(validateScalar(value, shape, depth))
-			);
+						case "~":
 
-		} else {
+							return [binding, validateKeywords(templates, apply(probe, shape)?.shape)];
 
-			return collect(!Array.isArray(value) || value.length !== 1
-				? { "{kind}": "expected singleton tuple" }
-				: wrap(validateCollection(value[0], shape, depth))
-			);
+						case "?":
+						case "!":
+						case "*":
 
-		}
+							return [binding, validateOptions(templates, apply(probe, shape)?.shape)];
 
-	}
+						case "^":
 
-	function validateScalar(value: unknown, shape: ValueShape | UnionShape, depth: null | number): undefined | Trace {
+							return [binding, templates === "asc" || templates === "desc" || isNumber(templates) ? undefined
+								: "expected <asc>, <desc>, or number value"
+							];
 
-		switch ( shape.kind ) {
+						case "@":
+						case "#":
 
-			case "boolean":
+							return [binding, !isNumber(templates) ? "expected number value"
+								: !Number.isInteger(templates) || templates < 0 ? "expected non-negative integer"
+									: undefined
+							];
 
-				return validateBoolean(value, shape);
+						default:
 
-			case "number":
+							return [binding, validateTemplates(templates, apply(probe, shape), depth)];
 
-				return validateNumber(value, shape);
-
-			case "string":
-
-				return validateString(value, shape);
-
-			case "local":
-
-				return validateLocale(value, shape);
-
-			case "locals":
-
-				return validateLocales(value, shape);
-
-			case "reference":
-
-				return isString(value) ? (isReference(value) ? undefined : "expected absolute reference IRI")
-					: depth !== null && depth <= 0 ? "exceeded maximum nesting depth"
-						: validateModel([value], materialize(shape.shape), {
-							stats,
-							depth: depth === null ? depth : depth-1
-						});
-
-			case "resource":
-
-				return depth !== null && depth <= 0 ? "exceeded maximum nesting depth"
-					: validateModel([value], shape, { stats, depth: depth === null ? depth : depth-1 });
-
-			case "union":
-
-				return Object.values(shape.variants)
-					.some(variant => validateScalar(value, variant, depth) === undefined)
-					? undefined : "expected value matching at least a union variant";
-
-		}
-
-	}
-
-	function validateCollection(value: unknown, shape: ValueShape | UnionShape, depth: null | number): undefined | Trace {
-
-		switch ( shape.kind ) {
-
-			case "boolean":
-
-				return validateBoolean(value, shape);
-
-			case "number":
-
-				return validateNumber(value, shape);
-
-			case "string":
-
-				return validateString(value, shape);
-
-			case "local":
-
-				return "unexpected local collection";
-
-			case "locals":
-
-				return "unexpected locals collection";
-
-			case "reference":
-
-				return isString(value) ? (isReference(value) ? undefined : "expected absolute reference IRI")
-					: depth !== null && depth <= 0 ? "exceeded maximum nesting depth"
-						: validateQuery(value, materialize(shape.shape), depth === null ? depth : depth-1);
-
-			case "resource":
-
-				return depth !== null && depth <= 0 ? "exceeded maximum nesting depth"
-					: validateQuery(value, shape, depth === null ? depth : depth-1);
-
-			case "union":
-
-				return Object.values(shape.variants)
-					.some(variant => validateCollection(value, variant, depth) === undefined)
-					? undefined : "expected value matching at least a union variant";
-
-		}
-
-	}
-
-
-	function validateBoolean(value: unknown, { kind }: BooleanShape): undefined | Trace {
-
-		return isBoolean(value) ? undefined : `expected <${kind}> value`;
-
-	}
-
-	function validateNumber(value: unknown, { kind }: NumberShape): undefined | Trace {
-
-		return isNumber(value) ? undefined : `expected <${kind}> value`;
-
-	}
-
-	function validateString(value: unknown, { kind }: StringShape): undefined | Trace {
-
-		return isString(value) ? undefined : `expected <${kind}> value`;
-
-	}
-
-	function validateLocale(value: unknown, { kind }: LocalShape): undefined | Trace {
-
-		if ( isString(value) ) {
-
-			return undefined;
-
-		} else if ( isObject(value) ) {
-
-			return collect(Object.fromEntries(Object.entries(value).map(([k, v]) => [k,
-				!isTagRange(k) ? "invalid tag range"
-					: !isString(v) ? "expected string value"
-						: undefined
-			])));
-
-		} else {
-
-			return `expected <${kind}> value`;
-
-		}
-
-	}
-
-	function validateLocales(value: unknown, { kind }: LocalsShape): undefined | Trace {
-
-		if ( isArray(value, [isString]) ) {
-
-			return undefined;
-
-		} else if ( isObject(value) ) {
-
-			return collect(Object.fromEntries(Object.entries(value).map(([k, v]) => [k,
-				!isTagRange(k) ? "invalid tag range"
-					: !isArray(v, [isString]) ? "expected singleton string tuple"
-						: undefined
-			])));
-
-		} else {
-
-			return `expected <${kind}> value`;
-
-		}
-
-	}
-
-	function validateQuery(value: unknown, shape: ResourceShape, depth: null | number): undefined | Trace {
-
-		return collect(!isObject(value)
-
-			? { "{kind}": "expected query object" }
-
-			: Object.fromEntries(Object.entries(value).map(([key, v]) => {
-
-				try {
-
-					const probe = decodeProbe(key);
-
-					if ( !stats && probe.pipe.some(isAggregate) ) {
-
-						return [key, "disabled aggregate transforms"];
-
-					} else {
-
-						switch ( probe.target ) {
-
-							case "<":
-							case ">":
-							case "<=":
-							case ">=":
-
-								return [key, validateLimit(v, apply(probe, shape)?.shape)];
-
-							case "~":
-
-								return [key, validateKeywords(v, apply(probe, shape)?.shape)];
-
-							case "?":
-							case "!":
-							case "*":
-
-								return [key, validateOptions(v, apply(probe, shape)?.shape)];
-
-							case "^":
-
-								return [key, v === "asc" || v === "desc" || isNumber(v) ? undefined
-									: "expected <asc>, <desc>, or number value"
-								];
-
-							case "@":
-							case "#":
-
-								return [key, !isNumber(v) ? "expected number value"
-									: !Number.isInteger(v) || v < 0 ? "expected non-negative integer"
-										: undefined
-								];
-
-							default:
-
-								return [key, validateProjection(probe, v, shape, depth)];
-
-						}
 					}
-
-				} catch ( e ) {
-
-					return [key, message(e)];
 
 				}
 
-			}))
-		);
+			} catch ( e ) {
+
+				return [binding, message(e)];
+
+			}
+
+		})));
+
+	}
+
+	function validateTemplates(value: unknown, range: undefined | ValuesShape, depth: number | null): Trace | undefined {
+
+		if ( range === undefined ) {
+
+			return undefined; // undefined range means binding cannot be populated at runtime: template is immaterial
+
+		} else {
+
+			const { maxCount, shape } = range;
+
+			if ( shape.kind === "union" ) {
+
+				return Object.values(shape.variants)
+					.some(variant => validateTemplates(value, { ...range, shape: variant }, depth) === undefined)
+					? undefined : "expected value matching at least a union variant";
+
+			} else if ( shape.kind === "localised" ) {
+
+				return collect(wrap(maxCount === 1
+					? validateScalarLocale(value)
+					: validateArrayLocale(value)
+				));
+
+			} else if ( maxCount === 1 ) {
+
+				return collect(!Array.isArray(value)
+					? wrap(validateTemplate(value, shape, depth))
+					: { "{kind}": "expected scalar template" }
+				);
+
+			} else {
+
+				return collect(Array.isArray(value) && value.length === 1
+					? wrap(validateTemplate(value[0], shape, depth))
+					: { "{kind}": "expected singleton template tuple" }
+				);
+
+			}
+
+		}
+
+	}
+
+	function validateTemplate(value: unknown, shape: ValueShape, depth: null | number): undefined | Trace {
+
+		switch ( shape.kind ) {
+
+			case "boolean":
+
+				return isBoolean(value) ? undefined : `expected <${shape.kind}> value`;
+
+			case "number":
+
+				return isNumber(value) ? undefined : `expected <${shape.kind}> value`;
+
+			case "string":
+
+				return isString(value) ? undefined : `expected <${shape.kind}> value`;
+
+			case "reference":
+
+				return isString(value) ? (isReference(value) ? undefined : "expected absolute reference IRI")
+					: depth !== null && depth <= 0 ? "exceeded maximum nesting depth"
+						: !isObject(value) ? "expected query object"
+							: validateBindings(value, materialize(shape.shape), depth === null ? depth : depth-1);
+
+			case "resource":
+
+				return depth !== null && depth <= 0 ? "exceeded maximum nesting depth"
+					: !isObject(value) ? "expected query object"
+						: validateBindings(value, shape, depth === null ? depth : depth-1);
+
+		}
 
 	}
 
 
 	function validateLimit(value: unknown, shape: undefined | ValueShape | UnionShape): undefined | Trace {
 
-		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
-
 		if ( shape === undefined ) {
 
-			return undefined;
+			return undefined; // undefined shape means binding cannot be populated at runtime: template is immaterial
 
 		} else {
 
@@ -927,18 +841,17 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 				case "boolean":
 
-					return validateBoolean(value, shape);
+					return isBoolean(value) ? undefined : `expected <${shape.kind}> value`;
 
 				case "number":
 
-					return validateNumber(value, shape);
+					return isNumber(value) ? undefined : `expected <${shape.kind}> value`;
 
 				case "string":
 
-					return validateString(value, shape);
+					return isString(value) ? undefined : `expected <${shape.kind}> value`;
 
-				case "local":
-				case "locals":
+				case "localised":
 				case "reference":
 				case "resource":
 
@@ -956,21 +869,18 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateKeywords(value: unknown, shape: ValueShape | UnionShape | undefined): undefined | Trace {
-
-		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
+	function validateKeywords(value: unknown, shape: undefined | ValueShape | UnionShape): undefined | Trace {
 
 		if ( shape === undefined ) {
 
-			return undefined;
+			return undefined; // undefined shape means binding cannot be populated at runtime: template is immaterial
 
 		} else {
 
 			switch ( shape.kind ) {
 
 				case "string":
-				case "local":
-				case "locals":
+				case "localised":
 
 					return isString(value) ? undefined : "expected string value";
 
@@ -995,11 +905,13 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 	function validateOptions(value: unknown, shape: undefined | ValueShape | UnionShape): undefined | Trace {
 
-		// undefined shape means the constraint cannot be evaluated at runtime; value is immaterial
-
 		if ( shape === undefined ) {
 
-			return undefined;
+			return undefined; // undefined shape means binding cannot be populated at runtime: template is immaterial
+
+		} else if ( shape.kind === "localised" ) {
+
+			return validateLocalised([value], shape);
 
 		} else if ( Array.isArray(value) ) {
 
@@ -1027,23 +939,15 @@ export function validateModel(values: readonly unknown[], shape: ResourceShape, 
 
 				case "boolean":
 
-					return validateBoolean(value, shape);
+					return isBoolean(value) ? undefined : `expected <${shape.kind}> value`;
 
 				case "number":
 
-					return validateNumber(value, shape);
+					return isNumber(value) ? undefined : `expected <${shape.kind}> value`;
 
 				case "string":
 
-					return validateString(value, shape);
-
-				case "local":
-
-					return validateLocale(value, shape);
-
-				case "locals":
-
-					return validateLocales(value, shape);
+					return isString(value) ? undefined : `expected <${shape.kind}> value`;
 
 				case "reference":
 				case "resource":
@@ -1230,7 +1134,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 				entry.kind === "id" || entry.kind === "type" ? defaultBase : entry.range.model
 			]))
 
-		},
+		} as Resource,
 
 		virtual: target.virtual ?? source.virtual,
 

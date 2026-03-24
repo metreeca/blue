@@ -182,7 +182,7 @@ result({
 The same schema validates different kinds of CRUD payloads, each corresponding to a data type defined
 by [@metreeca/qest](https://metreeca.github.io/qest/):
 
-- **`"value"`** — Create/Replace ([`Resource`](https://metreeca.github.io/qest/types/state.Resource.html), default); all
+- **`"state"`** — Create/Replace ([`Resource`](https://metreeca.github.io/qest/types/state.Resource.html), default); all
 	constraints enforced, missing and unknown properties rejected
 - **`"model"`** — Retrieve ([`Model`](https://metreeca.github.io/qest/types/model.Model.html)); entry point for
 	retrieval projections, only type compatibility checked, missing properties accepted as not requested

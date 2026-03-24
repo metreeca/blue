@@ -19,8 +19,8 @@ import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import {
 	checkValues,
-	mergeValues,
 	mergeUnion,
+	mergeValues,
 	validateArrayUnion,
 	validateScalarUnion,
 	validateValue
@@ -31,15 +31,15 @@ import {
 	cardinality,
 	multiple,
 	optional,
-	type ValuesShape,
 	repeatable,
 	required,
 	union,
 	type UnionShape,
 	validate,
-	type ValueShape
+	type ValueShape,
+	type ValuesShape
 } from "./index.js";
-import { local, locals } from "./local.js";
+import { localised } from "./localised.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { id, reference, resource, type ResourceShape, type } from "./resource.js";
 import { date, duration, instant, iri, string, time, timestamp, year } from "./string.js";
@@ -192,11 +192,10 @@ describe("apply", () => {
 
 	});
 
-	describe("local/locals input", () => {
+	describe("localised input", () => {
 
 		it.each([
-			["local", local()],
-			["locals", locals()]
+			["localised", localised()]
 		])("accepts string-to-string transform on %s and preserves it", async (_label, s) => {
 
 			expect(transformRange(["lower"], s)?.shape).toBe(s);
@@ -204,8 +203,7 @@ describe("apply", () => {
 		});
 
 		it.each([
-			["local", local()],
-			["locals", locals()]
+			["localised", localised()]
 		])("accepts string-to-string pipe on %s and preserves it", async (_label, s) => {
 
 			expect(transformRange(["lower", "upper"], s)?.shape).toBe(s);
@@ -213,8 +211,7 @@ describe("apply", () => {
 		});
 
 		it.each([
-			["local", local()],
-			["locals", locals()]
+			["localised", localised()]
 		] as const)("returns undefined range for incompatible transforms on %s", async (_label, s) => {
 
 			expect(transformRange(["length"], s)).toBeUndefined(); // non-string-to-string
@@ -858,8 +855,7 @@ describe("apply", () => {
 			["boolean", boolean()],
 			["number", integer()],
 			["string", string()],
-			["local", local()],
-			["locals", locals()]
+			["localised", localised()]
 		])("resolves empty path for %s shape", async (_label, s) => {
 
 			const result = apply(probe([]), s);
@@ -919,7 +915,7 @@ describe("validation", () => {
 
 		it("returns undefined for untagged value with value scope", async () => {
 
-			expect(audit({ name: "Alice" }, { scope: "value" })).toBeUndefined();
+			expect(audit({ name: "Alice" }, { scope: "state" })).toBeUndefined();
 
 		});
 
@@ -938,16 +934,16 @@ describe("validation", () => {
 		it("returns shape when scope matches value-validated resource", async () => {
 
 			const shape = resource({ name: required(string()) });
-			const value = validate({ name: "Alice" }, { scope: "value", shape })({ value: v => v });
+			const value = validate({ name: "Alice" }, { scope: "state", shape })({ value: v => v });
 
-			expect(audit(value!, { scope: "value" })).toBe(shape);
+			expect(audit(value!, { scope: "state" })).toBe(shape);
 
 		});
 
 		it("returns undefined when scope mismatches value-validated resource", async () => {
 
 			const shape = resource({ name: required(string()) });
-			const value = validate({ name: "Alice" }, { scope: "value", shape })({ value: v => v });
+			const value = validate({ name: "Alice" }, { scope: "state", shape })({ value: v => v });
 
 			expect(audit(value as never, { scope: "model" })).toBeUndefined();
 
@@ -956,7 +952,7 @@ describe("validation", () => {
 		it("returns shape when scope matches model-validated model", async () => {
 
 			const shape = resource({ name: required(string()) });
-			const value = validate({}, { scope: "model", shape })({ model: v => v });
+			const value = validate({}, { scope: "model", shape })({ query: v => v });
 
 			expect(audit(value!, { scope: "model" })).toBe(shape);
 
@@ -965,9 +961,9 @@ describe("validation", () => {
 		it("returns undefined when scope mismatches model-validated model", async () => {
 
 			const shape = resource({ name: required(string()) });
-			const value = validate({}, { scope: "model", shape })({ model: v => v });
+			const value = validate({}, { scope: "model", shape })({ query: v => v });
 
-			expect(audit(value!, { scope: "value" })).toBeUndefined();
+			expect(audit(value!, { scope: "state" })).toBeUndefined();
 
 		});
 
@@ -980,7 +976,7 @@ describe("validation", () => {
 		it("returns shape when wildcard scope matches value-validated resource", async () => {
 
 			const shape = resource({ name: required(string()) });
-			const value = validate({ name: "Alice" }, { scope: "value", shape })({ value: v => v });
+			const value = validate({ name: "Alice" }, { scope: "state", shape })({ value: v => v });
 
 			expect(audit(value!, { scope: "*" })).toBe(shape);
 
@@ -1001,7 +997,7 @@ describe("validation", () => {
 		it("returns undefined when wildcard scope does not match model-validated model", async () => {
 
 			const shape = resource({ name: required(string()) });
-			const value = validate({}, { scope: "model", shape })({ model: v => v });
+			const value = validate({}, { scope: "model", shape })({ query: v => v });
 
 			expect(audit(value as never, { scope: "*" })).toBeUndefined();
 
@@ -1012,12 +1008,12 @@ describe("validation", () => {
 			const shape = resource({ name: required(string()) });
 			const value = { name: "Alice" };
 
-			const first = validate(value, { scope: "value", shape })({ value: v => v });
+			const first = validate(value, { scope: "state", shape })({ value: v => v });
 
-			const second = validate(first, { scope: "model", shape })({ model: v => v });
+			const second = validate(first, { scope: "model", shape })({ query: v => v });
 
 			expect(audit(second!, { scope: "model" })).toBe(shape);
-			expect(audit(second!, { scope: "value" })).toBeUndefined();
+			expect(audit(second!, { scope: "state" })).toBeUndefined();
 
 		});
 
@@ -1040,7 +1036,7 @@ describe("validation", () => {
 			it("returns value for valid empty resource", async () => {
 
 				const shape = resource({});
-				const result = validate({}, { scope: "value", shape });
+				const result = validate({}, { scope: "state", shape });
 
 				expect(result({ value: v => v })).toEqual({});
 
@@ -1052,7 +1048,7 @@ describe("validation", () => {
 					name: required(string())
 				});
 
-				const result = validate({ name: "Alice" }, { scope: "value", shape });
+				const result = validate({ name: "Alice" }, { scope: "state", shape });
 				expect(result({ value: v => v })).toEqual({ name: "Alice" });
 
 			});
@@ -1061,7 +1057,7 @@ describe("validation", () => {
 
 				const shape = resource({ id: id() });
 
-				const result = validate({ id: "app:/users/123" }, { scope: "value", shape });
+				const result = validate({ id: "app:/users/123" }, { scope: "state", shape });
 				expect(result({ value: v => v })).toEqual({ id: "app:/users/123" });
 
 			});
@@ -1070,7 +1066,7 @@ describe("validation", () => {
 
 				const shape = resource({ type: type() });
 
-				const result = validate({ type: "app:/types/Person" }, { scope: "value", shape });
+				const result = validate({ type: "app:/types/Person" }, { scope: "state", shape });
 				expect(result({ value: v => v })).toEqual({ type: "app:/types/Person" });
 
 			});
@@ -1083,7 +1079,7 @@ describe("validation", () => {
 			])("returns trace for %s", async (_label, value) => {
 
 				const shape = resource({});
-				const result = validate(value, { scope: "value", shape });
+				const result = validate(value, { scope: "state", shape });
 
 				expect(result({ trace: t => t })).toBeDefined();
 
@@ -1098,7 +1094,7 @@ describe("validation", () => {
 				const shape = resource({ name: required(string()) });
 				const value = { name: "Alice" };
 
-				const result = validate(value, { scope: "value", shape })({ value: v => v });
+				const result = validate(value, { scope: "state", shape })({ value: v => v });
 
 				expect(result).not.toBe(value);
 				expect(result).toEqual(value);
@@ -1109,7 +1105,7 @@ describe("validation", () => {
 
 				const shape = resource({ name: required(string()) });
 
-				const result = validate({ name: "Alice" }, { scope: "value", shape })({ value: v => v });
+				const result = validate({ name: "Alice" }, { scope: "state", shape })({ value: v => v });
 
 				expect(() => {
 					(result as any).name = "Bob";
@@ -1122,7 +1118,7 @@ describe("validation", () => {
 				const shape = resource({ name: required(string()) });
 				const model = { name: "Alice" };
 
-				const result = validate(model, { scope: "model", shape })({ model: v => v });
+				const result = validate(model, { scope: "model", shape })({ query: v => v });
 
 				expect(result).not.toBe(model);
 				expect(result).toEqual(model);
@@ -1133,7 +1129,7 @@ describe("validation", () => {
 
 				const shape = resource({ name: required(string()) });
 
-				const result = validate({}, { scope: "model", shape })({ model: v => v });
+				const result = validate({}, { scope: "model", shape })({ query: v => v });
 
 				expect(() => {
 					(result as any).name = [true];
@@ -1154,12 +1150,12 @@ describe("validation", () => {
 				// first validation should succeed and brand the resource
 
 				const value = { name: "Alice" };
-				const first = validate(value, { scope: "value", shape });
+				const first = validate(value, { scope: "state", shape });
 				const branded = first({ value: v => v });
 
 				// second validation with same mode should return the same branded resource
 
-				const second = validate(branded, { scope: "value", shape });
+				const second = validate(branded, { scope: "state", shape });
 				expect(second({ value: v => v })).toBe(branded);
 
 			});
@@ -1173,13 +1169,13 @@ describe("validation", () => {
 				// first validation with value mode
 
 				const value = { name: "Alice" };
-				const first = validate(value, { scope: "value", shape });
+				const first = validate(value, { scope: "state", shape });
 				const branded = first({ value: v => v });
 
 				// second validation with different mode should revalidate
 
 				const second = validate(branded, { scope: "model", shape });
-				const revalidated = second({ model: v => v });
+				const revalidated = second({ query: v => v });
 
 				expect(revalidated).not.toBe(branded);
 
@@ -1196,12 +1192,12 @@ describe("validation", () => {
 				});
 
 				const value = { name: "Alice" };
-				const first = validate(value, { scope: "value", shape: shapeA });
+				const first = validate(value, { scope: "state", shape: shapeA });
 				const branded = first({ value: v => v });
 
 				// same mode but different shape should revalidate
 
-				const second = validate(branded, { scope: "value", shape: shapeB });
+				const second = validate(branded, { scope: "state", shape: shapeB });
 				const revalidated = second({ value: v => v });
 
 				expect(revalidated).not.toBe(branded);
@@ -1216,10 +1212,10 @@ describe("validation", () => {
 
 				const value = { name: [true] };
 				const first = validate(value, { scope: "model", shape });
-				const branded = first({ model: v => v });
+				const branded = first({ query: v => v });
 
 				const second = validate(branded, { scope: "model", shape });
-				expect(second({ model: v => v })).toBe(branded);
+				expect(second({ query: v => v })).toBe(branded);
 
 			});
 
@@ -1231,7 +1227,7 @@ describe("validation", () => {
 
 				// invalid resource should not be branded
 
-				const invalid = validate({}, { scope: "value", shape });
+				const invalid = validate({}, { scope: "state", shape });
 				expect(invalid({ trace: t => t })).toBeDefined();
 
 			});
@@ -1246,7 +1242,7 @@ describe("validation", () => {
 					name: required(string())
 				});
 
-				const result = validate({}, { scope: "value", shape });
+				const result = validate({}, { scope: "state", shape });
 				expect(result({ trace: t => t })).toBeDefined();
 
 			});
@@ -1258,7 +1254,7 @@ describe("validation", () => {
 				});
 
 				const result = validate({}, { scope: "model", shape });
-				expect(result({ model: v => v })).toEqual({});
+				expect(result({ query: v => v })).toEqual({});
 
 			});
 
@@ -1281,7 +1277,7 @@ describe("validation", () => {
 
 			it("accepts indexed container with scalar variant in value scope", async () => {
 
-				const result = validate({ address: { text: "123 Main St" } }, { scope: "value", shape: Contact });
+				const result = validate({ address: { text: "123 Main St" } }, { scope: "state", shape: Contact });
 				expect(result({ value: v => v })).toEqual({ address: { text: "123 Main St" } });
 
 			});
@@ -1290,7 +1286,7 @@ describe("validation", () => {
 
 				const result = validate({
 					address: { PostalAddress: { street: "12 Harbour St", city: "Copenhagen" } }
-				}, { scope: "value", shape: Contact });
+				}, { scope: "state", shape: Contact });
 
 				expect(result({ value: v => v })).toEqual({
 					address: { PostalAddress: { street: "12 Harbour St", city: "Copenhagen" } }
@@ -1300,21 +1296,21 @@ describe("validation", () => {
 
 			it("rejects indexed container with unknown variant key in value scope", async () => {
 
-				const result = validate({ address: { unknown: "value" } }, { scope: "value", shape: Contact });
+				const result = validate({ address: { unknown: "value" } }, { scope: "state", shape: Contact });
 				expect(result({ trace: t => t })).toBeDefined();
 
 			});
 
 			it("rejects indexed container with invalid variant value in value scope", async () => {
 
-				const result = validate({ address: { text: 42 } }, { scope: "value", shape: Contact });
+				const result = validate({ address: { text: 42 } }, { scope: "state", shape: Contact });
 				expect(result({ trace: t => t })).toBeDefined();
 
 			});
 
 			it("accepts absent optional indexed union property in value scope", async () => {
 
-				const result = validate({}, { scope: "value", shape: Contact });
+				const result = validate({}, { scope: "state", shape: Contact });
 				expect(result({ value: v => v })).toEqual({});
 
 			});
@@ -1325,14 +1321,14 @@ describe("validation", () => {
 
 			it("accepts valid string in value scope", async () => {
 
-				const result = validate("hello", { scope: "value", shape: string() });
+				const result = validate("hello", { scope: "state", shape: string() });
 				expect(result({ value: v => v })).toBe("hello");
 
 			});
 
 			it("rejects invalid string in value scope", async () => {
 
-				const result = validate(42, { scope: "value", shape: string() });
+				const result = validate(42, { scope: "state", shape: string() });
 				expect(result({ trace: t => t })).toBeDefined();
 
 			});
@@ -1347,7 +1343,7 @@ describe("validation", () => {
 			it("accepts valid value in model scope for non-resource shape", async () => {
 
 				const result = validate(42, { scope: "model", shape: integer() });
-				expect(result({ model: v => v })).toBe(42);
+				expect(result({ query: v => v })).toBe(42);
 
 			});
 
@@ -1369,7 +1365,7 @@ describe("validation", () => {
 				});
 
 				const result = validate({ name: "Alice" }, { scope: "model", shape });
-				expect(result({ model: v => v })).toEqual({ name: "Alice" });
+				expect(result({ query: v => v })).toEqual({ name: "Alice" });
 
 			});
 
@@ -1380,7 +1376,7 @@ describe("validation", () => {
 				});
 
 				const result = validate({}, { scope: "model", shape });
-				expect(result({ model: v => v })).toEqual({});
+				expect(result({ query: v => v })).toEqual({});
 
 			});
 
@@ -1406,7 +1402,7 @@ describe("validation", () => {
 				});
 
 				const result = validate({ child: { label: "x" } }, { scope: "model", shape, depth: null });
-				expect(result({ model: v => v })).toEqual({ child: { label: "x" } });
+				expect(result({ query: v => v })).toEqual({ child: { label: "x" } });
 
 			});
 
@@ -1419,7 +1415,7 @@ describe("validation", () => {
 				});
 
 				const result = validate({ child: { label: "x" } }, { scope: "model", shape, depth: 1 });
-				expect(result({ model: v => v })).toEqual({ child: { label: "x" } });
+				expect(result({ query: v => v })).toEqual({ child: { label: "x" } });
 
 			});
 
@@ -1441,7 +1437,7 @@ describe("validation", () => {
 				});
 
 				const result = validate({ "total=count:": 0 }, { scope: "model", shape, stats: true });
-				expect(result({ model: v => v })).toEqual({ "total=count:": 0 });
+				expect(result({ query: v => v })).toEqual({ "total=count:": 0 });
 
 			});
 
@@ -1463,7 +1459,7 @@ describe("validation", () => {
 				});
 
 				const result = validate({ "y=year:released": 0 }, { scope: "model", shape, stats: false });
-				expect(result({ model: v => v })).toEqual({ "y=year:released": 0 });
+				expect(result({ query: v => v })).toEqual({ "y=year:released": 0 });
 
 			});
 
@@ -1474,7 +1470,7 @@ describe("validation", () => {
 				});
 
 				const result = validate({ name: "" }, { scope: "model", shape, stats: false });
-				expect(result({ model: v => v })).toEqual({ name: "" });
+				expect(result({ query: v => v })).toEqual({ name: "" });
 
 			});
 
@@ -1570,7 +1566,7 @@ describe("validation", () => {
 					name: required(string())
 				});
 
-				const result = validate({ name: "Alice" }, { scope: "value", shape: () => shape });
+				const result = validate({ name: "Alice" }, { scope: "state", shape: () => shape });
 				expect(result({ value: v => v })).toEqual({ name: "Alice" });
 
 			});
@@ -1582,7 +1578,7 @@ describe("validation", () => {
 				});
 
 				const result = validate({ name: "Alice" }, { scope: "model", shape: () => shape });
-				expect(result({ model: v => v })).toEqual({ name: "Alice" });
+				expect(result({ query: v => v })).toEqual({ name: "Alice" });
 
 			});
 
@@ -1594,10 +1590,10 @@ describe("validation", () => {
 
 				const factory = () => shape;
 
-				const first = validate({ name: "Alice" }, { scope: "value", shape: factory });
+				const first = validate({ name: "Alice" }, { scope: "state", shape: factory });
 				const branded = first({ value: v => v });
 
-				const second = validate(branded, { scope: "value", shape: factory });
+				const second = validate(branded, { scope: "state", shape: factory });
 				expect(second({ value: v => v })).toBe(branded);
 
 			});
@@ -1608,8 +1604,8 @@ describe("validation", () => {
 
 			it("accepts local object shorthand on optional property", async () => {
 
-				const shape = resource({ label: optional(local()) });
-				const result = validate({ label: { en: "hello" } }, { scope: "value", shape });
+				const shape = resource({ label: optional(localised()) });
+				const result = validate({ label: { en: "hello" } }, { scope: "state", shape });
 
 				expect(result({ value: v => v })).toEqual({ label: { en: "hello" } });
 
@@ -1617,12 +1613,12 @@ describe("validation", () => {
 
 		});
 
-		describe("locals shorthand on scalar cardinality", () => {
+		describe("localised shorthand on scalar cardinality", () => {
 
-			it("accepts locals array shorthand on optional property", async () => {
+			it("accepts localised array shorthand on optional property", async () => {
 
-				const shape = resource({ labels: optional(locals()) });
-				const result = validate({ labels: ["hello"] }, { scope: "value", shape });
+				const shape = resource({ labels: multiple(localised()) });
+				const result = validate({ labels: ["hello"] }, { scope: "state", shape });
 
 				expect(result({ value: v => v })).toEqual({ labels: ["hello"] });
 
@@ -1782,43 +1778,31 @@ describe("operators", () => {
 
 		it("returns undefined for valid local value", async () => {
 
-			expect(validateValue([{ "en": "hello" }], local())).toBeUndefined();
+			expect(validateValue([{ "en": "hello" }], localised())).toBeUndefined();
 
 		});
 
 		it("accepts plain string shorthand for local shape", async () => {
 
-			expect(validateValue(["hello"], local())).toBeUndefined();
+			expect(validateValue(["hello"], localised())).toBeUndefined();
 
 		});
 
-		it("rejects locals value for local shape", async () => {
+		it("rejects non-localised value for localised shape", async () => {
 
-			expect(validateValue([{ "en": ["hello", "world"] }], local())).toBeDefined();
-
-		});
-
-		it("rejects non-local value for local shape", async () => {
-
-			expect(validateValue([42], local())).toBeDefined();
+			expect(validateValue([42], localised())).toBeDefined();
 
 		});
 
-		it("returns undefined for valid locals value", async () => {
+		it("returns undefined for valid localised array value", async () => {
 
-			expect(validateValue([{ "en": ["hello"] }], locals())).toBeUndefined();
-
-		});
-
-		it("rejects non-locals value for locals shape", async () => {
-
-			expect(validateValue([42], locals())).toBeDefined();
+			expect(validateValue([{ "en": ["hello"] }], localised())).toBeUndefined();
 
 		});
 
-		it("rejects local value for locals shape", async () => {
+		it("returns undefined for valid localised scalar value", async () => {
 
-			expect(validateValue([{ "en": "hello" }], locals())).toBeDefined();
+			expect(validateValue([{ "en": "hello" }], localised())).toBeUndefined();
 
 		});
 
@@ -2102,7 +2086,7 @@ describe("operators", () => {
 
 				const merged = mergeValues(required(string()), required(string()));
 
-				expect(merged.kind).toBe("range");
+				expect(merged.kind).toBe("values");
 
 			});
 

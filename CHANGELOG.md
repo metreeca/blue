@@ -47,6 +47,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Breaking:** Unify `local()`/`locals()` into single `localised()` factory — whether each tag holds a scalar string
+	or a string array is now determined by the cardinality of the enclosing `ValuesShape` (`maxCount === 1` for scalar,
+	`maxCount > 1` or unbounded for array); `minCount`/`maxCount` apply **per tag** instead of as aggregate counts
+	(Closes #16)
 - **Breaking:** Multi-valued union properties now represent values as a single indexed record with per-variant arrays
 	(`{ text?: string[], postal?: Reference[] }`) instead of an array of single-variant containers
 	(`Array<{ text?: string, postal?: Reference }>`)
@@ -110,6 +114,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+- Remove `local()` and `locals()` factories, `LocalShape`, `LocalsShape`, `LocalConstraints`, `LocalsConstraints`
+	interfaces, and `"local"`/`"locals"` shape kind discriminators — replaced by unified `localised()` factory and
+	`LocalisedShape` with per-tag cardinality semantics
 - Replace `url()` and `uri()` string shape factories with `iri()` accepting a `variant` parameter (`hierarchical`,
 	`absolute`, `internal`, `relative`) aligned with `@metreeca/core` `Variant` type; defaults to `relative`
 - Remove `is*Shape` and `is*Constraints` type guard exports from all shape modules — structural validation is now

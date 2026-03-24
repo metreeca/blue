@@ -261,11 +261,12 @@
 import { type Identifier, isFunction, isString, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { asIRI, createNamespace, type IRI, isIRI, type Namespace } from "@metreeca/core/resource";
-import { defaultBase } from "@metreeca/qest/index";
-import type { Local, Reference, Resource, Value } from "@metreeca/qest/state";
+import { defaultBase, Reference } from "@metreeca/qest";
+import type { Localised, Resource, Value } from "@metreeca/qest/state";
 import { materialize } from "./core/cache.js";
 import { TraceError } from "./core/trace.js";
-import type { Cardinality, Declared, Infer, ValuesShape, Validator } from "./index.js";
+import type { Cardinality, Declared, Infer, UnionShape, Validator, ValuesShape } from "./index.js";
+import type { LocalisedShape } from "./localised.js";
 import { checkSingletons, flatten } from "./resource.core.js";
 
 
@@ -462,7 +463,7 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.1 sh:name}
 	 */
-	readonly name?: Local;
+	readonly name?: Localised;
 
 	/**
 	 * Human-readable description of the shape.
@@ -475,7 +476,7 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.2 sh:description}
 	 */
-	readonly description?: Local;
+	readonly description?: Localised;
 
 
 	/**
@@ -757,7 +758,7 @@ export interface PropertyConstraints<P extends Predicate = Reference> {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.1 sh:name}
 	 */
-	readonly name?: Local;
+	readonly name?: Localised;
 
 	/**
 	 * Human-readable description of the property.
@@ -768,7 +769,7 @@ export interface PropertyConstraints<P extends Predicate = Reference> {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.2 sh:description}
 	 */
-	readonly description?: Local;
+	readonly description?: Localised;
 
 
 	/**
@@ -862,6 +863,14 @@ export type Inheritance<C> =
 		: {};
 
 /**
+ * Converts a union type to an intersection type.
+ *
+ * @typeParam U The union type
+ */
+export type Intersection<U extends Value> =
+	(U extends unknown ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
+
+/**
  * Builds a resource type from {@link Entries}.
  *
  * @typeParam E The entries type
@@ -869,20 +878,6 @@ export type Inheritance<C> =
 export type Composition<E extends Entries> =
 	& { readonly [K in RequiredKeys<E> as K & string]: Content<E[K]> }
 	& { readonly [K in OptionalKeys<E> as K & string]?: Exclude<Content<E[K]>, undefined> };
-
-
-/**
- * Extracts the content type from an {@link Entry}.
- *
- * @typeParam E The entry type
- */
-export type Content<E extends Entry> =
-	E extends Id ? IRI
-		: E extends Type ? undefined | IRI
-			: (E extends Property<Predicate, infer R> ? R
-				: E extends ValuesShape ? E : never) extends ValuesShape<infer T, infer L, infer U>
-				? Cardinality<T, L, U>
-				: never;
 
 /**
  * Extracts keys of required properties from {@link Entries}.
@@ -901,12 +896,28 @@ export type OptionalKeys<E extends Entries> =
 	| { [K in keyof E]: undefined extends Content<E[K]> ? K : never }[keyof E];
 
 /**
- * Converts a union type to an intersection type.
+ * Extracts the content type from an {@link Entry}.
  *
- * @typeParam U The union type
+ * @typeParam E The entry type
  */
-export type Intersection<U extends Value> =
-	(U extends unknown ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
+export type Content<E extends Entry> =
+	E extends Id ? IRI
+		: E extends Type ? undefined | IRI
+			: PropertyRange<E> extends ValuesShape<infer T, infer L, infer U, infer S>
+				? [S] extends [LocalisedShape | UnionShape]
+					? Cardinality<PropertyRange<E>["model"], L, 1>
+					: Cardinality<T, L, U>
+				: never;
+
+/**
+ * Extracts the {@link ValuesShape} range from a {@link Property} or naked {@link ValuesShape} entry.
+ *
+ * @typeParam E The entry type
+ */
+export type PropertyRange<E extends Entry> =
+	E extends Property<Predicate, infer R> ? R
+		: E extends ValuesShape ? E
+			: never;
 
 
 //// Metadata //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1065,8 +1076,8 @@ export function resource<T extends ResourceShape>(shape: Lazy<T>): T;
 /**
  * Creates a resource shape from property definitions.
  *
- * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link ValuesShape} values for concise
- * syntax, and {@link Id}/{@link Type} markers.
+ * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link ValuesShape} values for
+ * concise syntax, and {@link Id}/{@link Type} markers.
  *
  * > [!TIP]
  * > `name: required(string())` is equivalent to `name: property(required(string()))`
@@ -1096,8 +1107,8 @@ export function resource<E extends Entries>(
 /**
  * Creates a resource shape from constraints and property definitions.
  *
- * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link ValuesShape} values for concise
- * syntax, and {@link Id}/{@link Type} markers.
+ * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link ValuesShape} values for
+ * concise syntax, and {@link Id}/{@link Type} markers.
  *
  * > [!TIP]
  * > When `constraints` includes `extends`, parent shapes are recursively flattened and merged into the returned shape.
@@ -1279,7 +1290,7 @@ export function resource(
 
 		return Object.fromEntries(Object.entries(entries).map(([name, entry]) => {
 
-			if ( entry.kind === "range" ) {
+			if ( entry.kind === "values" ) {
 
 				// inherit forward/reverse from parent when wrapping naked range
 

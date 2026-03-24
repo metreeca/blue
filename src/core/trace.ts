@@ -49,6 +49,40 @@ export function collect(entries: Record<string, undefined | true | Trace>): unde
 }
 
 /**
+ * Normalises a validation result to `undefined | {@link Trace}`.
+ *
+ * Collapses `undefined`, `true`, empty strings, and empty objects to `undefined`; passes through non-empty traces
+ * unchanged.
+ *
+ * @param trace The raw validation result to normalise
+ *
+ * @returns The non-empty trace, or `undefined` if the result represents success
+ */
+export function normalise(trace: undefined | true | Trace): undefined | Trace {
+	return trace === undefined || trace === true ? undefined
+		: isString(trace) ? (trace.length > 0 ? trace : undefined)
+			: isObject(trace) && Object.keys(trace).length > 0 ? trace
+				: undefined;
+}
+
+/**
+ * Converts an optional {@link Trace} into a spreadable record.
+ *
+ * Returns the trace entries as-is when the trace is a keyed object; wraps bare string traces under a `"{}"` key;
+ * returns an empty record for `undefined`.
+ *
+ * @param value The trace to convert
+ *
+ * @returns A record suitable for spreading into a {@link collect} entries argument
+ */
+export function wrap(value: undefined | Trace): Record<string, Trace> {
+	return isString(value) ? { "{}": value } : value ?? {};
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
  * Validates each value individually against a {@link Validator}.
  *
  * When multiple values fail, the result is prefixed with a failure count in the form `(failed/total)`.
@@ -107,37 +141,6 @@ export function group<T>(values: readonly T[], validator: Validator<readonly T[]
 
 	return normalise(validator(values));
 
-}
-
-/**
- * Normalises a validation result to `undefined | {@link Trace}`.
- *
- * Collapses `undefined`, `true`, empty strings, and empty objects to `undefined`; passes through non-empty traces
- * unchanged.
- *
- * @param trace The raw validation result to normalise
- *
- * @returns The non-empty trace, or `undefined` if the result represents success
- */
-export function normalise(trace: undefined | true | Trace): undefined | Trace {
-	return trace === undefined || trace === true ? undefined
-		: isString(trace) ? (trace.length > 0 ? trace : undefined)
-			: isObject(trace) && Object.keys(trace).length > 0 ? trace
-				: undefined;
-}
-
-/**
- * Converts an optional {@link Trace} into a spreadable record.
- *
- * Returns the trace entries as-is when the trace is a keyed object; wraps bare string traces under a `"{}"` key;
- * returns an empty record for `undefined`.
- *
- * @param value The trace to convert
- *
- * @returns A record suitable for spreading into a {@link collect} entries argument
- */
-export function wrap(value: undefined | Trace): Record<string, Trace> {
-	return isString(value) ? { "{}": value } : value ?? {};
 }
 
 

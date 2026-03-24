@@ -28,7 +28,7 @@
     "./boolean": "./dist/boolean.js",
     "./number": "./dist/number.js",
     "./string": "./dist/string.js",
-    "./local": "./dist/local.js",
+    "./localised": "./dist/localised.js",
     "./resource": "./dist/resource.js"
   },
   "files": [

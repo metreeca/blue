@@ -26,7 +26,7 @@
 import type { IRI } from "@metreeca/core/resource";
 import type { Resource } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
-import { optional, type ValuesShape, required, union, validate } from "./index.js";
+import { multiple, optional, type ValuesShape, required, union, validate } from "./index.js";
 import type { NumberShape } from "./number.js";
 import { type Composition, type Content, property, resource } from "./resource.js";
 import type { StringShape } from "./string.js";
@@ -155,6 +155,24 @@ describe("Content", () => {
 		expectTypeOf<Content<E>>().toEqualTypeOf<undefined | string>();
 	});
 
+	test("scalar union → Variants with scalar values", () => {
+		const r = required(union({ email: string(), phone: string() }));
+		type E = typeof r;
+		expectTypeOf<Content<E>>().toEqualTypeOf<{
+			readonly email?: string;
+			readonly phone?: string;
+		}>();
+	});
+
+	test("multi-valued union → Variants with per-key arrays", () => {
+		const r = multiple(union({ email: string(), phone: string() }));
+		type E = typeof r;
+		expectTypeOf<Content<E>>().toEqualTypeOf<undefined | {
+			readonly email?: readonly string[];
+			readonly phone?: readonly string[];
+		}>();
+	});
+
 });
 
 
@@ -166,7 +184,7 @@ describe("resource()", () => {
 			name: property(required(string()))
 		});
 
-		validate({}, { scope: "value", shape });
+		validate({}, { scope: "state", shape });
 
 	});
 

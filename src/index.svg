@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  - Copyright © 2025-2026 Metreeca srl
+  -
+  - Licensed under the Apache License, Version 2.0 (the "License");
+  - you may not use this file except in compliance with the License.
+  - You may obtain a copy of the License at
+  -
+  -     http://www.apache.org/licenses/LICENSE-2.0
+  -
+  - Unless required by applicable law or agreed to in writing, software
+  - distributed under the License is distributed on an "AS IS" BASIS,
+  - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  - See the License for the specific language governing permissions and
+  - limitations under the License.
+  -->
+
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns:xl="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="-130.5854 227.4352 694.2021 543.613" width="694.2021" height="543.613">
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg"
+        viewBox="-112 227 676 544" width="676" height="544">
   <defs>
     <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="StickArrow_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -10 26 20" markerWidth="26" markerHeight="20" color="black">
       <g>
@@ -18,7 +35,7 @@
       </g>
     </marker>
   </defs>
-  <g id="shape" fill-opacity="1" fill="none" stroke="none" stroke-dasharray="none" stroke-opacity="1">
+  <g id="shape" stroke="none" stroke-opacity="1" stroke-dasharray="none" fill="none" fill-opacity="1">
     <title>shape</title>
     <g id="shape_Layer_1">
       <title>Layer 1</title>
@@ -94,42 +111,16 @@
         <g id="Graphic_787">
           <rect x="244.80197" y="408.92437" width="111.009" height="28.503998" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
           <text transform="translate(250.80197 411.92437)" fill="black">
-            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">kind: “local”</tspan>
-            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">model: Local</tspan>
+            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">kind: “localised”</tspan>
+            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">model: Localised</tspan>
           </text>
         </g>
         <g id="Graphic_786">
           <rect x="244.80197" y="391.6633" width="111.009" height="17.261063" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(275.05697 394.6633)" fill="black">
-            <tspan font-family="Helvetica Neue" font-weight="bold" font-size="9" fill="black" x="0" y="9" xml:space="preserve">LocalShape</tspan>
+          <text transform="translate(266.14697 394.6633)" fill="black">
+            <tspan font-family="Helvetica Neue" font-weight="bold" font-size="9" fill="black" x="0" y="9" xml:space="preserve">LocalisedShape</tspan>
           </text>
         </g>
-      </g>
-      <g id="Group_782">
-        <g id="Graphic_811">
-          <rect x="244.80197" y="540.85574" width="111.009" height="39.755997" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(250.80197 543.85574)" fill="black">
-            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">minLength?: number</tspan>
-            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">maxLength?: number</tspan>
-            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="31.503998" xml:space="preserve">languageIn?: TagRange[]</tspan>
-          </text>
-        </g>
-        <g id="Graphic_784">
-          <rect x="244.80197" y="512.35174" width="111.009" height="28.503998" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(250.80197 515.35174)" fill="black">
-            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">kind: “locals”</tspan>
-            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">model: Locals</tspan>
-          </text>
-        </g>
-        <g id="Graphic_783">
-          <rect x="244.80197" y="495.0907" width="111.009" height="17.261063" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(272.64047 498.0907)" fill="black">
-            <tspan font-family="Helvetica Neue" font-weight="bold" font-size="9" fill="black" x="0" y="9" xml:space="preserve">LocalsShape</tspan>
-          </text>
-        </g>
-      </g>
-      <g id="Line_781">
-        <line x1="300.30647" y1="495.0907" x2="300.30647" y2="479.05936" marker-end="url(#NegativeControls_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Group_778">
         <g id="Graphic_837">
@@ -158,22 +149,22 @@
       </g>
       <g id="Group_774">
         <g id="Graphic_815">
-          <rect x="-116.28717" y="304.28826" width="144.498" height="28.503998" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(-110.28717 307.28826)" fill="black">
+          <rect x="-97.54753" y="304.28826" width="144.498" height="28.503998" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+          <text transform="translate(-91.54753 307.28826)" fill="black">
             <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">minCount?: number</tspan>
             <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">maxCount?: number</tspan>
           </text>
         </g>
         <g id="Graphic_776">
-          <rect x="-116.28717" y="258.5232" width="144.498" height="17.261063" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(-71.54217 261.5232)" fill="black">
+          <rect x="-97.54753" y="258.5232" width="144.498" height="17.261063" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+          <text transform="translate(-52.80253 261.5232)" fill="black">
             <tspan font-family="Helvetica Neue" font-weight="bold" font-size="9" fill="black" x="8171241e-19" y="9" xml:space="preserve">ValuesShape</tspan>
           </text>
         </g>
         <g id="Graphic_775">
-          <rect x="-116.28717" y="275.78426" width="144.498" height="28.503998" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(-110.28717 278.78426)" fill="black">
-            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">kind: “range”</tspan>
+          <rect x="-97.54753" y="275.78426" width="144.498" height="28.503998" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+          <text transform="translate(-91.54753 278.78426)" fill="black">
+            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">kind: “values”</tspan>
             <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">model: Values | Indexed&lt;Values&gt;</tspan>
           </text>
         </g>
@@ -202,7 +193,7 @@
         </g>
       </g>
       <g id="Line_764">
-        <path d="M 499.40455 720.1694 L 499.40455 752 L -44.038174 752 L -44.038174 339.64226" marker-end="url(#StickArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+        <path d="M 499.40455 720.1694 L 499.40455 752 L -25.298532 752 L -25.298532 339.64226" marker-end="url(#StickArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Group_761">
         <g id="Graphic_838">
@@ -366,13 +357,13 @@
         <line x1="441.6939" y1="391.6633" x2="441.6939" y2="344.2831" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Line_842">
-        <path d="M 64.19581 289.03173 L 64.19581 264.61595 L 103.61047 264.61595" marker-end="url(#StickArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+        <path d="M 83.20547 289.03173 L 83.20547 264.61595 L 103.61047 264.61595" marker-end="url(#StickArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Line_843">
         <line x1="441.6939" y1="563.01735" x2="441.6939" y2="580.89235" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Graphic_845">
-        <text transform="translate(48.940814 290.03173)" fill="black">
+        <text transform="translate(67.95047 290.03173)" fill="black">
           <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">«union»</tspan>
         </text>
       </g>
@@ -380,10 +371,10 @@
         <path d="M 163.87247 299.6945 L 163.87247 307.73227 L 163.87247 308.92004" marker-end="url(#StickArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Line_847">
-        <path d="M 64.19581 302.28373 L 64.19581 330.02655 L 122.93497 330.02655" marker-end="url(#StickArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+        <path d="M 83.20547 302.28373 L 83.20547 330.02655 L 122.93497 330.02655" marker-end="url(#StickArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Line_849">
-        <line x1="28.210826" y1="295.65773" x2="45.940814" y2="295.65773" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+        <line x1="46.95047" y1="295.65773" x2="64.95047" y2="295.65773" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
     </g>
   </g>

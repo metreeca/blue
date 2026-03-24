@@ -27,8 +27,8 @@ import type { BooleanShape } from "./boolean.js";
 import { materialize } from "./core/cache.js";
 import { collect, TraceError, wrap } from "./core/trace.js";
 import type { ValuesShape, Trace, UnionShape, ValueShape } from "./index.js";
-import { mergeLocal, mergeLocals, validateLocal, validateLocals } from "./local.core.js";
-import type { LocalShape, LocalsShape } from "./local.js";
+import { mergeLocalised, validateLocalised } from "./localised.core.js";
+import type { LocalisedShape } from "./localised.js";
 import { mergeNumber, validateNumber } from "./number.core.js";
 import type { NumberShape } from "./number.js";
 import { mergeReference, mergeResource, validateReference, validateResource } from "./resource.core.js";
@@ -91,13 +91,9 @@ export function validateValue(values: readonly unknown[], shape: ValueShape): un
 
 			return validateString(values, shape);
 
-		case "local":
+		case "localised":
 
-			return validateLocal(values, shape);
-
-		case "locals":
-
-			return validateLocals(values, shape);
+			return validateLocalised(values, shape);
 
 		case "reference":
 
@@ -278,13 +274,9 @@ export function mergeValue<T extends ValueShape>(target: T, source: T): T {
 
 			return mergeString(target, source as StringShape) as T;
 
-		case "local":
+		case "localised":
 
-			return mergeLocal(target, source as LocalShape) as T;
-
-		case "locals":
-
-			return mergeLocals(target, source as LocalsShape) as T;
+			return mergeLocalised(target, source as LocalisedShape) as T;
 
 		case "reference":
 

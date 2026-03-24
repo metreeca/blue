@@ -17,8 +17,8 @@
 import type { Probe, Transform } from "@metreeca/qest/model";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean.js";
-import { optional, type ValuesShape, repeatable, required, union, type UnionShape, type ValueShape } from "../index.js";
-import { local, locals } from "../local.js";
+import { optional, repeatable, required, union, type UnionShape, type ValueShape, type ValuesShape } from "../index.js";
+import { localised } from "../localised.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "../number.js";
 import { id, reference, resource, type ResourceShape, type } from "../resource.js";
 import { date, duration, instant, iri, string, time, timestamp, year } from "../string.js";
@@ -172,11 +172,10 @@ describe("apply", () => {
 
 	});
 
-	describe("local/locals input", () => {
+	describe("localised input", () => {
 
 		it.each([
-			["local", local()],
-			["locals", locals()]
+			["localised", localised()]
 		])("accepts string-to-string transform on %s and preserves it", async (_label, s) => {
 
 			expect(transformRange(["lower"], s)?.shape).toBe(s);
@@ -184,8 +183,7 @@ describe("apply", () => {
 		});
 
 		it.each([
-			["local", local()],
-			["locals", locals()]
+			["localised", localised()]
 		])("accepts string-to-string pipe on %s and preserves it", async (_label, s) => {
 
 			expect(transformRange(["lower", "upper"], s)?.shape).toBe(s);
@@ -193,8 +191,7 @@ describe("apply", () => {
 		});
 
 		it.each([
-			["local", local()],
-			["locals", locals()]
+			["localised", localised()]
 		] as const)("returns undefined range for incompatible transforms on %s", async (_label, s) => {
 
 			expect(transformRange(["length"], s)).toBeUndefined(); // non-string-to-string
@@ -838,8 +835,7 @@ describe("apply", () => {
 			["boolean", boolean()],
 			["number", integer()],
 			["string", string()],
-			["local", local()],
-			["locals", locals()]
+			["localised", localised()]
 		])("resolves empty path for %s shape", async (_label, s) => {
 
 			const result = apply(probe([]), s);

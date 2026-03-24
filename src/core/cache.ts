@@ -21,7 +21,7 @@
  */
 
 import { isFunction, type Lazy } from "@metreeca/core";
-import type { ValueShape } from "../index.js";
+import type { UnionShape, ValueShape } from "../index.js";
 import { flatten } from "../resource.core.js";
 import { TraceError } from "./trace.js";
 
@@ -32,7 +32,7 @@ import { TraceError } from "./trace.js";
  * Uses WeakMap so entries are automatically released when the factory function is no longer referenced.
  * A `null` entry signals a factory currently being resolved, enabling circular dependency detection.
  */
-const cache = new WeakMap<() => ValueShape, null | ValueShape>();
+const cache = new WeakMap<() => ValueShape | UnionShape, null | ValueShape | UnionShape>();
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +48,7 @@ const cache = new WeakMap<() => ValueShape, null | ValueShape>();
  *
  * @returns The resolved and, for resource shapes, flattened shape
  */
-export function materialize<T extends ValueShape>(shape: Lazy<T>): T {
+export function materialize<T extends ValueShape | UnionShape>(shape: Lazy<T>): T {
 
 	if ( isFunction(shape) ) {
 

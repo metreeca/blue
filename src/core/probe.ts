@@ -377,7 +377,7 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 	}
 
 	function isLocalised(shape: ValueShape) {
-		return shape.kind === "local" || shape.kind === "locals";
+		return shape.kind === "localised";
 	}
 
 
@@ -406,7 +406,7 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 
 		return immutable({
 
-			kind: "range",
+			kind: "values",
 
 			minCount,
 			maxCount,
