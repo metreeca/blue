@@ -26,7 +26,7 @@ import {
 	repeatable,
 	required,
 	union,
-	type ValueShape
+	type ValuesShape
 } from "./index.js";
 import { localised, type LocalisedShape } from "./localised.js";
 import { integer, type NumberShape } from "./number.js";
@@ -71,7 +71,7 @@ describe("Infer", () => {
 		});
 
 		test("ValueShape → union of all model types", () => {
-			expectTypeOf<Infer<ValueShape>>()
+			expectTypeOf<Infer<ValuesShape>>()
 				.toEqualTypeOf<boolean | number | string | Localised | IRI | Resource>();
 		});
 

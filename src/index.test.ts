@@ -33,10 +33,10 @@ import {
 	optional,
 	repeatable,
 	required,
+	type SetShape,
 	union,
 	type UnionShape,
 	validate,
-	type ValueShape,
 	type ValuesShape
 } from "./index.js";
 import { localised } from "./localised.js";
@@ -53,7 +53,7 @@ describe("apply", () => {
 
 	// transform-focused helpers: wrap leaf shape in a resource property
 
-	function transformRange(pipe: readonly Transform[], s: ValueShape): ValuesShape | undefined {
+	function transformRange(pipe: readonly Transform[], s: ValuesShape): SetShape | undefined {
 		return apply(probe(["_"], pipe), resource({ _: required(s) }));
 	}
 
@@ -334,7 +334,7 @@ describe("apply", () => {
 
 	describe("path cardinality accumulation", () => {
 
-		function pathRange(p: Probe, s: ReturnType<typeof resource>): ValuesShape | undefined {
+		function pathRange(p: Probe, s: ReturnType<typeof resource>): SetShape | undefined {
 			return apply(p, s);
 		}
 
@@ -405,7 +405,7 @@ describe("apply", () => {
 
 	describe("path traversal", () => {
 
-		function probeRange(p: Probe, s: ReturnType<typeof resource>): ValuesShape | undefined {
+		function probeRange(p: Probe, s: ReturnType<typeof resource>): SetShape | undefined {
 			return apply(p, s);
 		}
 
@@ -615,7 +615,7 @@ describe("apply", () => {
 
 	describe("id/type path resolution", () => {
 
-		function probeRange(p: Probe, s: ResourceShape): ValuesShape | undefined {
+		function probeRange(p: Probe, s: ResourceShape): SetShape | undefined {
 			return apply(p, s);
 		}
 
@@ -1632,27 +1632,31 @@ describe("validation", () => {
 
 describe("factories", () => {
 
-	describe("range factories", () => {
+	describe("cardinality shorthands", () => {
 
-		it.each([
-			["multiple", multiple, undefined, undefined],
-			["repeatable", repeatable, 1, undefined],
-			["optional", optional, undefined, 1],
-			["required", required, 1, 1]
-		] as const)("%s sets correct cardinality bounds", async (_name, factory, expectedMin, expectedMax) => {
+		describe("cardinality bounds", () => {
 
-			const range = factory(string());
+			it.each([
+				["multiple", multiple, undefined, undefined],
+				["repeatable", repeatable, 1, undefined],
+				["optional", optional, undefined, 1],
+				["required", required, 1, 1]
+			])("%s sets correct cardinality bounds", async (_name, factory, expectedMin, expectedMax) => {
 
-			expect(range.minCount).toBe(expectedMin);
-			expect(range.maxCount).toBe(expectedMax);
+				const range = factory(string());
 
-		});
+				expect(range.minCount).toBe(expectedMin);
+				expect(range.maxCount).toBe(expectedMax);
 
-		it("accepts lazy resource shape", async () => {
+			});
 
-			const range = multiple(() => resource({}));
+			it("accepts lazy resource shape", async () => {
 
-			expect(range.shape.kind).toBe("resource");
+				const range = multiple(() => resource({}));
+
+				expect(range.shape.kind).toBe("resource");
+
+			});
 
 		});
 
@@ -2086,7 +2090,7 @@ describe("operators", () => {
 
 				const merged = mergeValues(required(string()), required(string()));
 
-				expect(merged.kind).toBe("values");
+				expect(merged.kind).toBe("set");
 
 			});
 

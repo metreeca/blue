@@ -22,7 +22,7 @@
  * [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string) language-tagged strings.
  *
  * Whether each tag holds a single string or a string array is determined by the cardinality of the enclosing
- * {@link index!ValuesShape | ValuesShape}, not by the shape itself:
+ * {@link index!SetShape | SetShape}, not by the shape itself:
  *
  * - Scalar cardinality (`maxCount === 1`): each tag holds a single string
  * - Array cardinality (`maxCount > 1` or unbounded): each tag holds a string array
@@ -75,7 +75,7 @@ import { checkLocalised } from "./localised.core.js";
 /**
  * Shape definition for language-tagged string values.
  *
- * Cardinality of the enclosing {@link index!ValuesShape | ValuesShape} determines whether each tag holds a single
+ * Cardinality of the enclosing {@link index!SetShape | SetShape} determines whether each tag holds a single
  * string or a string array.
  *
  * **Inheritance**

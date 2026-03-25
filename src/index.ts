@@ -23,18 +23,22 @@
  *
  * **Shape Types**
  *
- * {@link ValueShape} is a discriminated union of all concrete shape types:
+ * {@link ValueShape} — shapes that may describe either a scalar or a set:
  *
  * - {@link BooleanShape} - Booleans
  * - {@link NumberShape} - Numbers
  * - {@link StringShape} - Strings
- * - {@link LocalisedShape} - Language-tagged maps (scalar or array per tag, determined by cardinality)
  * - {@link ReferenceShape} - Resource IRI references
  * - {@link ResourceShape} - Resources
  *
+ * {@link ValuesShape} — all concrete value shapes, including those that always describe a set:
+ *
+ * - Everything in {@link ValueShape}
+ * - {@link LocalisedShape} - Language-tagged maps (always a set, with per-tag cardinality)
+ *
  * Composite shapes:
  *
- * - {@link ValuesShape} - Value set shape with cardinality constraints
+ * - {@link SetShape} - Cardinality-constrained value sets
  * - {@link UnionShape} - Discriminated type alternatives for polymorphic values
  *
  * <img src="index.svg" alt="Shape type hierarchy" style="width: 100%" />
@@ -107,7 +111,7 @@
  *
  * **Effective Shape Resolution**
  *
- * Use {@link apply} to resolve the effective shape after applying a probe to a value shape, resolving property paths
+ * Use {@link apply} to resolve the effective shape after applying a probe to a values shape, resolving property paths
  * through nested resources and deriving the effective type through each transform pipe stage.
  *
  * @module index
@@ -119,9 +123,9 @@ import { type Identifier, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { message } from "@metreeca/core/report";
+import { type Reference } from "@metreeca/qest";
 import type { Query } from "@metreeca/qest/model";
 import type { Resource, Value } from "@metreeca/qest/state";
-import { type Reference }from "@metreeca/qest"
 import type { BooleanShape } from "./boolean.js";
 import { brand, branded } from "./core/brand.js";
 import { materialize } from "./core/cache.js";
@@ -151,31 +155,58 @@ const ValidationShape: unique symbol = Symbol("ValidationShape");
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Discriminated union of all concrete shape types.
+ * Discriminated union of all concrete value shapes, including those that always describe a set.
  *
- * Each member carries its own `kind` discriminator and `model` type, enabling runtime type narrowing and
- * compile-time type inference without a shared base interface.
+ * Extends {@link ValueShape} with {@link LocalisedShape}, whose language-map semantics inherently describe
+ * a set of values regardless of cardinality.
  *
- * @see {@link https://www.w3.org/TR/shacl/#node-shapes | SHACL § 2.3.1 Node Shapes}
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
+ */
+export type ValuesShape =
+	| ValueShape
+	| LocalisedShape;
+
+/**
+ * Discriminated union of value shapes that may describe either a scalar or a set.
+ *
+ * @see {@link ValuesShape}
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
  */
 export type ValueShape =
 	| BooleanShape
 	| NumberShape
 	| StringShape
-	| LocalisedShape
 	| ReferenceShape
 	| ResourceShape;
 
+
 /**
- * Shape for a set of values with cardinality constraints.
+ * Shape for a cardinality-constrained value set.
  *
- * Combines a {@link ValueShape} or {@link UnionShape} with minimum and maximum count constraints to define
- * the expected size of the value set.
+ * Pairs a {@link ValuesShape} or {@link UnionShape} with {@link SetShape.minCount | minCount} /
+ * {@link SetShape.maxCount | maxCount} constraints that bound the expected number of values.
+ * Cardinality factory functions — {@link required}, {@link optional}, {@link repeatable}, and
+ * {@link multiple} — produce instances with pre-set bounds; use {@link cardinality} for custom ranges.
+ *
+ * **Usage**
+ *
+ * ```typescript
+ * import { required, optional, repeatable, multiple, cardinality } from '@metreeca/blue';
+ * import { string } from '@metreeca/blue/string';
+ * import { integer } from '@metreeca/blue/number';
+ *
+ * required(string())    // minCount=1, maxCount=1 → exactly one string
+ * optional(integer())   // minCount=undefined, maxCount=1 → zero or one integer
+ * repeatable(string())  // minCount=1, maxCount=undefined → one or more strings
+ * multiple(string())    // minCount=undefined, maxCount=undefined → zero or more strings
+ * cardinality(2, 5)(string()) // custom range
+ * ```
  *
  * **Inheritance**
  *
  * When a {@link ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends}, each
- * value set shape is merged according to the following rules.
+ * set shape is merged according to the following rules.
  *
  * | Field      | Override Rule                                                                     |
  * | ---------- | ------------------------------------------------------------------------------- |
@@ -188,26 +219,27 @@ export type ValueShape =
  *
  * - merged `minCount` must be ≤ merged `maxCount`
  *
- * @typeParam T The value type
- * @typeParam L The minimum count constraint type
- * @typeParam U The maximum count constraint type
+ * @typeParam T The value type inferred from the wrapped shape
+ * @typeParam L The {@link SetShape.minCount | minCount} constraint type
+ * @typeParam U The {@link SetShape.maxCount | maxCount} constraint type
+ * @typeParam S The wrapped shape type (value or union, possibly lazy)
  *
  * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.1.1 sh:minCount}
  * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.1.2 sh:maxCount}
  */
-export type ValuesShape<
+export type SetShape<
 	T = unknown,
 	L extends undefined | number = undefined | number,
 	U extends undefined | number = undefined | number,
-	S extends Lazy<ValueShape | UnionShape> = Lazy<ValueShape | UnionShape>
+	S extends Lazy<ValuesShape | UnionShape> = Lazy<ValuesShape | UnionShape>
 > = {
 
 	/**
-	 * Discriminator identifying this as a value set shape.
+	 * Discriminator identifying this as a set shape.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 */
-	readonly kind: "values";
+	readonly kind: "set";
 
 	/**
 	 * Prototype value for runtime model assembly.
@@ -254,7 +286,7 @@ export type ValuesShape<
 	 *
 	 * **Inheritance** — `kind` must match; delegated to value shape or {@link UnionShape} merge rules.
 	 */
-	readonly shape: (ValueShape | UnionShape) & { readonly model: T };
+	readonly shape: (ValuesShape | UnionShape) & { readonly model: T };
 
 }
 
@@ -300,11 +332,11 @@ export type ValuesShape<
  */
 export type UnionShape<V extends {
 
-	readonly [variant: Identifier]: ValueShape
+	readonly [variant: Identifier]: ValuesShape
 
 } = {
 
-	readonly [variant: Identifier]: ValueShape
+	readonly [variant: Identifier]: ValuesShape
 
 }> = {
 
@@ -324,7 +356,7 @@ export type UnionShape<V extends {
 	 *
 	 * **Inheritance** — computed from variants, not user-defined.
 	 */
-	readonly model: { readonly [K in keyof Declared<V>]?: V[K] extends ValueShape ? V[K]["model"] : never };
+	readonly model: { readonly [K in keyof Declared<V>]?: V[K] extends ValuesShape ? V[K]["model"] : never };
 
 
 	/**
@@ -381,21 +413,21 @@ export type Validator<T = unknown> =
  *
  * @typeParam S The shape or lazy shape to extract from
  */
-export type Infer<S extends Lazy<ValueShape | UnionShape>> =
+export type Infer<S extends Lazy<ValuesShape | UnionShape>> =
 	S extends () => { readonly model: infer T } ? T
 		: S extends { readonly model: infer T } ? T
 			: never;
 
 /**
- * Resolves a {@link Lazy} shape to its eager {@link ValueShape}.
+ * Resolves a {@link Lazy} shape to its eager {@link ValuesShape}.
  *
  * Unwraps lazy factories to their return type; passes direct shapes through unchanged.
  *
  * @typeParam S The lazy shape to resolve
  */
-export type Eager<S extends Lazy<ValueShape>> =
-	S extends Lazy<infer T extends ValueShape> ? T
-		: S extends ValueShape ? S
+export type Eager<S extends Lazy<ValuesShape>> =
+	S extends Lazy<infer T extends ValuesShape> ? T
+		: S extends ValuesShape ? S
 			: never;
 
 /**
@@ -411,7 +443,7 @@ export type Declared<T> =
 	| { [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K] };
 
 /**
- * Maps {@link ValuesShape} cardinality constraints to TypeScript content types.
+ * Maps {@link SetShape} cardinality constraints to TypeScript content types.
  *
  * Resolves `minCount` and `maxCount` to the appropriate TypeScript optionality and collection types:
  *
@@ -421,8 +453,8 @@ export type Declared<T> =
  * Union-specific distribution is handled separately by {@link Variants}.
  *
  * @typeParam V The value type
- * @typeParam L The {@link ValuesShape.minCount} constraint
- * @typeParam U The {@link ValuesShape.maxCount} constraint
+ * @typeParam L The {@link SetShape.minCount} constraint
+ * @typeParam U The {@link SetShape.maxCount} constraint
  */
 export type Cardinality<V, L extends undefined | number, U extends undefined | number> =
 	U extends 1
@@ -437,7 +469,7 @@ export type Cardinality<V, L extends undefined | number, U extends undefined | n
  * whole record in an array.
  *
  * @typeParam V The union model type
- * @typeParam U The {@link ValuesShape.maxCount} constraint
+ * @typeParam U The {@link SetShape.maxCount} constraint
  */
 export type Variants<V, U extends undefined | number = undefined | number> =
 	U extends 1
@@ -540,7 +572,7 @@ export function audit(entry: Value | Query, {
 export function validate<T extends Value>(value: unknown, opts: {
 
 	readonly scope: "state"
-	readonly shape: Lazy<ValueShape & { model: T }>
+	readonly shape: Lazy<ValuesShape & { model: T }>
 
 }): Relay<{
 
@@ -584,7 +616,7 @@ export function validate<T extends Value>(value: unknown, opts: {
 export function validate<T extends Value>(value: unknown, opts: {
 
 	readonly scope: "entry"
-	readonly shape: Lazy<ValueShape & { model: T }>
+	readonly shape: Lazy<ValuesShape & { model: T }>
 
 }): Relay<{
 
@@ -645,7 +677,7 @@ export function validate<T extends Value>(value: unknown, opts: {
 export function validate<T extends Query>(query: unknown, opts: {
 
 	readonly scope: "model"
-	readonly shape: Lazy<ValueShape>
+	readonly shape: Lazy<ValuesShape>
 
 	readonly stats?: boolean
 	readonly depth?: null | number
@@ -671,7 +703,7 @@ export function validate(value: unknown, {
 }: {
 
 	readonly scope: "state" | "model" | "entry"
-	readonly shape: Lazy<ValueShape>
+	readonly shape: Lazy<ValuesShape>
 
 	readonly stats?: boolean
 	readonly depth?: null | number
@@ -799,7 +831,7 @@ export function validate(value: unknown, {
  * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.2 sh:or}
  * @see {@link https://www.w3.org/TR/json-ld11/#data-indexing JSON-LD 1.1 § 4.6.1 Data Indexing}
  */
-export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShape> }>(variants: V): UnionShape<{
+export function union<V extends { readonly [variant: Identifier]: Lazy<ValuesShape> }>(variants: V): UnionShape<{
 
 	readonly [K in keyof V]: Eager<V[K]>
 
@@ -815,7 +847,7 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
 		kind: "union",
 
 		model: Object.fromEntries(Object.entries(materialized).map(([k, v]) =>
-			[k, (v as ValueShape).model]
+			[k, (v as ValuesShape).model]
 		)),
 
 		variants: materialized
@@ -826,7 +858,7 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
 
 
 /**
- * Creates a value set shape with no cardinality constraints (0..*).
+ * Creates a {@link SetShape} with no cardinality constraints (0..*).
  *
  * Allows zero or more values, resulting in an optional array type (`undefined | readonly V[]`).
  *
@@ -835,20 +867,20 @@ export function union<V extends { readonly [variant: Identifier]: Lazy<ValueShap
  * > `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags — this differs from
  * > vanilla SHACL aggregate counting, though expressible via per-tag property shapes.
  *
- * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
+ * @typeParam S The {@link Lazy} {@link ValuesShape} or {@link UnionShape} type
  *
- * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} to constrain
+ * @param shape The {@link Lazy} {@link ValuesShape} or {@link UnionShape} to constrain
  *
- * @returns An immutable value set shape with no minimum or maximum count
+ * @returns An immutable {@link SetShape} with no minimum or maximum count
  */
-export function multiple<S extends Lazy<ValueShape | UnionShape>>(shape: S): ValuesShape<Infer<S>, undefined, undefined, S> {
+export function multiple<S extends Lazy<ValuesShape | UnionShape>>(shape: S): SetShape<Infer<S>, undefined, undefined, S> {
 
 	return cardinality(undefined, undefined)(shape);
 
 }
 
 /**
- * Creates a value set shape requiring at least one value (1..*).
+ * Creates a {@link SetShape} requiring at least one value (1..*).
  *
  * Requires one or more values, resulting in a non-empty array type (`readonly [V, ...V[]]`).
  *
@@ -858,20 +890,20 @@ export function multiple<S extends Lazy<ValueShape | UnionShape>>(shape: S): Val
  * > an aggregate across all tags — this differs from vanilla SHACL aggregate counting, though
  * > expressible via per-tag property shapes.
  *
- * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
+ * @typeParam S The {@link Lazy} {@link ValuesShape} or {@link UnionShape} type
  *
- * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} to constrain
+ * @param shape The {@link Lazy} {@link ValuesShape} or {@link UnionShape} to constrain
  *
- * @returns An immutable value set shape with minCount=1 and no maximum count
+ * @returns An immutable {@link SetShape} with minCount=1 and no maximum count
  */
-export function repeatable<S extends Lazy<ValueShape | UnionShape>>(shape: S): ValuesShape<Infer<S>, 1, undefined, S> {
+export function repeatable<S extends Lazy<ValuesShape | UnionShape>>(shape: S): SetShape<Infer<S>, 1, undefined, S> {
 
 	return cardinality(1, undefined)(shape);
 
 }
 
 /**
- * Creates a value set shape for at most one value (0..1).
+ * Creates a {@link SetShape} for at most one value (0..1).
  *
  * Allows zero or one value, resulting in an optional scalar type (`undefined | V`).
  *
@@ -880,20 +912,20 @@ export function repeatable<S extends Lazy<ValueShape | UnionShape>>(shape: S): V
  * > `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags — this differs from
  * > vanilla SHACL aggregate counting, though expressible via per-tag property shapes.
  *
- * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
+ * @typeParam S The {@link Lazy} {@link ValuesShape} or {@link UnionShape} type
  *
- * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} to constrain
+ * @param shape The {@link Lazy} {@link ValuesShape} or {@link UnionShape} to constrain
  *
- * @returns An immutable value set shape with no minimum count and maxCount=1
+ * @returns An immutable {@link SetShape} with no minimum count and maxCount=1
  */
-export function optional<S extends Lazy<ValueShape | UnionShape>>(shape: S): ValuesShape<Infer<S>, undefined, 1, S> {
+export function optional<S extends Lazy<ValuesShape | UnionShape>>(shape: S): SetShape<Infer<S>, undefined, 1, S> {
 
 	return cardinality(undefined, 1)(shape);
 
 }
 
 /**
- * Creates a value set shape for exactly one value (1..1).
+ * Creates a {@link SetShape} for exactly one value (1..1).
  *
  * Requires exactly one value, resulting in a required scalar type (`V`).
  *
@@ -903,13 +935,13 @@ export function optional<S extends Lazy<ValueShape | UnionShape>>(shape: S): Val
  * > aggregate across all tags — this differs from vanilla SHACL aggregate counting, though
  * > expressible via per-tag property shapes.
  *
- * @typeParam S The {@link Lazy} {@link ValueShape} or {@link UnionShape} type
+ * @typeParam S The {@link Lazy} {@link ValuesShape} or {@link UnionShape} type
  *
- * @param shape The {@link Lazy} {@link ValueShape} or {@link UnionShape} to constrain
+ * @param shape The {@link Lazy} {@link ValuesShape} or {@link UnionShape} to constrain
  *
- * @returns An immutable value set shape with minCount=1 and maxCount=1
+ * @returns An immutable {@link SetShape} with minCount=1 and maxCount=1
  */
-export function required<S extends Lazy<ValueShape | UnionShape>>(shape: S): ValuesShape<Infer<S>, 1, 1, S> {
+export function required<S extends Lazy<ValuesShape | UnionShape>>(shape: S): SetShape<Infer<S>, 1, 1, S> {
 
 	return cardinality(1, 1)(shape);
 
@@ -917,9 +949,9 @@ export function required<S extends Lazy<ValueShape | UnionShape>>(shape: S): Val
 
 
 /**
- * Creates a value set shape factory with custom cardinality constraints.
+ * Creates a {@link SetShape} factory with custom cardinality constraints.
  *
- * Returns a factory function that creates ranges with the specified minimum and maximum counts.
+ * Returns a factory function that wraps a shape into a {@link SetShape} with the specified bounds.
  *
  *
  * @typeParam L The minimum count constraint type
@@ -928,7 +960,7 @@ export function required<S extends Lazy<ValueShape | UnionShape>>(shape: S): Val
  * @param lower Minimum number of expected values
  * @param upper Maximum number of expected values
  *
- * @returns A factory function that creates immutable ranges with the specified cardinality
+ * @returns A factory function that creates immutable {@link SetShape} instances with the specified cardinality
  *
  * @example
  *
@@ -943,7 +975,7 @@ export function cardinality<
 >(
 	lower: L,
 	upper?: U
-): <S extends Lazy<ValueShape | UnionShape>>(shape: S) => ValuesShape<Infer<S>, L, U, S> {
+): <S extends Lazy<ValuesShape | UnionShape>>(shape: S) => SetShape<Infer<S>, L, U, S> {
 
 	if ( lower !== undefined && lower < 0 ) {
 		throw new TypeError(`expected non-negative minCount <${lower}>`);
@@ -957,12 +989,12 @@ export function cardinality<
 		throw new TypeError(`inconsistent bounds <${lower}> > <${upper}>`);
 	}
 
-	return <S extends Lazy<ValueShape | UnionShape>>(shape: S) => {
+	return <S extends Lazy<ValuesShape | UnionShape>>(shape: S) => {
 
 		type Query = S extends UnionShape ? Variants<Infer<S>, U>
 			: S extends Lazy<LocalisedShape> ? (U extends 1
-				? string | { readonly [tag: string]: string }
-				: readonly string[] | { readonly [tag: string]: readonly string[] })
+					? string | { readonly [tag: string]: string }
+					: readonly string[] | { readonly [tag: string]: readonly string[] })
 				: U extends 1 ? Infer<S>
 					: readonly Infer<S>[];
 
@@ -977,13 +1009,13 @@ export function cardinality<
 
 		return immutable({
 
-			kind: "values",
+			kind: "set",
 			model: model as Query,
 
 			minCount: lower,
 			maxCount: upper,
 
-			shape: materialized as (ValueShape | UnionShape) & {
+			shape: materialized as (ValuesShape | UnionShape) & {
 				readonly model: Infer<S>
 			}
 

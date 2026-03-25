@@ -23,9 +23,9 @@ import {
 	cardinality,
 	multiple,
 	optional,
-	type ValuesShape,
 	repeatable,
 	required,
+	type SetShape,
 	type Trace,
 	union,
 	type UnionShape,
@@ -41,7 +41,8 @@ import {
 	flatten,
 	match,
 	mergeProperty,
-	mergeReference, mergeResource,
+	mergeReference,
+	mergeResource,
 	validateEntry,
 	validateQuery,
 	validateReference,
@@ -130,8 +131,8 @@ describe("factories", () => {
 				});
 
 				expect(shape.properties.name).toBeDefined();
-				expect((shape.properties.name as Property).range.kind).toBe("values");
-				expect(((shape.properties.name as Property).range as ValuesShape).shape.kind).toBe("string");
+				expect((shape.properties.name as Property).range.kind).toBe("set");
+				expect(((shape.properties.name as Property).range as SetShape).shape.kind).toBe("string");
 
 			});
 
@@ -142,9 +143,9 @@ describe("factories", () => {
 				});
 
 				expect(shape.properties.value).toBeDefined();
-				expect((shape.properties.value as Property).range.kind).toBe("values");
+				expect((shape.properties.value as Property).range.kind).toBe("set");
 
-				const rangeShape = ((shape.properties.value as Property).range as ValuesShape).shape;
+				const rangeShape = ((shape.properties.value as Property).range as SetShape).shape;
 				expect(rangeShape.kind).toBe("union");
 				expect((rangeShape as UnionShape).variants.string.kind).toBe("string");
 				expect((rangeShape as UnionShape).variants.number.kind).toBe("number");
@@ -158,8 +159,8 @@ describe("factories", () => {
 					age: optional(integer())
 				});
 
-				expect(((shape.properties.name as Property).range as ValuesShape).shape.kind).toBe("string");
-				expect(((shape.properties.age as Property).range as ValuesShape).shape.kind).toBe("number");
+				expect(((shape.properties.name as Property).range as SetShape).shape.kind).toBe("string");
+				expect(((shape.properties.age as Property).range as SetShape).shape.kind).toBe("number");
 
 			});
 
@@ -172,8 +173,8 @@ describe("factories", () => {
 				});
 
 				expect(shape.properties.name).toBeDefined();
-				expect((shape.properties.name as Property).range.kind).toBe("values");
-				expect(((shape.properties.name as Property).range as ValuesShape).shape.kind).toBe("string");
+				expect((shape.properties.name as Property).range.kind).toBe("set");
+				expect(((shape.properties.name as Property).range as SetShape).shape.kind).toBe("string");
 
 			});
 
@@ -398,7 +399,7 @@ describe("factories", () => {
 					person: required(Unflattened)
 				});
 
-				const nested = ((Outer.properties.person as Property).range as ValuesShape).shape as ResourceShape;
+				const nested = ((Outer.properties.person as Property).range as SetShape).shape as ResourceShape;
 
 				expect(nested.properties.name).toBeDefined();
 				expect(nested.properties.age).toBeDefined();
@@ -424,7 +425,7 @@ describe("factories", () => {
 					contact: required(union({ person: Unflattened, org: string() }))
 				});
 
-				const range = (Outer.properties.contact as Property).range as ValuesShape;
+				const range = (Outer.properties.contact as Property).range as SetShape;
 				const variants = (range.shape as UnionShape).variants;
 				const nested = variants.person as ResourceShape;
 
@@ -452,7 +453,7 @@ describe("factories", () => {
 					ref: required(reference(() => Unflattened))
 				});
 
-				const ref = ((Outer.properties.ref as Property).range as ValuesShape).shape;
+				const ref = ((Outer.properties.ref as Property).range as SetShape).shape;
 
 				expect(ref.kind).toBe("reference");
 
@@ -484,7 +485,7 @@ describe("factories", () => {
 					person: required(Unflattened)
 				});
 
-				const nested = ((Outer.properties.person as Property).range as ValuesShape).shape as ResourceShape;
+				const nested = ((Outer.properties.person as Property).range as SetShape).shape as ResourceShape;
 
 				expect(nested.properties.name).toBeDefined();
 				expect(nested.properties.age).toBeDefined();
@@ -512,7 +513,7 @@ describe("factories", () => {
 
 				const reprocessed = resource(manual);
 
-				const nested = ((reprocessed.properties.person as Property).range as ValuesShape).shape as ResourceShape;
+				const nested = ((reprocessed.properties.person as Property).range as SetShape).shape as ResourceShape;
 
 				expect(nested.properties.name).toBeDefined();
 				expect(nested.properties.age).toBeDefined();
@@ -532,7 +533,7 @@ describe("factories", () => {
 					person: required(reference(Person))
 				});
 
-				const ref = ((shape.properties.person as Property).range as ValuesShape).shape;
+				const ref = ((shape.properties.person as Property).range as SetShape).shape;
 
 				expect(ref.kind).toBe("reference");
 
@@ -1372,8 +1373,8 @@ describe("factories", () => {
 
 				const prop = property(required(string()));
 
-				expect(prop.range.kind).toBe("values");
-				expect((prop.range as ValuesShape).shape.kind).toBe("string");
+				expect(prop.range.kind).toBe("set");
+				expect((prop.range as SetShape).shape.kind).toBe("string");
 
 			});
 
@@ -1395,9 +1396,9 @@ describe("factories", () => {
 
 				const prop = property(required(union({ string: string(), number: integer() })));
 
-				expect(prop.range.kind).toBe("values");
+				expect(prop.range.kind).toBe("set");
 
-				const rangeShape = (prop.range as ValuesShape).shape;
+				const rangeShape = (prop.range as SetShape).shape;
 				expect(rangeShape.kind).toBe("union");
 				expect((rangeShape as UnionShape).variants.string.kind).toBe("string");
 				expect((rangeShape as UnionShape).variants.number.kind).toBe("number");
@@ -1412,8 +1413,8 @@ describe("factories", () => {
 
 				const prop = property({ hidden: true }, required(string()));
 
-				expect(prop.range.kind).toBe("values");
-				expect((prop.range as ValuesShape).shape.kind).toBe("string");
+				expect(prop.range.kind).toBe("set");
+				expect((prop.range as SetShape).shape.kind).toBe("string");
 
 			});
 
@@ -5806,8 +5807,12 @@ describe("operators", () => {
 
 					// array of options
 
-					it("accepts array of options each matching some union variant", async () => {
-						expect(validateQuery([{ items: [{ "?value": ["hello", 42] }] }], UnionWrapper, { depth: null })).toBeUndefined();
+					it("accepts array of options matching same union variant", async () => {
+						expect(validateQuery([{ items: [{ "?value": ["hello", "world"] }] }], UnionWrapper, { depth: null })).toBeUndefined();
+					});
+
+					it("rejects array of options matching different union variants", async () => {
+						expect(validateQuery([{ items: [{ "?value": ["hello", 42] }] }], UnionWrapper, { depth: null })).toBeDefined();
 					});
 
 					it("rejects array with option matching no union variant", async () => {

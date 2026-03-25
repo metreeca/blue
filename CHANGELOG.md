@@ -34,12 +34,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	with memoized caching; all public API `ResourceShape` parameters are resolved through this factory
 - Add `Eager<S>` type alias for the materialized result of a lazy shape
 - Move `Infer<S>` type to `resource.ts` and widen constraint to `Lazy<ValueShape> | UnionShape`
-- Add `model` field to `RangeShape` — holds the runtime prototype value, computed from the shape model and cardinality;
+- Add `model` field to `SetShape` — holds the runtime prototype value, computed from the shape model and cardinality;
 	for union shapes, multi-valued cardinality distributes arrays per variant via the new `Variants<T, U>` type
 - Add `Variants<T, U>` type — maps a union model to its cardinality-aware form: scalar (`maxCount === 1`) holds single
 	values per variant key, multi-valued distributes arrays per variant key
 - Add `Declared<T>` type — extracts explicitly declared entries from a type, stripping index signatures
-- Move `RangeShape`, `Cardinality`, and range factories (`multiple`, `repeatable`, `optional`, `required`,
+- Move `SetShape`, `Cardinality`, and range factories (`multiple`, `repeatable`, `optional`, `required`,
 	`cardinality`) from `resource` module to main `index` module
 - Move `UnionShape`, `union()`, `Infer`, `Eager` from `resource` module to main `index` module
 - Move `mergeRange`, `checkRange` from `resource.core` to `index.core` module
@@ -47,8 +47,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Breaking:** Unify `local()`/`locals()` into single `localised()` factory — whether each tag holds a scalar string
-	or a string array is now determined by the cardinality of the enclosing `ValuesShape` (`maxCount === 1` for scalar,
+- **Breaking:** Rename `ValuesShape` to `SetShape` and change `kind` discriminator from `"values"` to `"set"` — aligns
+	the type name with its role as a cardinality-constrained value set shape (Closes #17)
+- **Breaking:** Split `ValueShape` into `ValueShape` (scalar-or-set shapes) and `ValuesShape` (all concrete value
+	shapes including `LocalisedShape`) — `LocalisedShape` always describes a set regardless of cardinality, so it belongs
+	in the broader `ValuesShape` union rather than `ValueShape`
+- **Breaking:** Unify `local()`/`locals()` into single `localised()` factory — whether each tag holds a scalar string or
+	a string array is now determined by the cardinality of the enclosing `SetShape` (`maxCount === 1` for scalar,
 	`maxCount > 1` or unbounded for array); `minCount`/`maxCount` apply **per tag** instead of as aggregate counts
 	(Closes #16)
 - **Breaking:** Multi-valued union properties now represent values as a single indexed record with per-variant arrays
@@ -56,7 +61,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	(`Array<{ text?: string, postal?: Reference }>`)
 - **Breaking:** Union property values must always be indexed objects — bare scalar values are no longer accepted
 - **Breaking:** `Cardinality` type no longer handles union-specific distribution; union distribution is now handled by
-	`Variants` via `RangeShape.model`
+	`Variants` via `SetShape.model`
 - Cardinality checks now use effective value count for union, local, and locals shapes — counting leaf values inside
 	indexed containers rather than container count
 - Detect circular `extends` chains in `materialize()` — throws `TraceError` with `{ <factory>: "circular dependency" }`

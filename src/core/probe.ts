@@ -18,7 +18,7 @@
  * Probe resolution engine.
  *
  * Resolves {@link Probe} descriptors against shape trees, traversing property paths through nested resources and
- * applying transform pipes to derive the effective {@link ValuesShape} with accumulated cardinality.
+ * applying transform pipes to derive the effective {@link SetShape} with accumulated cardinality.
  *
  * @module
  *
@@ -29,7 +29,7 @@ import type { Identifier, Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { error } from "@metreeca/core/report";
 import type { Probe, Transform } from "@metreeca/qest/model";
-import type { ValuesShape, UnionShape, ValueShape } from "../index.js";
+import type { SetShape, UnionShape, ValuesShape } from "../index.js";
 import { decimal, integer } from "../number.js";
 import type { ReferenceShape, ResourceShape } from "../resource.js";
 import { date, duration, instant, iri, string, time, timestamp, year } from "../string.js";
@@ -102,7 +102,7 @@ const Temporal: ReadonlySet<string> = new Set([
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Apply a {@link Probe} to a shape, resolving the effective {@link ValuesShape}.
+ * Apply a {@link Probe} to a shape, resolving the effective {@link SetShape}.
  *
  * Traverses the {@link Probe.path} segments through nested resource properties to locate the target shape, then applies
  * the {@link Probe.pipe} transforms to compute the effective value set with accumulated cardinality.
@@ -129,21 +129,21 @@ const Temporal: ReadonlySet<string> = new Set([
  *   `maxCount` to `1`
  *
  * @param probe The probe containing property path and transform pipe
- * @param shape The value shape to inspect
+ * @param shape The {@link ValuesShape} to inspect
  *
- * @returns An immutable {@link ValuesShape} with accumulated cardinality, or `undefined` when the probe is
+ * @returns An immutable {@link SetShape} with accumulated cardinality, or `undefined` when the probe is
  *     demonstrated to never produce a valid value at runtime
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined | ValuesShape {
+export function apply({ pipe, path }: Probe, shape: Lazy<ValuesShape>): undefined | SetShape {
 
 	type Focus = {
 
 		readonly minCount?: number
 		readonly maxCount?: number
 
-		readonly variants: readonly ValueShape[]
+		readonly variants: readonly ValuesShape[]
 
 	}
 
@@ -160,7 +160,7 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 	/**
 	 * Traverse the property path, accumulating cardinality and collecting resolved variants.
 	 */
-	function traverse(shape: ValueShape): Focus | undefined {
+	function traverse(shape: ValuesShape): Focus | undefined {
 
 		return path.reduce<Focus | undefined>((accumulated, segment) => {
 
@@ -210,7 +210,7 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 	/**
 	 * Resolve a single property step, returning its cardinality and value shape variants.
 	 */
-	function resolve(shape: ValueShape, property: Identifier): Focus | undefined {
+	function resolve(shape: ValuesShape, property: Identifier): Focus | undefined {
 
 		const resolved = shape.kind === "resource" ? shape
 			: shape.kind === "reference" ? materialize(shape.shape)
@@ -291,7 +291,7 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 	/**
 	 * Apply the transform pipe to each variant, adjusting cardinality and assembling the effective value set.
 	 */
-	function transform(focus: Focus | undefined): ValuesShape | undefined {
+	function transform(focus: Focus | undefined): SetShape | undefined {
 
 		if ( focus === undefined ) { return undefined; } else {
 
@@ -324,9 +324,9 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 	/**
 	 * Apply the transform pipe to a single shape, returning undefined on type incompatibility.
 	 */
-	function reduce(shape: ValueShape): ValueShape | undefined {
+	function reduce(shape: ValuesShape): ValuesShape | undefined {
 
-		return pipe.reduce<{ shape: ValueShape; aggregate: boolean } | undefined>((state, name) => {
+		return pipe.reduce<{ shape: ValuesShape; aggregate: boolean } | undefined>((state, name) => {
 
 			if ( state === undefined ) { return undefined; } else {
 
@@ -348,7 +348,7 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 						: transform.returns === "integer" ? integer()
 							: transform.returns === "decimal" ? decimal()
 								: transform.returns === "string" ? (localised ? state.shape : string())
-									: error<ValueShape>(`unsupported transform output type '${transform.returns}'`)
+									: error<ValuesShape>(`unsupported transform output type '${transform.returns}'`)
 
 				};
 
@@ -364,27 +364,27 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 	}
 
 
-	function isNumeric(shape: ValueShape) {
+	function isNumeric(shape: ValuesShape) {
 		return shape.kind === "number";
 	}
 
-	function isTextual(shape: ValueShape) {
+	function isTextual(shape: ValuesShape) {
 		return shape.kind === "string" && !Temporal.has(shape.model);
 	}
 
-	function isTemporal(shape: ValueShape) {
+	function isTemporal(shape: ValuesShape) {
 		return shape.kind === "string" && Temporal.has(shape.model);
 	}
 
-	function isLocalised(shape: ValueShape) {
+	function isLocalised(shape: ValuesShape) {
 		return shape.kind === "localised";
 	}
 
 
 	/**
-	 * Convert a focus to a value set shape, wrapping multiple variants into a union.
+	 * Convert a focus to a {@link SetShape}, wrapping multiple variants into a union.
 	 */
-	function toRange({ minCount, maxCount, variants }: Focus): ValuesShape {
+	function toRange({ minCount, maxCount, variants }: Focus): SetShape {
 
 		const isScalar = maxCount === 1;
 
@@ -406,7 +406,7 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 
 		return immutable({
 
-			kind: "values",
+			kind: "set",
 
 			minCount,
 			maxCount,
@@ -414,7 +414,7 @@ export function apply({ pipe, path }: Probe, shape: Lazy<ValueShape>): undefined
 			shape,
 			model
 
-		}) as ValuesShape;
+		}) as SetShape;
 
 	}
 

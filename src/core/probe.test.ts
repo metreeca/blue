@@ -17,7 +17,7 @@
 import type { Probe, Transform } from "@metreeca/qest/model";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean.js";
-import { optional, repeatable, required, union, type UnionShape, type ValueShape, type ValuesShape } from "../index.js";
+import { optional, repeatable, required, type SetShape, union, type UnionShape, type ValuesShape } from "../index.js";
 import { localised } from "../localised.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "../number.js";
 import { id, reference, resource, type ResourceShape, type } from "../resource.js";
@@ -33,7 +33,7 @@ describe("apply", () => {
 
 	// transform-focused helpers: wrap leaf shape in a resource property
 
-	function transformRange(pipe: readonly Transform[], s: ValueShape): ValuesShape | undefined {
+	function transformRange(pipe: readonly Transform[], s: ValuesShape): SetShape | undefined {
 		return apply(probe(["_"], pipe), resource({ _: required(s) }));
 	}
 
@@ -314,7 +314,7 @@ describe("apply", () => {
 
 	describe("path cardinality accumulation", () => {
 
-		function pathRange(p: Probe, s: ReturnType<typeof resource>): ValuesShape | undefined {
+		function pathRange(p: Probe, s: ReturnType<typeof resource>): SetShape | undefined {
 			return apply(p, s);
 		}
 
@@ -385,7 +385,7 @@ describe("apply", () => {
 
 	describe("path traversal", () => {
 
-		function probeRange(p: Probe, s: ReturnType<typeof resource>): ValuesShape | undefined {
+		function probeRange(p: Probe, s: ReturnType<typeof resource>): SetShape | undefined {
 			return apply(p, s);
 		}
 
@@ -595,7 +595,7 @@ describe("apply", () => {
 
 	describe("id/type path resolution", () => {
 
-		function probeRange(p: Probe, s: ResourceShape): ValuesShape | undefined {
+		function probeRange(p: Probe, s: ResourceShape): SetShape | undefined {
 			return apply(p, s);
 		}
 

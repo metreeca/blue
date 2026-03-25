@@ -175,7 +175,7 @@
  * **Polymorphic Properties**
  *
  * Use {@link index!union | union} for properties accepting multiple value types. Unions are pure type
- * discriminators — cardinality constraints belong on the enclosing {@link ValuesShape}, not on individual variants.
+ * discriminators — cardinality constraints belong on the enclosing {@link SetShape}, not on individual variants.
  * At runtime, union values are represented as {@link @metreeca/qest!Indexed | Indexed} records mapping variant names
  * to their values, corresponding to JSON-LD [indexed containers](https://www.w3.org/TR/json-ld11/#data-indexing)
  * (`@container: @index`):
@@ -265,7 +265,7 @@ import { defaultBase, Reference } from "@metreeca/qest";
 import type { Localised, Resource, Value } from "@metreeca/qest/state";
 import { materialize } from "./core/cache.js";
 import { TraceError } from "./core/trace.js";
-import type { Cardinality, Declared, Infer, UnionShape, Validator, ValuesShape } from "./index.js";
+import type { Cardinality, Declared, Infer, SetShape, UnionShape, Validator } from "./index.js";
 import type { LocalisedShape } from "./localised.js";
 import { checkSingletons, flatten } from "./resource.core.js";
 
@@ -678,7 +678,7 @@ export interface Type {
  * | Field         | Override Rule                                                                          |
  * | ------------- | ------------------------------------------------------------------------------------- |
  * | `kind`        | Cannot be overridden                                                                  |
- * | `range`       | Delegated to {@link ValuesShape} merge rules                                                |
+ * | `range`       | Delegated to {@link SetShape} merge rules                                                |
  * | `hidden`      | Inherited; conflicting parents without child override are reported as an error         |
  * | `computed`    | Inherited; conflicting parents without child override are reported as an error         |
  * | `name`        | Cannot be overridden                                                                  |
@@ -687,11 +687,11 @@ export interface Type {
  * | `reverse`     | Cannot be overridden                                                                  |
  *
  * @typeParam P The predicate type for IRI mappings, defaulting to resolved {@link Reference}
- * @typeParam R The {@link ValuesShape} type, defaulting to unconstrained
+ * @typeParam R The {@link SetShape} type, defaulting to unconstrained
  *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
  */
-export interface Property<P extends Predicate = Reference, R extends ValuesShape = ValuesShape> extends PropertyConstraints<P> {
+export interface Property<P extends Predicate = Reference, R extends SetShape = SetShape> extends PropertyConstraints<P> {
 
 	/**
 	 * Discriminator identifying this as a property shape.
@@ -704,7 +704,7 @@ export interface Property<P extends Predicate = Reference, R extends ValuesShape
 	/**
 	 * Value range for this property.
 	 *
-	 * **Inheritance** — delegated to {@link ValuesShape} merge rules.
+	 * **Inheritance** — delegated to {@link SetShape} merge rules.
 	 */
 	readonly range: R;
 
@@ -825,13 +825,13 @@ export type Entries =
 /**
  * A property definition entry.
  *
- * Accepts {@link Id} and {@link Type} markers, naked {@link ValuesShape} values for concise syntax, or full
+ * Accepts {@link Id} and {@link Type} markers, naked {@link SetShape} values for concise syntax, or full
  * {@link Property} definitions with additional constraints like IRI mappings and labels.
  */
 export type Entry =
 	| Id
 	| Type
-	| ValuesShape
+	| SetShape
 	| Property<Predicate>;
 
 
@@ -903,20 +903,20 @@ export type OptionalKeys<E extends Entries> =
 export type Content<E extends Entry> =
 	E extends Id ? IRI
 		: E extends Type ? undefined | IRI
-			: PropertyRange<E> extends ValuesShape<infer T, infer L, infer U, infer S>
+			: PropertyRange<E> extends SetShape<infer T, infer L, infer U, infer S>
 				? [S] extends [LocalisedShape | UnionShape]
 					? Cardinality<PropertyRange<E>["model"], L, 1>
 					: Cardinality<T, L, U>
 				: never;
 
 /**
- * Extracts the {@link ValuesShape} range from a {@link Property} or naked {@link ValuesShape} entry.
+ * Extracts the {@link SetShape} range from a {@link Property} or naked {@link SetShape} entry.
  *
  * @typeParam E The entry type
  */
 export type PropertyRange<E extends Entry> =
 	E extends Property<Predicate, infer R> ? R
-		: E extends ValuesShape ? E
+		: E extends SetShape ? E
 			: never;
 
 
@@ -1076,7 +1076,7 @@ export function resource<T extends ResourceShape>(shape: Lazy<T>): T;
 /**
  * Creates a resource shape from property definitions.
  *
- * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link ValuesShape} values for
+ * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link SetShape} values for
  * concise syntax, and {@link Id}/{@link Type} markers.
  *
  * > [!TIP]
@@ -1107,7 +1107,7 @@ export function resource<E extends Entries>(
 /**
  * Creates a resource shape from constraints and property definitions.
  *
- * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link ValuesShape} values for
+ * Accepts {@link Entry} values including full {@link Property} definitions, naked {@link SetShape} values for
  * concise syntax, and {@link Id}/{@link Type} markers.
  *
  * > [!TIP]
@@ -1264,7 +1264,7 @@ export function resource(
 	}
 
 	/**
-	 * Wraps naked {@link ValuesShape} entries into {@link Property} objects.
+	 * Wraps naked {@link SetShape} entries into {@link Property} objects.
 	 *
 	 * @param entries The property definitions to normalize
 	 * @param parents Optional parent shapes for inheritance-aware duplicate detection
@@ -1290,7 +1290,7 @@ export function resource(
 
 		return Object.fromEntries(Object.entries(entries).map(([name, entry]) => {
 
-			if ( entry.kind === "values" ) {
+			if ( entry.kind === "set" ) {
 
 				// inherit forward/reverse from parent when wrapping naked range
 
@@ -1478,7 +1478,7 @@ export function type(constraints: {
  *
  * @returns An immutable {@link Property} with the specified range
  */
-export function property<R extends ValuesShape>(
+export function property<R extends SetShape>(
 	range: R
 ): Property<Predicate, R>;
 
@@ -1498,7 +1498,7 @@ export function property<R extends ValuesShape>(
  *
  * @returns An immutable {@link Property} with the specified range
  */
-export function property<R extends ValuesShape>(
+export function property<R extends SetShape>(
 	constraints: PropertyConstraints<Predicate>,
 	range: R
 ): Property<Predicate, R>;
@@ -1507,9 +1507,9 @@ export function property<R extends ValuesShape>(
  * Creates property shapes.
  *
  */
-export function property<R extends ValuesShape>(
-	a: ValuesShape | PropertyConstraints<Predicate>,
-	b?: ValuesShape
+export function property<R extends SetShape>(
+	a: SetShape | PropertyConstraints<Predicate>,
+	b?: SetShape
 ): Property<Predicate, R> {
 
 	const constraints = (b !== undefined ? a : {}) as PropertyConstraints<Predicate>;

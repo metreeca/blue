@@ -26,7 +26,7 @@
 import type { IRI } from "@metreeca/core/resource";
 import type { Resource } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
-import { multiple, optional, type ValuesShape, required, union, validate } from "./index.js";
+import { multiple, optional, required, type SetShape, union, validate } from "./index.js";
 import type { NumberShape } from "./number.js";
 import { type Composition, type Content, property, resource } from "./resource.js";
 import type { StringShape } from "./string.js";
@@ -75,24 +75,24 @@ describe("Overrides", () => {
 describe("Composition", () => {
 
 	test("extends Resource", () => {
-		type Props = { name: { readonly kind: "property"; readonly range: ValuesShape<string, 1, 1> } };
+		type Props = { name: { readonly kind: "property"; readonly range: SetShape<string, 1, 1> } };
 		expectTypeOf<Composition<Props>>().toExtend<Resource>();
 	});
 
 	test("single required property → { key: V }", () => {
-		type Props = { name: { readonly kind: "property"; readonly range: ValuesShape<string, 1, 1> } };
+		type Props = { name: { readonly kind: "property"; readonly range: SetShape<string, 1, 1> } };
 		expectTypeOf<Composition<Props>>().toHaveProperty("name").toEqualTypeOf<string>();
 	});
 
 	test("optional property → { key: undefined | V }", () => {
-		type Props = { name: { readonly kind: "property"; readonly range: ValuesShape<string, undefined, 1> } };
+		type Props = { name: { readonly kind: "property"; readonly range: SetShape<string, undefined, 1> } };
 		expectTypeOf<Composition<Props>>().toHaveProperty("name").toEqualTypeOf<undefined | string>();
 	});
 
 	test("multiple properties", () => {
 		type Props = {
-			name: { readonly kind: "property"; readonly range: ValuesShape<string, 1, 1> };
-			age: { readonly kind: "property"; readonly range: ValuesShape<number, undefined, 1> };
+			name: { readonly kind: "property"; readonly range: SetShape<string, 1, 1> };
+			age: { readonly kind: "property"; readonly range: SetShape<number, undefined, 1> };
 		};
 		expectTypeOf<Composition<Props>>().toHaveProperty("name").toEqualTypeOf<string>();
 		expectTypeOf<Composition<Props>>().toHaveProperty("age").toEqualTypeOf<undefined | number>();
@@ -101,12 +101,12 @@ describe("Composition", () => {
 	describe("naked entries", () => {
 
 		test("single naked range → { key: V }", () => {
-			type Props = { name: ValuesShape<string, 1, 1> };
+			type Props = { name: SetShape<string, 1, 1> };
 			expectTypeOf<Composition<Props>>().toHaveProperty("name").toEqualTypeOf<string>();
 		});
 
 		test("naked optional range → { key: undefined | V }", () => {
-			type Props = { name: ValuesShape<string, undefined, 1> };
+			type Props = { name: SetShape<string, undefined, 1> };
 			expectTypeOf<Composition<Props>>().toHaveProperty("name").toEqualTypeOf<undefined | string>();
 		});
 
@@ -121,8 +121,8 @@ describe("Composition", () => {
 
 		test("mixed Property and naked range", () => {
 			type Props = {
-				name: { readonly kind: "property"; readonly range: ValuesShape<string, 1, 1> };
-				age: ValuesShape<number, undefined, 1>;
+				name: { readonly kind: "property"; readonly range: SetShape<string, 1, 1> };
+				age: SetShape<number, undefined, 1>;
 			};
 			expectTypeOf<Composition<Props>>().toHaveProperty("name").toEqualTypeOf<string>();
 			expectTypeOf<Composition<Props>>().toHaveProperty("age").toEqualTypeOf<undefined | number>();
@@ -136,22 +136,22 @@ describe("Composition", () => {
 describe("Content", () => {
 
 	test("naked Range → V", () => {
-		type E = ValuesShape<string, 1, 1>;
+		type E = SetShape<string, 1, 1>;
 		expectTypeOf<Content<E>>().toEqualTypeOf<string>();
 	});
 
 	test("naked optional Range → undefined | V", () => {
-		type E = ValuesShape<string, undefined, 1>;
+		type E = SetShape<string, undefined, 1>;
 		expectTypeOf<Content<E>>().toEqualTypeOf<undefined | string>();
 	});
 
 	test("Property with Range range → V", () => {
-		type E = { readonly kind: "property"; readonly range: ValuesShape<string, 1, 1> };
+		type E = { readonly kind: "property"; readonly range: SetShape<string, 1, 1> };
 		expectTypeOf<Content<E>>().toEqualTypeOf<string>();
 	});
 
 	test("Property with optional Range range → undefined | V", () => {
-		type E = { readonly kind: "property"; readonly range: ValuesShape<string, undefined, 1> };
+		type E = { readonly kind: "property"; readonly range: SetShape<string, undefined, 1> };
 		expectTypeOf<Content<E>>().toEqualTypeOf<undefined | string>();
 	});
 

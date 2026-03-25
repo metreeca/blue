@@ -31,9 +31,15 @@ import { brand, branded } from "./core/brand.js";
 import { materialize } from "./core/cache.js";
 import { collect, every, group, normalise, TraceError, wrap } from "./core/trace.js";
 import { mergeValues, validateArrayUnion, validateScalarUnion, validateValue } from "./index.core.js";
-import type { ValuesShape } from "./index.js";
-import { apply, type Trace, type UnionShape, type ValueShape } from "./index.js";
-import { validateArrayLocale, validateArrayLocalised, validateLocalised, validateScalarLocale, validateScalarLocalised } from "./localised.core.js";
+import type { SetShape, ValueShape } from "./index.js";
+import { apply, type Trace, type UnionShape, type ValuesShape } from "./index.js";
+import {
+	validateArrayLocale,
+	validateArrayLocalised,
+	validateLocalised,
+	validateScalarLocale,
+	validateScalarLocalised
+} from "./localised.core.js";
 import type { Property, ReferenceShape, ResourceShape } from "./resource.js";
 
 
@@ -415,7 +421,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 		shape
 
-	}: ValuesShape): undefined | Trace {
+	}: SetShape): undefined | Trace {
 
 		if ( shape.kind === "localised" ) {
 
@@ -441,7 +447,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 					: isArray(value) ? [["und", value] as [string, unknown]]
 						: Object.entries(value as Record<string, unknown>);
 
-				if ( entries.length === 0 && minCount !== undefined && minCount >= 1  ) {
+				if ( entries.length === 0 && minCount !== undefined && minCount >= 1 ) {
 
 					return collect({ "{minCount}": `expected at least one language tag` });
 
@@ -752,7 +758,7 @@ export function validateQuery(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateTemplates(value: unknown, range: undefined | ValuesShape, depth: number | null): Trace | undefined {
+	function validateTemplates(value: unknown, range: undefined | SetShape, depth: number | null): Trace | undefined {
 
 		if ( range === undefined ) {
 
@@ -829,7 +835,7 @@ export function validateQuery(values: readonly unknown[], shape: ResourceShape, 
 	}
 
 
-	function validateLimit(value: unknown, shape: undefined | ValueShape | UnionShape): undefined | Trace {
+	function validateLimit(value: unknown, shape: undefined | ValuesShape | UnionShape): undefined | Trace {
 
 		if ( shape === undefined ) {
 
@@ -869,7 +875,7 @@ export function validateQuery(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateKeywords(value: unknown, shape: undefined | ValueShape | UnionShape): undefined | Trace {
+	function validateKeywords(value: unknown, shape: undefined | ValuesShape | UnionShape): undefined | Trace {
 
 		if ( shape === undefined ) {
 
@@ -903,11 +909,17 @@ export function validateQuery(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateOptions(value: unknown, shape: undefined | ValueShape | UnionShape): undefined | Trace {
+	function validateOptions(value: unknown, shape: undefined | ValuesShape | UnionShape): undefined | Trace {
 
 		if ( shape === undefined ) {
 
 			return undefined; // undefined shape means binding cannot be populated at runtime: template is immaterial
+
+		} else if ( shape.kind === "union" ) {
+
+			return Object.values(shape.variants)
+				.some(variant => validateOptions(value, variant) === undefined)
+				? undefined : "expected options matching at least a union variant";
 
 		} else if ( shape.kind === "localised" ) {
 
@@ -927,11 +939,11 @@ export function validateQuery(values: readonly unknown[], shape: ResourceShape, 
 
 	}
 
-	function validateOption(value: unknown, shape: ValueShape | UnionShape): undefined | Trace {
+	function validateOption(value: unknown, shape: ValueShape): undefined | Trace {
 
-		if ( value === null ) { // null is a valid option for any value type
+		if ( value === null ) {
 
-			return undefined;
+			return undefined; // null is a valid option for any value type
 
 		} else {
 
@@ -953,12 +965,6 @@ export function validateQuery(values: readonly unknown[], shape: ResourceShape, 
 				case "resource":
 
 					return isReference(value) ? undefined : `expected <${shape.kind}> value`;
-
-				case "union":
-
-					return Object.values(shape.variants)
-						.some(variant => validateOption(value, variant) === undefined)
-						? undefined : "expected option matching at least a union variant";
 
 			}
 

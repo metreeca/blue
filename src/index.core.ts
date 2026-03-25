@@ -26,7 +26,7 @@ import { mergeBoolean, validateBoolean } from "./boolean.core.js";
 import type { BooleanShape } from "./boolean.js";
 import { materialize } from "./core/cache.js";
 import { collect, TraceError, wrap } from "./core/trace.js";
-import type { ValuesShape, Trace, UnionShape, ValueShape } from "./index.js";
+import type { SetShape, Trace, UnionShape, ValuesShape } from "./index.js";
 import { mergeLocalised, validateLocalised } from "./localised.core.js";
 import type { LocalisedShape } from "./localised.js";
 import { mergeNumber, validateNumber } from "./number.core.js";
@@ -38,7 +38,7 @@ import { type StringShape } from "./string.js";
 
 
 /**
- * Checks internal consistency of value set constraints.
+ * Checks internal consistency of {@link SetShape} constraints.
  *
  * @param constraints The constraint fields to check
  *
@@ -75,7 +75,7 @@ export function checkValues({
  *
  * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
-export function validateValue(values: readonly unknown[], shape: ValueShape): undefined | Trace {
+export function validateValue(values: readonly unknown[], shape: ValuesShape): undefined | Trace {
 
 	switch ( shape.kind ) {
 
@@ -258,7 +258,7 @@ export function validateArrayUnion(values: readonly unknown[], union: UnionShape
  *
  * @throws {TraceError} On kind mismatch or incompatible overrides
  */
-export function mergeValue<T extends ValueShape>(target: T, source: T): T {
+export function mergeValue<T extends ValuesShape>(target: T, source: T): T {
 
 	switch ( target.kind ) {
 
@@ -291,19 +291,19 @@ export function mergeValue<T extends ValueShape>(target: T, source: T): T {
 }
 
 /**
- * Merges an overriding value set shape with an inherited base.
+ * Merges an overriding {@link SetShape} with an inherited base.
  *
  * Validates that the override narrows cardinality constraints and that the value shape kinds match,
  * then delegates to the appropriate value shape or union merge function.
  *
- * @param target The overriding child value set shape
- * @param source The inherited parent value set shape
+ * @param target The overriding child {@link SetShape}
+ * @param source The inherited parent {@link SetShape}
  *
- * @returns The merged value set shape
+ * @returns The merged {@link SetShape}
  *
  * @throws {TraceError} On widened constraints, kind mismatch, or incompatible overrides
  */
-export function mergeValues(target: ValuesShape, source: ValuesShape): ValuesShape {
+export function mergeValues(target: SetShape, source: SetShape): SetShape {
 
 	// merged constraints
 
@@ -347,7 +347,7 @@ export function mergeValues(target: ValuesShape, source: ValuesShape): ValuesSha
 
 	const shape = target.shape.kind === "union"
 		? mergeUnion(target.shape, source.shape as UnionShape)
-		: mergeValue(target.shape as ValueShape, source.shape as ValueShape);
+		: mergeValue(target.shape as ValuesShape, source.shape as ValuesShape);
 
 	const model = isScalar ? shape.model
 		: shape.kind === "union"
