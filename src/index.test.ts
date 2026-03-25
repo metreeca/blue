@@ -967,39 +967,24 @@ describe("validation", () => {
 
 		});
 
-		it("returns undefined for untagged value with wildcard scope", async () => {
-
-			expect(audit({ name: "Alice" }, { scope: "*" })).toBeUndefined();
-
-		});
-
-		it("returns shape when wildcard scope matches value-validated resource", async () => {
+		it("returns shape when entry scope matches state-validated resource", async () => {
 
 			const shape = resource({ name: required(string()) });
 			const value = validate({ name: "Alice" }, { scope: "state", shape })({ value: v => v });
 
-			expect(audit(value!, { scope: "*" })).toBe(shape);
+			expect(audit(value!, { scope: "entry" })).toBe(shape);
 
 		});
 
-		it("returns shape when wildcard scope matches entry-validated resource", async () => {
+		it("returns undefined when state scope receives entry-validated resource", async () => {
 
 			const shape = resource({ id: id(), name: required(string()) });
 			const value = validate({ id: "https://example.com/1", name: "Alice" }, {
 				scope: "entry",
 				shape
-			})({ entry: v => v });
+			})({ value: v => v });
 
-			expect(audit(value!, { scope: "*" })).toBe(shape);
-
-		});
-
-		it("returns undefined when wildcard scope does not match model-validated model", async () => {
-
-			const shape = resource({ name: required(string()) });
-			const value = validate({}, { scope: "model", shape })({ query: v => v });
-
-			expect(audit(value as never, { scope: "*" })).toBeUndefined();
+			expect(audit(value!, { scope: "state" })).toBeUndefined();
 
 		});
 
@@ -1021,7 +1006,7 @@ describe("validation", () => {
 
 			const shape = resource({ id: id() });
 
-			const value = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ entry: v => v })!;
+			const value = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ value: v => v })!;
 
 			expect(audit(value, { scope: "entry" })).toBeDefined();
 
@@ -1336,7 +1321,7 @@ describe("validation", () => {
 			it("accepts any value in entry scope for non-resource shape", async () => {
 
 				const result = validate(42, { scope: "entry", shape: string() });
-				expect(result({ entry: v => v })).toBe(42);
+				expect(result({ value: v => v })).toBe(42);
 
 			});
 
@@ -1483,7 +1468,7 @@ describe("validation", () => {
 				const shape = resource({ id: id(), name: required(string()) });
 
 				const result = validate({ id: "app:/users/123", name: "Alice" }, { scope: "entry", shape });
-				expect(result({ entry: v => v })).toEqual({ id: "app:/users/123", name: "Alice" });
+				expect(result({ value: v => v })).toEqual({ id: "app:/users/123", name: "Alice" });
 
 			});
 
@@ -1492,7 +1477,7 @@ describe("validation", () => {
 				const shape = resource({ name: required(string()) });
 
 				const result = validate({ name: "Alice" }, { scope: "entry", shape });
-				expect(result({ entry: v => v })).toEqual({ name: "Alice" });
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
 
 			});
 
@@ -1523,7 +1508,7 @@ describe("validation", () => {
 
 				// name violates minLength but entry scope should not check it
 				const result = validate({ id: "app:/users/123", name: "Al" }, { scope: "entry", shape });
-				expect(result({ entry: v => v })).toEqual({ id: "app:/users/123", name: "Al" });
+				expect(result({ value: v => v })).toEqual({ id: "app:/users/123", name: "Al" });
 
 			});
 
@@ -1540,7 +1525,7 @@ describe("validation", () => {
 
 				const shape = resource({ id: id() });
 
-				const result = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ entry: v => v });
+				const result = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ value: v => v });
 				expect(() => { (result as any).id = "changed"; }).toThrow();
 
 			});
@@ -1549,8 +1534,8 @@ describe("validation", () => {
 
 				const shape = resource({ id: id() });
 
-				const first = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ entry: v => v });
-				const second = validate(first, { scope: "entry", shape })({ entry: v => v });
+				const first = validate({ id: "app:/users/123" }, { scope: "entry", shape })({ value: v => v });
+				const second = validate(first, { scope: "entry", shape })({ value: v => v });
 
 				expect(second).toBe(first);
 

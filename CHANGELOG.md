@@ -10,7 +10,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Add `audit()` to check whether a value or model was previously validated and retrieve the associated shape; accepts a
-	required `scope` parameter (`"value"`, `"entry"`, `"model"`, or `"*"` wildcard matching both `"value"` and `"entry"`)
+	required `scope` parameter (`"state"`, `"entry"`, or `"model"`); the `"entry"` scope also accepts values validated
+	with the `"state"` scope
 - Add `validate()` entry scope overload for id-only validation — checks only the `id` property against the shape's
 	`pattern`, `in`, and `hasValue` constraints; all other properties are ignored
 - Add `Validator<T>` type for custom value validators returning `undefined | true | Trace`
@@ -47,11 +48,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Breaking:** Rename `validate()` entry-scope relay branch from `entry` to `value` — aligns with the state-scope
+	convention for consistent relay destructuring
 - **Breaking:** Rename `ValuesShape` to `SetShape` and change `kind` discriminator from `"values"` to `"set"` — aligns
 	the type name with its role as a cardinality-constrained value set shape (Closes #17)
-- **Breaking:** Split `ValueShape` into `ValueShape` (scalar-or-set shapes) and `ValuesShape` (all concrete value
-	shapes including `LocalisedShape`) — `LocalisedShape` always describes a set regardless of cardinality, so it belongs
-	in the broader `ValuesShape` union rather than `ValueShape`
+- **Breaking:** Split `ValueShape` into `ValueShape` (scalar-or-set shapes) and `ValuesShape` (all concrete value shapes
+	including `LocalisedShape`) — `LocalisedShape` always describes a set regardless of cardinality, so it belongs in the
+	broader `ValuesShape` union rather than `ValueShape`
 - **Breaking:** Unify `local()`/`locals()` into single `localised()` factory — whether each tag holds a scalar string or
 	a string array is now determined by the cardinality of the enclosing `SetShape` (`maxCount === 1` for scalar,
 	`maxCount > 1` or unbounded for array); `minCount`/`maxCount` apply **per tag** instead of as aggregate counts

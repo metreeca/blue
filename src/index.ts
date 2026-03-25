@@ -482,15 +482,17 @@ export type Variants<V, U extends undefined | number = undefined | number> =
 /**
  * Checks whether a value was validated with a given scope.
  *
+ * The `"entry"` scope also accepts values validated with the `"state"` scope.
+ *
  * @param value The value to inspect
  * @param opts Retrieval options
- * @param opts.scope The scope to check against; `"*"` matches both `"state"` and `"entry"`
+ * @param opts.scope The scope to check against
  *
  * @returns The associated {@link ResourceShape}, or `undefined` if the value was not validated with the expected scope
  */
 export function audit(value: Value, opts: {
 
-	readonly scope: "*" | "state" | "entry"
+	readonly scope: "state" | "entry"
 
 }): undefined | ResourceShape;
 
@@ -512,21 +514,21 @@ export function audit(query: Query, opts: {
 /**
  * Checks whether a value or model was validated with a given scope.
  */
-export function audit(entry: Value | Query, {
+export function audit(input: Value | Query, {
 
 	scope
 
 }: {
 
-	readonly scope: "*" | "state" | "entry" | "model"
+	readonly scope: "state" | "entry" | "model"
 
 }): undefined | ResourceShape {
 
-	const actual = branded(entry, ValidationScope);
+	const actual = branded(input, ValidationScope);
 
-	if ( scope === "*" ? actual === "state" || actual === "entry" : actual === scope ) {
+	if ( actual === scope || scope === "entry" && actual === "state" ) {
 
-		return branded(entry, ValidationShape) as ResourceShape;
+		return branded(input, ValidationShape) as ResourceShape;
 
 	} else {
 
@@ -605,9 +607,9 @@ export function validate<T extends Value>(value: unknown, opts: {
  * @param opts.scope Selects identity-only validation checking just the `id` property
  * @param opts.shape The {@link Lazy} shape defining validation constraints
  *
- * @returns A {@link Relay} resolving to either `{ entry }` on success or `{ trace }` on
+ * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on
  * failure; for
- * {@link Resource} values, on success, the entry is an immutable copy associated with the `entry` scope and a verified
+ * {@link Resource} values, on success, the value is an immutable copy associated with the `entry` scope and a verified
  * and flattened copy of the shape (see {@link resource!resource | resource}), retrievable via {@link audit}
  *
  * @throws {TraceError} If the shape contains invalid or incompatible entry definitions (see
@@ -620,7 +622,7 @@ export function validate<T extends Value>(value: unknown, opts: {
 
 }): Relay<{
 
-	readonly entry: T,
+	readonly value: T,
 	readonly trace: Trace
 
 }>;
@@ -711,7 +713,6 @@ export function validate(value: unknown, {
 }): Relay<{
 
 	readonly value: Value
-	readonly entry: Value
 	readonly query: Value | Query
 	readonly trace: Trace
 
@@ -726,7 +727,7 @@ export function validate(value: unknown, {
 			if ( branded(value, ValidationScope) === scope && branded(value, ValidationShape) === materialized ) {
 
 				return scope === "state" ? createRelay({ value })
-					: scope === "entry" ? createRelay({ entry: value })
+					: scope === "entry" ? createRelay({ value })
 						: createRelay({ query: value });
 
 			} else if ( scope === "state" ) {
@@ -748,7 +749,7 @@ export function validate(value: unknown, {
 
 				return trace === undefined
 					? createRelay({
-						entry: brand(value, {
+						value: brand(value, {
 							[ValidationScope]: "entry",
 							[ValidationShape]: materialized
 						})
@@ -774,7 +775,7 @@ export function validate(value: unknown, {
 
 			if ( scope === "entry" ) { // non-resource values accepted as-is
 
-				return createRelay({ entry: value });
+				return createRelay({ value });
 
 			} else if ( scope === "model" ) {
 
