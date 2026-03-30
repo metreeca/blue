@@ -576,18 +576,22 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  *     defaults to `false`
  * @param opts.depth Maximum nesting depth for reference and embedded resource expansion; `0` rejects any nested
  *     template while still accepting IRI references; defaults to unlimited
+ * @param opts.limit Maximum value for the `#` pagination constraint; if a query specifies `#` exceeding this value,
+ *     the query is rejected; if the query omits `#`, the limit value is injected as a default; defaults to unlimited
  *
  * @returns A keyed trace of constraint violations per property, or `undefined` if all templates are valid
  */
 export function validateTemplate(values: readonly unknown[], shape: ResourceShape, {
 
 	plain,
-	depth
+	depth,
+	limit
 
 }: {
 
 	readonly plain?: boolean
 	readonly depth?: number
+	readonly limit?: number
 
 }): undefined | Trace {
 
@@ -677,11 +681,18 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 							];
 
 						case "@":
-						case "#":
 
 							return [key, !isNumber(value) ? "expected number value"
 								: !Number.isInteger(value) || value < 0 ? "expected non-negative integer"
 									: undefined
+							];
+
+						case "#":
+
+							return [key, !isNumber(value) ? "expected number value"
+								: !Number.isInteger(value) || value < 0 ? "expected non-negative integer"
+									: limit !== undefined && value > limit ? `exceeded maximum result set limit <${limit}>`
+										: undefined
 							];
 
 						default:

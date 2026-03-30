@@ -1476,6 +1476,58 @@ describe("validation", () => {
 
 			});
 
+			it("skips validation when limit was stricter and is now relaxed", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { fetch: true, shape, limit: 50 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { fetch: true, shape, limit: 100 });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("skips validation when limit was set and is now omitted", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { fetch: true, shape, limit: 50 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { fetch: true, shape });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("revalidates when limit was relaxed and is now stricter", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { fetch: true, shape, limit: 100 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { fetch: true, shape, limit: 50 });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("revalidates when limit was omitted and is now set", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { fetch: true, shape });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { fetch: true, shape, limit: 50 });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
 		});
 
 		describe("accepts missing required property", () => {
@@ -1494,6 +1546,60 @@ describe("validation", () => {
 		});
 
 
+
+		describe("limit post-processing", () => {
+
+			it("injects # into nested query when limit is set and # is absent", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{ name: "" }] }, { fetch: true, shape, limit: 50 });
+				expect(result({ value: v => v })).toEqual({ items: [{ name: "", "#": 50 }] });
+
+			});
+
+			it("preserves existing # when within limit", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{ "#": 25 }] }, { fetch: true, shape, limit: 50 });
+				expect(result({ value: v => v })).toEqual({ items: [{ "#": 25 }] });
+
+			});
+
+			it("does not inject # when limit is not set", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{ name: "" }] }, { fetch: true, shape });
+				expect(result({ value: v => v })).toEqual({ items: [{ name: "" }] });
+
+			});
+
+			it("injects # recursively into nested queries", async () => {
+
+				const Inner = resource({ label: required(string()) });
+				const Outer = resource({ children: multiple(reference(Inner)) });
+				const shape = resource({ items: multiple(reference(Outer)) });
+
+				const result = validate({ items: [{ children: [{ label: "" }] }] }, { fetch: true, shape, limit: 30, depth: 3 });
+				expect(result({ value: v => v })).toEqual({ items: [{ children: [{ label: "", "#": 30 }], "#": 30 }] });
+
+			});
+
+			it("does not inject # into non-query values", async () => {
+
+				const shape = resource({ name: required(string()), age: optional(integer()) });
+
+				const result = validate({ name: "Alice", age: 30 }, { fetch: true, shape, limit: 50 });
+				expect(result({ value: v => v })).toEqual({ name: "Alice", age: 30 });
+
+			});
+
+		});
 
 		describe("model mode", () => {
 

@@ -19,6 +19,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	ignored when the resource has no `id` entry; idempotency sealing accounts for the entry value
 - Add `depth` option to template validation for limiting nested reference and resource expansion and property path
 	length in queries; `0` rejects nested templates while still accepting IRI references; defaults to unlimited
+- Add `limit` option to template validation for capping the `#` pagination constraint in queries; if a query specifies
+	`#` exceeding this value, the query is rejected; if the query omits `#`, the limit value is injected as a default;
+	defaults to unlimited
 - Add `reference` module with `ReferenceShape` interface, `reference()` and `foreign()` factories
 - Add `value` module with composite shapes (`SetShape`, `UnionShape`), cardinality factories (`required`, `optional`,
 	`repeatable`, `multiple`, `cardinality`), `union()` factory, `apply()` probe resolver, and type utilities (`Infer`,

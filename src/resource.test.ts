@@ -4424,6 +4424,41 @@ describe("operators", () => {
 
 			});
 
+			describe("limit", () => {
+
+				const Target = resource({ name: required(string()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				it("accepts # value equal to limit", async () => {
+					expect(validateTemplate([{ items: [{ "#": 100 }] }], Wrapper, { limit: 100 })).toBeUndefined();
+				});
+
+				it("accepts # value less than limit", async () => {
+					expect(validateTemplate([{ items: [{ "#": 50 }] }], Wrapper, { limit: 100 })).toBeUndefined();
+				});
+
+				it("rejects # value exceeding limit", async () => {
+					expect(validateTemplate([{ items: [{ "#": 101 }] }], Wrapper, { limit: 100 })).toBeDefined();
+				});
+
+				it("adds # with limit value when # is absent", async () => {
+
+					const result = validateTemplate([{ items: [{ name: "" }] }], Wrapper, { limit: 50 });
+
+					expect(result).toBeUndefined();
+
+				});
+
+				it("accepts # without limit option", async () => {
+					expect(validateTemplate([{ items: [{ "#": 1000 }] }], Wrapper, {})).toBeUndefined();
+				});
+
+				it("accepts zero # with limit", async () => {
+					expect(validateTemplate([{ items: [{ "#": 0 }] }], Wrapper, { limit: 100 })).toBeUndefined();
+				});
+
+			});
+
 			describe("filter criteria", () => {
 
 				it("accepts comparison filter on existing property", async () => {

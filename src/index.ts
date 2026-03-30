@@ -62,24 +62,25 @@
  * validate(data, { fetch: true, shape: Product });
  * validate(data, { fetch: true, shape: Product, plain: true });
  * validate(data, { fetch: true, shape: Product, depth: 0 });
+ * validate(data, { fetch: true, shape: Product, limit: 100 });
  * ```
  *
  * > [!CAUTION]
  * > By default, templates support the full query language, including aggregate transforms and nested expansion.
  * > When exposing endpoints to untrusted clients, restrict query complexity as required by setting `plain`
- * > to `true` and/or `depth` to `0` or a positive value.
+ * > to `true`, `depth` to `0` or a positive value, and/or `limit` to a maximum result set size.
  *
  * @module index
  *
  * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
  */
 
-import { type Lazy } from "@metreeca/core";
+import { isArray, isObject, type Lazy } from "@metreeca/core";
 import { seal } from "@metreeca/core/deep";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { type Reference } from "@metreeca/qest";
 import type { Resource } from "@metreeca/qest/resource";
-import type { Template } from "@metreeca/qest/template";
+import type { Query, Template } from "@metreeca/qest/template";
 import { TraceError } from "./index.core.js";
 import type { ReferenceShape } from "./reference.js";
 import { validateResource, validateTemplate } from "./resource.core.js";
@@ -124,8 +125,8 @@ export type Trace =
  *
  * A function that examines a value and returns a {@link Trace} describing any constraint violations:
  *
- * - `undefined` or `true` signals successful validation with no issues
- * - A trace describes constraint failures as a keyed report or violation message
+ * - `undefined` or `true` — successful validation with no issues
+ * - A non-empty trace — constraint failures as a keyed report or violation message
  *
  * @typeParam T The value type being validated
  */
@@ -150,6 +151,7 @@ export type Validator<T = unknown> =
  *
  * @param value The value to validate as a resource
  * @param opts Validation options
+ * @param opts.fetch Must be `false` or omitted to select resource validation mode
  * @param opts.shape The {@link Lazy} {@link ResourceShape} defining validation constraints
  * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} entry; if provided and the
  *     resource contains an `id` property, the `id` value must match this reference exactly; ignored if the resource
@@ -187,7 +189,7 @@ export function validate<T extends Resource>(value: unknown, opts: {
  * > [!CAUTION]
  * > By default, templates support the full query language, including aggregate transforms and nested expansion.
  * > When exposing endpoints to untrusted clients, restrict query complexity as required by setting `plain`
- * > to `true` and/or `depth` to `0` or a positive value.
+ * > to `true`, `depth` to `0` or a positive value, and/or `limit` to a maximum result set size.
  *
  * > [!TIP]
  * > Wherever a property specifies a {@link ReferenceShape}, the query may be either an IRI {@link Reference}
@@ -204,10 +206,14 @@ export function validate<T extends Resource>(value: unknown, opts: {
  * @param opts Validation options
  * @param opts.fetch Must be `true` to select template validation mode
  * @param opts.shape The {@link Lazy} {@link ResourceShape} defining the expected structure
- * @param opts.plain Whether to reject aggregate transforms (count, sum, min, max, avg); `true` rejects
+ * @param opts.plain Whether to reject aggregate transforms (`count`, `sum`, `min`, `max`, `avg`); `true` rejects
  *     any binding containing aggregate transforms; defaults to `false`
- * @param opts.depth Maximum nesting depth for {@link Reference} and embedded {@link Resource} expansion;
- *     `0` rejects any nested {@link Template} while still accepting IRI references; defaults to unlimited
+ * @param opts.depth Maximum depth for nested {@link Template} expansion and property paths in query probes,
+ *     where each nesting level or path segment counts against the budget; `0` rejects any nested {@link Template}
+ *     while still accepting IRI references; if omitted, no depth constraint is enforced
+ * @param opts.limit Maximum value for the {@link Query | `#`} pagination constraint in queries; if a query
+ *     specifies `#` exceeding this value, the query is rejected; if the query omits `#`, the limit value is injected
+ *     as a default; if omitted, no limit constraint is enforced and no `#` is injected
  *
  * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the
  *     value is an immutable copy validated against a verified and flattened copy of the shape
@@ -222,6 +228,7 @@ export function validate<T extends Template>(value: unknown, opts: {
 
 	readonly plain?: boolean
 	readonly depth?: number
+	readonly limit?: number
 
 }): Relay<{
 
@@ -241,7 +248,8 @@ export function validate(value: unknown, {
 	entry,
 
 	plain,
-	depth
+	depth,
+	limit
 
 }: {
 
@@ -252,6 +260,7 @@ export function validate(value: unknown, {
 
 	readonly plain?: boolean
 	readonly depth?: number
+	readonly limit?: number
 
 }): Relay<{
 
@@ -271,26 +280,69 @@ export function validate(value: unknown, {
 
 			readonly plain?: boolean
 			readonly depth?: number
+			readonly limit?: number
 
 		}>(value, Validated);
 
 		if ( sealed !== undefined && sealed.fetch
 			&& materialized === sealed.shape
 			&& (!plain || sealed.plain)
-			&& (depth === undefined || (!(sealed.depth === undefined || sealed.depth > depth)))
+			&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
+			&& (limit === undefined || sealed.limit !== undefined && sealed.limit <= limit)
 		) {
 
 			return createRelay({ value });
 
 		} else {
 
-			const trace = validateTemplate([value], materialized, { depth, plain });
+			const trace = validateTemplate([value], materialized, { depth, plain, limit });
 
-			return trace === undefined
-				? createRelay({
-					value: seal(value, Validated, { fetch: true, shape: materialized, plain, depth })
+			return trace !== undefined ? createRelay({ trace }) : createRelay({
+
+				value: seal(enforce(value), Validated, {
+
+					fetch: true,
+					shape: materialized,
+
+					plain,
+					depth,
+					limit
+
 				})
-				: createRelay({ trace });
+
+			});
+
+			/**
+			 * Recursively injects `#: limit` into query tuples that don't already specify a `#` constraint.
+			 *
+			 * Walks the template structure, identifying queries as objects inside singleton array tuples
+			 * and defaulting their `#` constraint to the configured limit.
+			 */
+			function enforce(value: unknown): unknown {
+				if ( limit === undefined ) {
+
+					return value;
+
+				} else if ( isObject(value) ) {
+
+					return Object.fromEntries(Object.entries(value).map(([key, val]) =>
+						[key, enforce(val)]
+					));
+
+				} else if ( isArray(value, [v => isObject(v)]) ) {
+
+					const query = enforce(value[0]) as Query;
+
+					return !("#" in query)
+						? [{ ...query, "#": limit }]
+						: [query];
+
+				} else {
+
+					return value;
+
+				}
+			}
 
 		}
 
@@ -316,9 +368,18 @@ export function validate(value: unknown, {
 
 			const trace = validateResource([value], materialized, { entry });
 
-			return trace === undefined
-				? createRelay({ value: seal(value, Validated, { fetch: false, shape: materialized, entry }) })
-				: createRelay({ trace });
+			return trace !== undefined ? createRelay({ trace }) : createRelay({
+
+				value: seal(value, Validated, {
+
+					fetch: false,
+					shape: materialized,
+
+					entry
+
+				})
+
+			});
 
 		}
 
