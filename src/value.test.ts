@@ -14,16 +14,157 @@
  * limitations under the License.
  */
 
-import type { Probe, Transform } from "@metreeca/qest/model";
+import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
-import { boolean } from "../boolean.js";
-import { optional, repeatable, required, type SetShape, union, type UnionShape, type ValuesShape } from "../index.js";
-import { localised } from "../localised.js";
-import { byte, decimal, double, float, int, integer, long, number, short } from "../number.js";
-import { id, reference, resource, type ResourceShape, type } from "../resource.js";
-import { date, duration, instant, iri, string, time, timestamp, year } from "../string.js";
-import { apply } from "./probe.js";
+import { boolean } from "./boolean.js";
+import { localised } from "./localised.js";
+import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
+import { reference } from "./reference.js";
+import { id, resource, type ResourceShape, type } from "./resource.js";
+import { date, duration, instant, iri, string, time, timestamp, year } from "./string.js";
+import {
+	checkValues,
+	materialize,
+	mergeUnion,
+	mergeValues,
+	validateArrayUnion,
+	validateScalarUnion,
+	validateValue
+} from "./value.core.js";
+import {
+	apply,
+	cardinality,
+	multiple,
+	optional,
+	repeatable,
+	required,
+	type SetShape,
+	union,
+	type UnionShape,
+	type ValuesShape
+} from "./value.js";
 
+
+describe("factories", () => {
+
+	describe("cardinality shorthands", () => {
+
+		describe("cardinality bounds", () => {
+
+			it.each([
+				["multiple", multiple, undefined, undefined],
+				["repeatable", repeatable, 1, undefined],
+				["optional", optional, undefined, 1],
+				["required", required, 1, 1]
+			])("%s sets correct cardinality bounds", async (_name, factory, expectedMin, expectedMax) => {
+
+				const range = factory(string());
+
+				expect(range.minCount).toBe(expectedMin);
+				expect(range.maxCount).toBe(expectedMax);
+				expect(range.shape.kind).toBe("string");
+
+			});
+
+			it("accepts lazy resource shape", async () => {
+
+				const range = multiple(() => resource({}));
+
+				expect(range.shape.kind).toBe("resource");
+
+			});
+
+			it("returns an immutable range", async () => {
+
+				const range = required(string());
+
+				expect(() => {
+					(range as any).minCount = 99;
+				}).toThrow();
+
+			});
+
+			it("includes only expected properties", async () => {
+
+				const range = required(string());
+
+				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "model", "shape"]);
+
+			});
+
+		});
+
+	});
+
+	describe("cardinality", () => {
+
+		it("returns a factory function", async () => {
+
+			const twoToFive = cardinality(2, 5);
+
+			expect(typeof twoToFive).toBe("function");
+
+		});
+
+		it("creates ranges with specified cardinality", async () => {
+
+			const twoToFive = cardinality(2, 5);
+			const range = twoToFive(string());
+
+			expect(range.minCount).toBe(2);
+			expect(range.maxCount).toBe(5);
+			expect(range.shape.kind).toBe("string");
+
+		});
+
+		it("supports undefined lower bound", async () => {
+
+			const upToThree = cardinality(undefined, 3);
+			const range = upToThree(string());
+
+			expect(range.minCount).toBeUndefined();
+			expect(range.maxCount).toBe(3);
+
+		});
+
+		it("supports undefined upper bound", async () => {
+
+			const atLeastTwo = cardinality(2);
+			const range = atLeastTwo(string());
+
+			expect(range.minCount).toBe(2);
+			expect(range.maxCount).toBeUndefined();
+
+		});
+
+		it("returns immutable ranges", async () => {
+
+			const twoToFive = cardinality(2, 5);
+			const range = twoToFive(string());
+
+			expect(() => {
+				(range as any).minCount = 0;
+			}).toThrow();
+
+		});
+
+		describe("structural integrity", () => {
+
+			it("includes undefined constraints", async () => {
+
+				const upToThree = cardinality(undefined, 3);
+				const range = upToThree(string());
+
+				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "model", "shape"]);
+				expect(range.minCount).toBeUndefined();
+
+			});
+
+		});
+
+	});
+
+});
 
 describe("apply", () => {
 
@@ -613,7 +754,7 @@ describe("apply", () => {
 
 			});
 
-			it("resolves id field with required cardinality", async () => {
+			it("resolves id field with optional cardinality", async () => {
 
 				const s = resource({
 					rid: id(),
@@ -622,23 +763,8 @@ describe("apply", () => {
 
 				const result = probeRange(probe(["rid"]), s);
 
-				expect(result?.minCount).toBe(1);
+				expect(result?.minCount).toBeUndefined();
 				expect(result?.maxCount).toBe(1);
-
-			});
-
-			it("resolves trailing path segment to nested id field", async () => {
-
-				const Inner = resource({
-					rid: id(),
-					label: required(string())
-				});
-
-				const s = resource({
-					child: required(Inner)
-				});
-
-				expect(probeRange(probe(["child", "rid"]), s)?.shape).toEqual(iri({ variant: "absolute" }));
 
 			});
 
@@ -678,7 +804,7 @@ describe("apply", () => {
 				});
 
 				const s = resource({
-					child: required(Inner)
+					child: required(reference(Inner))
 				});
 
 				expect(apply(probe(["child", "rid", "value"]), s)).toBeUndefined();
@@ -711,21 +837,6 @@ describe("apply", () => {
 
 				expect(result?.minCount).toBeUndefined();
 				expect(result?.maxCount).toBe(1);
-
-			});
-
-			it("resolves trailing path segment to nested type field", async () => {
-
-				const Inner = resource({
-					kind: type(),
-					label: required(string())
-				});
-
-				const s = resource({
-					child: required(Inner)
-				});
-
-				expect(probeRange(probe(["child", "kind"]), s)?.shape).toEqual(iri({ variant: "absolute" }));
 
 			});
 
@@ -765,7 +876,7 @@ describe("apply", () => {
 				});
 
 				const s = resource({
-					child: required(Inner)
+					child: required(reference(Inner))
 				});
 
 				expect(apply(probe(["child", "kind", "value"]), s)).toBeUndefined();
@@ -888,3 +999,538 @@ describe("apply", () => {
 	});
 
 });
+
+describe("operators", () => {
+
+	describe("checkValues", () => {
+
+		it("returns undefined for consistent constraints", async () => {
+
+			expect(checkValues({ minCount: 1, maxCount: 10 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when minCount equals maxCount", async () => {
+
+			expect(checkValues({ minCount: 1, maxCount: 1 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only minCount is provided", async () => {
+
+			expect(checkValues({ minCount: 1 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only maxCount is provided", async () => {
+
+			expect(checkValues({ maxCount: 1 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when no constraints are provided", async () => {
+
+			expect(checkValues({})).toBeUndefined();
+
+		});
+
+		it("returns trace when minCount > maxCount", async () => {
+
+			const trace = checkValues({ minCount: 5, maxCount: 2 });
+
+			expect(trace).toBeDefined();
+			expect(trace).toHaveProperty("{minCount/maxCount}");
+
+		});
+
+	});
+
+
+	describe("validateValue", () => {
+
+		it("returns undefined for valid local value", async () => {
+
+			expect(validateValue([{ "en": "hello" }], localised())).toBeUndefined();
+
+		});
+
+		it("accepts plain string shorthand for local shape", async () => {
+
+			expect(validateValue(["hello"], localised())).toBeUndefined();
+
+		});
+
+		it("rejects non-localised value for localised shape", async () => {
+
+			expect(validateValue([42], localised())).toBeDefined();
+
+		});
+
+		it("returns undefined for valid localised array value", async () => {
+
+			expect(validateValue([{ "en": ["hello"] }], localised())).toBeUndefined();
+
+		});
+
+		it("returns undefined for valid localised scalar value", async () => {
+
+			expect(validateValue([{ "en": "hello" }], localised())).toBeUndefined();
+
+		});
+
+	});
+
+	describe("validateScalarUnion", () => {
+
+		it("accepts single indexed object matching variant shape", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateScalarUnion([{ text: "hello" }], shape)).toBeUndefined();
+			expect(validateScalarUnion([{ num: 42 }], shape)).toBeUndefined();
+
+		});
+
+		it("rejects single indexed object with wrong value type", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateScalarUnion([{ text: 42 }], shape)).toBeDefined();
+
+		});
+
+		it("rejects non-identifier key with keyed trace", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateScalarUnion([{ "": "value" }], shape)).toHaveProperty("");
+
+		});
+
+		it("rejects unrecognised variant key with keyed trace", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateScalarUnion([{ unknown: "value" }], shape)).toHaveProperty("unknown");
+
+		});
+
+		it("rejects multiple variant keys", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateScalarUnion([{ text: "hello", num: 42 }], shape)).toBeDefined();
+
+		});
+
+		it("rejects unknown key mixed with valid key", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateScalarUnion([{ text: "hello", unknown: "value" }], shape)).toBeDefined();
+
+		});
+
+		it("accepts reference variant with valid value", async () => {
+
+			const Target = resource({ name: required(string()) });
+			const shape = union({ ref: reference(Target), text: string() });
+
+			expect(validateScalarUnion([{ ref: { name: "test" } }], shape)).toBeUndefined();
+
+		});
+
+		it("rejects reference variant with invalid value", async () => {
+
+			const Target = resource({ name: required(string()) });
+			const shape = union({ ref: reference(Target), text: string() });
+
+			expect(validateScalarUnion([{ ref: { name: 42 } }], shape)).toBeDefined();
+
+		});
+
+		it("accepts single empty object", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateScalarUnion([{}], shape)).toBeUndefined();
+
+		});
+
+		it("rejects array value for variant entry with keyed trace", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateScalarUnion([{ text: ["hello"] }], shape)).toHaveProperty("text");
+
+		});
+
+		it("rejects non-object values", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateScalarUnion(["hello"], shape)).toBeDefined();
+			expect(validateScalarUnion([42], shape)).toBeDefined();
+
+		});
+
+		it("rejects multiple object values", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateScalarUnion([{ text: "hello" }, { num: 42 }], shape)).toBeDefined();
+
+		});
+
+	});
+
+	describe("validateArrayUnion", () => {
+
+		it("accepts single indexed object with variant arrays", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateArrayUnion([{ text: ["hello"], num: [42] }], shape)).toBeUndefined();
+
+		});
+
+		it("accepts variant entries with different array lengths", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateArrayUnion([{ text: ["hello", "world"], num: [42] }], shape)).toBeUndefined();
+
+		});
+
+		it("accepts single variant entry with array", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateArrayUnion([{ text: ["hello"] }], shape)).toBeUndefined();
+
+		});
+
+		it("rejects non-identifier key with keyed trace", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateArrayUnion([{ "": ["value"] }], shape)).toHaveProperty("");
+
+		});
+
+		it("rejects unrecognised variant key with keyed trace", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateArrayUnion([{ unknown: ["value"] }], shape)).toHaveProperty("unknown");
+
+		});
+
+		it("rejects unrecognised key mixed with valid keys", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateArrayUnion([{ text: ["hello"], unknown: ["value"] }], shape)).toHaveProperty("unknown");
+
+		});
+
+		it("rejects non-array variant entry", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateArrayUnion([{ text: "hello" }], shape)).toBeDefined();
+
+		});
+
+		it("rejects array entry with wrong value type", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateArrayUnion([{ text: [42] }], shape)).toBeDefined();
+
+		});
+
+		it("accepts reference variant with valid array", async () => {
+
+			const Target = resource({ name: required(string()) });
+			const shape = union({ ref: reference(Target), text: string() });
+
+			expect(validateArrayUnion([{ ref: [{ name: "test" }] }], shape)).toBeUndefined();
+
+		});
+
+		it("rejects reference variant with invalid array entry", async () => {
+
+			const Target = resource({ name: required(string()) });
+			const shape = union({ ref: reference(Target), text: string() });
+
+			expect(validateArrayUnion([{ ref: [{ name: 42 }] }], shape)).toBeDefined();
+
+		});
+
+		it("accepts single empty object", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateArrayUnion([{}], shape)).toBeUndefined();
+
+		});
+
+		it("rejects non-object values", async () => {
+
+			const shape = union({ text: string(), num: integer() });
+
+			expect(validateArrayUnion(["hello"], shape)).toBeDefined();
+
+		});
+
+	});
+
+
+	describe("mergeUnion", () => {
+
+		describe("variants", () => {
+
+			it("merges matching variant keys", async () => {
+
+				const merged = mergeUnion(
+					union({ a: string({ minLength: 5 }), b: boolean() }),
+					union({ a: string(), b: boolean() })
+				);
+
+				expect(merged.kind).toBe("union");
+				expect(Object.keys(merged.variants).sort()).toEqual(["a", "b"]);
+				expect((merged.variants as any).a.minLength).toBe(5);
+
+			});
+
+			it("rejects mismatched variant keys", async () => {
+
+				expect(() => mergeUnion(
+					union({ a: string(), b: boolean() }),
+					union({ a: string(), c: boolean() })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects extra variant keys in target", async () => {
+
+				expect(() => mergeUnion(
+					union({ a: string(), b: boolean(), c: string() }),
+					union({ a: string(), b: boolean() })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects missing variant keys in target", async () => {
+
+				expect(() => mergeUnion(
+					union({ a: string() }),
+					union({ a: string(), b: boolean() })
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("model", () => {
+
+			it("computes merged model from merged variants", async () => {
+
+				const merged = mergeUnion(
+					union({ a: string(), b: boolean() }),
+					union({ a: string(), b: boolean() })
+				);
+
+				expect(merged.model).toEqual({ a: "", b: false });
+
+			});
+
+		});
+
+	});
+
+	describe("mergeValues", () => {
+
+		describe("kind", () => {
+
+			it("preserves kind as 'range'", async () => {
+
+				const merged = mergeValues(required(string()), required(string()));
+
+				expect(merged.kind).toBe("set");
+
+			});
+
+		});
+
+		describe.each([
+
+			{
+				bound: "minCount" as const,
+				inheritTarget: multiple(string()),
+				inheritSource: required(string()),
+				keepTarget: required(string()),
+				keepSource: multiple(string()),
+				compatibleTarget: cardinality(2)(string()),
+				compatibleSource: cardinality(1)(string()),
+				compatibleExpected: 2,
+				incompatibleTarget: cardinality(1)(string()),
+				incompatibleSource: cardinality(2)(string())
+			},
+
+			{
+				bound: "maxCount" as const,
+				inheritTarget: multiple(string()),
+				inheritSource: optional(string()),
+				keepTarget: optional(string()),
+				keepSource: multiple(string()),
+				compatibleTarget: cardinality(undefined, 2)(string()),
+				compatibleSource: cardinality(undefined, 5)(string()),
+				compatibleExpected: 2,
+				incompatibleTarget: cardinality(undefined, 10)(string()),
+				incompatibleSource: cardinality(undefined, 5)(string())
+			}
+
+		])("$bound", ({
+			bound, inheritTarget, inheritSource, keepTarget, keepSource,
+			compatibleTarget, compatibleSource, compatibleExpected,
+			incompatibleTarget, incompatibleSource
+		}) => {
+
+			it("inherits source value when target has none", async () => {
+
+				const merged = mergeValues(inheritTarget, inheritSource);
+
+				expect(merged[bound]).toBe(1);
+
+			});
+
+			it("keeps target value when source has none", async () => {
+
+				const merged = mergeValues(keepTarget, keepSource);
+
+				expect(merged[bound]).toBe(1);
+
+			});
+
+			it("accepts compatible target override", async () => {
+
+				const merged = mergeValues(compatibleTarget, compatibleSource);
+
+				expect(merged[bound]).toBe(compatibleExpected);
+
+			});
+
+			it("rejects incompatible target override", async () => {
+
+				expect(() => mergeValues(incompatibleTarget, incompatibleSource)).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("shape", () => {
+
+			it("delegates to value shape merge", async () => {
+
+				const merged = mergeValues(
+					required(string({ minLength: 5 })),
+					required(string())
+				);
+
+				expect((merged.shape as any).minLength).toBe(5);
+
+			});
+
+			it("rejects shape kind mismatch", async () => {
+
+				expect(() => mergeValues(
+					required(string()),
+					required(boolean())
+				)).toThrow(RangeError);
+
+			});
+
+			it("delegates to union merge for union shapes", async () => {
+
+				const merged = mergeValues(
+					required(union({ a: string({ minLength: 5 }), b: boolean() })),
+					required(union({ a: string(), b: boolean() }))
+				);
+
+				expect((merged.shape as any).variants.a.minLength).toBe(5);
+
+			});
+
+		});
+
+		describe("post-merge validation", () => {
+
+			it("rejects merged minCount > maxCount", async () => {
+
+				expect(() => mergeValues(
+					cardinality(3)(string()),
+					cardinality(undefined, 2)(string())
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+	});
+
+});
+
+describe("materialize", () => {
+
+	describe("with direct values", () => {
+
+		it("returns the value unchanged", async () => {
+
+			const value = resource({});
+
+			expect(materialize(value)).toBe(value);
+
+		});
+
+	});
+
+	describe("with factory functions", () => {
+
+		it("returns the materialized value", async () => {
+
+			const factory = () => resource({});
+
+			const value = materialize(factory);
+
+			expect(value.kind).toBe("resource");
+
+		});
+
+		it("caches factory results for idempotent materialization", async () => {
+
+			const factory = () => resource({});
+
+			const first = materialize(factory);
+			const second = materialize(factory);
+
+			expect(first).toBe(second);
+
+		});
+
+		it("caches independently per factory", async () => {
+
+			const factoryA = () => resource({});
+			const factoryB = () => resource({});
+
+			const shapeA = materialize(factoryA);
+			const shapeB = materialize(factoryB);
+
+			expect(shapeA).not.toBe(shapeB);
+
+		});
+
+	});
+
+})

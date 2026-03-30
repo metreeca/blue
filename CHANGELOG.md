@@ -9,162 +9,83 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Add `audit()` to check whether a value or model was previously validated and retrieve the associated shape; accepts a
-	required `scope` parameter (`"state"`, `"entry"`, or `"model"`); the `"entry"` scope also accepts values validated
-	with the `"state"` scope
-- Add `validate()` entry scope overload for id-only validation — checks only the `id` property against the shape's
-	`pattern`, `in`, and `hasValue` constraints; all other properties are ignored
 - Add `Validator<T>` type for custom value validators returning `undefined | true | Trace`
-- Validate constraint operator semantics against property value types in model validation — range, text search,
-	disjunctive/conjunctive, focus, sort, and pagination operators are checked against the effective shape computed by
-	`apply()`, including recursive validation against union variant types
-- Add `classes` constraint on `ResourceShape` for accumulating parent class IRIs across inheritance
-- Add `stats` option to `validate()` model scope for controlling whether aggregate transforms (count, sum, min, max,
-	avg) are accepted in client-defined models — defaults to `false` for safe-by-default protection against complexity
-	attacks
-- Add `url()` string factory as a convenience alias for `iri({ variant: "hierarchical" })`
-- Add `const` type parameters to `local()`, `number()`, and `string()` constraint overloads — non-empty array
-	constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
-- Add `identify(resource, shape)` to retrieve the resource identifier as an absolute IRI given the associated
-	`ResourceShape`; returns `undefined` if the shape declares no `id` property, the resource doesn't include one, or the
-	value is not a well-formed absolute IRI
-- Add `classify(resource, shape)` to retrieve the resource type as an absolute IRI given the associated `ResourceShape`;
-	returns `undefined` if the shape declares no `type` property, the resource doesn't include one, or the value is not a
-	well-formed absolute IRI
-- Add `resource()` overload accepting `Lazy<T>` — validates, materializes, and deeply flattens manual shape definitions
-	with memoized caching; all public API `ResourceShape` parameters are resolved through this factory
-- Add `Eager<S>` type alias for the materialized result of a lazy shape
-- Move `Infer<S>` type to `resource.ts` and widen constraint to `Lazy<ValueShape> | UnionShape`
-- Add `model` field to `SetShape` — holds the runtime prototype value, computed from the shape model and cardinality;
-	for union shapes, multi-valued cardinality distributes arrays per variant via the new `Variants<T, U>` type
-- Add `Variants<T, U>` type — maps a union model to its cardinality-aware form: scalar (`maxCount === 1`) holds single
-	values per variant key, multi-valued distributes arrays per variant key
-- Add `Declared<T>` type — extracts explicitly declared entries from a type, stripping index signatures
-- Move `SetShape`, `Cardinality`, and range factories (`multiple`, `repeatable`, `optional`, `required`,
-	`cardinality`) from `resource` module to main `index` module
-- Move `UnionShape`, `union()`, `Infer`, `Eager` from `resource` module to main `index` module
-- Move `mergeRange`, `checkRange` from `resource.core` to `index.core` module
-- Move `validateScalarUnion`, `validateArrayUnion` to `index.core` module
-
-### Changed
-
-- **Breaking:** Rename `validate()` entry-scope relay branch from `entry` to `value` — aligns with the state-scope
-	convention for consistent relay destructuring
-- **Breaking:** Rename `ValuesShape` to `SetShape` and change `kind` discriminator from `"values"` to `"set"` — aligns
-	the type name with its role as a cardinality-constrained value set shape (Closes #17)
-- **Breaking:** Split `ValueShape` into `ValueShape` (scalar-or-set shapes) and `ValuesShape` (all concrete value shapes
-	including `LocalisedShape`) — `LocalisedShape` always describes a set regardless of cardinality, so it belongs in the
-	broader `ValuesShape` union rather than `ValueShape`
-- **Breaking:** Unify `local()`/`locals()` into single `localised()` factory — whether each tag holds a scalar string or
-	a string array is now determined by the cardinality of the enclosing `SetShape` (`maxCount === 1` for scalar,
-	`maxCount > 1` or unbounded for array); `minCount`/`maxCount` apply **per tag** instead of as aggregate counts
-	(Closes #16)
-- **Breaking:** Multi-valued union properties now represent values as a single indexed record with per-variant arrays
-	(`{ text?: string[], postal?: Reference[] }`) instead of an array of single-variant containers
-	(`Array<{ text?: string, postal?: Reference }>`)
-- **Breaking:** Union property values must always be indexed objects — bare scalar values are no longer accepted
-- **Breaking:** `Cardinality` type no longer handles union-specific distribution; union distribution is now handled by
-	`Variants` via `SetShape.model`
-- Cardinality checks now use effective value count for union, local, and locals shapes — counting leaf values inside
-	indexed containers rather than container count
-- Detect circular `extends` chains in `materialize()` — throws `TraceError` with `{ <factory>: "circular dependency" }`
-	keyed by the factory function name
-
-### Fixed
-
-- Accept local/locals shorthand values in cardinality counting — previously string shorthand for `local` and array
-	shorthand for `locals` were counted as zero values, causing `minCount` violations on `required` properties
-- Accept `locals` array shorthand on scalar cardinality properties in both constraint and value scope validation —
-	previously `validateRange` rejected any array when `maxCount === 1`, blocking the `["v"]` shorthand for
-	`{ und: ["v"] }`
-- Unwrap indexed union containers in value scope validation — previously `validateUnion` passed the whole
-	`{ variantKey: innerValue }` object to each variant without unwrapping, rejecting valid indexed container format
-	documented for union properties; reference variants are now dereferenced through their target resource shape
-- Allow child local/locals shapes to override the parent model during merge — previously required strict deep equality,
-	blocking template labels like `local("{posted} / {author}")` in extending shapes
-- Inherit `forward`/`reverse` metadata when overriding inherited properties with naked Range — previously lost during
-	normalization and merge, causing `RangeError` on closed namespaces
-- Reject duplicate `Id` and `Type` entries across the full inheritance chain in resource shape factories — previously
-	only local entries were checked; inherited duplicates are now detected via lineage traversal
-- Enforce class-level constraints (`pattern`, `in`, `hasValue`) conjunctively across the inheritance chain in resource
-	validation — child shapes can only restrict, never bypass, inherited constraints
-- Reject IRI strings for embedded `ResourceShape` properties in model validation — only nested models are accepted; IRI
-	references are exclusive to `ReferenceShape` properties
-- Support `UnionShape` as non-lazy shape in cardinality type constraints
-- Propagate `stats` option through recursive `validateModel` calls — previously lost on nested resource shapes
-
-### Changed
-
+- Add `validate()` overloaded function — resource validation with `{ shape }` and template validation with
+	`{ fetch: true, shape }`; returns a `Relay` resolving to `{ value }` on success or `{ trace }` on failure;
+	idempotent on a specific shape, skipping re-validation when the same shape and compatible options are presented again
+- Add `plain` option to template validation for rejecting aggregate transforms (count, sum, min, max, avg); defaults
+	to `false`
+- Add `depth` option to template validation for limiting nested reference and resource expansion; `0` rejects nested
+	templates while still accepting IRI references; defaults to unlimited
+- Add `reference` module with `ReferenceShape` interface, `reference()` and `foreign()` factories
+- Add `value` module with composite shapes (`SetShape`, `UnionShape`), cardinality factories (`required`, `optional`,
+	`repeatable`, `multiple`, `cardinality`), `union()` factory, `apply()` probe resolver, and type utilities (`Infer`,
+	`Eager`, `Declared`, `Cardinality`, `Variants`)
 - Add `TraceError` class extending `RangeError` with a typed `cause: Trace` and pretty-printed trace in the error
-	message — replaces `Object.assign(new RangeError(…), { trace })` for visible diagnostics in stack traces
+	message
+- Add `classes` constraint on `ResourceShape` for accumulating parent class IRIs across inheritance
+- Add `url()` string factory as a convenience alias for `iri({ variant: "hierarchical" })`
+- Add `const` type parameters to `localised()`, `number()`, and `string()` constraint overloads — non-empty array
+	constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
+- Add `resource()` overload accepting `Lazy<T>` — validates, materialises, and deeply flattens manual shape definitions
+	with memoised caching
+- Add `model` field to `SetShape` — holds the runtime prototype value, computed from the shape model and cardinality
+- Reject `id`/`type` entries in embedded resource shapes
+
+### Changed
+
+- **Breaking:** Redesign `validate()` as an overloaded function discriminated by `fetch` option — resource validation
+	(`fetch` omitted or `false`) enforces all constraints; template validation (`fetch: true`) enforces structural
+	constraints only; replaces the former scope-based API and the separate `sealResource()`/`sealTemplate()` functions
+- **Breaking:** Make `id` property optional in resource validation
+- **Breaking:** Make template validation lenient by default — aggregate transforms and unlimited nesting depth are
+	accepted unless restricted via `plain` and `depth` options
+- **Breaking:** Restrict nested scalar references to template recursion only
+- **Breaking:** Restrict top-level query keys to plain identifiers — computed values, filtering constraints, sorting
+	criteria, and pagination limits are now only permitted inside singleton template tuples for collection properties
+- **Breaking:** Rename `ValuesShape` to `SetShape` and change `kind` discriminator from `"values"` to `"set"` (Closes
+	#17)
+- **Breaking:** Split `ValueShape` into `ValueShape` (scalar-or-set shapes) and `ValuesShape` (all concrete value
+	shapes including `LocalisedShape`)
+- **Breaking:** Unify `local()`/`locals()` into single `localised()` factory — cardinality of the enclosing `SetShape`
+	determines whether each tag holds a scalar or an array; `minCount`/`maxCount` apply per tag (Closes #16)
+- **Breaking:** Multi-valued union properties now represent values as a single indexed record with per-variant arrays
+	instead of an array of single-variant containers
+- **Breaking:** Union property values must always be indexed objects — bare scalar values are no longer accepted
 - Rename `ReferenceShape.backlink` property and `backlink()` factory to `foreign` for clarity
 - Rename `Union` type to `UnionShape` for naming consistency with other shape types
-- Move probe resolution from `core/probe` into the main index module as `apply(probe, shape)` — swapped argument order
-	for consistency with probe-first pipeline usage
-- Internalize `materialize()` behind a caching layer — no longer exported; lazy shapes are resolved and flattened
-	through `resource()`
-- Extract internal operators (`brand`, `trace`) to `core/` submodules and use `import type` for index re-exports
-- Replace `Some<Lazy<ResourceShape>>` with inline non-empty tuple for `ResourceConstraints.extends`
-- Shape factories now validate constraint consistency on construction via check functions — contradictory constraints
-	(e.g. `minLength > maxLength`, `hasValue` entries outside `in` set) are rejected with `TraceError`
-- Standardize all trace messages — wrap scalar parameters in `<>` and list parameters in `[]`, start checker messages
-	with adjectives, include offending values in checker diagnostics
-- Parameterise `Property<P, R>` and `PropertyConstraints<P>` with a `Predicate` type parameter distinguishing unresolved
-	namespace predicates from resolved IRI references; export `Predicate` type for consumer use
-- Replace internal `walk` with `flatten` for validation and probe resolution
-- Always key per-resource validation traces by `@id` or blank node in `validateResource`, removing the flat-trace
-	special case for single-resource arrays
 - Redesign `Trace` type as a recursive `string | { readonly [key: string]: Trace }` union, replacing the mixed-array
-	representation with keyed reports at every level (collection, resource, property, constraint)
-- Redesign `validate()` to accept a single options object with `scope` (`value` | `entry` | `model`), `shape`, and
-	optional `depth`; `value` scope enforces full constraints on resources, `entry` scope validates identity only, `model`
-	scope validates projection models; relay result key matches the scope name (`value`, `entry`, or `model`)
+	representation with keyed reports at every level
+- Shape factories now validate constraint consistency on construction — contradictory constraints are rejected with
+	`TraceError`
+- Detect circular `extends` chains — throws `TraceError` keyed by the factory function name
+- Parameterise `Property<P, R>` and `PropertyConstraints<P>` with a `Predicate` type parameter; export `Predicate` type
 
 ### Removed
 
-- Remove `local()` and `locals()` factories, `LocalShape`, `LocalsShape`, `LocalConstraints`, `LocalsConstraints`
-	interfaces, and `"local"`/`"locals"` shape kind discriminators — replaced by unified `localised()` factory and
-	`LocalisedShape` with per-tag cardinality semantics
-- Replace `url()` and `uri()` string shape factories with `iri()` accepting a `variant` parameter (`hierarchical`,
-	`absolute`, `internal`, `relative`) aligned with `@metreeca/core` `Variant` type; defaults to `relative`
-- Remove `is*Shape` and `is*Constraints` type guard exports from all shape modules — structural validation is now
-	integrated into the functional validators (`validateResource`, `validateModel`, etc.) and produces path-specific
-	traces instead of boolean results
-- Remove runtime `assert()` validation from shape factory arguments and return values — factories now trust TypeScript
-	types; structural mismatches are caught by the validation pipeline
-- Remove `Binding` from `ResourceShape.properties` and `Entries` key types — resource shape property keys are now
-	`Identifier` only; bindings belong exclusively to model projections
-- Remove `Projection` type utility — no longer needed without binding keys in entries
+- Remove `sealResource()` and `sealTemplate()` — replaced by overloaded `validate()`
+- Remove `audit()`, `identify()`, and `classify()` functions
+- Remove `validate()` entry scope
+- Remove `validate()` query mode — queries are now validated as nested components within template validation
+- Remove `tag()` — replaced by seal-based idempotency in `validate()`
+- Remove `local()` and `locals()` factories, `LocalShape`, `LocalsShape`, and related types — replaced by unified
+	`localised()` factory
+- Replace `url()` and `uri()` string factories with `iri()` accepting a `variant` parameter
+- Remove `Binding` from `ResourceShape.properties` and `Entries` key types; remove `Projection` type utility
 - Remove `temporal()` factory — temporal shapes are identified by their model values
-- Remove `_transform()` model-based transform pipe validator
-- Remove `validate()` query mode (`mode: "query"`) — queries are now validated as nested collection components within
-	model validation, no longer requiring a separate entry point
-- Replace `_transform()` with `apply(probe, shape)` accepting a `Probe` and any `ValueShape`, resolving property paths
-	through resource shapes and returning a `Range` that preserves the target property's cardinality
-	(`minCount`/`maxCount`) alongside the resolved output shape; `ReferenceShape` inputs are materialised and traversed as
-	resource shapes; other leaf shapes return `undefined` for non-empty paths; aggregate transforms collapse cardinality
-	to `maxCount: 1`; returns `undefined` instead of a trace relay when resolution fails
-- Widen `Trace` record keys from `Identifier | Tag | TagRange` to `string` to support operator-prefixed query keys
-- Rename `LocalConstraints.model` type from `LocalModel` to `Locale` and `LocalsConstraints.model` from `LocalsModel`
-	to `Locales`, following upstream `@metreeca/qest` renames
-- Remove `tag()` — replaced by `audit()` for shape retrieval and `validate()` with `entry` scope for identity
-	association
 
 ### Fixed
 
-- Validate transform binding keys in model validation, type-checking projection values against the post-transform output
-	type, including recursive validation of embedded resource models
-- Report query probe and binding validation errors keyed by the offending query key
-- Accept references wherever a resource shape is expected in model validation, including inline resource properties and
-	binding projections; thread nesting depth through binding and pipe validation
-- Accept string-to-string transform pipes on `Local`/`Locals` shapes, preserving the input shape; reject transforms that
-	would change the output type
-- Enforce string type validation on `id`/`type` template values in model validation
-- Require all union variants to be compatible when resolving transform pipes and traversing property paths in
-	`apply()`; previously, the first matching variant was accepted
-- Accept model bindings with unresolvable probes leniently; when `apply()` returns `undefined` (unknown property, domain
-	violation, invalid pipe composition), the template value is accepted without validation since no result will ever be
-	generated at runtime
+- Accept local/locals shorthand values in cardinality counting
+- Accept `locals` array shorthand on scalar cardinality properties
+- Unwrap indexed union containers in value scope validation — reference variants are dereferenced through their target
+	resource shape
+- Allow child local/locals shapes to override the parent model during merge
+- Inherit `forward`/`reverse` metadata when overriding inherited properties
+- Reject duplicate `Id` and `Type` entries across the full inheritance chain in resource shape factories
+- Enforce class-level constraints conjunctively across the inheritance chain in resource validation
+- Reject IRI strings for embedded `ResourceShape` properties — only nested models are accepted
+- Enforce string type validation on `id`/`type` template values
 
 ## [0.9.1](https://github.com/metreeca/blue/releases/tag/v0.9.1)
 

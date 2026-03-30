@@ -15,7 +15,7 @@
  */
 
 /**
- * Numeric shape model and factories.
+ * Numeric shape and factories.
  *
  * Defines shapes and factories for validating numeric values, mapping the
  * [JSON number](https://datatracker.ietf.org/doc/html/rfc8259#section-6) type to
@@ -89,7 +89,9 @@
  * **Using in Resource Shapes**
  *
  * ```typescript
- * import { resource, required, optional, integer, decimal } from '@metreeca/blue';
+ * import { required, optional } from '@metreeca/blue/value';
+ * import { resource } from '@metreeca/blue/resource';
+ * import { integer, decimal } from '@metreeca/blue/number';
  *
  * const Product = resource({
  *   price: required(decimal({ minInclusive: 0 })),
@@ -107,7 +109,7 @@
 
 import { isNumber } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
-import { TraceError } from "./core/trace.js";
+import { TraceError } from "./index.core.js";
 import { checkNumber } from "./number.core.js";
 
 
@@ -265,7 +267,7 @@ export interface NumericConstraints {
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Creates a numeric shape with a typed model value and no other constraints.
@@ -332,7 +334,7 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Shorthands ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Creates a shape for 8-bit signed integer values.

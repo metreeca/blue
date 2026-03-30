@@ -18,22 +18,17 @@ import { asTag } from "@metreeca/core/language";
 import { createNamespace } from "@metreeca/core/resource";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
-import { TraceError } from "./core/trace.js";
+import { TraceError } from "./index.core.js";
 import {
-	cardinality,
-	multiple,
-	optional,
-	repeatable,
-	required,
-	type SetShape,
 	type Trace,
-	union,
-	type UnionShape,
 	type Validator
 } from "./index.js";
 import { localised } from "./localised.js";
 import { integer } from "./number.js";
+import { mergeReference, validateReferences } from "./reference.core.js";
+import { foreign, reference } from "./reference.js";
 import {
+	checkEmbeddings,
 	checkParents,
 	checkPredicates,
 	checkResource,
@@ -41,82 +36,30 @@ import {
 	flatten,
 	match,
 	mergeProperty,
-	mergeReference,
 	mergeResource,
-	validateEntry,
-	validateQuery,
-	validateReference,
-	validateResource
+	validateResource,
+	validateTemplate
 } from "./resource.core.js";
 import {
-	classify,
-	foreign,
 	id,
-	identify,
 	property,
 	type Property,
-	reference,
 	resource,
 	type ResourceShape,
 	type
 } from "./resource.js";
 import { string, year } from "./string.js";
+import {
+	cardinality,
+	multiple,
+	optional,
+	repeatable,
+	required,
+	type SetShape,
+	union,
+	type UnionShape
+} from "./value.js";
 
-
-describe("metadata", () => {
-
-	describe("identify", () => {
-
-		it("returns undefined if shape declares no id property", async () => {
-
-			const shape = resource({ name: required(string()) });
-
-			expect(identify({ name: "Alice" }, shape)).toBeUndefined();
-
-		});
-
-		it("returns the identifier from a resource", async () => {
-
-			const shape = resource({ id: id(), name: required(string()) });
-
-			expect(identify({ id: "https://example.com/1", name: "Alice" }, shape)).toBe("https://example.com/1");
-
-		});
-
-	});
-
-	describe("classify", () => {
-
-		it("returns undefined if shape declares no type property", async () => {
-
-			const shape = resource({ name: required(string()) });
-
-			expect(classify({ name: "Alice" }, shape)).toBeUndefined();
-
-		});
-
-		it("returns the type from a resource", async () => {
-
-			const shape = resource({ type: type(), name: required(string()) });
-
-			expect(classify({
-				type: "https://example.com/Person",
-				name: "Alice"
-			}, shape)).toBe("https://example.com/Person");
-
-		});
-
-		it("returns undefined if type is absent on the resource", async () => {
-
-			const shape = resource({ type: type(), name: required(string()) });
-
-			expect(classify({ name: "Alice" }, shape)).toBeUndefined();
-
-		});
-
-	});
-
-});
 
 describe("factories", () => {
 
@@ -1632,19 +1575,19 @@ describe("operators", () => {
 
 			it("returns undefined for valid reference values", async () => {
 
-				expect(validateReference(["app:/users/123"], reference(resource({})))).toBeUndefined();
+				expect(validateReferences(["app:/users/123"], reference(resource({})))).toBeUndefined();
 
 			});
 
 			it("returns undefined for empty values array", async () => {
 
-				expect(validateReference([], reference(resource({})))).toBeUndefined();
+				expect(validateReferences([], reference(resource({})))).toBeUndefined();
 
 			});
 
 			it("returns trace with kind key for non-reference value", async () => {
 
-				const trace = validateReference([42], reference(resource({})));
+				const trace = validateReferences([42], reference(resource({})));
 
 				expect(trace).toHaveProperty("{kind}");
 
@@ -1652,7 +1595,7 @@ describe("operators", () => {
 
 			it("returns trace with kind key for multiple non-reference values", async () => {
 
-				const trace = validateReference([42, true], reference(resource({})));
+				const trace = validateReferences([42, true], reference(resource({})));
 
 				expect(trace).toHaveProperty("{kind}");
 				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
@@ -1661,7 +1604,7 @@ describe("operators", () => {
 
 			it("returns trace with kind key for mixed values", async () => {
 
-				const trace = validateReference(["app:/users/123", 42], reference(resource({})));
+				const trace = validateReferences(["app:/users/123", 42], reference(resource({})));
 
 				expect(trace).toHaveProperty("{kind}");
 
@@ -1676,7 +1619,7 @@ describe("operators", () => {
 				const target = resource({});
 				const shape = reference(target);
 
-				expect(validateReference(["app:/users/123"], shape)).toBeUndefined();
+				expect(validateReferences(["app:/users/123"], shape)).toBeUndefined();
 
 			});
 
@@ -1685,7 +1628,7 @@ describe("operators", () => {
 				const target = resource({});
 				const shape = reference(target);
 
-				expect(validateReference([], shape)).toBeUndefined();
+				expect(validateReferences([], shape)).toBeUndefined();
 
 			});
 
@@ -1723,7 +1666,7 @@ describe("operators", () => {
 
 				const shape = reference(resource(options, {}));
 
-				expect(validateReference(valid, shape)).toBeUndefined();
+				expect(validateReferences(valid, shape)).toBeUndefined();
 
 			});
 
@@ -1731,7 +1674,7 @@ describe("operators", () => {
 
 				const shape = reference(resource(options, {}));
 
-				expect(validateReference(invalid, shape)).toHaveProperty(errorKey);
+				expect(validateReferences(invalid, shape)).toHaveProperty(errorKey);
 
 			});
 
@@ -1744,8 +1687,8 @@ describe("operators", () => {
 				const target = resource({ pattern: "/users/{id}" }, {});
 				const shape = reference(() => target);
 
-				expect(validateReference(["app:/users/123"], shape)).toBeUndefined();
-				expect(validateReference(["app:/products/123"], shape)).toHaveProperty("{pattern}");
+				expect(validateReferences(["app:/users/123"], shape)).toBeUndefined();
+				expect(validateReferences(["app:/products/123"], shape)).toHaveProperty("{pattern}");
 
 			});
 
@@ -1967,15 +1910,11 @@ describe("operators", () => {
 
 			});
 
-			it("rejects missing id", async () => {
+			it("accepts missing id", async () => {
 
 				const shape = resource({ id: id() });
 
-				const trace = validateResource([{}], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
-
-				expect(inner).toHaveProperty("id");
-				expect(inner["id"]).toHaveProperty("{kind}");
+				expect(validateResource([{}], shape)).toBeUndefined();
 
 			});
 
@@ -2033,15 +1972,11 @@ describe("operators", () => {
 
 				});
 
-				it("rejects missing id", async () => {
+				it("accepts missing id", async () => {
 
 					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
-					const trace = validateResource([{}], shape) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{kind}");
+					expect(validateResource([{}], shape)).toBeUndefined();
 
 				});
 
@@ -2069,15 +2004,11 @@ describe("operators", () => {
 
 				});
 
-				it("rejects missing id", async () => {
+				it("accepts missing id", async () => {
 
 					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
 
-					const trace = validateResource([{}], shape) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{kind}");
+					expect(validateResource([{}], shape)).toBeUndefined();
 
 				});
 
@@ -2105,15 +2036,11 @@ describe("operators", () => {
 
 				});
 
-				it("rejects missing id", async () => {
+				it("accepts missing id", async () => {
 
 					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
 
-					const trace = validateResource([{}], shape) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{kind}");
+					expect(validateResource([{}], shape)).toBeUndefined();
 
 				});
 
@@ -3132,218 +3059,7 @@ describe("operators", () => {
 
 	});
 
-	describe("validateEntry", () => {
-
-		describe("shapes without id", () => {
-
-			it("returns undefined for shape with no id property", async () => {
-
-				const shape = resource({
-					name: required(string())
-				});
-
-				expect(validateEntry([{ name: "Alice" }], shape)).toBeUndefined();
-
-			});
-
-			it("returns undefined for empty shape", async () => {
-
-				expect(validateEntry([{}], resource({}))).toBeUndefined();
-
-			});
-
-		});
-
-		describe("shapes with id", () => {
-
-			it("accepts single absolute IRI", async () => {
-
-				const shape = resource({ id: id() });
-
-				expect(validateEntry([{ "id": "app:/users/123" }], shape)).toBeUndefined();
-
-			});
-
-			it("rejects missing id", async () => {
-
-				const shape = resource({ id: id() });
-
-				const trace = validateEntry([{}], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
-
-				expect(inner).toHaveProperty("id");
-				expect(inner["id"]).toHaveProperty("{kind}");
-
-			});
-
-			it("rejects non-IRI value", async () => {
-
-				const shape = resource({ id: id() });
-
-				const trace = validateEntry([{ "id": "not an iri" }], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
-
-				expect(inner).toHaveProperty("id");
-				expect(inner["id"]).toHaveProperty("{kind}");
-
-			});
-
-			it("rejects multiple values", async () => {
-
-				const shape = resource({ id: id() });
-
-				const trace = validateEntry([{ "id": ["/users/1", "/users/2"] }], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
-
-				expect(inner).toHaveProperty("id");
-				expect(inner["id"]).toHaveProperty("{kind}");
-
-			});
-
-			it("rejects non-object values", async () => {
-
-				const shape = resource({ id: id() });
-
-				const trace = validateEntry(["not an object"], shape) as Record<string, Trace>;
-
-				expect(trace).toHaveProperty("{kind}");
-
-			});
-
-		});
-
-		describe("id constraints", () => {
-
-			describe("pattern", () => {
-
-				it("accepts id matching pattern", async () => {
-
-					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
-
-					expect(validateEntry([{ "id": "app:/users/123" }], shape)).toBeUndefined();
-
-				});
-
-				it("rejects id not matching pattern", async () => {
-
-					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
-
-					const trace = validateEntry([{ "id": "/products/123" }], shape) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{pattern}");
-
-				});
-
-			});
-
-			describe("in", () => {
-
-				it("accepts id in allowed enumeration", async () => {
-
-					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
-
-					expect(validateEntry([{ "id": "app:/users/alice" }], shape)).toBeUndefined();
-
-				});
-
-				it("rejects id not in allowed enumeration", async () => {
-
-					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
-
-					const trace = validateEntry([{ "id": "app:/users/charlie" }], shape) as Record<string, Trace>;
-					const inner = trace["<app:/users/charlie>"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{in}");
-
-				});
-
-			});
-
-			describe("hasValue", () => {
-
-				it("accepts id matching required value", async () => {
-
-					const shape = resource({ hasValue: ["app:/users/alice"] }, { id: id() });
-
-					expect(validateEntry([{ "id": "app:/users/alice" }], shape)).toBeUndefined();
-
-				});
-
-				it("rejects id not matching required value", async () => {
-
-					const shape = resource({ hasValue: ["app:/users/alice"] }, { id: id() });
-
-					const trace = validateEntry([{ "id": "app:/users/bob" }], shape) as Record<string, Trace>;
-					const inner = trace["<app:/users/bob>"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{hasValue}");
-
-				});
-
-			});
-
-		});
-
-		describe("non-id properties ignored", () => {
-
-			it("does not validate other properties", async () => {
-
-				const shape = resource({
-					id: id(),
-					name: required(string({ minLength: 10 }))
-				});
-
-				// name violates minLength but validateEntry should not check it
-				expect(validateEntry([{ "id": "app:/users/123", name: "Al" }], shape)).toBeUndefined();
-
-			});
-
-			it("does not reject unknown properties", async () => {
-
-				const shape = resource({ id: id() });
-
-				expect(validateEntry([{ "id": "app:/users/123", extra: "value" }], shape)).toBeUndefined();
-
-			});
-
-		});
-
-		describe("multiple entries", () => {
-
-			it("accepts multiple valid entries", async () => {
-
-				const shape = resource({ id: id() });
-
-				expect(validateEntry([
-					{ "id": "app:/users/1" },
-					{ "id": "app:/users/2" }
-				], shape)).toBeUndefined();
-
-			});
-
-			it("reports invalid entries keyed by IRI or index", async () => {
-
-				const shape = resource({ id: id() });
-
-				const trace = validateEntry([
-					{ "id": "app:/users/1" },
-					{ "id": "not valid" }
-				], shape) as Record<string, Trace>;
-
-				expect(trace).not.toHaveProperty("<app:/users/1>");
-				expect(trace).toHaveProperty("[1]");
-
-			});
-
-		});
-
-	});
-
-	describe("validateModel", () => {
+	describe("validateTemplate", () => {
 
 		describe("resource constraints", () => {
 
@@ -3353,7 +3069,7 @@ describe("operators", () => {
 
 					const shape = resource({});
 
-					expect(validateQuery([{}], shape, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3364,7 +3080,7 @@ describe("operators", () => {
 						age: optional(integer())
 					});
 
-					expect(validateQuery([{ name: "Alice", age: 30 }], shape, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ name: "Alice", age: 30 }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3375,7 +3091,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						"id": "app:/users/123",
 						name: "Alice"
 					}], shape, { depth: 0 })).toBeUndefined();
@@ -3392,7 +3108,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{ id: 1, name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ id: 1, name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3402,7 +3118,7 @@ describe("operators", () => {
 
 					const shape = resource({});
 
-					expect(validateQuery([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3414,7 +3130,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{ name: "Alice", extra: "value" }], shape, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ name: "Alice", extra: "value" }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3424,7 +3140,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						name: "Alice",
 						extra1: "a",
 						extra2: "b"
@@ -3440,7 +3156,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						"id": "app:/users/123",
 						name: "Alice"
 					}], shape, { depth: 0 })).toBeUndefined();
@@ -3456,7 +3172,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						"id": "app:/users/123",
 						name: "Alice",
 						extra: "value"
@@ -3474,7 +3190,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						id: 1,
 						name: "Alice",
 						extra: "value"
@@ -3482,29 +3198,29 @@ describe("operators", () => {
 
 				});
 
-				it("ignores non-binding key", async () => {
+				it("rejects non-identifier key at top level", async () => {
 
 					const shape = resource({
 						name: required(string())
 					});
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						name: "Alice",
 						">=name": "A"
-					} as any], shape, { depth: 0 })).toBeUndefined();
+					} as any], shape, { depth: 0 })).toBeDefined();
 
 				});
 
-				it("ignores probe key", async () => {
+				it("rejects probe key at top level", async () => {
 
 					const shape = resource({
 						name: required(string())
 					});
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						name: "Alice",
 						"^name": "asc"
-					} as any], shape, { depth: 0 })).toBeUndefined();
+					} as any], shape, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -3523,7 +3239,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3539,7 +3255,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{ age: 15, name: "Bob" }], Derived, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ age: 15, name: "Bob" }], Derived, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3559,7 +3275,7 @@ describe("operators", () => {
 
 					// array on scalar triggers shape mismatch in nested resource
 
-					const trace = validateQuery([{ address: { city: ["Rome"] } as any }], shape, { depth: null });
+					const trace = validateTemplate([{ address: { city: ["Rome"] } as any }], shape, {});
 
 					expect(trace).toBeDefined();
 					expect(trace).toHaveProperty(["[0]", "address"]);
@@ -3576,7 +3292,7 @@ describe("operators", () => {
 
 				const shape = resource({ id: id() });
 
-				expect(validateQuery([{ "id": "some-id" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ "id": "some-id" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -3584,7 +3300,7 @@ describe("operators", () => {
 
 				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
-				expect(validateQuery([{}], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -3592,7 +3308,7 @@ describe("operators", () => {
 
 				const shape = resource({ id: id() });
 
-				expect(validateQuery([{ "id": ["/users/1", "/users/2"] } as any], shape, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ "id": ["/users/1", "/users/2"] } as any], shape, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -3600,7 +3316,7 @@ describe("operators", () => {
 
 				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
-				expect(validateQuery([{ "id": "app:/invalid" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ "id": "app:/invalid" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -3608,7 +3324,7 @@ describe("operators", () => {
 
 				const shape = resource({ in: ["app:/users/alice"] }, { id: id() });
 
-				expect(validateQuery([{ "id": "app:/users/charlie" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ "id": "app:/users/charlie" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -3616,7 +3332,7 @@ describe("operators", () => {
 
 				const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
 
-				expect(validateQuery([{ "id": "app:/users/guest" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ "id": "app:/users/guest" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -3628,7 +3344,7 @@ describe("operators", () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateQuery([{ "type": "some-type" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ "type": "some-type" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -3636,7 +3352,7 @@ describe("operators", () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateQuery([{}], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -3644,7 +3360,7 @@ describe("operators", () => {
 
 				const shape = resource({ type: type() });
 
-				expect(validateQuery([{ "type": ["/types/A", "/types/B"] } as any], shape, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ "type": ["/types/A", "/types/B"] } as any], shape, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -3660,7 +3376,7 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{}], shape, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3670,7 +3386,7 @@ describe("operators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateQuery([{}], shape, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3688,9 +3404,9 @@ describe("operators", () => {
 					const shape = resource({ [key]: range });
 
 					if ( valid ) {
-						expect(validateQuery([value], shape, { depth: 0 })).toBeUndefined();
+						expect(validateTemplate([value], shape, { depth: 0 })).toBeUndefined();
 					} else {
-						expect(validateQuery([value as any], shape, { depth: 0 })).toBeDefined();
+						expect(validateTemplate([value as any], shape, { depth: 0 })).toBeDefined();
 					}
 
 				});
@@ -3701,7 +3417,7 @@ describe("operators", () => {
 
 						const shape = resource({ label: required(localised()) });
 
-						expect(validateQuery([{ label: "hello" }], shape, { depth: 0 })).toBeUndefined();
+						expect(validateTemplate([{ label: "hello" }], shape, { depth: 0 })).toBeUndefined();
 
 					});
 
@@ -3709,7 +3425,7 @@ describe("operators", () => {
 
 						const shape = resource({ label: required(localised()) });
 
-						expect(validateQuery([{ label: { en: "hello" } }], shape, { depth: 0 })).toBeUndefined();
+						expect(validateTemplate([{ label: { en: "hello" } }], shape, { depth: 0 })).toBeUndefined();
 
 					});
 
@@ -3721,7 +3437,7 @@ describe("operators", () => {
 
 						const shape = resource({ labels: repeatable(localised()) });
 
-						expect(validateQuery([{ labels: ["hello"] }], shape, { depth: 0 })).toBeUndefined();
+						expect(validateTemplate([{ labels: ["hello"] }], shape, { depth: 0 })).toBeUndefined();
 
 					});
 
@@ -3729,14 +3445,14 @@ describe("operators", () => {
 
 						const shape = resource({ labels: repeatable(localised()) });
 
-						expect(validateQuery([{ labels: { en: ["hello"] } }], shape, { depth: 0 })).toBeUndefined();
+						expect(validateTemplate([{ labels: { en: ["hello"] } }], shape, { depth: 0 })).toBeUndefined();
 
 					});
 
 					it("rejects localised multi-element array with cardinality error on array property", async () => {
 
 						const shape = resource({ labels: multiple(localised()) });
-						const trace = validateQuery([{ labels: ["alpha", "beta"] } as any], shape, { depth: 0 });
+						const trace = validateTemplate([{ labels: ["alpha", "beta"] } as any], shape, { depth: 0 });
 
 						expect(trace).toBeDefined();
 						expect(JSON.stringify(trace)).not.toContain("expected scalar value");
@@ -3846,7 +3562,7 @@ describe("operators", () => {
 
 					const shape = resource({ [key]: range });
 
-					expect(validateQuery([value as any], shape, { depth: 0 })).toBeDefined();
+					expect(validateTemplate([value as any], shape, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -3860,7 +3576,7 @@ describe("operators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateQuery([{ tags: [] }], shape, { depth: 0 })).toBeDefined();
+					expect(validateTemplate([{ tags: [] }], shape, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -3870,7 +3586,7 @@ describe("operators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateQuery([{ tags: ["a", "b"] } as any], shape, { depth: 0 })).toBeDefined();
+					expect(validateTemplate([{ tags: ["a", "b"] } as any], shape, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -3880,7 +3596,7 @@ describe("operators", () => {
 						tags: repeatable(string())
 					});
 
-					expect(validateQuery([{ tags: ["a"] }], shape, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ tags: ["a"] }], shape, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -3898,8 +3614,8 @@ describe("operators", () => {
 						age: optional(integer())
 					});
 
-					expect(validateQuery([{ name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
-					expect(validateQuery([{ name: ["Alice"] } as any], Derived, { depth: 0 })).toBeDefined();
+					expect(validateTemplate([{ name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ name: ["Alice"] } as any], Derived, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -3917,9 +3633,9 @@ describe("operators", () => {
 						email: optional(string())
 					});
 
-					expect(validateQuery([{}], Person, { depth: 0 })).toBeUndefined();
-					expect(validateQuery([{ name: "Alice", age: 30 }], Person, { depth: 0 })).toBeUndefined();
-					expect(validateQuery([{ name: ["Alice"] } as any], Person, { depth: 0 })).toBeDefined();
+					expect(validateTemplate([{}], Person, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ name: "Alice", age: 30 }], Person, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ name: ["Alice"] } as any], Person, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -3937,8 +3653,8 @@ describe("operators", () => {
 
 				// type shape still enforced on overridden property
 
-				expect(validateQuery([{ name: "A" }], Derived, { depth: 0 })).toBeUndefined();
-				expect(validateQuery([{ name: 42 }], Derived, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ name: "A" }], Derived, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ name: 42 }], Derived, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -3952,7 +3668,7 @@ describe("operators", () => {
 					name: required(string())
 				});
 
-				expect(validateQuery([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -3962,7 +3678,7 @@ describe("operators", () => {
 					name: required(string())
 				});
 
-				expect(validateQuery([{ name: 42 }], shape, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ name: 42 }], shape, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -3972,7 +3688,7 @@ describe("operators", () => {
 					age: required(integer({ minInclusive: 0 }))
 				});
 
-				expect(validateQuery([{ age: -5 }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ age: -5 }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -3987,20 +3703,20 @@ describe("operators", () => {
 
 				it("accepts value matching one variant type", async () => {
 
-					expect(validateQuery([{ value: "hello" }], textOrCount, { depth: 0 })).toBeUndefined();
-					expect(validateQuery([{ value: 42 }], textOrCount, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ value: "hello" }], textOrCount, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ value: 42 }], textOrCount, { depth: 0 })).toBeUndefined();
 
 				});
 
 				it("accepts missing union property", async () => {
 
-					expect(validateQuery([{}], textOrCount, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{}], textOrCount, { depth: 0 })).toBeUndefined();
 
 				});
 
 				it("rejects value matching no variant type", async () => {
 
-					expect(validateQuery([{ value: true }], textOrCount, { depth: 0 })).toBeDefined();
+					expect(validateTemplate([{ value: true }], textOrCount, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -4010,8 +3726,8 @@ describe("operators", () => {
 						name: required(string())
 					});
 
-					expect(validateQuery([{ value: "hello" }], Derived, { depth: 0 })).toBeUndefined();
-					expect(validateQuery([{ value: true }], Derived, { depth: 0 })).toBeDefined();
+					expect(validateTemplate([{ value: "hello" }], Derived, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ value: true }], Derived, { depth: 0 })).toBeDefined();
 
 				});
 
@@ -4019,23 +3735,25 @@ describe("operators", () => {
 
 			describe("union bindings", () => {
 
-				const shape = resource({
+				const Target = resource({
 					value: required(union({
 						text: string(),
 						count: integer()
 					}))
 				});
 
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
 				it("accepts alias binding matching one variant type", async () => {
 
-					expect(validateQuery([{ "alias=value": "hello" }], shape, { depth: 0 })).toBeUndefined();
-					expect(validateQuery([{ "alias=value": 42 }], shape, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=value": "hello" }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=value": 42 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
 				it("rejects alias binding matching no variant type", async () => {
 
-					expect(validateQuery([{ "alias=value": true }], shape, { depth: 0 })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "alias=value": true }] }], Wrapper, {})).toBeDefined();
 
 				});
 
@@ -4053,7 +3771,7 @@ describe("operators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateQuery([{ supervisor: "app:/users/1" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ supervisor: "app:/users/1" }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4065,7 +3783,7 @@ describe("operators", () => {
 					members: multiple(reference(Target))
 				});
 
-				expect(validateQuery([{ members: ["app:/users/1"] }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ members: ["app:/users/1"] }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4077,7 +3795,7 @@ describe("operators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateQuery([{ supervisor: { name: "Alice" } }], shape, { depth: null })).toBeUndefined();
+				expect(validateTemplate([{ supervisor: { name: "Alice" } }], shape, {})).toBeUndefined();
 
 			});
 
@@ -4089,7 +3807,7 @@ describe("operators", () => {
 					members: multiple(reference(Target))
 				});
 
-				expect(validateQuery([{ members: [{ name: "Alice" }] } as any], shape, { depth: null })).toBeUndefined();
+				expect(validateTemplate([{ members: [{ name: "Alice" }] } as any], shape, {})).toBeUndefined();
 
 			});
 
@@ -4101,7 +3819,7 @@ describe("operators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateQuery([{ supervisor: 42 }], shape, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ supervisor: 42 }], shape, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4121,9 +3839,9 @@ describe("operators", () => {
 
 				it("accepts valid 2-level expansion", async () => {
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						supervisor: { name: "Alice", department: { label: "Engineering" } }
-					}], shape, { depth: null })).toBeUndefined();
+					}], shape, {})).toBeUndefined();
 
 				});
 
@@ -4131,9 +3849,9 @@ describe("operators", () => {
 
 					// extra=extra → apply() returns undefined → lenient
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						supervisor: { name: "Alice", extra: "bad" }
-					}], shape, { depth: null })).toBeUndefined();
+					}], shape, {})).toBeUndefined();
 
 				});
 
@@ -4141,9 +3859,9 @@ describe("operators", () => {
 
 					// extra=extra → apply() returns undefined → lenient
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						supervisor: { name: "Alice", department: { label: "Engineering", extra: "bad" } }
-					}], shape, { depth: null })).toBeUndefined();
+					}], shape, {})).toBeUndefined();
 
 				});
 
@@ -4157,7 +3875,7 @@ describe("operators", () => {
 					supervisor: optional(reference(Target))
 				});
 
-				expect(validateQuery([{}], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4169,7 +3887,7 @@ describe("operators", () => {
 					children: multiple(foreign(Target))
 				});
 
-				expect(validateQuery([{ children: ["app:/items/1"] } as any], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ children: ["app:/items/1"] } as any], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4181,7 +3899,7 @@ describe("operators", () => {
 					children: multiple(foreign(Target))
 				});
 
-				expect(validateQuery([{ children: [{ name: "Child" }] }], shape, { depth: null })).toBeUndefined();
+				expect(validateTemplate([{ children: [{ name: "Child" }] }], shape, {})).toBeUndefined();
 
 			});
 
@@ -4195,7 +3913,7 @@ describe("operators", () => {
 					child: optional(resource({ name: required(string()) }))
 				});
 
-				expect(validateQuery([{ child: "app:/children/1" }], shape, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ child: "app:/children/1" }], shape, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4205,7 +3923,7 @@ describe("operators", () => {
 					child: optional(resource({ name: required(string()) }))
 				});
 
-				expect(validateQuery([{ child: { name: "Alice" } }], shape, { depth: null })).toBeUndefined();
+				expect(validateTemplate([{ child: { name: "Alice" } }], shape, {})).toBeUndefined();
 
 			});
 
@@ -4213,7 +3931,7 @@ describe("operators", () => {
 
 		describe("depth", () => {
 
-			it("rejects nested model when depth is omitted (defaults to 0)", async () => {
+			it("rejects nested model when depth is 0", async () => {
 
 				const Inner = resource({ label: required(string()) });
 
@@ -4221,7 +3939,19 @@ describe("operators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateQuery([{ child: { label: "x" } }], Outer, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("accepts nested model when depth is omitted (defaults to null)", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const Outer = resource({
+					child: optional(reference(Inner))
+				});
+
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, {})).toBeUndefined();
 
 			});
 
@@ -4233,7 +3963,7 @@ describe("operators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateQuery([{ child: { label: "x" } }], Outer, { depth: null })).toBeUndefined();
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, {})).toBeUndefined();
 
 			});
 
@@ -4245,7 +3975,7 @@ describe("operators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateQuery([{ child: "app:/items/1" }], Outer, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ child: "app:/items/1" }], Outer, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -4257,7 +3987,7 @@ describe("operators", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(validateQuery([{ child: { label: "x" } }], Outer, { depth: 1 })).toBeUndefined();
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 1 })).toBeUndefined();
 
 			});
 
@@ -4273,7 +4003,7 @@ describe("operators", () => {
 					middle: optional(reference(Middle))
 				});
 
-				expect(validateQuery([{
+				expect(validateTemplate([{
 					middle: { leaf: { value: "x" } }
 				}], Root, { depth: 1 })).toBeDefined();
 
@@ -4291,7 +4021,7 @@ describe("operators", () => {
 					middle: optional(reference(Middle))
 				});
 
-				expect(validateQuery([{
+				expect(validateTemplate([{
 					middle: { leaf: { value: "x" } }
 				}], Root, { depth: 2 })).toBeUndefined();
 
@@ -4305,7 +4035,7 @@ describe("operators", () => {
 					child: required(Embedded)
 				});
 
-				expect(validateQuery([{ child: { label: "x" } }], Outer, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4317,7 +4047,7 @@ describe("operators", () => {
 					child: required(Embedded)
 				});
 
-				expect(validateQuery([{ child: { label: "x" } }], Outer, { depth: 1 })).toBeUndefined();
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 1 })).toBeUndefined();
 
 			});
 
@@ -4329,7 +4059,7 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				expect(validateQuery([{ items: [{ name: "x" }] }], Outer, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ items: [{ name: "x" }] }], Outer, { depth: 0 })).toBeDefined();
 
 			});
 
@@ -4341,7 +4071,7 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				expect(validateQuery([{ items: [{ name: "x" }] }], Outer, { depth: 1 })).toBeUndefined();
+				expect(validateTemplate([{ items: [{ name: "x" }] }], Outer, { depth: 1 })).toBeUndefined();
 
 			});
 
@@ -4353,7 +4083,7 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				const trace = validateQuery([{ items: [{ "===invalid": "x" }] }], Outer, { depth: 1 });
+				const trace = validateTemplate([{ items: [{ "===invalid": "x" }] }], Outer, { depth: 1 });
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty(["[0]", "items", "===invalid"]);
@@ -4364,46 +4094,122 @@ describe("operators", () => {
 
 		describe("bindings", () => {
 
-			it("accepts valid binding key on model", async () => {
+			it("accepts plain identifier at top level", async () => {
 
-				const Target = resource({ released: required(year()) });
+				const Target = resource({ name: required(string()), age: optional(integer()) });
 
-				// year: transform produces number, 0 is number — should be accepted
-
-				expect(validateQuery([{ "releaseYear=year:released": 0 }], Target, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ name: "", age: 0 }], Target, { depth: 0 })).toBeUndefined();
 
 			});
 
-			it("does not report binding key as unexpected property", async () => {
+			it("accepts plain identifier referencing undefined property", async () => {
+
+				// apply() returns undefined for unknown property → lenient
 
 				const Target = resource({ name: required(string()) });
 
-				// "alias=name" is a valid binding key — envelope should not reject it
-
-				expect(validateQuery([{ "alias=name": "" }], Target, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ missing: "" }], Target, { depth: 0 })).toBeUndefined();
 
 			});
 
-			it("rejects binding with wrong post-transform type", async () => {
+		});
 
-				const Target = resource({ released: required(year()) });
+		describe("restricted query features", () => {
 
-				// year: produces number, "" is string — should be rejected
+			const Target = resource({
+				name: required(string()),
+				age: optional(integer()),
+				status: required(string()),
+				tags: repeatable(string()),
+				released: required(year())
+			});
 
-				const trace = validateQuery([{ "releaseYear=year:released": "" }], Target, { depth: 0 });
+			it.each([
+				["comparison filter", { ">=age": 18 }],
+				["text search filter", { "~name": "alice" }],
+				["disjunctive filter", { "?status": "active" }],
+				["conjunctive filter", { "!tags": "urgent" }],
+				["focus ordering", { "*status": ["active"] }],
+				["sort ordering", { "^name": "asc" }],
+				["pagination offset", { "@": 0 }],
+				["pagination limit", { "#": 10 }]
+			])("rejects %s at top level", async (_label, query) => {
 
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty(["[0]", "releaseYear=year:released"]);
+				expect(validateTemplate([query], Target, { depth: 0 })).toBeDefined();
 
 			});
 
-			it("accepts binding referencing undefined property", async () => {
+			it("rejects transform binding at top level", async () => {
 
-				// apply() returns undefined for unknown property → lenient: no shape to validate against
+				expect(validateTemplate([{ "releaseYear=year:released": 0 }], Target, { depth: 0 })).toBeDefined();
 
-				const Target = resource({ name: required(string()) });
+			});
 
-				expect(validateQuery([{ "y=year:missing": 0 }], Target, { depth: 0 })).toBeUndefined();
+			it("rejects alias binding at top level", async () => {
+
+				expect(validateTemplate([{ "alias=name": "" }], Target, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("rejects dotted path binding at top level", async () => {
+
+				const Shape = resource({ vendor: required(reference(resource({ rating: optional(integer()) }))) });
+
+				expect(validateTemplate([{ "vendor.rating": 0 }], Shape, {})).toBeDefined();
+
+			});
+
+			it("rejects filter constraint in scalar reference template", async () => {
+
+				const Wrapper = resource({ supervisor: optional(reference(Target)) });
+
+				expect(validateTemplate([{ supervisor: { ">=age": 18 } }], Wrapper, {})).toBeDefined();
+
+			});
+
+			it("rejects sort criterion in scalar reference template", async () => {
+
+				const Wrapper = resource({ supervisor: optional(reference(Target)) });
+
+				expect(validateTemplate([{ supervisor: { "^name": "asc" } }], Wrapper, {})).toBeDefined();
+
+			});
+
+			it("accepts filter constraint inside collection template", async () => {
+
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
+
+			});
+
+			it("accepts transform binding inside collection template", async () => {
+
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				expect(validateTemplate([{ items: [{ "releaseYear=year:released": 0 }] }], Wrapper, {})).toBeUndefined();
+
+			});
+
+			it("rejects filter through scalar reference inside collection template", async () => {
+
+				const Inner = resource({ name: required(string()), rating: optional(integer()) });
+				const Item = resource({ vendor: required(reference(Inner)) });
+				const Wrapper = resource({ items: multiple(reference(Item)) });
+
+				// nested scalar reference objects are templates — use dotted paths for cross-reference filtering
+
+				expect(validateTemplate([{ items: [{ vendor: { ">=rating": 3 } }] }], Wrapper, {})).toBeDefined();
+
+			});
+
+			it("accepts plain identifier in scalar reference inside collection template", async () => {
+
+				const Inner = resource({ name: required(string()), rating: optional(integer()) });
+				const Item = resource({ vendor: required(reference(Inner)) });
+				const Wrapper = resource({ items: multiple(reference(Item)) });
+
+				expect(validateTemplate([{ items: [{ vendor: { rating: 0 } }] }], Wrapper, {})).toBeUndefined();
 
 			});
 
@@ -4418,12 +4224,12 @@ describe("operators", () => {
 					const Target = resource({ id: id(), name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						items: [{
 							name: "",
 							age: 0
 						}]
-					}], Wrapper, { depth: null })).toBeUndefined();
+					}], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4434,12 +4240,12 @@ describe("operators", () => {
 					const Target = resource({ id: id(), name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						items: [{
 							name: "",
 							extra: ""
 						}]
-					}], Wrapper, { depth: null })).toBeUndefined();
+					}], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4457,7 +4263,7 @@ describe("operators", () => {
 					["trailing", { name: "", age: 0, id: "app:/items/1" }]
 				])("accepts id as %s projection property", async (_position, query) => {
 
-					expect(validateQuery([{ items: [query] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [query] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4475,7 +4281,7 @@ describe("operators", () => {
 					["trailing", { name: "", age: 0, type: "app:/types/Person" }]
 				])("accepts type as %s projection property", async (_position, query) => {
 
-					expect(validateQuery([{ items: [query] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [query] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4488,7 +4294,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ ">=age": 18 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4497,7 +4303,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "~name": "alice" }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "~name": "alice" }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4506,7 +4312,7 @@ describe("operators", () => {
 					const Target = resource({ status: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "?status": "active" }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "?status": "active" }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4515,7 +4321,7 @@ describe("operators", () => {
 					const Target = resource({ tags: repeatable(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "!tags": "urgent" }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "!tags": "urgent" }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4526,7 +4332,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ ">=age": 18 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4539,12 +4345,12 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						items: [{
 							"^name": "asc",
 							"^age": "desc"
 						}]
-					}], Wrapper, { depth: null })).toBeUndefined();
+					}], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4553,7 +4359,7 @@ describe("operators", () => {
 					const Target = resource({ status: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "*status": ["active"] }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "*status": ["active"] }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4564,7 +4370,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "^missing": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "^missing": "asc" }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4576,52 +4382,52 @@ describe("operators", () => {
 				const Wrapper = resource({ items: multiple(reference(Target)) });
 
 				it("accepts offset and limit", async () => {
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						items: [{
 							"@": 10,
 							"#": 25
 						}]
-					}], Wrapper, { depth: null })).toBeUndefined();
+					}], Wrapper, {})).toBeUndefined();
 				});
 
 				it("accepts zero offset", async () => {
-					expect(validateQuery([{ items: [{ "@": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "@": 0 }] }], Wrapper, {})).toBeUndefined();
 				});
 
 				it("accepts zero limit", async () => {
-					expect(validateQuery([{ items: [{ "#": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "#": 0 }] }], Wrapper, {})).toBeUndefined();
 				});
 
 				it("rejects negative offset", async () => {
-					expect(validateQuery([{ items: [{ "@": -1 }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "@": -1 }] }], Wrapper, {})).toBeDefined();
 				});
 
 				it("rejects negative limit", async () => {
-					expect(validateQuery([{ items: [{ "#": -1 }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "#": -1 }] }], Wrapper, {})).toBeDefined();
 				});
 
 				it("rejects fractional offset", async () => {
-					expect(validateQuery([{ items: [{ "@": 1.5 }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "@": 1.5 }] }], Wrapper, {})).toBeDefined();
 				});
 
 				it("rejects fractional limit", async () => {
-					expect(validateQuery([{ items: [{ "#": 2.5 }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "#": 2.5 }] }], Wrapper, {})).toBeDefined();
 				});
 
 				it("rejects string offset", async () => {
-					expect(validateQuery([{ items: [{ "@": "10" }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "@": "10" }] }], Wrapper, {})).toBeDefined();
 				});
 
 				it("rejects string limit", async () => {
-					expect(validateQuery([{ items: [{ "#": "25" }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "#": "25" }] }], Wrapper, {})).toBeDefined();
 				});
 
 				it("rejects boolean offset", async () => {
-					expect(validateQuery([{ items: [{ "@": true }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "@": true }] }], Wrapper, {})).toBeDefined();
 				});
 
 				it("rejects null limit", async () => {
-					expect(validateQuery([{ items: [{ "#": null }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "#": null }] }], Wrapper, {})).toBeDefined();
 				});
 
 			});
@@ -4638,7 +4444,7 @@ describe("operators", () => {
 
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						items: [{
 							name: "",
 							">=age": 18,
@@ -4647,7 +4453,7 @@ describe("operators", () => {
 							"@": 0,
 							"#": 10
 						}]
-					}], Wrapper, { depth: null })).toBeUndefined();
+					}], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4658,13 +4464,13 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{
+					expect(validateTemplate([{
 						items: [{
 							name: "",
 							extra: "",
 							"^name": "asc"
 						}]
-					}], Wrapper, { depth: null })).toBeUndefined();
+					}], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4677,7 +4483,7 @@ describe("operators", () => {
 					const Member = resource({ name: required(string()) });
 					const Wrapper = resource({ members: multiple(reference(Member)) });
 
-					expect(validateQuery([{ members: [{ name: "" }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ members: [{ name: "" }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4686,7 +4492,7 @@ describe("operators", () => {
 					const Target = resource({ id: id(), name: required(string()) });
 					const Wrapper = resource({ supervisor: optional(reference(Target)) });
 
-					expect(validateQuery([{ supervisor: "app:/users/1" }], Wrapper, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ supervisor: "app:/users/1" }], Wrapper, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -4694,7 +4500,7 @@ describe("operators", () => {
 
 					const Wrapper = resource({ label: required(localised()) });
 
-					expect(validateQuery([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -4702,7 +4508,7 @@ describe("operators", () => {
 
 					const Wrapper = resource({ labels: repeatable(localised()) });
 
-					expect(validateQuery([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -4710,7 +4516,7 @@ describe("operators", () => {
 
 					const Wrapper = resource({ label: multiple(localised()) });
 
-					expect(validateQuery([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -4718,7 +4524,7 @@ describe("operators", () => {
 
 					const Wrapper = resource({ labels: multiple(localised()) });
 
-					expect(validateQuery([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
 
 				});
 
@@ -4731,7 +4537,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ ">=age": 18 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4741,7 +4547,7 @@ describe("operators", () => {
 					const Target = resource({ vendor: required(reference(Vendor)) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4751,7 +4557,7 @@ describe("operators", () => {
 					const Target = resource({ vendor: required(reference(Vendor)) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "^vendor.rating": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "^vendor.rating": "asc" }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4762,7 +4568,7 @@ describe("operators", () => {
 					const Target = resource({ product: required(reference(Product)) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4774,7 +4580,7 @@ describe("operators", () => {
 					const Target = resource({ vendor: required(reference(Vendor)) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4785,7 +4591,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ ">=name.deep": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ ">=name.deep": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4799,7 +4605,7 @@ describe("operators", () => {
 					const Target = resource({ item: required(union({ a: reference(ItemShape), b: string() })) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ ">=item.score": 5 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ ">=item.score": 5 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4811,7 +4617,7 @@ describe("operators", () => {
 					const Target = resource({ item: required(union({ a: reference(ItemShape), b: string() })) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ ">=item.missing": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ ">=item.missing": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4824,7 +4630,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), released: optional(year()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "releaseYear=year:released": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "releaseYear=year:released": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4833,7 +4639,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), released: optional(year()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "releaseYear=year:released": "" }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "releaseYear=year:released": "" }] }], Wrapper, {})).toBeDefined();
 
 				});
 
@@ -4844,7 +4650,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), released: optional(year()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "y=year:missing": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "y=year:missing": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4853,7 +4659,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4862,7 +4668,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "avg=round:avg:price": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "avg=round:avg:price": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4871,7 +4677,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "total=count:": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4880,7 +4686,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "total=count:": "" }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "total=count:": "" }] }], Wrapper, {})).toBeDefined();
 
 				});
 
@@ -4891,7 +4697,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "total=sum:": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "total=sum:": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4903,7 +4709,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=lower:": "" }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=lower:": "" }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4912,7 +4718,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -4930,49 +4736,49 @@ describe("operators", () => {
 					it("accepts identity binding on string property", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=name": "" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=name": "" }] }], Wrapper, {})).toBeUndefined();
 
 					});
 
 					it("accepts identity binding on integer property", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=age": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=age": 0 }] }], Wrapper, {})).toBeUndefined();
 
 					});
 
 					it("accepts identity binding on boolean property", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=active": true }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=active": true }] }], Wrapper, {})).toBeUndefined();
 
 					});
 
 					it("accepts identity binding on reference property with IRI", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=link": "app:/items/1" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=link": "app:/items/1" }] }], Wrapper, {})).toBeUndefined();
 
 					});
 
 					it("rejects identity binding on reference property with wrong type", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=link": 0 }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "alias=link": 0 }] }], Wrapper, {})).toBeDefined();
 
 					});
 
 					it("accepts identity binding on embedded resource with model", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=child": { label: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=child": { label: "" } }] }], Wrapper, {})).toBeUndefined();
 
 					});
 
 					it("rejects identity binding on embedded resource with invalid model", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=child": { label: 0 } }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "alias=child": { label: 0 } }] }], Wrapper, {})).toBeDefined();
 
 					});
 
@@ -4980,56 +4786,57 @@ describe("operators", () => {
 
 						// unknown=unknown → apply() returns undefined → lenient
 
-						expect(validateQuery([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, {})).toBeUndefined();
 
 					});
 
 					it("rejects identity binding on embedded resource with non-object", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=child": 42 }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "alias=child": 42 }] }], Wrapper, {})).toBeDefined();
 
 					});
 
 					it("accepts aggregate binding on embedded resource with model", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, {})).toBeUndefined();
 
 					});
 
 					it("rejects aggregate binding on embedded resource with invalid model", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=min:child": { label: 0 } }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "alias=min:child": { label: 0 } }] }], Wrapper, {})).toBeDefined();
 
 					});
 
 					it("rejects aggregate binding on embedded resource with non-object", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=min:child": 42 }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "alias=min:child": 42 }] }], Wrapper, {})).toBeDefined();
 
 					});
 
 					it("accepts identity binding on embedded resource with depth", async () => {
 
 
-						expect(validateQuery([{ items: [{ "alias=child": { label: "x" } }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=child": { label: "x" } }] }], Wrapper, {})).toBeUndefined();
 
 					});
 
-					it("accepts identity binding on reference property with query", async () => {
+					it("rejects operator key in scalar reference nested template", async () => {
 
+						// nested scalar reference objects are templates — operators require dotted paths
 
-						expect(validateQuery([{
+						expect(validateTemplate([{
 							items: [{
 								"alias=link": {
 									label: "",
 									"^label": "asc"
 								}
 							}]
-						}], Wrapper, { depth: null })).toBeUndefined();
+						}], Wrapper, {})).toBeDefined();
 
 					});
 
@@ -5037,21 +4844,22 @@ describe("operators", () => {
 
 						// unknown=unknown → apply() returns undefined → lenient
 
-						expect(validateQuery([{ items: [{ "alias=link": { unknown: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=link": { unknown: "" } }] }], Wrapper, {})).toBeUndefined();
 
 					});
 
-					it("accepts identity binding on embedded resource with query", async () => {
+					it("rejects operator key in embedded resource nested template", async () => {
 
+						// nested embedded resource objects are templates — operators require dotted paths
 
-						expect(validateQuery([{
+						expect(validateTemplate([{
 							items: [{
 								"alias=child": {
 									label: "",
 									"^label": "asc"
 								}
 							}]
-						}], Wrapper, { depth: null })).toBeUndefined();
+						}], Wrapper, {})).toBeDefined();
 
 					});
 
@@ -5059,35 +4867,37 @@ describe("operators", () => {
 
 						// unknown=unknown → apply() returns undefined → lenient
 
-						expect(validateQuery([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, {})).toBeUndefined();
 
 					});
 
-					it("accepts aggregate binding on reference property with query", async () => {
+					it("rejects operator key in aggregate reference nested template", async () => {
 
+						// nested scalar reference objects are templates — operators require dotted paths
 
-						expect(validateQuery([{
+						expect(validateTemplate([{
 							items: [{
 								"alias=min:link": {
 									label: "",
 									">=label": "a"
 								}
 							}]
-						}], Wrapper, { depth: null })).toBeUndefined();
+						}], Wrapper, {})).toBeDefined();
 
 					});
 
-					it("accepts aggregate binding on embedded resource with query", async () => {
+					it("rejects operator key in aggregate resource nested template", async () => {
 
+						// nested embedded resource objects are templates — operators require dotted paths
 
-						expect(validateQuery([{
+						expect(validateTemplate([{
 							items: [{
 								"alias=min:child": {
 									label: "",
 									">=label": "a"
 								}
 							}]
-						}], Wrapper, { depth: null })).toBeUndefined();
+						}], Wrapper, {})).toBeDefined();
 
 					});
 
@@ -5104,7 +4914,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "total=sum:name": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "total=sum:name": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5117,7 +4927,7 @@ describe("operators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "v=abs:link": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "v=abs:link": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5126,7 +4936,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "y=year:price": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "y=year:price": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5135,7 +4945,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "m=month:name": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "m=month:name": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5144,7 +4954,7 @@ describe("operators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5159,7 +4969,7 @@ describe("operators", () => {
 					const Target = resource({ label: required(localised()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=lower:label": { "en": "hello" } }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=lower:label": { "en": "hello" } }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5168,7 +4978,7 @@ describe("operators", () => {
 					const Target = resource({ label: required(localised()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=upper:label": { "en": "HELLO" } }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=upper:label": { "en": "HELLO" } }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5180,7 +4990,7 @@ describe("operators", () => {
 					const Target = resource({ label: required(localised()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=length:label": 5 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=length:label": 5 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5191,7 +5001,7 @@ describe("operators", () => {
 					const Target = resource({ label: required(localised()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5200,7 +5010,7 @@ describe("operators", () => {
 					const Target = resource({ labels: repeatable(localised()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=lower:labels": { "en": ["hello"] as const } }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=lower:labels": { "en": ["hello"] as const } }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5217,7 +5027,7 @@ describe("operators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=abs:value": 42 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=abs:value": 42 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5230,7 +5040,7 @@ describe("operators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=abs:value": "wrong" }] }], Wrapper, { depth: null })).toBeDefined();
+					expect(validateTemplate([{ items: [{ "alias=abs:value": "wrong" }] }], Wrapper, {})).toBeDefined();
 
 				});
 
@@ -5243,7 +5053,7 @@ describe("operators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=lower:value": "" }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=lower:value": "" }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
@@ -5257,156 +5067,146 @@ describe("operators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
 			});
 
-			describe("stats option", () => {
+			describe("plain option", () => {
 
-				it("accepts aggregate binding when stats is true", async () => {
+				it("accepts aggregate binding when plain is false", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "total=count:": 0 }] }], Wrapper, {
-						depth: null,
-						stats: true
+					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {
+												plain: false
 					})).toBeUndefined();
 
 				});
 
-				it("accepts aggregate binding when stats is defaulted", async () => {
+				it("accepts aggregate binding when plain is defaulted", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "total=count:": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {})).toBeUndefined();
 
 				});
 
-				it("rejects aggregate binding when stats is false", async () => {
+				it("rejects aggregate binding when plain is true", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "total=count:": 0 }] }], Wrapper, {
-						depth: null,
-						stats: false
+					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {
+												plain: true
 					})).toBeDefined();
 
 				});
 
-				it("rejects min aggregate when stats is false", async () => {
+				it("rejects min aggregate when plain is true", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, {
-						depth: null,
-						stats: false
+					expect(validateTemplate([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, {
+												plain: true
 					})).toBeDefined();
 
 				});
 
-				it("rejects max aggregate when stats is false", async () => {
+				it("rejects max aggregate when plain is true", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "highest=max:price": 0 }] }], Wrapper, {
-						depth: null,
-						stats: false
+					expect(validateTemplate([{ items: [{ "highest=max:price": 0 }] }], Wrapper, {
+												plain: true
 					})).toBeDefined();
 
 				});
 
-				it("rejects sum aggregate when stats is false", async () => {
+				it("rejects sum aggregate when plain is true", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "total=sum:price": 0 }] }], Wrapper, {
-						depth: null,
-						stats: false
+					expect(validateTemplate([{ items: [{ "total=sum:price": 0 }] }], Wrapper, {
+												plain: true
 					})).toBeDefined();
 
 				});
 
-				it("rejects avg aggregate when stats is false", async () => {
+				it("rejects avg aggregate when plain is true", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "average=avg:price": 0 }] }], Wrapper, {
-						depth: null,
-						stats: false
+					expect(validateTemplate([{ items: [{ "average=avg:price": 0 }] }], Wrapper, {
+												plain: true
 					})).toBeDefined();
 
 				});
 
-				it("rejects chained aggregate pipe when stats is false", async () => {
+				it("rejects chained aggregate pipe when plain is true", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {
-						depth: null,
-						stats: false
+					expect(validateTemplate([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {
+												plain: true
 					})).toBeDefined();
 
 				});
 
-				it("accepts non-aggregate transform when stats is false", async () => {
+				it("accepts non-aggregate transform when plain is true", async () => {
 
 					const Target = resource({ name: required(string()), released: optional(year()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "y=year:released": 0 }] }], Wrapper, {
-						depth: null,
-						stats: false
+					expect(validateTemplate([{ items: [{ "y=year:released": 0 }] }], Wrapper, {
+												plain: true
 					})).toBeUndefined();
 
 				});
 
-				it("accepts scalar transform pipe when stats is false", async () => {
+				it("accepts scalar transform pipe when plain is true", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ "r=round:price": 0 }] }], Wrapper, {
-						depth: null,
-						stats: false
+					expect(validateTemplate([{ items: [{ "r=round:price": 0 }] }], Wrapper, {
+												plain: true
 					})).toBeUndefined();
 
 				});
 
-				it("accepts plain property when stats is false", async () => {
+				it("accepts plain property when plain is true", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateQuery([{ items: [{ name: "" }] }], Wrapper, {
-						depth: null,
-						stats: false
+					expect(validateTemplate([{ items: [{ name: "" }] }], Wrapper, {
+												plain: true
 					})).toBeUndefined();
 
 				});
 
-				it("rejects aggregate on flat model when stats is false", async () => {
+				it("rejects aggregate on flat model when plain is true", async () => {
 
 					const shape = resource({ name: required(string()), price: optional(integer()) });
 
-					expect(validateQuery([{ "total=count:": 0 }], shape, { depth: 0, stats: false })).toBeDefined();
+					expect(validateTemplate([{ "total=count:": 0 }], shape, { depth: 0, plain: true })).toBeDefined();
 
 				});
 
-				it("accepts plain property on flat model when stats is false", async () => {
+				it("accepts plain property on flat model when plain is true", async () => {
 
 					const shape = resource({ name: required(string()), price: optional(integer()) });
 
-					expect(validateQuery([{ name: "" }], shape, { depth: 0, stats: false })).toBeUndefined();
+					expect(validateTemplate([{ name: "" }], shape, { depth: 0, plain: true })).toBeUndefined();
 
 				});
 
@@ -5431,50 +5231,50 @@ describe("operators", () => {
 				describe("text search operator (~)", () => {
 
 					it("accepts text search on string property", async () => {
-						expect(validateQuery([{ items: [{ "~name": "alice" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "~name": "alice" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts text search on local property", async () => {
-						expect(validateQuery([{ items: [{ "~label": "hello" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "~label": "hello" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts text search on localised property", async () => {
-						expect(validateQuery([{ items: [{ "~labels": "hello" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "~labels": "hello" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("rejects text search on number property", async () => {
-						expect(validateQuery([{ items: [{ "~age": "42" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "~age": "42" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects text search on boolean property", async () => {
-						expect(validateQuery([{ items: [{ "~active": "true" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "~active": "true" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects text search on reference property", async () => {
-						expect(validateQuery([{ items: [{ "~link": "test" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "~link": "test" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("accepts text search on undefined property", async () => {
 
 						// apply() returns undefined → lenient
 
-						expect(validateQuery([{ items: [{ "~missing": "x" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "~missing": "x" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("rejects number keywords on string property", async () => {
-						expect(validateQuery([{ items: [{ "~name": 42 }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "~name": 42 }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects boolean keywords on string property", async () => {
-						expect(validateQuery([{ items: [{ "~name": true }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "~name": true }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects null keywords on local property", async () => {
-						expect(validateQuery([{ items: [{ "~label": null }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "~label": null }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects array keywords on string property", async () => {
-						expect(validateQuery([{ items: [{ "~name": ["a", "b"] }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "~name": ["a", "b"] }] }], Wrapper, {})).toBeDefined();
 					});
 
 				});
@@ -5490,7 +5290,7 @@ describe("operators", () => {
 					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
 
 					it("accepts text search matching string union variant", async () => {
-						expect(validateQuery([{ items: [{ "~value": "hello" }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "~value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
 					it("rejects text search matching no textual union variant", async () => {
@@ -5503,7 +5303,7 @@ describe("operators", () => {
 						});
 						const NumericWrapper = resource({ items: multiple(reference(NumericUnion)) });
 
-						expect(validateQuery([{ items: [{ "~value": "hello" }] }], NumericWrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "~value": "hello" }] }], NumericWrapper, {})).toBeDefined();
 
 					});
 
@@ -5512,30 +5312,30 @@ describe("operators", () => {
 				describe("range operators (<, >, <=, >=)", () => {
 
 					it("accepts range operator on string property", async () => {
-						expect(validateQuery([{ items: [{ ">=name": "alice" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ ">=name": "alice" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts range operator on boolean property", async () => {
-						expect(validateQuery([{ items: [{ ">=active": true }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ ">=active": true }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("rejects range operator on local property", async () => {
-						expect(validateQuery([{ items: [{ ">=label": "x" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ ">=label": "x" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects range operator on localised property", async () => {
-						expect(validateQuery([{ items: [{ ">=labels": "x" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ ">=labels": "x" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects range operator on reference property", async () => {
-						expect(validateQuery([{ items: [{ ">=link": "x" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ ">=link": "x" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("accepts range operator on undefined property", async () => {
 
 						// apply() returns undefined → lenient
 
-						expect(validateQuery([{ items: [{ ">=missing": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ ">=missing": 0 }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it.each([
@@ -5544,23 +5344,23 @@ describe("operators", () => {
 						["<=", "<=age"],
 						[">=", ">=age"]
 					])("accepts %s operator on number property", async (_op, key) => {
-						expect(validateQuery([{ items: [{ [key]: 18 }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ [key]: 18 }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("rejects string limit on number property", async () => {
-						expect(validateQuery([{ items: [{ ">=age": "alice" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ ">=age": "alice" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects number limit on string property", async () => {
-						expect(validateQuery([{ items: [{ ">=name": 42 }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ ">=name": 42 }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects boolean limit on number property", async () => {
-						expect(validateQuery([{ items: [{ ">=age": true }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ ">=age": true }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects null limit on string property", async () => {
-						expect(validateQuery([{ items: [{ ">=name": null }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ ">=name": null }] }], Wrapper, {})).toBeDefined();
 					});
 
 				});
@@ -5576,15 +5376,15 @@ describe("operators", () => {
 					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
 
 					it("accepts range limit matching first union variant", async () => {
-						expect(validateQuery([{ items: [{ ">=value": "hello" }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ ">=value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
 					it("accepts range limit matching second union variant", async () => {
-						expect(validateQuery([{ items: [{ ">=value": 42 }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ ">=value": 42 }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
 					it("rejects range limit matching no union variant", async () => {
-						expect(validateQuery([{ items: [{ ">=value": true }] }], UnionWrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ ">=value": true }] }], UnionWrapper, {})).toBeDefined();
 					});
 
 					it.each([
@@ -5593,7 +5393,7 @@ describe("operators", () => {
 						["<=", "<=value"],
 						[">=", ">=value"]
 					])("accepts %s operator on union property with matching variant", async (_op, key) => {
-						expect(validateQuery([{ items: [{ [key]: 42 }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ [key]: 42 }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
 				});
@@ -5603,97 +5403,97 @@ describe("operators", () => {
 					// single option values
 
 					it("accepts disjunctive filter on string property", async () => {
-						expect(validateQuery([{ items: [{ "?name": "alice" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?name": "alice" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts disjunctive filter on number property", async () => {
-						expect(validateQuery([{ items: [{ "?age": 18 }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?age": 18 }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts disjunctive filter on boolean property", async () => {
-						expect(validateQuery([{ items: [{ "?active": true }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?active": true }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts conjunctive filter on string property", async () => {
-						expect(validateQuery([{ items: [{ "!name": "alice" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "!name": "alice" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts conjunctive filter on number property", async () => {
-						expect(validateQuery([{ items: [{ "!age": 18 }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "!age": 18 }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts conjunctive filter on boolean property", async () => {
-						expect(validateQuery([{ items: [{ "!active": true }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "!active": true }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts null option on any property", async () => {
-						expect(validateQuery([{ items: [{ "?name": null }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?name": null }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts reference option on reference property", async () => {
-						expect(validateQuery([{ items: [{ "?link": "app:/items/1" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?link": "app:/items/1" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					// array of options
 
 					it("accepts array of options on string property", async () => {
-						expect(validateQuery([{ items: [{ "?name": ["alice", "bob"] }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?name": ["alice", "bob"] }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts array of options on number property", async () => {
-						expect(validateQuery([{ items: [{ "?age": [18, 25] }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?age": [18, 25] }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts array with null option", async () => {
-						expect(validateQuery([{ items: [{ "?name": ["alice", null] }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?name": ["alice", null] }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					// local/localised options
 
 					it("accepts local option on local property", async () => {
-						expect(validateQuery([{ items: [{ "?label": { "en": "hello" } }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?label": { "en": "hello" } }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts string option on local property", async () => {
-						expect(validateQuery([{ items: [{ "?label": "hello" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?label": "hello" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts localised option on localised property", async () => {
-						expect(validateQuery([{ items: [{ "?labels": { "en": ["hello"] as const } }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?labels": { "en": ["hello"] as const } }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					// type mismatch rejections
 
 					it("rejects string option on number property", async () => {
-						expect(validateQuery([{ items: [{ "?age": "alice" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "?age": "alice" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects number option on string property", async () => {
-						expect(validateQuery([{ items: [{ "?name": 42 }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "?name": 42 }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects boolean option on number property", async () => {
-						expect(validateQuery([{ items: [{ "?age": true }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "?age": true }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects array with mismatched option on number property", async () => {
-						expect(validateQuery([{ items: [{ "?age": [18, "wrong"] }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "?age": [18, "wrong"] }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects number option on local property", async () => {
-						expect(validateQuery([{ items: [{ "?label": 42 }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "?label": 42 }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects number option on localised property", async () => {
-						expect(validateQuery([{ items: [{ "?labels": 42 }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "?labels": 42 }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects non-IRI string option on reference property", async () => {
-						expect(validateQuery([{ items: [{ "?link": "not-an-iri" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "?link": "not-an-iri" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects conjunctive string option on number property", async () => {
-						expect(validateQuery([{ items: [{ "!age": "alice" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "!age": "alice" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					// undefined property
@@ -5702,7 +5502,7 @@ describe("operators", () => {
 
 						// apply() returns undefined → lenient
 
-						expect(validateQuery([{ items: [{ "?missing": "x" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?missing": "x" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 				});
@@ -5710,47 +5510,47 @@ describe("operators", () => {
 				describe("focus operator (*)", () => {
 
 					it("accepts focus on string property", async () => {
-						expect(validateQuery([{ items: [{ "*name": ["alice"] }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "*name": ["alice"] }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts focus on number property", async () => {
-						expect(validateQuery([{ items: [{ "*age": [18] }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "*age": [18] }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts focus on boolean property", async () => {
-						expect(validateQuery([{ items: [{ "*active": [true] }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "*active": [true] }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts focus with null option", async () => {
-						expect(validateQuery([{ items: [{ "*name": [null, "alice"] }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "*name": [null, "alice"] }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts focus with reference option on reference property", async () => {
-						expect(validateQuery([{ items: [{ "*link": "app:/items/1" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "*link": "app:/items/1" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts focus with local option on local property", async () => {
-						expect(validateQuery([{ items: [{ "*label": { "en": "hello" } }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "*label": { "en": "hello" } }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("rejects focus with string option on number property", async () => {
-						expect(validateQuery([{ items: [{ "*age": "alice" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "*age": "alice" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects focus with number option on string property", async () => {
-						expect(validateQuery([{ items: [{ "*name": 42 }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "*name": 42 }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects focus with non-IRI string on reference property", async () => {
-						expect(validateQuery([{ items: [{ "*link": "not-an-iri" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "*link": "not-an-iri" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects focus with mismatched array element on number property", async () => {
-						expect(validateQuery([{ items: [{ "*age": [18, "wrong"] }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "*age": [18, "wrong"] }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("accepts focus on undefined property", async () => {
-						expect(validateQuery([{ items: [{ "*missing": "x" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "*missing": "x" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 				});
@@ -5769,54 +5569,54 @@ describe("operators", () => {
 					// disjunctive filter
 
 					it("accepts disjunctive filter matching first union variant", async () => {
-						expect(validateQuery([{ items: [{ "?value": "hello" }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
 					it("accepts disjunctive filter matching second union variant", async () => {
-						expect(validateQuery([{ items: [{ "?value": 42 }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?value": 42 }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
 					it("accepts null option on union property", async () => {
-						expect(validateQuery([{ items: [{ "?value": null }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?value": null }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
 					it("rejects option matching no union variant", async () => {
-						expect(validateQuery([{ items: [{ "?value": true }] }], UnionWrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "?value": true }] }], UnionWrapper, {})).toBeDefined();
 					});
 
 					// conjunctive filter
 
 					it("accepts conjunctive filter matching one union variant", async () => {
-						expect(validateQuery([{ items: [{ "!value": "hello" }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "!value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
 					it("rejects conjunctive filter matching no union variant", async () => {
-						expect(validateQuery([{ items: [{ "!value": true }] }], UnionWrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "!value": true }] }], UnionWrapper, {})).toBeDefined();
 					});
 
 					// focus operator
 
 					it("accepts focus option matching one union variant", async () => {
-						expect(validateQuery([{ items: [{ "*value": ["hello"] }] }], UnionWrapper, { depth: null })).toBeUndefined();
-						expect(validateQuery([{ items: [{ "*value": [42] }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "*value": ["hello"] }] }], UnionWrapper, {})).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "*value": [42] }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
 					it("rejects focus option matching no union variant", async () => {
-						expect(validateQuery([{ items: [{ "*value": [true] }] }], UnionWrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "*value": [true] }] }], UnionWrapper, {})).toBeDefined();
 					});
 
 					// array of options
 
 					it("accepts array of options matching same union variant", async () => {
-						expect(validateQuery([{ items: [{ "?value": ["hello", "world"] }] }], UnionWrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "?value": ["hello", "world"] }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
 					it("rejects array of options matching different union variants", async () => {
-						expect(validateQuery([{ items: [{ "?value": ["hello", 42] }] }], UnionWrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "?value": ["hello", 42] }] }], UnionWrapper, {})).toBeDefined();
 					});
 
 					it("rejects array with option matching no union variant", async () => {
-						expect(validateQuery([{ items: [{ "?value": ["hello", true] }] }], UnionWrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "?value": ["hello", true] }] }], UnionWrapper, {})).toBeDefined();
 					});
 
 				});
@@ -5824,43 +5624,43 @@ describe("operators", () => {
 				describe("sort operator (^)", () => {
 
 					it("accepts 'asc' sort value", async () => {
-						expect(validateQuery([{ items: [{ "^name": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "^name": "asc" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts 'desc' sort value", async () => {
-						expect(validateQuery([{ items: [{ "^name": "desc" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "^name": "desc" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts positive number sort value", async () => {
-						expect(validateQuery([{ items: [{ "^name": 1 }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "^name": 1 }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts negative number sort value", async () => {
-						expect(validateQuery([{ items: [{ "^name": -1 }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "^name": -1 }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts zero sort value", async () => {
-						expect(validateQuery([{ items: [{ "^name": 0 }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "^name": 0 }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("rejects boolean sort value", async () => {
-						expect(validateQuery([{ items: [{ "^name": true }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "^name": true }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects null sort value", async () => {
-						expect(validateQuery([{ items: [{ "^name": null }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "^name": null }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("rejects arbitrary string sort value", async () => {
-						expect(validateQuery([{ items: [{ "^name": "ascending" }] }], Wrapper, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "^name": "ascending" }] }], Wrapper, {})).toBeDefined();
 					});
 
 					it("accepts sort on number property", async () => {
-						expect(validateQuery([{ items: [{ "^age": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "^age": "asc" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 					it("accepts sort on undefined property", async () => {
-						expect(validateQuery([{ items: [{ "^missing": "asc" }] }], Wrapper, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "^missing": "asc" }] }], Wrapper, {})).toBeUndefined();
 					});
 
 				});
@@ -5874,7 +5674,7 @@ describe("operators", () => {
 						const T = resource({ released: optional(year()) });
 						const W = resource({ items: multiple(reference(T)) });
 
-						expect(validateQuery([{ items: [{ ">=year:released": 2020 }] }], W, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ ">=year:released": 2020 }] }], W, {})).toBeUndefined();
 					});
 
 					it("rejects text search on transform-derived number", async () => {
@@ -5884,7 +5684,7 @@ describe("operators", () => {
 						const T = resource({ name: required(string()), price: optional(integer()) });
 						const W = resource({ items: multiple(reference(T)) });
 
-						expect(validateQuery([{ items: [{ "~count:price": "x" }] }], W, { depth: null })).toBeDefined();
+						expect(validateTemplate([{ items: [{ "~count:price": "x" }] }], W, {})).toBeDefined();
 					});
 
 					it("accepts text search on transform-preserving string", async () => {
@@ -5894,7 +5694,7 @@ describe("operators", () => {
 						const T = resource({ name: required(string()) });
 						const W = resource({ items: multiple(reference(T)) });
 
-						expect(validateQuery([{ items: [{ "~lower:name": "alice" }] }], W, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "~lower:name": "alice" }] }], W, {})).toBeUndefined();
 					});
 
 					it("accepts operator when transform makes apply() return undefined", async () => {
@@ -5904,7 +5704,7 @@ describe("operators", () => {
 						const T = resource({ name: required(string()) });
 						const W = resource({ items: multiple(reference(T)) });
 
-						expect(validateQuery([{ items: [{ "~sum:name": "x" }] }], W, { depth: null })).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "~sum:name": "x" }] }], W, {})).toBeUndefined();
 					});
 
 				});
@@ -5936,7 +5736,7 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				const trace = validateQuery([{ items: [{ name: 42 }] } as any], shape, { depth: null }) as Record<string, Trace>;
+				const trace = validateTemplate([{ items: [{ name: 42 }] } as any], shape, {}) as Record<string, Trace>;
 
 				expect(trace).toHaveProperty(["[0]", "items"]);
 
@@ -5953,11 +5753,11 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				const trace = validateQuery([{
+				const trace = validateTemplate([{
 					items: [
 						{ "id": "app:/items/1", name: 42 }
 					]
-				} as any], shape, { depth: null }) as Record<string, Trace>;
+				} as any], shape, {}) as Record<string, Trace>;
 
 				expect(trace).toHaveProperty(["[0]", "items"]);
 
@@ -5973,11 +5773,11 @@ describe("operators", () => {
 					items: multiple(reference(TargetWithoutId))
 				});
 
-				const trace = validateQuery([{
+				const trace = validateTemplate([{
 					items: [
 						{ name: 42 }
 					]
-				} as any], shape, { depth: null }) as Record<string, Trace>;
+				} as any], shape, {}) as Record<string, Trace>;
 
 				expect(trace).toHaveProperty(["[0]", "items"]);
 
@@ -5993,11 +5793,11 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				const trace = validateQuery([{
+				const trace = validateTemplate([{
 					items: [
 						{ "id": "app:/items/2", name: 42 }
 					]
-				} as any], shape, { depth: null }) as Record<string, Trace>;
+				} as any], shape, {}) as Record<string, Trace>;
 
 				expect(trace).toHaveProperty(["[0]", "items"]);
 
@@ -6013,11 +5813,11 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				expect(validateQuery([{
+				expect(validateTemplate([{
 					items: [
 						{ "id": "app:/items/1", name: "Alice" }
 					] as any
-				}], shape, { depth: null })).toBeUndefined();
+				}], shape, {})).toBeUndefined();
 
 			});
 
@@ -7291,6 +7091,112 @@ describe("utilities", () => {
 
 					expect(trace).toBeDefined();
 					expect(Object.keys(trace!)).toHaveLength(2);
+
+				});
+
+			});
+
+			describe("checkEmbeddings", () => {
+
+				it("returns undefined when no properties contain embedded resources", async () => {
+
+					const shape = resource({
+						name: required(string()),
+						age: required(integer())
+					});
+
+					expect(checkEmbeddings(shape.properties)).toBeUndefined();
+
+				});
+
+				it("returns undefined for embedded resource without id or type", async () => {
+
+					const Nested = resource({
+						label: required(string())
+					});
+
+					const shape = resource({
+						child: optional(Nested)
+					});
+
+					expect(checkEmbeddings(shape.properties)).toBeUndefined();
+
+				});
+
+				it("returns undefined for standalone reference with id", async () => {
+
+					const Target = resource({
+						rid: id(),
+						name: required(string())
+					});
+
+					const shape = resource({
+						link: required(reference(Target))
+					});
+
+					expect(checkEmbeddings(shape.properties)).toBeUndefined();
+
+				});
+
+				it("reports embedded resource containing id entry", async () => {
+
+					const Nested = resource({
+						rid: id(),
+						label: required(string())
+					});
+
+					expect(() => resource({
+						child: optional(Nested)
+					})).toThrow(TraceError);
+
+				});
+
+				it("reports embedded resource containing type entry", async () => {
+
+					const Nested = resource({
+						rtype: type(),
+						label: required(string())
+					});
+
+					expect(() => resource({
+						child: optional(Nested)
+					})).toThrow(TraceError);
+
+				});
+
+				it("reports embedded resources containing id and type entries", async () => {
+
+					const WithId = resource({
+						rid: id(),
+						label: required(string())
+					});
+
+					const WithType = resource({
+						rtype: type(),
+						label: required(string())
+					});
+
+					expect(() => resource({
+						first: optional(WithId),
+						second: optional(WithType)
+					})).toThrow(TraceError);
+
+				});
+
+				it("reports embedded resource in union variant containing id entry", async () => {
+
+					const Nested = resource({
+						rid: id(),
+						label: required(string())
+					});
+
+					const Other = resource({
+						value: required(integer())
+					});
+
+					expect(() => resource({
+						child: optional(union({ nested: Nested, other: Other }))
+					})).toThrow(TraceError);
 
 				});
 

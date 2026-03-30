@@ -15,7 +15,7 @@
  */
 
 /**
- * Language-tagged shape operators.
+ * Localised text shape operators.
  *
  * @module
  */
@@ -23,7 +23,7 @@
 import { isArray, isObject, isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { isTag, isTagRange, matchTag, TagRange } from "@metreeca/core/language";
-import { collect, every, TraceError, wrap } from "./core/trace.js";
+import { collect, every, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
 import type { LocalisedShape } from "./localised.js";
 

@@ -15,395 +15,152 @@
  */
 
 /**
- * Value shape operators.
+ * Trace construction utilities.
+ *
+ * Provides helpers for building keyed {@link Trace} reports ({@link collect}, {@link every}, {@link group})
+ * and normalising raw validation results ({@link normalise}).
  *
  * @module
  */
 
-import { isArray, isIdentifier, isObject } from "@metreeca/core";
-import { immutable } from "@metreeca/core/deep";
-import { mergeBoolean, validateBoolean } from "./boolean.core.js";
-import type { BooleanShape } from "./boolean.js";
-import { materialize } from "./core/cache.js";
-import { collect, TraceError, wrap } from "./core/trace.js";
-import type { SetShape, Trace, UnionShape, ValuesShape } from "./index.js";
-import { mergeLocalised, validateLocalised } from "./localised.core.js";
-import type { LocalisedShape } from "./localised.js";
-import { mergeNumber, validateNumber } from "./number.core.js";
-import type { NumberShape } from "./number.js";
-import { mergeReference, mergeResource, validateReference, validateResource } from "./resource.core.js";
-import { type ReferenceShape, type ResourceShape } from "./resource.js";
-import { mergeString, validateString } from "./string.core.js";
-import { type StringShape } from "./string.js";
+import { isObject, isString } from "@metreeca/core";
+import type { Trace, Validator } from "./index.js";
 
 
 /**
- * Checks internal consistency of {@link SetShape} constraints.
+ * Error carrying a structured validation {@link Trace}.
  *
- * @param constraints The constraint fields to check
- *
- * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
+ * Extends `RangeError` with a typed {@link Trace} as `cause` and includes a pretty-printed trace in the message
+ * for visibility in stack traces and test output.
  */
-export function checkValues({
+export class TraceError extends RangeError {
 
-	minCount,
-	maxCount
+	override readonly cause: Trace;
 
-}: {
+	constructor(message: string, cause: Trace) {
 
-	readonly minCount?: number;
-	readonly maxCount?: number;
+		super(`${message} <${JSON.stringify(cause, undefined, 2)}>`, { cause });
 
-}): undefined | Trace {
-
-	return collect({
-
-		"{minCount/maxCount}": minCount === undefined || maxCount === undefined
-			|| minCount <= maxCount
-			|| `inconsistent bounds <${minCount}> > <${maxCount}>`
-
-	});
-
-}
-
-
-/**
- * Validates values against a shape, dispatching to the appropriate type-specific validator.
- *
- * @param values The values to validate
- * @param shape The shape defining validation constraints
- *
- * @returns A keyed trace of validation errors, or `undefined` if all values are valid
- */
-export function validateValue(values: readonly unknown[], shape: ValuesShape): undefined | Trace {
-
-	switch ( shape.kind ) {
-
-		case "boolean":
-
-			return validateBoolean(values, shape);
-
-		case "number":
-
-			return validateNumber(values, shape);
-
-		case "string":
-
-			return validateString(values, shape);
-
-		case "localised":
-
-			return validateLocalised(values, shape);
-
-		case "reference":
-
-			return validateReference(values, shape);
-
-		case "resource":
-
-			return validateResource(values, shape);
-
-	}
-
-}
-
-/**
- * Validates a scalar union value against a {@link UnionShape}.
- *
- * Expects an {@link @metreeca/qest!Indexed | Indexed} container with exactly one key matching a variant name.
- * The value is unwrapped and validated against the matched variant; reference variants are dereferenced through
- * their target resource shape.
- *
- * @param values The values to validate; at most one object value is expected
- * @param union The union shape defining the variant alternatives
- *
- * @returns A keyed trace of validation errors, or `undefined` if the value is valid
- *
- * @see {@link validateArrayUnion} for multi-valued union validation
- */
-export function validateScalarUnion(values: readonly unknown[], union: UnionShape): undefined | Trace {
-
-	if ( values.length === 0 ) {
-
-		return undefined;
-
-	} else if ( values.length > 1 ) {
-
-		return collect({ "{kind}": "expected at most one <union> value" });
-
-	} else if ( !values.every(v => isObject(v)) ) {
-
-		return collect({ "{kind}": "expected <union> value" });
-
-	} else {
-
-		const entries = Object.entries(values[0]);
-		const variants = Object.keys(union.variants);
-
-		const invalid = entries.reduce((trace, [key, entry]) => {
-
-			return !isIdentifier(key) ? { ...trace, [key]: "expected identifier key" }
-				: !(key in union.variants) ? { ...trace, [key]: `expected variant key in [${variants.join(", ")}]` }
-					: isArray(entry) ? { ...trace, [key]: "expected scalar value" }
-						: entries.length > 1 ? { ...trace, [key]: "expected at most one variant key" }
-							: trace;
-
-		}, {});
-
-		if ( Object.keys(invalid).length > 0 ) {
-
-			return invalid;
-
-		} else {
-
-			return collect(Object.fromEntries(
-				entries.map(([key, entry]) => {
-
-					const variant = union.variants[key];
-
-					// dereference through reference shapes to validate against the target resource
-
-					return [key, variant.kind === "reference"
-						? validateResource([entry], materialize(variant.shape))
-						: validateValue([entry], variant)
-					];
-
-				})
-			));
-
-		}
-	}
-}
-
-/**
- * Validates a multi-valued union record against a {@link UnionShape}.
- *
- * Expects an {@link @metreeca/qest!Indexed | Indexed} record mapping variant names to arrays of values. Each key
- * must be a recognised variant name and each entry must be an array. Array elements are validated against the
- * corresponding variant shape; reference variants are dereferenced through their target resource shape.
- *
- * @param values The values to validate; at most one object value is expected
- * @param union The union shape defining the variant alternatives
- *
- * @returns A keyed trace of validation errors, or `undefined` if the record is valid
- *
- * @see {@link validateScalarUnion} for scalar union validation
- */
-export function validateArrayUnion(values: readonly unknown[], union: UnionShape): undefined | Trace {
-
-	if ( values.length === 0 ) {
-
-		return undefined;
-
-	} else if ( values.length > 1 ) {
-
-		return collect({ "{kind}": "expected at most one <union> value" });
-
-	} else if ( !values.every(v => isObject(v)) ) {
-
-		return collect({ "{kind}": "expected <union> value" });
-
-	} else {
-
-		const entries = Object.entries(values[0]);
-		const variants = Object.keys(union.variants);
-
-		const invalid = entries.reduce((trace, [key, entry]) => {
-
-			return !isIdentifier(key) ? { ...trace, [key]: "expected identifier key" }
-				: !(key in union.variants) ? { ...trace, [key]: `expected variant key in [${variants.join(", ")}]` }
-					: !isArray(entry) ? { ...trace, [key]: "expected array value" }
-						: trace;
-
-		}, {});
-
-		if ( Object.keys(invalid).length > 0 ) {
-
-			return invalid;
-
-		} else {
-
-			return collect(Object.fromEntries(
-				entries.map(([key, entry]) => {
-
-					const variant = union.variants[key];
-
-					// dereference through reference shapes to validate against the target resource
-
-					return [key, variant.kind === "reference"
-						? validateResource(entry as unknown[], materialize(variant.shape))
-						: validateValue(entry as unknown[], variant)
-					];
-
-				})
-			));
-
-		}
-
+		this.cause = cause;
 	}
 
 }
 
 
-/**
- * Merges an overriding value shape with an inherited base shape.
- *
- * Dispatches to the appropriate shape-specific merge function based on the `kind` discriminator.
- * Both shapes must have the same `kind`; a mismatch throws a `RangeError`.
- *
- * @param target The overriding child shape
- * @param source The inherited parent shape
- *
- * @returns The merged shape
- *
- * @throws {TraceError} On kind mismatch or incompatible overrides
- */
-export function mergeValue<T extends ValuesShape>(target: T, source: T): T {
-
-	switch ( target.kind ) {
-
-		case "boolean":
-
-			return mergeBoolean(target, source as BooleanShape) as T;
-
-		case "number":
-
-			return mergeNumber(target, source as NumberShape) as T;
-
-		case "string":
-
-			return mergeString(target, source as StringShape) as T;
-
-		case "localised":
-
-			return mergeLocalised(target, source as LocalisedShape) as T;
-
-		case "reference":
-
-			return mergeReference(target, source as ReferenceShape) as T;
-
-		case "resource":
-
-			return mergeResource(target, source as ResourceShape) as T;
-
-	}
-
-}
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Merges an overriding {@link SetShape} with an inherited base.
+ * Builds a keyed {@link Trace} from named entries.
  *
- * Validates that the override narrows cardinality constraints and that the value shape kinds match,
- * then delegates to the appropriate value shape or union merge function.
+ * Filters out `undefined` and empty entries, returning `undefined` when no failures remain.
  *
- * @param target The overriding child {@link SetShape}
- * @param source The inherited parent {@link SetShape}
+ * @param entries A record mapping constraint or property names to their individual traces
  *
- * @returns The merged {@link SetShape}
- *
- * @throws {TraceError} On widened constraints, kind mismatch, or incompatible overrides
+ * @returns A keyed trace of failures, or `undefined` if all entries pass
  */
-export function mergeValues(target: SetShape, source: SetShape): SetShape {
+export function collect(entries: Record<string, undefined | true | Trace>): undefined | Trace {
 
-	// merged constraints
-
-	const minCount = target.minCount ?? source.minCount;
-	const maxCount = target.maxCount ?? source.maxCount;
-
-	// validate
-
-	const trace = collect({
-
-		// narrow: minCount — child >= parent
-
-		"{minCount}": target.minCount === undefined || source.minCount === undefined
-			|| target.minCount >= source.minCount
-			|| `widened limit <${target.minCount}> beyond <${source.minCount}>`,
-
-		// narrow: maxCount — child <= parent
-
-		"{maxCount}": target.maxCount === undefined || source.maxCount === undefined
-			|| target.maxCount <= source.maxCount
-			|| `widened limit <${target.maxCount}> beyond <${source.maxCount}>`,
-
-		// structural: shape kind must match
-
-		"{shape}": target.shape.kind === source.shape.kind
-			|| `mismatched kinds <${target.shape.kind}> vs <${source.shape.kind}>`,
-
-		// post-merge constraint consistency
-
-		...wrap(checkValues({ minCount, maxCount }))
-
-	});
-
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible value set override", trace);
-	}
-
-	// build value set shape
-
-	const isScalar = maxCount === 1;
-
-	const shape = target.shape.kind === "union"
-		? mergeUnion(target.shape, source.shape as UnionShape)
-		: mergeValue(target.shape as ValuesShape, source.shape as ValuesShape);
-
-	const model = isScalar ? shape.model
-		: shape.kind === "union"
-			? Object.fromEntries(Object.entries(shape.model).map(([key, value]) => [key, [value]]))
-			: [shape.model];
-
-	return immutable({
-
-		kind: target.kind,
-
-		minCount,
-		maxCount,
-
-		shape,
-		model
-
-	});
-
-}
-
-/**
- * Merges an overriding union with an inherited base union.
- *
- * Variant keys must match exactly between target and source. Each matched variant is merged
- * using the appropriate value shape merge function.
- *
- * @param target The overriding child union
- * @param source The inherited parent union
- *
- * @returns The merged union
- *
- * @throws {TraceError} On variant key mismatch or incompatible variant overrides
- */
-export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
-
-	const targetKeys = Object.keys(target.variants).sort();
-	const sourceKeys = Object.keys(source.variants).sort();
-
-	if ( targetKeys.join(",") !== sourceKeys.join(",") ) {
-		throw new RangeError(`mismatched variant keys [${targetKeys.join(", ")}] and [${sourceKeys.join(", ")}]`);
-	}
-
-	const variants = Object.fromEntries(
-		targetKeys.map(key => [key, mergeValue(target.variants[key], source.variants[key])])
+	const valid = Object.entries(entries).filter((entry): entry is [string, Trace] =>
+		normalise(entry[1]) !== undefined
 	);
 
-	return immutable({
+	return valid.length === 0
+		? undefined
+		: Object.fromEntries(valid);
 
-		kind: target.kind,
+}
 
-		model: Object.fromEntries(
-			Object.entries(variants).map(([key, shape]) => [key, shape.model])
-		),
+/**
+ * Normalises a validation result to `undefined | {@link Trace}`.
+ *
+ * Collapses `undefined`, `true`, empty strings, and empty objects to `undefined`; passes through non-empty traces
+ * unchanged.
+ *
+ * @param trace The raw validation result to normalise
+ *
+ * @returns The non-empty trace, or `undefined` if the result represents success
+ */
+export function normalise(trace: undefined | true | Trace): undefined | Trace {
+	return trace === undefined || trace === true ? undefined
+		: isString(trace) ? (trace.length > 0 ? trace : undefined)
+			: isObject(trace) && Object.keys(trace).length > 0 ? trace
+				: undefined;
+}
 
-		variants
+/**
+ * Converts an optional {@link Trace} into a spreadable record.
+ *
+ * Returns the trace entries as-is when the trace is a keyed object; wraps bare string traces under a `"{}"` key;
+ * returns an empty record for `undefined`.
+ *
+ * @param value The trace to convert
+ *
+ * @returns A record suitable for spreading into a {@link collect} entries argument
+ */
+export function wrap(value: undefined | Trace): Record<string, Trace> {
+	return isString(value) ? { "{}": value } : value ?? {};
+}
 
-	});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Validates each value individually against a {@link Validator}.
+ *
+ * When multiple values fail, the result is prefixed with a failure count in the form `(failed/total)`.
+ *
+ * @typeParam T The value type being validated
+ *
+ * @param values The values to validate
+ * @param validator The per-value validator
+ *
+ * @returns A violation message with optional count prefix, or `undefined` if all values pass
+ */
+export function every<T>(values: readonly T[], validator: Validator<T>): undefined | Trace {
+
+	const results = values
+		.map((v, i): [number, undefined | Trace] => [i, normalise(validator(v))]);
+
+	const failed = results
+		.filter((entry): entry is [number, Trace] => entry[1] !== undefined);
+
+	if ( failed.length === 0 ) {
+
+		return undefined;
+
+	} else if ( values.length <= 1 ) {
+
+		return failed[0][1];
+
+	} else if ( failed.every(([, t]) => isString(t)) ) {
+
+		return `${failed.length > 1 ? `(${failed.length}/${values.length}) ` : ""}${failed[0][1]}`;
+
+	} else {
+
+		return collect(Object.fromEntries(
+			failed.map(([i, t]) => [`${i}`, t])
+		));
+
+	}
+
+}
+
+/**
+ * Validates a collection of values as a whole against a {@link Validator}.
+ *
+ * Unlike {@link every}, the validator receives the entire collection rather than individual values, enabling
+ * set-level constraints such as `hasValue`.
+ *
+ * @typeParam T The element type of the collection
+ *
+ * @param values The collection to validate
+ * @param validator The set-level validator
+ *
+ * @returns A violation trace, or `undefined` if the collection passes
+ */
+export function group<T>(values: readonly T[], validator: Validator<readonly T[]>): undefined | Trace {
+
+	return normalise(validator(values));
 
 }

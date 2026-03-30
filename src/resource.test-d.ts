@@ -24,12 +24,13 @@
  */
 
 import type { IRI } from "@metreeca/core/resource";
-import type { Resource } from "@metreeca/qest/state";
+import type { Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { multiple, optional, required, type SetShape, union, validate } from "./index.js";
+import { validate } from "./index.js";
 import type { NumberShape } from "./number.js";
 import { type Composition, type Content, property, resource } from "./resource.js";
 import type { StringShape } from "./string.js";
+import { multiple, optional, required, type SetShape, union } from "./value.js";
 
 
 // helper shapes for tests
@@ -132,7 +133,6 @@ describe("Composition", () => {
 
 });
 
-
 describe("Content", () => {
 
 	test("naked Range → V", () => {
@@ -184,7 +184,7 @@ describe("resource()", () => {
 			name: property(required(string()))
 		});
 
-		validate({}, { scope: "state", shape });
+		validate({}, { shape });
 
 	});
 

@@ -15,9 +15,14 @@
  */
 
 import type { IRI } from "@metreeca/core/resource";
-import type { Localised, Resource } from "@metreeca/qest/state";
+import type { Localised, Resource } from "@metreeca/qest/resource";
 import { assertType, describe, expectTypeOf, test } from "vitest";
 import type { BooleanShape } from "./boolean.js";
+import { localised, type LocalisedShape } from "./localised.js";
+import { integer, type NumberShape } from "./number.js";
+import { reference, type ReferenceShape } from "./reference.js";
+import { property, resource, type ResourceShape } from "./resource.js";
+import { string, type StringShape } from "./string.js";
 import {
 	type Cardinality,
 	type Infer,
@@ -27,11 +32,7 @@ import {
 	required,
 	union,
 	type ValuesShape
-} from "./index.js";
-import { localised, type LocalisedShape } from "./localised.js";
-import { integer, type NumberShape } from "./number.js";
-import { property, reference, type ReferenceShape, resource, type ResourceShape } from "./resource.js";
-import { string, type StringShape } from "./string.js";
+} from "./value.js";
 
 
 describe("Infer", () => {

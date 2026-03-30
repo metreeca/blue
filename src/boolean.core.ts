@@ -23,7 +23,7 @@
 import { isBoolean } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import type { BooleanShape } from "./boolean.js";
-import { collect, TraceError } from "./core/trace.js";
+import { collect, TraceError } from "./index.core.js";
 import type { Trace } from "./index.js";
 
 

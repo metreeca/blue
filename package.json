@@ -25,10 +25,12 @@
   "sideEffects": false,
   "exports": {
     ".": "./dist/index.js",
+    "./value": "./dist/value.js",
     "./boolean": "./dist/boolean.js",
     "./number": "./dist/number.js",
     "./string": "./dist/string.js",
     "./localised": "./dist/localised.js",
+    "./reference": "./dist/reference.js",
     "./resource": "./dist/resource.js"
   },
   "files": [

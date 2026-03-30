@@ -46,26 +46,46 @@ npm install @metreeca/blue
 >
 > This section introduces essential concepts; for complete coverage, see the API reference:
 >
-> | Module                                                                           | Description                               |
-> |----------------------------------------------------------------------------------|-------------------------------------------|
-> | [@metreeca/blue](https://metreeca.github.io/blue/modules/index.html)             | Casic shapes and validation API           |
-> | [@metreeca/blue/boolean](https://metreeca.github.io/blue/modules/boolean.html)   | Boolean shape model and factories         |
-> | [@metreeca/blue/number](https://metreeca.github.io/blue/modules/number.html)     | Numeric shape model and factories         |
-> | [@metreeca/blue/string](https://metreeca.github.io/blue/modules/string.html)     | Textual shape model and factories         |
-> | [@metreeca/blue/local](https://metreeca.github.io/blue/modules/local.html)       | Language-tagged shape model and factories |
-> | [@metreeca/blue/resource](https://metreeca.github.io/blue/modules/resource.html) | Resource shape model and factories        |
+> | Module                         | Description                                |
+> |--------------------------------|--------------------------------------------|
+> | [@metreeca/blue]               | Linked data validation API                 |
+> | [@metreeca/blue/value]         | Composite shapes and cardinality factories |
+> | [@metreeca/blue/boolean]       | Boolean shape and factories                |
+> | [@metreeca/blue/number]        | Numeric shape and factories                |
+> | [@metreeca/blue/string]        | Textual shape and factories                |
+> | [@metreeca/blue/localised]     | Localised text shape and factories         |
+> | [@metreeca/blue/reference]     | Reference shape and factories              |
+> | [@metreeca/blue/resource]      | Resource shape and factories               |
+
+[@metreeca/blue]: https://metreeca.github.io/blue/modules/index.html
+
+[@metreeca/blue/value]: https://metreeca.github.io/blue/modules/value.html
+
+[@metreeca/blue/boolean]: https://metreeca.github.io/blue/modules/boolean.html
+
+[@metreeca/blue/number]: https://metreeca.github.io/blue/modules/number.html
+
+[@metreeca/blue/string]: https://metreeca.github.io/blue/modules/string.html
+
+[@metreeca/blue/localised]: https://metreeca.github.io/blue/modules/localised.html
+
+[@metreeca/blue/reference]: https://metreeca.github.io/blue/modules/reference.html
+
+[@metreeca/blue/resource]: https://metreeca.github.io/blue/modules/resource.html
+
 
 ## Defining Schemas
 
 Schemas describe the expected structure of a resource using shape factories:
 
 ```ts
+import { multiple, optional, required, union } from "@metreeca/blue/value";
 import { boolean } from "@metreeca/blue/boolean";
-import { local } from "@metreeca/blue/local";
 import { number } from "@metreeca/blue/number";
-import { multiple, optional, required, union } from "@metreeca/blue";
-import { id, reference, resource, type } from "@metreeca/blue/resource";
 import { string, url } from "@metreeca/blue/string";
+import { localised } from "@metreeca/blue/localised";
+import { reference } from "@metreeca/blue/reference";
+import { id, resource, type } from "@metreeca/blue/resource";
 
 function Thing() {
 	return resource({
@@ -76,8 +96,8 @@ function Thing() {
 
 function Product() {
 	return resource({ extends: Thing }, {
-		name: required(local()),
-		description: optional(local()),
+		name: required(localised()),
+		description: optional(localised()),
 		price: required(number({ minInclusive: 0 })),
 		inStock: required(boolean()),
 		tags: multiple(string()),
@@ -106,8 +126,8 @@ function Vendor() {
 }
 ```
 
-Shape factories like `string()`, `number()`, `boolean()`, `local()`, and `reference()` define the expected value type
-and optional constraints for each property. Cardinality helpers wrap shape factories to control how many values are
+Shape factories like `string()`, `number()`, `boolean()`, `localised()`, and `reference()` define the expected value
+type and optional constraints for each property. Cardinality helpers wrap shape factories to control how many values are
 expected and to determine the inferred TypeScript type:
 
 | Factory         | Cardinality | TypeScript Type             |
@@ -142,7 +162,7 @@ union values are keyed by variant name:
 Schemas double as TypeScript type definitions. The `Infer` utility extracts the model type:
 
 ```ts
-import { type Infer } from "@metreeca/blue";
+import { type Infer } from "@metreeca/blue/value";
 
 type ProductType = Infer<typeof Product>;
 
@@ -163,45 +183,49 @@ No separate interface needed — the schema is the type definition.
 
 ## Validating Resources
 
-The `validate` function checks a value against a schema and returns a `Relay` that dispatches to either a `value` or
-`trace` handler:
+The overloaded `validate` function checks a value against a schema and returns a
+[Relay](https://metreeca.github.io/core/types/relay.Relay.html) that dispatches to either a `value` or `trace` handler:
 
 ```ts
-const result = validate(data, Product);
+import { validate } from "@metreeca/blue";
 
-result({
+validate(data, { shape: Product })({
 	value: product => {
 		// product is typed as Infer<typeof Product>
 	},
-	trace: errors => {
-		// errors describes validation violations
+	trace: trace => {
+		// trace describes validation violations
 	}
 });
 ```
 
-The same schema validates different kinds of CRUD payloads, each corresponding to a data type defined
-by [@metreeca/qest](https://metreeca.github.io/qest/):
+All constraints are enforced, including type, cardinality, closed-shape checks, and custom validators. Unknown and
+missing properties are both rejected. On success, the value is an immutable copy validated against a verified and
+flattened copy of the shape. The function is idempotent on a specific shape: re-validation against the same shape
+trusts the previous result without repeating the validation process.
 
-- **`"state"`** — Create/Replace ([`Resource`](https://metreeca.github.io/qest/types/state.Resource.html), default); all
-	constraints enforced, missing and unknown properties rejected
-- **`"model"`** — Retrieve ([`Model`](https://metreeca.github.io/qest/types/model.Model.html)); entry point for
-	retrieval projections, only type compatibility checked, missing properties accepted as not requested
+## Validating Templates
+
+The same `validate` function validates retrieval
+[templates](https://metreeca.github.io/qest/types/template.Template.html) when the `fetch` option is set to `true`:
 
 ```ts
-validate(model, Product, { mode: "model" }); // retrieval model
+import { validate } from "@metreeca/blue";
+
+validate(data, { fetch: true, shape: Product });
+validate(data, { fetch: true, shape: Product, plain: true });
+validate(data, { fetch: true, shape: Product, depth: 0 });
 ```
 
-> [!IMPORTANT]
+Type and structural constraints are enforced; value constraints are skipped as query values are placeholders. Missing
+properties are accepted as not requested. Where a property specifies a reference shape, the query may be either an IRI
+reference or a nested template validated against the target shape.
+
+> [!CAUTION]
 >
-> In `"model"` mode, nested resource and reference expansion is controlled by the `depth` option, which
-> defaults to `0` — rejecting any nested model while still accepting IRI references. Set `depth` to a positive
-> integer to allow that many levels of nesting, or to `null` for unlimited depth.
->
-> ```ts
-> validate(model, Product, { mode: "model" });                // depth 0 (default) — flat projections only
-> validate(model, Product, { mode: "model", depth: 2 });      // up to 2 levels of nesting
-> validate(model, Product, { mode: "model", depth: null });   // unlimited nesting
-> ```
+> By default, templates support the full query language, including aggregate transforms and nested expansion.
+> When exposing endpoints to untrusted clients, restrict query complexity as required by setting `plain`
+> to `true` and/or `depth` to `0` or a positive value.
 
 # SHACL Foundations
 

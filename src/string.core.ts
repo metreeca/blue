@@ -22,9 +22,49 @@
 
 import { isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
-import { collect, every, group, TraceError, wrap } from "./core/trace.js";
+import { collect, every, group, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
 import type { StringShape } from "./string.js";
+
+
+/**
+ * Checks internal consistency of string shape constraints.
+ *
+ * @param constraints The constraint fields to validate
+ *
+ * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
+ */
+export function checkString({
+
+	minLength,
+	maxLength,
+
+	in: allowed,
+	hasValue
+
+}: {
+
+	readonly minLength?: number;
+	readonly maxLength?: number;
+
+	readonly in?: readonly string[];
+	readonly hasValue?: readonly string[];
+
+}): undefined | Trace {
+
+	return collect({
+
+		"{minLength/maxLength}": minLength === undefined || maxLength === undefined
+			|| minLength <= maxLength
+			|| `inconsistent bounds <${minLength}> > <${maxLength}>`,
+
+		"{hasValue/in}": hasValue === undefined || allowed === undefined
+			|| hasValue.every(v => allowed.includes(v))
+			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`
+
+	});
+
+}
 
 
 /**
@@ -180,45 +220,6 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 
 		in: allowed as StringShape["in"],
 		hasValue: hasValue as StringShape["hasValue"]
-
-	});
-
-}
-
-/**
- * Checks internal consistency of string shape constraints.
- *
- * @param constraints The constraint fields to validate
- *
- * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
- */
-export function checkString({
-
-	minLength,
-	maxLength,
-
-	in: allowed,
-	hasValue
-
-}: {
-
-	readonly minLength?: number;
-	readonly maxLength?: number;
-
-	readonly in?: readonly string[];
-	readonly hasValue?: readonly string[];
-
-}): undefined | Trace {
-
-	return collect({
-
-		"{minLength/maxLength}": minLength === undefined || maxLength === undefined
-			|| minLength <= maxLength
-			|| `inconsistent bounds <${minLength}> > <${maxLength}>`,
-
-		"{hasValue/in}": hasValue === undefined || allowed === undefined
-			|| hasValue.every(v => allowed.includes(v))
-			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`
 
 	});
 

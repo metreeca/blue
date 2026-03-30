@@ -15,7 +15,7 @@
  */
 
 /**
- * Textual shape model and factories.
+ * Textual shape and factories.
  *
  * Defines shapes and factories for validating textual values, mapping the
  * [JSON string](https://datatracker.ietf.org/doc/html/rfc8259#section-7) type to
@@ -101,7 +101,9 @@
  * **Using in Resource Shapes**
  *
  * ```typescript
- * import { resource, required, optional, string, email, date } from '@metreeca/blue';
+ * import { required, optional } from '@metreeca/blue/value';
+ * import { resource } from '@metreeca/blue/resource';
+ * import { string, email, date } from '@metreeca/blue/string';
  *
  * const Person = resource({
  *   name: required(string({ minLength: 1 })),
@@ -120,7 +122,7 @@
 import { isRegExp, isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import type { Variant } from "@metreeca/core/resource";
-import { TraceError } from "./core/trace.js";
+import { TraceError } from "./index.core.js";
 import { checkString } from "./string.core.js";
 
 
@@ -279,7 +281,7 @@ export interface TextualConstraints {
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Creates a string shape with a typed model value and no other constraints.
@@ -349,7 +351,7 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Textual Shorthands ////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Creates a shape for email address values.
@@ -428,7 +430,7 @@ export function url(constraints: TextualConstraints = {}): StringShape {
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Temporal Shorthands ///////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Creates a shape for ISO 8601 year values (YYYY).

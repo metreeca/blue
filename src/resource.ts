@@ -15,7 +15,7 @@
  */
 
 /**
- * Resource shape model and factories.
+ * Resource shape and factories.
  *
  * Provides shapes for validating linked data resources with property definitions, cardinality constraints, and
  * inheritance. Resource shapes define the expected structure of linked data resources using a SHACL-based model with
@@ -31,23 +31,16 @@
  * > [decodeResource](https://metreeca.github.io/qest/functions/state.decodeResource.html) or
  * > [decodeQuery](https://metreeca.github.io/qest/functions/query.decodeQuery.html).
  *
- * **Resource Metadata**
- *
- * Use {@link identify} and {@link classify} to retrieve the `id` and `type` metadata of resources given
- * the associated {@link ResourceShape}.
- *
- * ```typescript
- * identify(product, shape); // resource identifier or undefined
- * classify(product, shape); // resource type or undefined
- * ```
- *
  * **Defining Resource Shapes**
  *
  * Combine property definitions with value ranges to define resource structures:
  *
  * ```typescript
- * import { resource, id, required, optional, repeatable } from '@metreeca/blue';
- * import { string, integer, boolean, reference } from '@metreeca/blue';
+ * import { required, optional, repeatable } from '@metreeca/blue/value';
+ * import { resource, id } from '@metreeca/blue/resource';
+ * import { reference } from '@metreeca/blue/reference';
+ * import { string, integer } from '@metreeca/blue/string';
+ * import { boolean } from '@metreeca/blue/boolean';
  *
  * const Product = resource({
  *   id: id(),
@@ -63,8 +56,8 @@
  * Ranges define cardinality constraints for property values:
  *
  * ```typescript
- * import { required, optional, multiple, repeatable, cardinality } from '@metreeca/blue';
- * import { string } from '@metreeca/blue';
+ * import { required, optional, multiple, repeatable, cardinality } from '@metreeca/blue/value';
+ * import { string } from '@metreeca/blue/string';
  * import { resource, property } from '@metreeca/blue/resource';
  *
  * const Shape = resource({
@@ -80,8 +73,8 @@
  * or labels are needed:
  *
  * ```typescript
- * import { required } from '@metreeca/blue';
- * import { string } from '@metreeca/blue';
+ * import { required } from '@metreeca/blue/value';
+ * import { string } from '@metreeca/blue/string';
  * import { resource, property } from '@metreeca/blue/resource';
  * import { createNamespace } from '@metreeca/core/resource';
  *
@@ -94,17 +87,19 @@
  *
  * **Resource References and Embedding**
  *
- * Resource properties link to other resources in two ways. A {@link reference} wrapper links to a **standalone
- * resource** — an independently identified and managed entity. A direct shape inclusion defines an **embedded
- * resource** — a nested object with no independent identity, created and managed together with its parent.
+ * Resource properties link to other resources in two ways. A {@link reference!reference | reference} wrapper links to
+ * a **standalone resource** — an independently identified and managed entity. A direct shape inclusion defines an
+ * **embedded resource** — a nested object with no independent identity, created and managed together with its parent.
  *
  * > [!NOTE]
  * > In state validation, embedded resources are always validated as complete states.
  *
  * ```typescript
- * import { required, optional } from '@metreeca/blue';
- * import { string, number } from '@metreeca/blue';
- * import { resource, id, reference } from '@metreeca/blue/resource';
+ * import { required, optional } from '@metreeca/blue/value';
+ * import { string } from '@metreeca/blue/string';
+ * import { number } from '@metreeca/blue/number';
+ * import { resource, id } from '@metreeca/blue/resource';
+ * import { reference } from '@metreeca/blue/reference';
  *
  * const Rating = resource({
  *   average: required(number({ minInclusive: 0, maxInclusive: 5 })),
@@ -124,8 +119,8 @@
  * });
  * ```
  *
- * Use {@link foreign} for reverse links managed by the target resource. Foreign references are read-only from the
- * source resource perspective: included in responses but rejected in state updates.
+ * Use {@link reference!foreign | foreign} for reverse links managed by the target resource. Foreign references are
+ * read-only from the source resource perspective: included in responses but rejected in state updates.
  *
  * Self-referential shapes use lazy factories:
  *
@@ -144,9 +139,10 @@
  * Extend parent shapes to inherit properties and constraints:
  *
  * ```typescript
- * import { required } from '@metreeca/blue';
- * import { string, integer } from '@metreeca/blue';
- * import { resource, id, reference } from '@metreeca/blue/resource';
+ * import { required } from '@metreeca/blue/value';
+ * import { string, integer } from '@metreeca/blue/string';
+ * import { resource, id } from '@metreeca/blue/resource';
+ * import { reference } from '@metreeca/blue/reference';
  *
  * const NamedEntity = resource({
  *   id: id(),
@@ -174,16 +170,17 @@
  *
  * **Polymorphic Properties**
  *
- * Use {@link index!union | union} for properties accepting multiple value types. Unions are pure type
+ * Use {@link value!union | union} for properties accepting multiple value types. Unions are pure type
  * discriminators — cardinality constraints belong on the enclosing {@link SetShape}, not on individual variants.
  * At runtime, union values are represented as {@link @metreeca/qest!Indexed | Indexed} records mapping variant names
  * to their values, corresponding to JSON-LD [indexed containers](https://www.w3.org/TR/json-ld11/#data-indexing)
  * (`@container: @index`):
  *
  * ```typescript
- * import { union, optional, required } from '@metreeca/blue';
- * import { string } from '@metreeca/blue';
- * import { resource, reference } from '@metreeca/blue/resource';
+ * import { union, optional, required } from '@metreeca/blue/value';
+ * import { string } from '@metreeca/blue/string';
+ * import { resource } from '@metreeca/blue/resource';
+ * import { reference } from '@metreeca/blue/reference';
  *
  * const PostalAddress = resource({
  *   street: required(string()),
@@ -260,14 +257,15 @@
 
 import { type Identifier, isFunction, isString, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
-import { asIRI, createNamespace, type IRI, isIRI, type Namespace } from "@metreeca/core/resource";
+import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
 import { defaultBase, Reference } from "@metreeca/qest";
-import type { Localised, Resource, Value } from "@metreeca/qest/state";
-import { materialize } from "./core/cache.js";
-import { TraceError } from "./core/trace.js";
-import type { Cardinality, Declared, Infer, SetShape, UnionShape, Validator } from "./index.js";
+import type { Localised, Resource, Value } from "@metreeca/qest/resource";
+import { TraceError } from "./index.core.js";
+import type { Validator } from "./index.js";
 import type { LocalisedShape } from "./localised.js";
 import { checkSingletons, flatten } from "./resource.core.js";
+import { materialize } from "./value.core.js";
+import type { Cardinality, Declared, Infer, SetShape, UnionShape } from "./value.js";
 
 
 /**
@@ -279,68 +277,6 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Shape definition for resource references.
- *
- * **Inheritance**
- *
- * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, reference-valued
- * properties are merged according to the following rules. The *child* is the extending shape; the *parent* is the
- * inherited shape.
- *
- * | Field      | Override Rule                                                             |
- * | ---------- | ------------------------------------------------------------------------ |
- * | `kind`     | Cannot be overridden                                                     |
- * | `model`    | Must be strictly equal — mismatch signals incompatible shapes            |
- * | `foreign`  | Cannot be overridden                                                     |
- * | `shape`    | Cannot be overridden                                                     |
- *
- * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
- */
-export interface ReferenceShape {
-
-	/**
-	 * Discriminator identifying this as a reference shape.
-	 *
-	 * **Inheritance** — cannot be overridden.
-	 */
-	readonly kind: "reference";
-
-	/**
-	 * Prototype value for runtime model assembly.
-	 *
-	 * **Inheritance** — must be strictly equal between parent and child.
-	 *
-	 * @defaultValue `"app:/"`
-	 */
-	readonly model: Reference;
-
-
-	/**
-	 * Marks the reference as a reverse link managed by the target resource.
-	 *
-	 * Foreign references are read-only from the source resource perspective: included in responses but rejected in
-	 * state updates. The forward link is owned by the target resource, not by the source resource declaring the
-	 * foreign reference.
-	 *
-	 * **Inheritance** — cannot be overridden.
-	 *
-	 * @defaultValue `undefined` (`false`)
-	 */
-	readonly foreign?: boolean;
-
-	/**
-	 * Target {@link ResourceShape resource shape} for the referenced resource.
-	 *
-	 * Accepts a lazy value to support circular and self-referential definitions.
-	 *
-	 * **Inheritance** — cannot be overridden.
-	 */
-	readonly shape: Lazy<ResourceShape>;
-
-}
-
 
 /**
  * Shape definition for linked data resources.
@@ -589,6 +525,9 @@ export interface ResourceConstraints {
  * Tags a resource property as mapping to JSON-LD `@id`. Created by the {@link id} factory. At most one per
  * resource shape.
  *
+ * > [!IMPORTANT]
+ * > Not allowed on embedded resource shapes, as embedded resources have no independent identity.
+ *
  * **Inheritance**
  *
  * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends}, identifier
@@ -629,7 +568,10 @@ export interface Id {
  * Tags a resource property as mapping to JSON-LD `@type`. Created by the {@link type} factory. At most one per
  * resource shape.
  *
- * > [!WARNING]
+ * > [!IMPORTANT]
+ * > Not allowed on embedded resource shapes, as embedded resources have no independent identity.
+ *
+ * > [!IMPORTANT]
  * > This property is system-managed: its value is derived from the {@link ResourceConstraints.class | class}
  * > constraint defined in the shape. Client-supplied values, for instance in state updates, are silently ignored.
  *
@@ -920,117 +862,7 @@ export type PropertyRange<E extends Entry> =
 			: never;
 
 
-//// Metadata //////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Retrieves the identifier of a resource.
- *
- * @typeParam T The resource type
- *
- * @param resource The resource to inspect
- * @param shape The {@link ResourceShape} describing `resource`
- *
- * @returns The resource identifier, if `shape` declares an {@link Id | id} property, `resource` includes one, and the
- *     value is a well-formed absolute IRI; `undefined` otherwise
- */
-export function identify<T extends Resource>(resource: T, shape: ResourceShape): undefined | Reference {
-
-	const key = Object.entries(shape.properties).find(([, p]) => p.kind === "id")?.[0];
-	const value = key !== undefined ? resource[key] : undefined;
-
-	return value !== undefined && isIRI(value, "absolute") ? value : undefined;
-
-}
-
-/**
- * Retrieves the type of a resource.
- *
- * @typeParam T The resource type
- *
- * @param resource The resource to inspect
- * @param shape The {@link ResourceShape} describing `resource`
- *
- * @returns The resource type if `shape` declares a {@link Type | type} property, `resource` includes one, and the
- *     value is a well-formed absolute IRI; `undefined` otherwise
- */
-export function classify<T extends Resource>(resource: T, shape: ResourceShape): undefined | Reference {
-
-	const key = Object.entries(shape.properties).find(([, p]) => p.kind === "type")?.[0];
-	const value = key !== undefined ? resource[key] : undefined;
-
-	return value !== undefined && isIRI(value, "absolute") ? value : undefined;
-
-}
-
-
-//// Resources /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Creates a reference shape for the given target {@link ResourceShape resource shape}.
- *
- * > [!WARNING]
- * > The target shape must include an {@link Id} property. This constraint is checked at runtime but not at compile
- * > time due to limitations with recursive type inference.
- *
- * > [!TIP]
- * > Always dereference {@link ReferenceShape.shape} through {@link resource | resource()} rather than calling the
- * > factory directly, to ensure the resulting shape is fully flattened.
- *
- *
- * @param shape The target resource shape, either directly or as a lazy function to support circular and
- *     self-referential definitions
- *
- * @returns An immutable shape for validating resource references
- *
- * @throws {TypeError} If `shape` is not a valid {@link ResourceShape}
- */
-export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
-
-	return immutable({
-
-		kind: "reference",
-		model: "app:/",
-
-		shape
-
-	});
-
-}
-
-/**
- * Creates a foreign reference shape for the given target {@link ResourceShape resource shape}.
- *
- * Foreign references are reverse links managed by the target resource. They are read-only from the source resource
- * perspective: included in responses but rejected in state updates.
- *
- * > [!TIP]
- * > Always dereference {@link ReferenceShape.shape} through {@link resource | resource()} rather than calling the
- * > factory directly, to ensure the resulting shape is fully flattened.
- *
- *
- * @param shape The target resource shape, either directly or as a lazy function to support circular and
- *     self-referential definitions
- *
- * @returns An immutable foreign reference shape with `foreign` set to `true`
- *
- * @throws {TypeError} If `shape` is not a valid {@link ResourceShape}
- *
- * @see {@link reference}
- */
-export function foreign(shape: Lazy<ResourceShape>): ReferenceShape {
-
-	return immutable({
-
-		kind: "reference",
-		model: "app:/",
-
-		foreign: true,
-		shape
-
-	});
-
-}
-
+//// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Creates a resource shape from a lazy definition.
@@ -1407,18 +1239,16 @@ export function resource(
 }
 
 
-//// Properties ////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /**
  * Creates a property shape for the resource identifier.
  *
- * Maps to JSON-LD `@id` and provides a required single absolute IRI property.
+ * Maps to JSON-LD `@id` and provides an optional single absolute IRI property.
  *
  *
  * @param constraints The identifier property constraints
  * @param constraints.hidden Excludes the property from default serialisation
  *
- * @returns An immutable required single IRI (1..1) property shape for the resource identifier
+ * @returns An immutable optional single IRI (0..1) property shape for the resource identifier
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#node-identifiers JSON-LD 1.1 § 3.3 Node Identifiers}
  */

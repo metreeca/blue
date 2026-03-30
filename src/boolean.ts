@@ -15,7 +15,7 @@
  */
 
 /**
- * Boolean shape model and factories.
+ * Boolean shape and factories.
  *
  * Defines shapes and factories for validating boolean values, mapping the
  * [JSON boolean](https://datatracker.ietf.org/doc/html/rfc8259#section-3) type to the
@@ -49,7 +49,9 @@
  * **Using in Resource Shapes**
  *
  * ```typescript
- * import { resource, required, optional, boolean } from '@metreeca/blue';
+ * import { required, optional } from '@metreeca/blue/value';
+ * import { resource } from '@metreeca/blue/resource';
+ * import { boolean } from '@metreeca/blue/boolean';
  *
  * const Product = resource({
  *   available: required(boolean()),
@@ -123,7 +125,7 @@ export interface BooleanConstraints {
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Creates a boolean shape with a typed model value and no other constraints.

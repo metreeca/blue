@@ -15,14 +15,14 @@
  */
 
 /**
- * Language-tagged shape model and factories.
+ * Localised text shape and factories.
  *
  * Defines shapes and factories for validating language-tagged string values, mapping
  * [JSON-LD language maps](https://www.w3.org/TR/json-ld11/#language-maps) to
  * [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string) language-tagged strings.
  *
  * Whether each tag holds a single string or a string array is determined by the cardinality of the enclosing
- * {@link index!SetShape | SetShape}, not by the shape itself:
+ * {@link value!SetShape | SetShape}, not by the shape itself:
  *
  * - Scalar cardinality (`maxCount === 1`): each tag holds a single string
  * - Array cardinality (`maxCount > 1` or unbounded): each tag holds a string array
@@ -33,7 +33,7 @@
  * to the `*` (wildcard) tag:
  *
  * ```typescript
- * import { required, optional, multiple } from '@metreeca/blue';
+ * import { required, optional, multiple } from '@metreeca/blue/value';
  * import { localised } from '@metreeca/blue/localised';
  *
  * const label = required(localised());                                   // scalar: { "*": "" }
@@ -46,7 +46,7 @@
  * **Using in Resource Shapes**
  *
  * ```typescript
- * import { required, optional, multiple } from '@metreeca/blue';
+ * import { required, optional, multiple } from '@metreeca/blue/value';
  * import { localised } from '@metreeca/blue/localised';
  * import { resource } from '@metreeca/blue/resource';
  *
@@ -66,16 +66,16 @@
 import { isArray, isObject, isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { type TagRange } from "@metreeca/core/language";
-import { type Locale } from "@metreeca/qest/model";
-import { type Localised } from "@metreeca/qest/state";
-import { TraceError } from "./core/trace.js";
+import { type Localised } from "@metreeca/qest/resource";
+import { type Locale } from "@metreeca/qest/template";
+import { TraceError } from "./index.core.js";
 import { checkLocalised } from "./localised.core.js";
 
 
 /**
  * Shape definition for language-tagged string values.
  *
- * Cardinality of the enclosing {@link index!SetShape | SetShape} determines whether each tag holds a single
+ * Cardinality of the enclosing {@link value!SetShape | SetShape} determines whether each tag holds a single
  * string or a string array.
  *
  * **Inheritance**
@@ -166,7 +166,7 @@ export interface LocalisedConstraints {
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Creates a language-tagged map shape with a typed model value and no other constraints.

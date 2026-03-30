@@ -25,8 +25,8 @@
 
 import { asTagRange } from "@metreeca/core/language";
 import { describe, expectTypeOf, test } from "vitest";
-import { multiple, optional, repeatable, required } from "./index.js";
 import { localised, type LocalisedShape } from "./localised.js";
+import { multiple, optional, repeatable, required } from "./value.js";
 
 
 describe("LocalisedShape", () => {
