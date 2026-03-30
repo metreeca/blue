@@ -290,7 +290,15 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
  *
  * @returns A keyed trace of constraint violations per property, or `undefined` if all resources are valid
  */
-export function validateResource(values: readonly unknown[], shape: ResourceShape): undefined | Trace {
+export function validateResource(values: readonly unknown[], shape: ResourceShape, {
+
+	entry
+
+}: {
+
+	readonly entry?: Reference
+
+} = {}): undefined | Trace {
 
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
@@ -361,6 +369,12 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 			"{kind}": Array.isArray(value) ? "expected single value"
 				: !isReference(value) ? "expected absolute IRI"
+					: undefined,
+
+			// entry validation
+
+			"{entry}": entry === undefined || !isReference(value) ? undefined
+				: value !== entry ? `mismatched entry <${entry}>`
 					: undefined,
 
 			// constraint validation (conjunctive across inheritance lineage)

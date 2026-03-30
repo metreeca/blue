@@ -151,6 +151,9 @@ export type Validator<T = unknown> =
  * @param value The value to validate as a resource
  * @param opts Validation options
  * @param opts.shape The {@link Lazy} {@link ResourceShape} defining validation constraints
+ * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} entry; if provided and the
+ *     resource contains an `id` property, the `id` value must match this reference exactly; ignored if the resource
+ *     has no `id` entry
  *
  * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the
  *     value is an immutable copy validated against a verified and flattened copy of the shape
@@ -164,6 +167,8 @@ export function validate<T extends Resource>(value: unknown, opts: {
 	readonly fetch?: false
 
 	readonly shape: Lazy<ResourceShape & { model: T }>
+
+	readonly entry?: Reference
 
 }): Relay<{
 
@@ -233,6 +238,8 @@ export function validate(value: unknown, {
 	fetch,
 	shape,
 
+	entry,
+
 	plain,
 	depth
 
@@ -240,6 +247,8 @@ export function validate(value: unknown, {
 
 	readonly fetch?: boolean
 	readonly shape: Lazy<ResourceShape>
+
+	readonly entry?: Reference
 
 	readonly plain?: boolean
 	readonly depth?: number
@@ -292,20 +301,23 @@ export function validate(value: unknown, {
 			readonly fetch: boolean
 			readonly shape: ResourceShape
 
+			readonly entry?: Reference
+
 		}>(value, Validated);
 
 		if ( sealed !== undefined && !sealed.fetch
 			&& materialized === sealed.shape
+			&& (entry === undefined || sealed.entry === entry)
 		) {
 
 			return createRelay({ value });
 
 		} else {
 
-			const trace = validateResource([value], materialized);
+			const trace = validateResource([value], materialized, { entry });
 
 			return trace === undefined
-				? createRelay({ value: seal(value, Validated, { fetch: false, shape: materialized }) })
+				? createRelay({ value: seal(value, Validated, { fetch: false, shape: materialized, entry }) })
 				: createRelay({ trace });
 
 		}

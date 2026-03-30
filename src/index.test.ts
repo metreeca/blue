@@ -931,6 +931,55 @@ describe("validation", () => {
 
 		});
 
+		describe("entry", () => {
+
+			it("accepts resource when id matches entry", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const result = validate({ id: "app:/users/1", name: "Alice" }, { shape, entry: "app:/users/1" });
+
+				expect(result({ value: v => v })).toEqual({ id: "app:/users/1", name: "Alice" });
+
+			});
+
+			it("rejects resource when id does not match entry", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const result = validate({ id: "app:/users/2", name: "Alice" }, { shape, entry: "app:/users/1" });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("ignores entry when resource has no id property", async () => {
+
+				const shape = resource({ name: required(string()) });
+				const result = validate({ name: "Alice" }, { shape, entry: "app:/users/1" });
+
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+			});
+
+			it("ignores entry when resource id is undefined", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const result = validate({ name: "Alice" }, { shape, entry: "app:/users/1" });
+
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+			});
+
+			it("accepts resource when entry is not provided", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const result = validate({ id: "app:/users/1", name: "Alice" }, { shape });
+
+				expect(result({ value: v => v })).toEqual({ id: "app:/users/1", name: "Alice" });
+
+			});
+
+		});
+
 		describe("return behaviour", () => {
 
 			it("returns a new reference on success", async () => {
@@ -1030,6 +1079,51 @@ describe("validation", () => {
 
 				const invalid = validate({}, { shape });
 				expect(invalid({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("revalidates when entry changes", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+
+				const value = { id: "app:/users/1", name: "Alice" };
+				const first = validate(value, { shape, entry: "app:/users/1" });
+				const branded = first({ value: v => v });
+
+				// different entry should revalidate
+
+				const second = validate(branded, { shape, entry: "app:/users/2" });
+				expect(second({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("revalidates when entry is added", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+
+				const value = { id: "app:/users/1", name: "Alice" };
+				const first = validate(value, { shape });
+				const branded = first({ value: v => v });
+
+				// adding entry should revalidate
+
+				const second = validate(branded, { shape, entry: "app:/users/2" });
+				expect(second({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("skips validation when entry matches previous", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+
+				const value = { id: "app:/users/1", name: "Alice" };
+				const first = validate(value, { shape, entry: "app:/users/1" });
+				const branded = first({ value: v => v });
+
+				// same entry should skip revalidation
+
+				const second = validate(branded, { shape, entry: "app:/users/1" });
+				expect(second({ value: v => v })).toBe(branded);
 
 			});
 

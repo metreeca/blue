@@ -15,6 +15,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	idempotent on a specific shape, skipping re-validation when the same shape and compatible options are presented again
 - Add `plain` option to template validation for rejecting aggregate transforms (count, sum, min, max, avg); defaults
 	to `false`
+- Add `entry` option to resource validation for matching the resource's `id` entry against an expected reference;
+	ignored when the resource has no `id` entry; idempotency sealing accounts for the entry value
 - Add `depth` option to template validation for limiting nested reference and resource expansion and property path
 	length in queries; `0` rejects nested templates while still accepting IRI references; defaults to unlimited
 - Add `reference` module with `ReferenceShape` interface, `reference()` and `foreign()` factories
