@@ -4063,7 +4063,7 @@ describe("operators", () => {
 
 			});
 
-			it("accepts collection resource query when depth is 1", async () => {
+			it("accepts collection resource query when depth allows path", async () => {
 
 				const Target = resource({ name: required(string()) });
 
@@ -4071,7 +4071,8 @@ describe("operators", () => {
 					items: multiple(reference(Target))
 				});
 
-				expect(validateTemplate([{ items: [{ name: "x" }] }], Outer, { depth: 1 })).toBeUndefined();
+				// depth 2 → depth 1 inside query → 1-step path ok
+				expect(validateTemplate([{ items: [{ name: "x" }] }], Outer, { depth: 2 })).toBeUndefined();
 
 			});
 
@@ -4087,6 +4088,142 @@ describe("operators", () => {
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty(["[0]", "items", "===invalid"]);
+
+			});
+
+			it("accepts single-step path within depth budget", async () => {
+
+				const Target = resource({ name: required(string()), age: optional(integer()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 2 → depth 1 inside query → 1-step path ok
+				expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, { depth: 2 })).toBeUndefined();
+
+			});
+
+			it("rejects single-step path when depth budget is exhausted", async () => {
+
+				const Target = resource({ name: required(string()), age: optional(integer()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 1 → depth 0 inside query → 1-step path rejected
+				expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, { depth: 1 })).toBeDefined();
+
+			});
+
+			it("accepts two-step path within depth budget", async () => {
+
+				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
+				const Target = resource({ vendor: required(reference(Vendor)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 3 → depth 2 inside query → 2-step path ok
+				expect(validateTemplate([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, { depth: 3 })).toBeUndefined();
+
+			});
+
+			it("rejects two-step path when depth budget is insufficient", async () => {
+
+				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
+				const Target = resource({ vendor: required(reference(Vendor)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 2 → depth 1 inside query → 2-step path rejected
+				expect(validateTemplate([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, { depth: 2 })).toBeDefined();
+
+			});
+
+			it("accepts three-step path within depth budget", async () => {
+
+				const Category = resource({ label: required(string()) });
+				const Product = resource({ name: required(string()), category: required(reference(Category)) });
+				const Target = resource({ product: required(reference(Product)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 4 → depth 3 inside query → 3-step path ok
+				expect(validateTemplate([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, { depth: 4 })).toBeUndefined();
+
+			});
+
+			it("rejects three-step path when depth budget is insufficient", async () => {
+
+				const Category = resource({ label: required(string()) });
+				const Product = resource({ name: required(string()), category: required(reference(Category)) });
+				const Target = resource({ product: required(reference(Product)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 3 → depth 2 inside query → 3-step path rejected
+				expect(validateTemplate([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, { depth: 3 })).toBeDefined();
+
+			});
+
+			it("reduces path budget at nested levels", async () => {
+
+				const Inner = resource({ name: required(string()), tag: optional(string()) });
+				const Outer = resource({ items: multiple(reference(Inner)) });
+
+				// depth 2 → depth 1 inside query → 1-step path ok
+				expect(validateTemplate([{ items: [{ "^tag": "asc" }] }], Outer, { depth: 2 })).toBeUndefined();
+
+				// depth 3 → depth 2 inside query → 2-step path rejected
+				const Deep = resource({ label: required(string()) });
+				const Inner2 = resource({ ref: required(reference(Deep)), tag: optional(string()) });
+				const Outer2 = resource({ items: multiple(reference(Inner2)) });
+
+				expect(validateTemplate([{ items: [{ ">=ref.label": "x" }] }], Outer2, { depth: 2 })).toBeDefined();
+
+			});
+
+			it("enforces depth on projection paths", async () => {
+
+				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
+				const Target = resource({ vendor: required(reference(Vendor)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// projection path has 2 steps → rejected at depth 2 (depth 1 inside query)
+				expect(validateTemplate([{ items: [{ "rating=vendor.rating": 0 }] }], Wrapper, { depth: 2 })).toBeDefined();
+
+				// accepted at depth 3 (depth 2 inside query)
+				expect(validateTemplate([{ items: [{ "rating=vendor.rating": 0 }] }], Wrapper, { depth: 3 })).toBeUndefined();
+
+			});
+
+			it("enforces depth on keyword search paths", async () => {
+
+				const Vendor = resource({ name: required(string()) });
+				const Target = resource({ vendor: required(reference(Vendor)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// keyword path has 2 steps → rejected at depth 2 (depth 1 inside query)
+				expect(validateTemplate([{ items: [{ "~vendor.name": "test" }] }], Wrapper, { depth: 2 })).toBeDefined();
+
+				// accepted at depth 3 (depth 2 inside query)
+				expect(validateTemplate([{ items: [{ "~vendor.name": "test" }] }], Wrapper, { depth: 3 })).toBeUndefined();
+
+			});
+
+			it("enforces depth on option paths", async () => {
+
+				const Vendor = resource({ name: required(string()) });
+				const Target = resource({ vendor: required(reference(Vendor)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// option path has 2 steps → rejected at depth 2 (depth 1 inside query)
+				expect(validateTemplate([{ items: [{ "?vendor.name": ["a", "b"] }] }], Wrapper, { depth: 2 })).toBeDefined();
+
+				// accepted at depth 3 (depth 2 inside query)
+				expect(validateTemplate([{ items: [{ "?vendor.name": ["a", "b"] }] }], Wrapper, { depth: 3 })).toBeUndefined();
+
+			});
+
+			it("accepts paths without depth limit", async () => {
+
+				const Category = resource({ label: required(string()) });
+				const Product = resource({ category: required(reference(Category)) });
+				const Target = resource({ product: required(reference(Product)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				expect(validateTemplate([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, {})).toBeUndefined();
 
 			});
 

@@ -627,7 +627,11 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 				const probe = decodeProbe(key);
 
-				if ( plain && probe.pipe.some(isAggregate) ) {
+				if ( depth !== undefined && probe.path.length > depth ) {
+
+					return [key, "exceeded maximum path length"];
+
+				} else if ( plain && probe.pipe.some(isAggregate) ) {
 
 					return [key, "disabled aggregate transforms"];
 
