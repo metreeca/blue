@@ -15,6 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { TraceError } from "./index.core.js";
 import { mergeReference, validateReferences } from "./reference.core.js";
 import { reference } from "./reference.js";
 import { resource } from "./resource.js";
@@ -321,10 +322,10 @@ describe("operators", () => {
 
 		describe("foreign", () => {
 
-			it("preserves foreign from target", async () => {
+			it("inherits foreign from source", async () => {
 
 				const merged = mergeReference(
-					reference(resource({}), { foreign: true }),
+					reference(resource({})),
 					reference(resource({}), { foreign: true })
 				);
 
@@ -332,7 +333,7 @@ describe("operators", () => {
 
 			});
 
-			it("preserves absent foreign from target", async () => {
+			it("preserves absent foreign when neither defines it", async () => {
 
 				const merged = mergeReference(reference(resource({})), reference(resource({})));
 
@@ -340,14 +341,23 @@ describe("operators", () => {
 
 			});
 
+			it("rejects foreign definition by target", async () => {
+
+				expect(() => mergeReference(
+					reference(resource({}), { foreign: true }),
+					reference(resource({}))
+				)).toThrow(TraceError);
+
+			});
+
 		});
 
 		describe("captive", () => {
 
-			it("preserves captive from target", async () => {
+			it("inherits captive from source", async () => {
 
 				const merged = mergeReference(
-					reference(resource({}), { captive: true }),
+					reference(resource({})),
 					reference(resource({}), { captive: true })
 				);
 
@@ -355,7 +365,7 @@ describe("operators", () => {
 
 			});
 
-			it("preserves absent captive from target", async () => {
+			it("preserves absent captive when neither defines it", async () => {
 
 				const merged = mergeReference(reference(resource({})), reference(resource({})));
 
@@ -363,18 +373,27 @@ describe("operators", () => {
 
 			});
 
+			it("rejects captive definition by target", async () => {
+
+				expect(() => mergeReference(
+					reference(resource({}), { captive: true }),
+					reference(resource({}))
+				)).toThrow(TraceError);
+
+			});
+
 		});
 
 		describe("shape", () => {
 
-			it("preserves shape from target", async () => {
+			it("inherits shape from source", async () => {
 
 				const target = resource({});
 				const source = resource({});
 
 				const merged = mergeReference(reference(target), reference(source));
 
-				expect(merged.shape).toBe(target);
+				expect(merged.shape).toBe(source);
 
 			});
 

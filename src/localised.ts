@@ -87,7 +87,7 @@ import { checkLocalised } from "./localised.core.js";
  * | Field        | Override Rule                                                               |
  * | ------------ | ----------------------------------------------------------------------------|
  * | `kind`       | Cannot be overridden                                                        |
- * | `model`      | Must be deeply equal — mismatch signals incompatible shapes                 |
+ * | `model`      | Child overrides parent; conflicting parents without child override are reported as an error |
  * | `minLength`  | Child ≥ parent, narrowing the minimum length                                |
  * | `maxLength`  | Child ≤ parent, narrowing the maximum length                                |
  * | `languageIn` | Intersection of parent and child sets; empty result is reported as an error |
@@ -114,7 +114,7 @@ export interface LocalisedShape extends LocalisedConstraints {
 	 * Always a normalised {@link Localised} map after construction; plain string and array shorthands
 	 * passed to the factory are normalised to the `*` (wildcard) tag.
 	 *
-	 * **Inheritance** — must be deeply equal between parent and child.
+	 * **Inheritance** — child overrides parent; conflicting parents without child override are reported as an error.
 	 *
 	 * @defaultValue `{ "*": "" }` (wildcard empty string)
 	 */

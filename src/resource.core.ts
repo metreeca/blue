@@ -21,7 +21,7 @@
  */
 
 import { type Identifier, isArray, isBoolean, isIdentifier, isNumber, isObject, isString } from "@metreeca/core";
-import { immutable, seal } from "@metreeca/core/deep";
+import { equals, immutable, seal } from "@metreeca/core/deep";
 import { message } from "@metreeca/core/report";
 import { type IRI } from "@metreeca/core/resource";
 import { defaultBase, type Reference } from "@metreeca/qest";
@@ -151,7 +151,13 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 					|| override?.computed !== undefined
 					|| `conflicting parent values <${inherited[0].computed}> vs <${
 						inherited.find(p => p.computed !== inherited[0].computed)?.computed
-					}> without child override`]
+					}> without child override`],
+
+					...inherited[0].range.shape.kind === "localised" ? [[`{${key}.model}`,
+						inherited.every(p => equals(p.range.shape.model, inherited[0].range.shape.model))
+						|| override !== undefined
+						|| `conflicting parent localised models without child override`
+					]] : []
 
 				];
 
@@ -1125,8 +1131,8 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
  * Merges an overriding property with an inherited base property.
  *
  * Delegates range merge to {@link mergeValues}. Inheritable fields (`hidden`, `computed`) fall back
- * to the source value when the target doesn't define them. Immutable fields (`name`, `description`,
- * `forward`, `reverse`) are preserved from the target.
+ * to the source value when the target doesn't define them. Non-overridable fields (`name`, `description`,
+ * `forward`, `reverse`) are inherited from the source; redefinition by the target is rejected.
  *
  * @param target The overriding child property
  * @param source The inherited parent property
@@ -1136,6 +1142,34 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
  * @throws {TraceError} On incompatible overrides
  */
 export function mergeProperty(target: Property, source: Property): Property {
+
+	const trace = collect({
+
+		// inherited: name must not be redefined by target (exact match tolerated for diamond inheritance)
+
+		"{name}": target.name === undefined || equals(target.name, source.name)
+			|| `unexpected <name> redefinition`,
+
+		// inherited: description must not be redefined by target (exact match tolerated for diamond inheritance)
+
+		"{description}": target.description === undefined || equals(target.description, source.description)
+			|| `unexpected <description> redefinition`,
+
+		// inherited: forward must not be redefined by target (exact match tolerated for diamond inheritance)
+
+		"{forward}": target.forward === undefined || target.forward === source.forward
+			|| `unexpected <forward> redefinition`,
+
+		// inherited: reverse must not be redefined by target (exact match tolerated for diamond inheritance)
+
+		"{reverse}": target.reverse === undefined || target.reverse === source.reverse
+			|| `unexpected <reverse> redefinition`
+
+	});
+
+	if ( trace !== undefined ) {
+		throw new TraceError("incompatible property override", trace);
+	}
 
 	return immutable({
 
@@ -1149,16 +1183,11 @@ export function mergeProperty(target: Property, source: Property): Property {
 			: source.computed !== undefined ? { computed: source.computed }
 				: {},
 
-		name: target.name,
-		description: target.description,
+		...source.name !== undefined && { name: source.name },
+		...source.description !== undefined && { description: source.description },
 
-		...target.forward !== undefined ? { forward: target.forward }
-			: source.forward !== undefined ? { forward: source.forward }
-				: {},
-
-		...target.reverse !== undefined ? { reverse: target.reverse }
-			: source.reverse !== undefined ? { reverse: source.reverse }
-				: {},
+		...source.forward !== undefined && { forward: source.forward },
+		...source.reverse !== undefined && { reverse: source.reverse },
 
 		range: mergeValues(target.range, source.range)
 

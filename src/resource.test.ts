@@ -6036,14 +6036,14 @@ describe("operators", () => {
 
 		describe("shape", () => {
 
-			it("preserves shape from target", async () => {
+			it("inherits shape from source", async () => {
 
 				const target = resource({});
 				const source = resource({});
 
 				const merged = mergeReference(reference(target), reference(source));
 
-				expect(merged.shape).toBe(target);
+				expect(merged.shape).toBe(source);
 
 			});
 
@@ -6635,51 +6635,65 @@ describe("operators", () => {
 
 			});
 
-			it("keeps target value when both define it", async () => {
+			it("rejects redefinition by target when source defines it", async () => {
 
-				const merged = mergeProperty(
+				expect(() => mergeProperty(
 					{ ...base, [field]: "http://target.org/term" },
 					{ ...base, [field]: "http://source.org/term" }
-				);
-
-				expect(merged[field]).toBe("http://target.org/term");
+				)).toThrow(TraceError);
 
 			});
 
-			it("keeps target value when source has none", async () => {
+			it("rejects definition by target when source has none", async () => {
 
-				const merged = mergeProperty(
+				expect(() => mergeProperty(
 					{ ...base, [field]: "http://target.org/term" },
 					base
-				);
-
-				expect(merged[field]).toBe("http://target.org/term");
+				)).toThrow(TraceError);
 
 			});
 
 		});
 
-		describe("immutable fields", () => {
+		describe.each([
+			{ field: "name" as const },
+			{ field: "description" as const }
+		])("$field", ({ field }) => {
 
-			it("preserves name from target", async () => {
+			it("inherits source value when target has none", async () => {
 
 				const merged = mergeProperty(
-					{ ...base, name: { en: "Name" } },
-					base
+					base,
+					{ ...base, [field]: { en: "Source" } }
 				);
 
-				expect(merged.name).toEqual({ en: "Name" });
+				expect(merged[field]).toEqual({ en: "Source" });
 
 			});
 
-			it("preserves description from target", async () => {
+			it("preserves absent value when neither defines it", async () => {
 
-				const merged = mergeProperty(
-					{ ...base, description: { en: "Desc" } },
+				const merged = mergeProperty(base, base);
+
+				expect(merged[field]).toBeUndefined();
+
+			});
+
+			it("rejects definition by target when source has none", async () => {
+
+				expect(() => mergeProperty(
+					{ ...base, [field]: { en: "Target" } },
 					base
-				);
+				)).toThrow(TraceError);
 
-				expect(merged.description).toEqual({ en: "Desc" });
+			});
+
+			it("rejects redefinition by target when source defines it", async () => {
+
+				expect(() => mergeProperty(
+					{ ...base, [field]: { en: "Target" } },
+					{ ...base, [field]: { en: "Source" } }
+				)).toThrow(TraceError);
 
 			});
 
@@ -7516,6 +7530,36 @@ describe("utilities", () => {
 				const parentA = resource({ field: property({ [field]: true }, required(string())) });
 				const parentB = resource({ field: property({ [field]: false }, required(string())) });
 				const child = resource({ field: property({ [field]: true }, required(string())) });
+
+				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
+
+			});
+
+			it("reports conflicting localised model without child override", async () => {
+
+				const parentA = resource({ label: required(localised({ en: "hello" })) });
+				const parentB = resource({ label: required(localised({ fr: "bonjour" })) });
+				const child = resource({}, {});
+
+				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeDefined();
+
+			});
+
+			it("returns undefined when parents agree on localised model", async () => {
+
+				const parentA = resource({ label: required(localised({ en: "hello" })) });
+				const parentB = resource({ label: required(localised({ en: "hello" })) });
+				const child = resource({}, {});
+
+				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
+
+			});
+
+			it("returns undefined when child overrides conflicting localised model", async () => {
+
+				const parentA = resource({ label: required(localised({ en: "hello" })) });
+				const parentB = resource({ label: required(localised({ fr: "bonjour" })) });
+				const child = resource({ label: required(localised({ de: "hallo" })) });
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
 

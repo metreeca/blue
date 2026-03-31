@@ -76,8 +76,8 @@ export function validateReferences(values: readonly unknown[], shape: ReferenceS
 /**
  * Merges an overriding reference shape with an inherited base shape.
  *
- * Structural fields (`kind`, `shape`) and {@link ReferenceConstraints} (`foreign`, `captive`) are preserved from the
- * target. Only `model` strict equality is checked.
+ * Validates `model` strict equality and rejects redefinition of non-overridable fields (`foreign`, `captive`, `shape`).
+ * Non-overridable fields are inherited from the source; `kind` and `model` are structural.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
@@ -93,7 +93,17 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 		// structural: model must be strictly equal
 
 		"{model}": target.model === source.model
-			|| `mismatched types <${target.model}> and <${source.model}>`
+			|| `mismatched types <${target.model}> and <${source.model}>`,
+
+		// inherited: foreign must not be redefined by target (exact match tolerated for diamond inheritance)
+
+		"{foreign}": target.foreign === undefined || target.foreign === source.foreign
+			|| `unexpected <foreign> redefinition`,
+
+		// inherited: captive must not be redefined by target (exact match tolerated for diamond inheritance)
+
+		"{captive}": target.captive === undefined || target.captive === source.captive
+			|| `unexpected <captive> redefinition`
 
 	});
 
@@ -106,10 +116,10 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 		kind: target.kind,
 		model: target.model,
 
-		...target.foreign !== undefined && { foreign: target.foreign },
-		...target.captive !== undefined && { captive: target.captive },
+		...source.foreign !== undefined && { foreign: source.foreign },
+		...source.captive !== undefined && { captive: source.captive },
 
-		shape: target.shape
+		shape: source.shape
 
 	});
 

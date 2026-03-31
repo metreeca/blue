@@ -302,8 +302,8 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | `kind`       | Cannot be overridden                                                                  |
  * | `model`      | Computed from properties, not user-defined                                            |
  * | `virtual`    | Inherited; conflicting parents without child override are reported as an error          |
- * | `name`       | Cannot be overridden                                                                  |
- * | `description`| Cannot be overridden                                                                  |
+ * | `name`       | Always from child; not inherited                                                      |
+ * | `description`| Always from child; not inherited                                                      |
  * | `namespace`  | Inherited; conflicting parents without child override are reported as an error          |
  * | `extends`    | Structural; outside inheritance scope                                                  |
  * | `class`      | Shape-specific target class; outside inheritance scope                                 |
@@ -394,7 +394,7 @@ export interface ResourceConstraints {
 	/**
 	 * Human-readable name for the shape.
 	 *
-	 * **Inheritance** — cannot be overridden.
+	 * **Inheritance** — always from child; not inherited.
 	 *
 	 * @remarks
 	 *
@@ -407,7 +407,7 @@ export interface ResourceConstraints {
 	/**
 	 * Human-readable description of the shape.
 	 *
-	 * **Inheritance** — cannot be overridden.
+	 * **Inheritance** — always from child; not inherited.
 	 *
 	 * @remarks
 	 *

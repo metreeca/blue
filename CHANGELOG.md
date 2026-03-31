@@ -58,6 +58,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Breaking:** Multi-valued union properties now represent values as a single indexed record with per-variant arrays
 	instead of an array of single-variant containers
 - **Breaking:** Union property values must always be indexed objects — bare scalar values are no longer accepted
+- **Breaking:** Enforce inherited semantics for non-overridable fields — `foreign`, `captive`, and `shape` in
+	`mergeReference()`; `name`, `description`, `forward`, and `reverse` in `mergeProperty()` are now inherited from the
+	parent and redefinition by the child is rejected
+- Detect conflicting localised `model` across parents in `checkParents()` — reports an error when multiple parents
+	define different models and the child does not override
 - Rename `ReferenceShape.backlink` property and `backlink()` factory to `foreign` for clarity
 - Rename `Union` type to `UnionShape` for naming consistency with other shape types
 - Redesign `Trace` type as a recursive `string | { readonly [key: string]: Trace }` union, replacing the mixed-array
