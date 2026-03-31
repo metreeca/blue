@@ -280,15 +280,16 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
 /**
  * Validates complete resource states against a {@link ResourceShape}.
  *
- * Checks resource-level constraints (pattern, in, hasValue), property cardinality and value constraints, closed shape
- * enforcement, custom validators, and inherited properties. Unknown properties are rejected. Returns
- * a keyed trace where outer keys are property names and inner keys are constraint names, or `undefined` if all
- * resources are valid.
+ * Checks resource-level constraints (`pattern`, `in`, `hasValue`), property cardinality and value constraints, closed
+ * shape enforcement, and custom {@link ResourceConstraints.validators | validators}. Unknown properties are rejected.
  *
  * @param values The resource instances to validate
  * @param shape The resource shape defining the expected structure
+ * @param opts Validation options
+ * @param opts.entry Expected {@link Reference} for the resource's identifier property; ignored when the resource has
+ *     no `id` entry
  *
- * @returns A keyed trace of constraint violations per property, or `undefined` if all resources are valid
+ * @returns A keyed {@link Trace} of constraint violations per property, or `undefined` if all resources are valid
  */
 export function validateResource(values: readonly unknown[], shape: ResourceShape, {
 
@@ -579,7 +580,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  * @param opts.limit Maximum value for the `#` pagination constraint; if a query specifies `#` exceeding this value,
  *     the query is rejected; if the query omits `#`, the limit value is injected as a default; defaults to unlimited
  *
- * @returns A keyed trace of constraint violations per property, or `undefined` if all templates are valid
+ * @returns A keyed {@link Trace} of constraint violations per property, or `undefined` if all templates are valid
  */
 export function validateTemplate(values: readonly unknown[], shape: ResourceShape, {
 
