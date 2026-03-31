@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import { mergeReference, validateReferences } from "./reference.core.js";
-import { foreign, reference } from "./reference.js";
+import { reference } from "./reference.js";
 import { resource } from "./resource.js";
 import { string } from "./string.js";
 import { multiple, optional, repeatable, required } from "./value.js";
@@ -98,28 +98,63 @@ describe("factories", () => {
 
 			it("returns a shape with kind 'reference'", async () => {
 
-				expect(foreign(resource({})).kind).toBe("reference");
+				expect(reference(resource({}), { foreign: true }).kind).toBe("reference");
 
 			});
 
 			it("returns a shape with foreign set to true", async () => {
 
-				expect(foreign(resource({})).foreign).toBe(true);
+				expect(reference(resource({}), { foreign: true }).foreign).toBe(true);
 
 			});
 
 			it("returns a shape with default model", async () => {
 
-				expect(foreign(resource({})).model).toBe("app:/");
+				expect(reference(resource({}), { foreign: true }).model).toBe("app:/");
 
 			});
 
 			it("returns an immutable shape", async () => {
 
-				const shape = foreign(resource({}));
+				const shape = reference(resource({}), { foreign: true });
 
 				expect(() => (shape as any).kind = "string").toThrow();
 				expect(() => (shape as any).foreign = false).toThrow();
+
+			});
+
+		});
+
+	});
+
+	describe("captive", () => {
+
+		describe("shape", () => {
+
+			it("returns a shape with kind 'reference'", async () => {
+
+				expect(reference(resource({}), { captive: true }).kind).toBe("reference");
+
+			});
+
+			it("returns a shape with captive set to true", async () => {
+
+				expect(reference(resource({}), { captive: true }).captive).toBe(true);
+
+			});
+
+			it("returns a shape with default model", async () => {
+
+				expect(reference(resource({}), { captive: true }).model).toBe("app:/");
+
+			});
+
+			it("returns an immutable shape", async () => {
+
+				const shape = reference(resource({}), { captive: true });
+
+				expect(() => (shape as any).kind = "string").toThrow();
+				expect(() => (shape as any).captive = false).toThrow();
 
 			});
 
@@ -288,7 +323,10 @@ describe("operators", () => {
 
 			it("preserves foreign from target", async () => {
 
-				const merged = mergeReference(foreign(resource({})), foreign(resource({})));
+				const merged = mergeReference(
+					reference(resource({}), { foreign: true }),
+					reference(resource({}), { foreign: true })
+				);
 
 				expect(merged.foreign).toBe(true);
 
@@ -299,6 +337,29 @@ describe("operators", () => {
 				const merged = mergeReference(reference(resource({})), reference(resource({})));
 
 				expect(merged.foreign).toBeUndefined();
+
+			});
+
+		});
+
+		describe("captive", () => {
+
+			it("preserves captive from target", async () => {
+
+				const merged = mergeReference(
+					reference(resource({}), { captive: true }),
+					reference(resource({}), { captive: true })
+				);
+
+				expect(merged.captive).toBe(true);
+
+			});
+
+			it("preserves absent captive from target", async () => {
+
+				const merged = mergeReference(reference(resource({})), reference(resource({})));
+
+				expect(merged.captive).toBeUndefined();
 
 			});
 

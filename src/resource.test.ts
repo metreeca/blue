@@ -19,14 +19,11 @@ import { createNamespace } from "@metreeca/core/resource";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { TraceError } from "./index.core.js";
-import {
-	type Trace,
-	type Validator
-} from "./index.js";
+import { type Trace, type Validator } from "./index.js";
 import { localised } from "./localised.js";
 import { integer } from "./number.js";
 import { mergeReference, validateReferences } from "./reference.core.js";
-import { foreign, reference } from "./reference.js";
+import {  reference } from "./reference.js";
 import {
 	checkEmbeddings,
 	checkParents,
@@ -40,14 +37,7 @@ import {
 	validateResource,
 	validateTemplate
 } from "./resource.core.js";
-import {
-	id,
-	property,
-	type Property,
-	resource,
-	type ResourceShape,
-	type
-} from "./resource.js";
+import { id, property, type Property, resource, type ResourceShape, type } from "./resource.js";
 import { string, year } from "./string.js";
 import {
 	cardinality,
@@ -1493,25 +1483,25 @@ describe("factories", () => {
 
 			it("returns a shape with kind 'reference'", async () => {
 
-				expect(foreign(resource({})).kind).toBe("reference");
+				expect(reference(resource({}), { foreign: true }).kind).toBe("reference");
 
 			});
 
 			it("returns a shape with foreign set to true", async () => {
 
-				expect(foreign(resource({})).foreign).toBe(true);
+				expect(reference(resource({}), { foreign: true }).foreign).toBe(true);
 
 			});
 
 			it("returns a shape with default model", async () => {
 
-				expect(foreign(resource({})).model).toBe("app:/");
+				expect(reference(resource({}), { foreign: true }).model).toBe("app:/");
 
 			});
 
 			it("returns an immutable shape", async () => {
 
-				const shape = foreign(resource({}));
+				const shape = reference(resource({}), { foreign: true });
 
 				expect(() => (shape as any).kind = "string").toThrow();
 				expect(() => (shape as any).foreign = false).toThrow();
@@ -3884,7 +3874,7 @@ describe("operators", () => {
 				const Target = resource({ id: id(), name: required(string()) });
 
 				const shape = resource({
-					children: multiple(foreign(Target))
+					children: multiple(reference(Target, { foreign: true }))
 				});
 
 				expect(validateTemplate([{ children: ["app:/items/1"] } as any], shape, { depth: 0 })).toBeUndefined();
@@ -3896,7 +3886,7 @@ describe("operators", () => {
 				const Target = resource({ id: id(), name: required(string()) });
 
 				const shape = resource({
-					children: multiple(foreign(Target))
+					children: multiple(reference(Target, { foreign: true }))
 				});
 
 				expect(validateTemplate([{ children: [{ name: "Child" }] }], shape, {})).toBeUndefined();
@@ -6028,7 +6018,7 @@ describe("operators", () => {
 
 			it("preserves foreign from target", async () => {
 
-				const merged = mergeReference(foreign(resource({})), foreign(resource({})));
+				const merged = mergeReference(reference(resource({}), { foreign: true }), reference(resource({}), { foreign: true }));
 
 				expect(merged.foreign).toBe(true);
 

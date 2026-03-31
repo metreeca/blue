@@ -119,8 +119,11 @@
  * });
  * ```
  *
- * Use {@link reference!foreign | foreign} for reverse links managed by the target resource. Foreign references are
+ * Set {@link reference!ReferenceConstraints.foreign | foreign} for reverse links managed by the target resource. Foreign references are
  * read-only from the source resource perspective: included in responses but rejected in state updates.
+ *
+ * Set {@link reference!ReferenceConstraints.captive | captive} for lifecycle-bound references. Captive references are
+ * existentially dependent on the source resource: referenced resources are automatically removed when it is deleted.
  *
  * Self-referential shapes use lazy factories:
  *

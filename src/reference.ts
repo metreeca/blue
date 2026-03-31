@@ -15,7 +15,7 @@
  */
 
 /**
- * Reference shape and factories.
+ * Reference shape, constraints, and factory.
  *
  * @module
  *
@@ -42,11 +42,12 @@ import type { ResourceShape } from "./resource.js";
  * | `kind`     | Cannot be overridden                                                     |
  * | `model`    | Must be strictly equal — mismatch signals incompatible shapes            |
  * | `foreign`  | Cannot be overridden                                                     |
+ * | `captive`  | Cannot be overridden                                                     |
  * | `shape`    | Cannot be overridden                                                     |
  *
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
  */
-export interface ReferenceShape {
+export interface ReferenceShape extends ReferenceConstraints {
 
 	/**
 	 * Discriminator identifying this as a reference shape.
@@ -66,11 +67,27 @@ export interface ReferenceShape {
 
 
 	/**
-	 * Marks the reference as a reverse link managed by the target resource.
+	 * Target {@link ResourceShape resource shape} for the referenced resource.
+	 *
+	 * Accepts a lazy value to support circular and self-referential definitions.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
+	readonly shape: Lazy<ResourceShape>;
+
+}
+
+/**
+ * Constraints for the {@link reference} shape factory.
+ */
+export interface ReferenceConstraints {
+
+	/**
+	 * Marks the reference as managed by the target resource.
 	 *
 	 * Foreign references are read-only from the source resource perspective: included in responses but rejected in
-	 * state updates. The forward link is owned by the target resource, not by the source resource declaring the
-	 * foreign reference.
+	 * state updates. The link is owned by the target resource, not by the source resource declaring the foreign
+	 * reference.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -79,13 +96,16 @@ export interface ReferenceShape {
 	readonly foreign?: boolean;
 
 	/**
-	 * Target {@link ResourceShape resource shape} for the referenced resource.
+	 * Marks the reference as bound to the source resource lifecycle.
 	 *
-	 * Accepts a lazy value to support circular and self-referential definitions.
+	 * Captive references are existentially dependent on the source resource: referenced resources cannot outlive the
+	 * source resource and are automatically removed when it is deleted.
 	 *
 	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @defaultValue `undefined` (`false`)
 	 */
-	readonly shape: Lazy<ResourceShape>;
+	readonly captive?: boolean;
 
 }
 
@@ -103,55 +123,31 @@ export interface ReferenceShape {
  * > Always dereference {@link ReferenceShape.shape} through {@link resource | resource()} rather than calling the
  * > factory directly, to ensure the resulting shape is fully flattened.
  *
- *
  * @param shape The target resource shape, either directly or as a lazy function to support circular and
  *     self-referential definitions
+ * @param constraints Optional {@link ReferenceConstraints constraints} controlling link ownership and lifecycle
  *
- * @returns An immutable shape for validating resource references
+ * @returns An immutable {@link ReferenceShape} for validating resource references
  *
  * @throws {TypeError} If `shape` is not a valid {@link ResourceShape}
+ *
+ * @example
+ *
+ * ```typescript
+ * const vendor = required(reference(Vendor));
+ * const children = multiple(reference(Target, { foreign: true }));
+ * const parts = multiple(reference(Part, { captive: true }));
+ * ```
  */
-export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
+export function reference(shape: Lazy<ResourceShape>, constraints?: ReferenceConstraints): ReferenceShape {
 
 	return immutable({
 
 		kind: "reference",
 		model: "app:/",
 
-		shape
+		...constraints,
 
-	});
-
-}
-
-/**
- * Creates a foreign reference shape for the given target {@link ResourceShape resource shape}.
- *
- * Foreign references are reverse links managed by the target resource. They are read-only from the source resource
- * perspective: included in responses but rejected in state updates.
- *
- * > [!TIP]
- * > Always dereference {@link ReferenceShape.shape} through {@link resource | resource()} rather than calling the
- * > factory directly, to ensure the resulting shape is fully flattened.
- *
- *
- * @param shape The target resource shape, either directly or as a lazy function to support circular and
- *     self-referential definitions
- *
- * @returns An immutable foreign reference shape with `foreign` set to `true`
- *
- * @throws {TypeError} If `shape` is not a valid {@link ResourceShape}
- *
- * @see {@link reference}
- */
-export function foreign(shape: Lazy<ResourceShape>): ReferenceShape {
-
-	return immutable({
-
-		kind: "reference",
-		model: "app:/",
-
-		foreign: true,
 		shape
 
 	});

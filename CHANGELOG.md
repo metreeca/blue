@@ -22,7 +22,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `limit` option to template validation for capping the `#` pagination constraint in queries; if a query specifies
 	`#` exceeding this value, the query is rejected; if the query omits `#`, the limit value is injected as a default;
 	defaults to unlimited
-- Add `reference` module with `ReferenceShape` interface, `reference()` and `foreign()` factories
+- Add `reference` module with `ReferenceShape` interface, `ReferenceConstraints` interface, and `reference()` factory
+  accepting optional constraints (`foreign`, `captive`)
 - Add `value` module with composite shapes (`SetShape`, `UnionShape`), cardinality factories (`required`, `optional`,
 	`repeatable`, `multiple`, `cardinality`), `union()` factory, `apply()` probe resolver, and type utilities (`Infer`,
 	`Eager`, `Declared`, `Cardinality`, `Variants`)

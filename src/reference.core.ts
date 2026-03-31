@@ -76,7 +76,8 @@ export function validateReferences(values: readonly unknown[], shape: ReferenceS
 /**
  * Merges an overriding reference shape with an inherited base shape.
  *
- * All fields are immutable — only model strict equality is checked.
+ * Structural fields (`kind`, `shape`) and {@link ReferenceConstraints} (`foreign`, `captive`) are preserved from the
+ * target. Only `model` strict equality is checked.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
@@ -106,6 +107,7 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 		model: target.model,
 
 		...target.foreign !== undefined && { foreign: target.foreign },
+		...target.captive !== undefined && { captive: target.captive },
 
 		shape: target.shape
 
