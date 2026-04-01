@@ -119,12 +119,24 @@
  * });
  * ```
  *
- * Set {@link reference!ReferenceConstraints.foreign | foreign} for reverse links managed by the target resource. Foreign references are
- * read-only from the source resource perspective: included in retrieval templates but rejected during resource
- * validation.
+ * **Property Mappings vs Foreign References**
  *
- * Set {@link reference!ReferenceConstraints.captive | captive} for lifecycle-bound references. Captive references are
- * existentially dependent on the source resource: referenced resources are automatically removed when it is deleted.
+ * The {@link PropertyConstraints.forward | forward} and {@link PropertyConstraints.reverse | reverse} mappings on
+ * a property control how property values are persisted — both write actual property mappings.
+ * The {@link reference!ReferenceConstraints.foreign | foreign} flag on a reference shape is an independent concept:
+ * a read-only view over mappings owned by another property that does not write any mappings on insert. During resource
+ * validation, foreign reference properties are rejected; during template validation they are accepted for data
+ * retrieval.
+ *
+ * **Embedded vs Captive Resources**
+ *
+ * **Embedded resources** have no independent identity or lifecycle ({@link id} / {@link type} rejected) and are always
+ * managed as part of their parent. They are defined by directly including a resource shape without a
+ * {@link reference!reference | reference} wrapper.
+ *
+ * **Captive resources**, identified by the {@link reference!ReferenceConstraints.captive | captive} flag, have
+ * independent identity and lifecycle but cannot outlive the source resource and are automatically cascade-removed when
+ * it is deleted.
  *
  * Self-referential shapes use lazy factories:
  *
@@ -724,6 +736,11 @@ export interface PropertyConstraints<P extends Predicate = Reference> {
 	 * Accepts either an absolute IRI string or a {@link Namespace} function that resolves the property name to an
 	 * absolute IRI (for instance, `{ forward: schema }` on property `name` yields `http://schema.org/name`).
 	 *
+	 * > [!IMPORTANT]
+	 * > Both `forward` and {@link reverse} mappings write actual property values. This is independent from
+	 * > {@link reference!ReferenceConstraints.foreign | foreign}, which marks a reference as a read-only view over
+	 * > mappings owned by another property.
+	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
 	 * @see {@link https://www.w3.org/TR/json-ld11/#iris JSON-LD 1.1 § 3.2 IRIs}
@@ -735,6 +752,11 @@ export interface PropertyConstraints<P extends Predicate = Reference> {
 	 *
 	 * Accepts either an absolute IRI string or a {@link Namespace} function that resolves the property name to an
 	 * absolute IRI (for instance, `{ reverse: schema }` on property `employee` yields `http://schema.org/employee`).
+	 *
+	 * > [!IMPORTANT]
+	 * > Both {@link forward} and `reverse` mappings write actual property values. This is independent from
+	 * > {@link reference!ReferenceConstraints.foreign | foreign}, which marks a reference as a read-only view over
+	 * > mappings owned by another property.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *

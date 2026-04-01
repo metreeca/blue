@@ -79,6 +79,26 @@ export interface ReferenceShape extends ReferenceConstraints {
 
 /**
  * Constraints for the {@link reference} shape factory.
+ *
+ * The `foreign` and `captive` flags are independent and may be combined. Their interaction determines how insert and
+ * remove operations behave on properties backed by the reference shape:
+ *
+ * | `foreign` | `captive` | Insert                                     | Remove
+ *                                                               |
+ * |:---------:|:---------:|--------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+ * |     —     |     —     | Writes data via forward/reverse predicates | Deletes data via forward/reverse predicates
+ *                                                               |
+ * |     ✓     |           | No-op (read-only view)                     | Deletes data via forward/reverse predicates
+ *                                                               |
+ * |           |     ✓     | Writes data via forward/reverse predicates | Deletes data via forward/reverse predicates
+ * and cascade-removes referenced resource with the same semantics |
+ * |     ✓     |     ✓     | No-op (read-only view)                     | Deletes data via forward/reverse predicates
+ * and cascade-removes referenced resource with the same semantics |
+ *
+ * The {@link resource!PropertyConstraints.forward | forward} and
+ * {@link resource!PropertyConstraints.reverse | reverse} mappings on the enclosing
+ * {@link resource!PropertyConstraints | property} determine which property mappings are written and deleted by these
+ * operations.
  */
 export interface ReferenceConstraints {
 
@@ -93,6 +113,12 @@ export interface ReferenceConstraints {
 	 * During template validation, foreign properties are accepted normally, since templates describe data retrieval
 	 * rather than state updates.
 	 *
+	 * > [!IMPORTANT]
+	 * > Foreign references are independent from {@link resource!PropertyConstraints.reverse | reverse} mappings.
+	 * > A `reverse` mapping on a {@link resource!PropertyConstraints | property} writes an actual inverse property
+	 * > mapping; a `foreign` reference is a read-only view over mappings owned by another property and does not write
+	 * > any mappings on insert.
+	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
 	 * @defaultValue `undefined` (`false`)
@@ -100,10 +126,17 @@ export interface ReferenceConstraints {
 	readonly foreign?: boolean;
 
 	/**
-	 * Marks the reference as bound to the source resource lifecycle.
+	 * Marks the referenced resource as unable to outlive the source resource.
 	 *
-	 * Captive references are existentially dependent on the source resource: referenced resources cannot outlive the
-	 * source resource and are automatically removed when it is deleted.
+	 * Captive resources have independent identity and lifecycle: they can be created, updated, and deleted
+	 * independently of the referencing resource. However, they are existentially dependent on the source resource:
+	 * they cannot outlive it and are automatically cascade-removed when it is deleted.
+	 *
+	 * > [!IMPORTANT]
+	 * > Captive resources are independent from {@link resource!resource | embedded resources}. Embedded resources have
+	 * > no independent identity or lifecycle ({@link resource!id | id} / {@link resource!type | type} rejected) and
+	 * > are always managed as part of their parent; captive resources have both and can be managed independently, but
+	 * > are cascade-deleted with the source resource.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
