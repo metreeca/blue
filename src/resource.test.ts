@@ -1759,6 +1759,120 @@ describe("operators", () => {
 
 			});
 
+			describe("foreign references", () => {
+
+				const Target = resource({ id: id(), label: required(string()) });
+
+				const shape = resource({
+					name: required(string()),
+					children: multiple(reference(Target, { foreign: true }))
+				});
+
+
+				it("accepts resource without foreign property", async () => {
+
+					expect(validateResource([{ name: "Alice" }], shape)).toBeUndefined();
+
+				});
+
+				it("rejects foreign property with IRI value", async () => {
+
+					const trace = validateResource([{ name: "Alice", children: ["app:/items/1"] }], shape) as Record<string, Trace>;
+
+					expect(trace["[0]"]).toHaveProperty("children");
+
+				});
+
+				it("rejects foreign property with nested resource", async () => {
+
+					const trace = validateResource([{ name: "Alice", children: [{ label: "Child" }] }], shape) as Record<string, Trace>;
+
+					expect(trace["[0]"]).toHaveProperty("children");
+
+				});
+
+				it("accepts foreign property when undefined", async () => {
+
+					expect(validateResource([{ name: "Alice", children: undefined }], shape)).toBeUndefined();
+
+				});
+
+				it("accepts non-foreign reference property", async () => {
+
+					const owned = resource({
+						name: required(string()),
+						parent: optional(reference(Target))
+					});
+
+					expect(validateResource([{ name: "Alice", parent: "app:/items/1" }], owned)).toBeUndefined();
+
+				});
+
+
+				describe("unions", () => {
+
+					const Other = resource({ id: id(), code: required(integer()) });
+
+
+					it("rejects property when all union variants are foreign", async () => {
+
+						const all = resource({
+							name: required(string()),
+							links: required(union({
+								children: reference(Target, { foreign: true }),
+								related: reference(Other, { foreign: true })
+							}))
+						});
+
+						const trace = validateResource([{
+							name: "Alice",
+							links: { children: { label: "Child" } }
+						}], all) as Record<string, Trace>;
+
+						expect(trace["[0]"]).toHaveProperty("links");
+
+					});
+
+					it("accepts property when at least one union variant is non-foreign", async () => {
+
+						const mixed = resource({
+							name: required(string()),
+							links: required(union({
+								parent: reference(Target),
+								children: reference(Other, { foreign: true })
+							}))
+						});
+
+						expect(validateResource([{
+							name: "Alice",
+							links: { parent: { label: "Parent" } }
+						}], mixed)).toBeUndefined();
+
+					});
+
+					it("rejects foreign variant key in mixed union", async () => {
+
+						const mixed = resource({
+							name: required(string()),
+							links: required(union({
+								parent: reference(Target),
+								children: reference(Other, { foreign: true })
+							}))
+						});
+
+						const trace = validateResource([{
+							name: "Alice",
+							links: { children: { code: 1 } }
+						}], mixed) as Record<string, Trace>;
+
+						expect(trace["[0]"]).toHaveProperty("links");
+
+					});
+
+				});
+
+			});
+
 			describe("custom validators", () => {
 
 				const adultValidator: Validator = (r) => {

@@ -287,7 +287,9 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
  * Validates complete resource states against a {@link ResourceShape}.
  *
  * Checks resource-level constraints (`pattern`, `in`, `hasValue`), property cardinality and value constraints, closed
- * shape enforcement, and custom {@link ResourceConstraints.validators | validators}. Unknown properties are rejected.
+ * shape enforcement, and custom {@link ResourceConstraints.validators | validators}. Unknown properties and
+ * {@link reference!ReferenceConstraints.foreign | foreign} reference properties are rejected, since foreign links are
+ * managed by the target resource and are not part of the source resource state.
  *
  * @param values The resource instances to validate
  * @param shape The resource shape defining the expected structure
@@ -340,7 +342,8 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 				...[...entries].map(([name, entry]) => [name,
 					entry.kind === "id" ? validateId(resource[name], shape)
 						: entry.kind === "type" ? validateType(resource[name])
-							: validateProperty(resource[name], name, shape)
+							: entry.kind === "property" ? validateProperty(resource[name], entry)
+								: undefined
 				]),
 
 
@@ -418,13 +421,39 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 	}
 
-	function validateProperty(value: unknown, name: Identifier, shape: ResourceShape): undefined | Trace {
+	function validateProperty(value: unknown, { range }: Property): undefined | Trace {
 
-		const entry = shape.properties[name];
+		const { shape } = range;
 
-		return entry?.kind !== "property" ? undefined : collect(Object.fromEntries(
-			Object.entries(validateValues(value, entry.range) ?? {})
-		));
+		if ( shape.kind === "reference" && shape.foreign ) {
+
+			return value !== undefined ? "unexpected foreign property" : undefined;
+
+		} else if ( shape.kind === "union" ) {
+
+			const owned = Object.entries(shape.variants).filter(([, v]) =>
+				v.kind !== "reference" || !v.foreign
+			);
+
+			if ( owned.length === 0 ) {
+
+				return value !== undefined ? "unexpected foreign property" : undefined;
+
+			} else {
+
+				return collect(Object.fromEntries(Object.entries(validateValues(value, {
+					...range, shape: { ...shape, variants: Object.fromEntries(owned) }
+				}) ?? {})));
+
+			}
+
+		} else {
+
+			return collect(Object.fromEntries(
+				Object.entries(validateValues(value, range) ?? {})
+			));
+
+		}
 
 	}
 

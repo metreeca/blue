@@ -85,9 +85,13 @@ export interface ReferenceConstraints {
 	/**
 	 * Marks the reference as managed by the target resource.
 	 *
-	 * Foreign references are read-only from the source resource perspective: included in responses but rejected in
-	 * state updates. The link is owned by the target resource, not by the source resource declaring the foreign
-	 * reference.
+	 * Foreign references are read-only from the source resource perspective: included in retrieval templates but
+	 * rejected during resource validation. The link is owned by the target resource, not by the source resource
+	 * declaring the foreign reference.
+	 *
+	 * During resource validation, properties backed by a foreign reference shape are rejected if present in the input.
+	 * During template validation, foreign properties are accepted normally, since templates describe data retrieval
+	 * rather than state updates.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *

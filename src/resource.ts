@@ -120,7 +120,8 @@
  * ```
  *
  * Set {@link reference!ReferenceConstraints.foreign | foreign} for reverse links managed by the target resource. Foreign references are
- * read-only from the source resource perspective: included in responses but rejected in state updates.
+ * read-only from the source resource perspective: included in retrieval templates but rejected during resource
+ * validation.
  *
  * Set {@link reference!ReferenceConstraints.captive | captive} for lifecycle-bound references. Captive references are
  * existentially dependent on the source resource: referenced resources are automatically removed when it is deleted.

@@ -58,6 +58,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Breaking:** Multi-valued union properties now represent values as a single indexed record with per-variant arrays
 	instead of an array of single-variant containers
 - **Breaking:** Union property values must always be indexed objects — bare scalar values are no longer accepted
+- **Breaking:** Reject `foreign` reference properties during resource validation — foreign links are managed by the
+	target resource and are not part of the source resource state; mixed unions exclude foreign variants from validation
 - **Breaking:** Enforce inherited semantics for non-overridable fields — `foreign`, `captive`, and `shape` in
 	`mergeReference()`; `name`, `description`, `forward`, and `reverse` in `mergeProperty()` are now inherited from the
 	parent and redefinition by the child is rejected
