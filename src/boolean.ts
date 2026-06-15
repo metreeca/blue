@@ -28,7 +28,8 @@
  * [boolean]: https://www.w3.org/TR/xmlschema-2/#boolean
  *
  * ¹ XSD 1.0 datatypes are referenced by [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/) and
- * [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) as normative *
+ * [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) as normative
+ *
  * **Compatibility**
  *
  * | JSON            | XSD                            | JavaScript      |
@@ -40,9 +41,9 @@
  * **Defining Boolean Shapes**
  *
  * ```typescript
- * import { boolean } from '@metreeca/blue';
+ * import { boolean } from '@metreeca/blue/boolean';
  *
- * const flag = boolean();                  // default model: false
+ * const flag = boolean();                   // default model: false
  * const enabled = boolean({ model: true }); // custom model value
  * ```
  *
@@ -86,7 +87,7 @@ import { immutable } from "@metreeca/core/deep";
  * | `kind`  | Cannot be overridden                                            |
  * | `model` | Must be strictly equal — mismatch signals incompatible shapes   |
  *
- * No user-facing constraints — nothing to narrow or validate beyond `kind` and `model` match.
+ * No user-facing constraints: nothing to narrow or validate beyond `kind` and `model` match.
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#boolean XSD 1.0 Part 2: Datatypes § 3.2.2 boolean}
  */
@@ -130,7 +131,6 @@ export interface BooleanConstraints {
 /**
  * Creates a boolean shape with a typed model value and no other constraints.
  *
- *
  * @typeParam M The literal boolean type for the model
  *
  * @param model Prototype value for runtime model assembly
@@ -148,12 +148,9 @@ export function boolean<M extends boolean>(model: M): BooleanShape & { readonly 
 /**
  * Creates a boolean shape with optional model constraint.
  *
- *
- * @param constraints Optional shape constraints
+ * @param constraints Optional shape {@link BooleanConstraints constraints}
  *
  * @returns An immutable shape with `model` typed as `boolean`
- *
- * @throws {TypeError} If `constraints` is not a valid {@link BooleanConstraints}
  *
  * @example
  *
@@ -166,7 +163,6 @@ export function boolean(constraints?: BooleanConstraints): BooleanShape;
 
 /**
  * Creates a boolean shape.
- *
  */
 export function boolean(constraints: boolean | BooleanConstraints = {}): BooleanShape {
 

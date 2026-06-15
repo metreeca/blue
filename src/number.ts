@@ -63,7 +63,7 @@
  * **Defining Numeric Shapes**
  *
  * ```typescript
- * import { number, integer, decimal } from '@metreeca/blue';
+ * import { number, integer, decimal } from '@metreeca/blue/number';
  *
  * const count = number();                                       // default model: 0
  * const score = number({ minInclusive: 0, maxInclusive: 100 }); // constrained range
@@ -76,7 +76,7 @@
  * Specialised factories map to XSD numeric datatypes with predefined precision:
  *
  * ```typescript
- * import { byte, short, int, long, float, double } from '@metreeca/blue';
+ * import { byte, short, int, long, float, double } from '@metreeca/blue/number';
  *
  * const priority = byte();       // 8-bit signed integer
  * const port = short();          // 16-bit signed integer
@@ -112,6 +112,14 @@ import { immutable } from "@metreeca/core/deep";
 import { TraceError } from "./index.core.js";
 import { checkNumber } from "./number.core.js";
 
+
+const BYTE_MAX = 2**7-1;
+const SHORT_MAX = 2**15-1;
+const INT_MAX = 2**31-1;
+const FLOAT_MAX = (2-2** -23)*2**127;
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Shape definition for numeric values.
@@ -161,7 +169,9 @@ export interface NumberShape extends NumberConstraints {
 	 * Prototype value for runtime model assembly.
 	 *
 	 * **Inheritance** — must be strictly equal between parent and child; a mismatch signals
-	 * incompatible datatypes (for example, `int` vs `decimal`).
+	 * incompatible datatypes (for example, `int` vs `decimal`). Within a {@link value!union | union}, the prototype value
+	 * also discriminates the variant's datatype, so differently-typed numeric variants form distinct discriminator
+	 * groups.
 	 *
 	 * @defaultValue `0`
 	 */
@@ -272,7 +282,6 @@ export interface NumericConstraints {
 /**
  * Creates a numeric shape with a typed model value and no other constraints.
  *
- *
  * @typeParam M The literal number type for the model
  *
  * @param model Prototype value for runtime model assembly
@@ -289,7 +298,6 @@ export function number<M extends number>(model: M): NumberShape & { readonly mod
 
 /**
  * Creates a numeric shape with optional validation constraints.
- *
  *
  * @param constraints Optional shape {@link NumberConstraints constraints}
  *
@@ -308,7 +316,6 @@ export function number<const C extends NumberConstraints>(constraints?: C): Numb
 
 /**
  * Creates a numeric shape.
- *
  */
 export function number(constraints: number | NumberConstraints = {}): NumberShape {
 
@@ -339,8 +346,9 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
 /**
  * Creates a shape for 8-bit signed integer values.
  *
+ * Defaults the range to `[-128, 127]`; supplied bounds in `constraints` override the defaults.
  *
- * @param constraints Optional {@link NumericConstraints} validation constraints
+ * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating 8-bit signed integers
  *
@@ -348,15 +356,25 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
  */
 export function byte(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 8, ...constraints });
+	return number({
+
+		model: 8,
+
+		minInclusive: -BYTE_MAX-1,
+		maxInclusive: BYTE_MAX,
+
+		...constraints
+
+	});
 
 }
 
 /**
  * Creates a shape for 16-bit signed integer values.
  *
+ * Defaults the range to `[-32768, 32767]`; supplied bounds in `constraints` override the defaults.
  *
- * @param constraints Optional {@link NumericConstraints} validation constraints
+ * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating 16-bit signed integers
  *
@@ -364,15 +382,25 @@ export function byte(constraints: NumericConstraints = {}): NumberShape {
  */
 export function short(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 16, ...constraints });
+	return number({
+
+		model: 16,
+
+		minInclusive: -SHORT_MAX-1,
+		maxInclusive: SHORT_MAX,
+
+		...constraints
+
+	});
 
 }
 
 /**
  * Creates a shape for 32-bit signed integer values.
  *
+ * Defaults the range to `[-2147483648, 2147483647]`; supplied bounds in `constraints` override the defaults.
  *
- * @param constraints Optional {@link NumericConstraints} validation constraints
+ * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating 32-bit signed integers
  *
@@ -380,15 +408,27 @@ export function short(constraints: NumericConstraints = {}): NumberShape {
  */
 export function int(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 32, ...constraints });
+	return number({
+
+		model: 32,
+
+		minInclusive: -INT_MAX-1,
+		maxInclusive: INT_MAX,
+
+		...constraints
+
+	});
 
 }
 
 /**
  * Creates a shape for 64-bit signed integer values.
  *
+ * Defaults the range to {@link Number.MIN_SAFE_INTEGER}…{@link Number.MAX_SAFE_INTEGER} (±2⁵³−1), narrower than the
+ * datatype's nominal ±2⁶³−1, since values beyond JavaScript's safe-integer range cannot be represented faithfully as
+ * `number`. Supplied bounds in `constraints` override the defaults.
  *
- * @param constraints Optional {@link NumericConstraints} validation constraints
+ * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating 64-bit signed integers
  *
@@ -396,15 +436,26 @@ export function int(constraints: NumericConstraints = {}): NumberShape {
  */
 export function long(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 64, ...constraints });
+	return number({
+
+		model: 64,
+
+		minInclusive: Number.MIN_SAFE_INTEGER,
+		maxInclusive: Number.MAX_SAFE_INTEGER,
+
+		...constraints
+
+	});
 
 }
 
 /**
  * Creates a shape for IEEE 754 single-precision floating-point values.
  *
+ * Defaults the range to the finite single-precision interval `±(2 − 2⁻²³) × 2¹²⁷`; supplied bounds in `constraints`
+ * override the defaults.
  *
- * @param constraints Optional {@link NumericConstraints} validation constraints
+ * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating single-precision floats
  *
@@ -412,15 +463,23 @@ export function long(constraints: NumericConstraints = {}): NumberShape {
  */
 export function float(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 0.32, ...constraints });
+	return number({
+
+		model: 0.32,
+
+		minInclusive: -FLOAT_MAX,
+		maxInclusive: FLOAT_MAX,
+
+		...constraints
+
+	});
 
 }
 
 /**
  * Creates a shape for IEEE 754 double-precision floating-point values.
  *
- *
- * @param constraints Optional {@link NumericConstraints} validation constraints
+ * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating double-precision floats
  *
@@ -435,8 +494,7 @@ export function double(constraints: NumericConstraints = {}): NumberShape {
 /**
  * Creates a shape for arbitrary-precision integer values.
  *
- *
- * @param constraints Optional {@link NumericConstraints} validation constraints
+ * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating arbitrary-precision integers
  *
@@ -451,8 +509,7 @@ export function integer(constraints: NumericConstraints = {}): NumberShape {
 /**
  * Creates a shape for arbitrary-precision decimal values.
  *
- *
- * @param constraints Optional {@link NumericConstraints} validation constraints
+ * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating arbitrary-precision decimals
  *

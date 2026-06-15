@@ -24,18 +24,18 @@
  * > Factories validate constraint consistency at construction time:
  * > contradictory constraints like `minLength > maxLength` throw a `RangeError`.
  *
- * | XSD Datatype ¹    | Factory             | Description                    | Format                        |
- * | ----------------- | ------------------- | ------------------------------ | ----------------------------- |
- * | [string][]        | {@link string}      | Unicode character sequence     |                               |
- * | string            | {@link email}       | [RFC 5321][] email address     |                               |
- * | string            | {@link iri}         | [RFC 3987][] IRI reference     |                               |
- * | string            | {@link url}         | [RFC 3986][] hierarchical URL  |                               |
- * | [gYear][]         | {@link year} ²      | [ISO 8601][iso-year] year      | YYYY[Z/±hh:mm]                |
- * | [date][]          | {@link date}        | [ISO 8601][iso-date] date      | YYYY-MM-DD[Z/±hh:mm]          |
- * | [time][]          | {@link time}        | [ISO 8601][iso-time] time      | hh:mm:ss[.sss][Z/±hh:mm]      |
- * | [dateTime][]      | {@link instant}     | [ISO 8601][iso-datetime] date+time   | YYYY-MM-DDThh:mm:ss[.sss][TZ] |
- * | [dateTimeStamp][] | {@link timestamp} ³ | [ISO 8601][iso-datetime] timestamp   | YYYY-MM-DDThh:mm:ss.sssZ      |
- * | [duration][]      | {@link duration}    | [ISO 8601][iso-duration] duration   | [-]PnYnMnDTnHnMnS             |
+ * | XSD Datatype ¹    | Factory             | Description                        | Format                        |
+ * | ----------------- | ------------------- | ---------------------------------- | ----------------------------- |
+ * | [string][]        | {@link string}      | Unicode character sequence         |                               |
+ * | string            | {@link email}       | [RFC 5321][] email address         |                               |
+ * | string            | {@link iri}         | [RFC 3987][] IRI reference         |                               |
+ * | string            | {@link url}         | [RFC 3986][] hierarchical URL      |                               |
+ * | [gYear][]         | {@link year} ²      | [ISO 8601][iso-year] year          | YYYY[Z/±hh:mm]                |
+ * | [date][]          | {@link date}        | [ISO 8601][iso-date] date          | YYYY-MM-DD[Z/±hh:mm]          |
+ * | [time][]          | {@link time}        | [ISO 8601][iso-time] time          | hh:mm:ss[.sss][Z/±hh:mm]      |
+ * | [dateTime][]      | {@link instant}     | [ISO 8601][iso-datetime] date+time | YYYY-MM-DDThh:mm:ss[.sss][TZ] |
+ * | [dateTimeStamp][] | {@link timestamp} ³ | [ISO 8601][iso-datetime] timestamp | YYYY-MM-DDThh:mm:ss.sssZ      |
+ * | [duration][]      | {@link duration}    | [ISO 8601][iso-duration] duration  | [-]PnYnMnDTnHnMnS             |
  *
  * [string]: https://www.w3.org/TR/xmlschema-2/#string
  * [anyURI]: https://www.w3.org/TR/xmlschema-2/#anyURI
@@ -73,7 +73,7 @@
  * **Defining String Shapes**
  *
  * ```typescript
- * import { string } from '@metreeca/blue';
+ * import { string } from '@metreeca/blue/string';
  *
  * const text = string();                                 // unconstrained string
  * const name = string({ minLength: 1, maxLength: 100 }); // length-constrained
@@ -86,7 +86,7 @@
  * Predefined factories for common string formats:
  *
  * ```typescript
- * import { email, iri, url, date, time, instant, timestamp, duration } from '@metreeca/blue';
+ * import { email, iri, url, date, time, instant, timestamp, duration } from '@metreeca/blue/string';
  *
  * const contact = email();      // RFC 5321 email address
  * const identifier = iri();     // RFC 3987 IRI reference
@@ -168,7 +168,9 @@ export interface StringShape extends StringConstraints {
 	 * Prototype value for runtime model assembly.
 	 *
 	 * **Inheritance** — must be strictly equal between parent and child; a mismatch signals
-	 * incompatible datatypes (for example, `date` vs `email`).
+	 * incompatible datatypes (for example, `date` vs `email`). Within a {@link value!union | union}, the prototype value
+	 * also discriminates the variant's datatype, so differently-typed string variants form distinct discriminator
+	 * groups.
 	 *
 	 * @defaultValue `""` (empty string)
 	 */
@@ -286,7 +288,6 @@ export interface TextualConstraints {
 /**
  * Creates a string shape with a typed model value and no other constraints.
  *
- *
  * @typeParam M The literal string type for the model
  *
  * @param model Prototype value for runtime model assembly
@@ -303,7 +304,6 @@ export function string<M extends string>(model: M): StringShape & { readonly mod
 
 /**
  * Creates a string shape with optional validation constraints.
- *
  *
  * @param constraints Optional shape {@link StringConstraints constraints}
  *
@@ -323,7 +323,6 @@ export function string<const C extends StringConstraints>(constraints?: C): Stri
 
 /**
  * Creates a string shape.
- *
  */
 export function string(constraints: string | StringConstraints = {}): StringShape {
 
@@ -356,8 +355,7 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 /**
  * Creates a shape for email address values.
  *
- *
- * @param constraints Optional {@link TextualConstraints} validation constraints
+ * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating email addresses
  *
@@ -389,7 +387,11 @@ export function iri(constraints: TextualConstraints & {
 
 	readonly  variant?: Variant
 
-} = { variant: "relative" }): StringShape {
+} = { 
+	
+	variant: "relative"
+
+}): StringShape {
 
 	const { variant = "relative", ...textual } = constraints;
 
@@ -437,8 +439,7 @@ export function url(constraints: TextualConstraints = {}): StringShape {
  *
  * Supports optional timezone indicators (Z for UTC or ±hh:mm offset).
  *
- *
- * @param constraints Optional {@link TextualConstraints} validation constraints
+ * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 year strings
  *
@@ -461,8 +462,7 @@ export function year(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 calendar date values (YYYY-MM-DD).
  *
- *
- * @param constraints Optional {@link TextualConstraints} validation constraints
+ * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 date strings
  *
@@ -481,8 +481,7 @@ export function date(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 time of day values (hh:mm:ss).
  *
- *
- * @param constraints Optional {@link TextualConstraints} validation constraints
+ * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 time strings
  *
@@ -501,8 +500,7 @@ export function time(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 date and time values (YYYY-MM-DDThh:mm:ss).
  *
- *
- * @param constraints Optional {@link TextualConstraints} validation constraints
+ * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 datetime strings
  *
@@ -523,8 +521,7 @@ export function instant(constraints: TextualConstraints = {}): StringShape {
  *
  * Requires exactly 3 fractional second digits (millisecond precision) and UTC timezone (Z only).
  *
- *
- * @param constraints Optional {@link TextualConstraints} validation constraints
+ * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 timestamp strings
  *
@@ -547,8 +544,7 @@ export function timestamp(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 duration values (PnYnMnDTnHnMnS).
  *
- *
- * @param constraints Optional {@link TextualConstraints} validation constraints
+ * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 duration strings
  *

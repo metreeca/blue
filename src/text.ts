@@ -27,33 +27,47 @@
  * - Scalar cardinality (`maxCount === 1`): each tag holds a single string
  * - Array cardinality (`maxCount > 1` or unbounded): each tag holds a string array
  *
+ * The tag-keyed map is the form stored and ingested. A localised property additionally *coalesces* under language
+ * negotiation when retrieved, at its per-tag cardinality: its template slot also accepts a coalesced placeholder for
+ * the negotiated value(s) (a bare string for single-string-per-tag, a single-element string array for array-per-tag),
+ * and a selection may constrain it with a plain-string operand (comparison, text search, or option) matched
+ * existentially over the coalesced value set under ordinary string semantics. State ingress never coalesces: it
+ * accepts only the tag-keyed form.
+ *
+ * **Compatibility**
+ *
+ * | JSON                 | JSON-LD                            | RDF 1.1                         |
+ * | -------------------- | ---------------------------------- | ------------------------------- |
+ * | tag-keyed string map | `@language`-container language map | language-tagged string literals |
+ *
  * **Defining Language-Tagged Shapes**
  *
- * Plain strings and string arrays are accepted as shorthands for language-neutral values and are normalised
- * to the `*` (wildcard) tag:
+ * Models are tag-keyed maps; the [`und`](https://iso639-3.sil.org/code/und) tag carries content of
+ * undetermined language (a proper name, say), and the [`zxx`](https://iso639-3.sil.org/code/zxx) tag content
+ * with no language at all (identifiers, codes, formulae):
  *
  * ```typescript
  * import { required, optional, multiple } from '@metreeca/blue/value';
- * import { localised } from '@metreeca/blue/localised';
+ * import { text } from '@metreeca/blue/text';
  *
- * const label = required(localised());                                   // scalar: { "*": "" }
- * const title = required(localised("Untitled"));                         // scalar shorthand
- * const name = required(localised({ minLength: 1, maxLength: 200 }));    // constrained scalar
- * const description = optional(localised({ languageIn: ["en", "it"] })); // language-restricted scalar
- * const keywords = multiple(localised({ languageIn: ["en"] }));          // array per tag
+ * const label = required(text());                                   // scalar, default model: { "*": "" }
+ * const title = required(text({ und: "Untitled" }));                // scalar with default content
+ * const name = required(text({ minLength: 1, maxLength: 200 }));    // constrained scalar
+ * const description = optional(text({ languageIn: ["en", "it"] })); // language-restricted scalar
+ * const keywords = multiple(text({ languageIn: ["en"] }));          // array per tag
  * ```
  *
  * **Using in Resource Shapes**
  *
  * ```typescript
  * import { required, optional, multiple } from '@metreeca/blue/value';
- * import { localised } from '@metreeca/blue/localised';
+ * import { text } from '@metreeca/blue/text';
  * import { resource } from '@metreeca/blue/resource';
  *
  * const Article = resource({
- *   title: required(localised({ minLength: 1 })),
- *   abstract: optional(localised()),
- *   keywords: multiple(localised({ languageIn: ["en", "fr", "de"] }))
+ *   title: required(text({ minLength: 1 })),
+ *   abstract: optional(text()),
+ *   keywords: multiple(text({ languageIn: ["en", "fr", "de"] }))
  * });
  * ```
  *
@@ -63,13 +77,13 @@
  * @see {@link https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string RDF 1.1 § 3.3 Literals}
  */
 
-import { isArray, isObject, isString } from "@metreeca/core";
+import { isObject } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
-import { type TagRange } from "@metreeca/core/language";
-import { type Localised } from "@metreeca/qest/resource";
-import { type Locale } from "@metreeca/qest/template";
+import type { Tag, TagRange } from "@metreeca/core/language";
+import type { Locale } from "@metreeca/qest/template";
+
 import { TraceError } from "./index.core.js";
-import { checkLocalised } from "./localised.core.js";
+import { checkText, checkTextModel } from "./text.core.js";
 
 
 /**
@@ -99,33 +113,33 @@ import { checkLocalised } from "./localised.core.js";
  * @see {@link https://www.w3.org/TR/shacl/#UniqueLangConstraintComponent SHACL § 4.8.1 sh:uniqueLang}
  * @see {@link https://www.w3.org/TR/shacl/#LanguageInConstraintComponent SHACL § 4.8.2 sh:languageIn}
  */
-export interface LocalisedShape extends LocalisedConstraints {
+export interface TextShape extends TextConstraints {
 
 	/**
 	 * Discriminator identifying this as a language-tagged shape.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 */
-	readonly kind: "localised";
+	readonly kind: "text";
 
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
-	 * Always a normalised {@link Localised} map after construction; plain string and array shorthands
-	 * passed to the factory are normalised to the `*` (wildcard) tag.
+	 * Stored as supplied to the factory: a tag-keyed map associating each language tag (or
+	 * tag range) with its content.
 	 *
 	 * **Inheritance** — child overrides parent; conflicting parents without child override are reported as an error.
 	 *
-	 * @defaultValue `{ "*": "" }` (wildcard empty string)
+	 * @defaultValue `{ "*": "" }` (wildcard tag range bound to an empty string)
 	 */
-	readonly model: Localised;
+	readonly model: Locale;
 
 }
 
 /**
- * Constraints for the {@link localised} shape factory.
+ * Constraints for the {@link text} shape factory.
  */
-export interface LocalisedConstraints {
+export interface TextConstraints {
 
 	/**
 	 * Minimum string length in characters.
@@ -171,71 +185,78 @@ export interface LocalisedConstraints {
 /**
  * Creates a language-tagged map shape with a typed model value and no other constraints.
  *
- * @typeParam M The {@link Locale} type of the model
+ * @typeParam M The scalar {@link Locale} type of the model
  *
- * @param model Prototype value for runtime model assembly
+ * @param model Scalar localised prototype value for runtime model assembly: a tag-keyed map
+ *     associating each language tag (or tag range) with its content
  *
  * @returns An immutable shape with `model` typed as `M`
  *
  * @example
  *
  * ```typescript
- * const title = localised({ "*": "Untitled" } as const);
- * const name = localised("Default");  // shorthand for { "*": "Default" }
+ * const title = text({ en: "Untitled", it: "Senza titolo" } as const);
+ * const name = text({ und: "Default" });  // language-neutral content under `und`
  * ```
  */
-export function localised<M extends Locale>(model: M): LocalisedShape & { readonly model: M };
+export function text<
+	M extends { readonly [tag: Tag]: string }
+>(model: M): Omit<TextShape, "model"> & { readonly model: M };
 
 /**
  * Creates a language-tagged map shape with optional validation constraints.
  *
- * @param constraints Optional shape {@link LocalisedConstraints constraints}
+ * @param constraints Optional shape {@link TextConstraints constraints}
  *
- * @returns An immutable shape with `model` typed as `Localised`
+ * @returns An immutable shape with `model` typed as `Locale`
  *
  * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @example
  *
  * ```typescript
- * const label = localised();
- * const name = localised({ minLength: 1, maxLength: 100 });
- * const text = localised({ languageIn: ["en", "it"] });
+ * const label = text();
+ * const name = text({ minLength: 1, maxLength: 100 });
+ * const restricted = text({ languageIn: ["en", "it"] });
  * ```
  */
-export function localised<const C extends LocalisedConstraints>(constraints?: C): LocalisedShape;
+export function text<const C extends TextConstraints>(constraints?: C): TextShape;
 
 /**
  * Creates a language-tagged map shape.
- *
  */
-export function localised(a: Locale | LocalisedConstraints = {}): LocalisedShape {
+export function text(a: Locale | TextConstraints = {}): TextShape {
 
-	const isConstraints = isObject(a, (v, k) =>
-		["minLength", "maxLength", "languageIn"].includes(k)
-	);
+	function isTextConstraints(value: unknown): value is TextConstraints {
+		return isObject(value, (v, k) =>
+			["minLength", "maxLength", "languageIn"].includes(k)
+		);
+	}
 
-	const model = isConstraints ? undefined : a;
-	const constraints = isConstraints ? a : {};
+	const withConstraints = isTextConstraints(a);
 
-	const resolved: Localised = model === undefined ? { "*": "" }
-		: isString(model) ? { "*": model }
-			: isArray(model) ? { "*": model } as Localised
-				: model as Localised;
+	const model: Locale = withConstraints ? { "*": "" } : a;
+	const constraints = withConstraints ? a : {};
 
-	const shape: LocalisedShape = immutable({
+	const shape: TextShape = immutable({
 
-		kind: "localised",
-		model: resolved,
+		kind: "text",
+		model,
 
 		...constraints
 
 	});
 
-	const trace = checkLocalised(shape);
+	const trace = checkText(shape);
 
 	if ( trace !== undefined ) {
-		throw new TraceError("inconsistent localised shape constraints", trace);
+		throw new TraceError("inconsistent text shape constraints", trace);
+	}
+
+	const malformed = checkTextModel(model);
+
+	if ( malformed !== undefined ) {
+		throw new TraceError("malformed text shape model", malformed);
 	}
 
 	return shape;

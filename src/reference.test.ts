@@ -17,14 +17,13 @@
 import { describe, expect, it } from "vitest";
 import { TraceError } from "./index.core.js";
 import { mergeReference, validateReferences } from "./reference.core.js";
-import { reference } from "./reference.js";
+import { reference, type ReferenceConstraints } from "./reference.js";
 import { resource } from "./resource.js";
 import { string } from "./string.js";
 import { multiple, optional, repeatable, required } from "./value.js";
 
 
 describe("factories", () => {
-
 
 	describe.each([
 		["multiple", multiple, undefined, undefined],
@@ -63,26 +62,29 @@ describe("factories", () => {
 
 	});
 
-
-	describe("reference", () => {
+	describe.each<[string, ReferenceConstraints]>([
+		["reference", {}],
+		["foreign", { foreign: true }],
+		["captive", { captive: true }]
+	])("%s", (_label, constraints) => {
 
 		describe("shape", () => {
 
 			it("returns a shape with kind 'reference'", async () => {
 
-				expect(reference(resource({})).kind).toBe("reference");
+				expect(reference(resource({}), constraints).kind).toBe("reference");
 
 			});
 
 			it("returns a shape with default model", async () => {
 
-				expect(reference(resource({})).model).toBe("app:/");
+				expect(reference(resource({}), constraints).model).toBe("app:/");
 
 			});
 
 			it("returns an immutable shape", async () => {
 
-				const shape = reference(resource({}));
+				const shape = reference(resource({}), constraints);
 
 				expect(() => (shape as any).kind = "string").toThrow();
 				expect(() => (shape as any).model = "/test").toThrow();
@@ -93,71 +95,17 @@ describe("factories", () => {
 
 	});
 
-	describe("foreign", () => {
+	describe.each<[string, "foreign" | "captive", ReferenceConstraints]>([
+		["foreign", "foreign", { foreign: true }],
+		["captive", "captive", { captive: true }]
+	])("%s", (_label, flag, constraints) => {
 
-		describe("shape", () => {
+		it(`exposes ${flag} set to true and is immutable`, async () => {
 
-			it("returns a shape with kind 'reference'", async () => {
+			const shape = reference(resource({}), constraints);
 
-				expect(reference(resource({}), { foreign: true }).kind).toBe("reference");
-
-			});
-
-			it("returns a shape with foreign set to true", async () => {
-
-				expect(reference(resource({}), { foreign: true }).foreign).toBe(true);
-
-			});
-
-			it("returns a shape with default model", async () => {
-
-				expect(reference(resource({}), { foreign: true }).model).toBe("app:/");
-
-			});
-
-			it("returns an immutable shape", async () => {
-
-				const shape = reference(resource({}), { foreign: true });
-
-				expect(() => (shape as any).kind = "string").toThrow();
-				expect(() => (shape as any).foreign = false).toThrow();
-
-			});
-
-		});
-
-	});
-
-	describe("captive", () => {
-
-		describe("shape", () => {
-
-			it("returns a shape with kind 'reference'", async () => {
-
-				expect(reference(resource({}), { captive: true }).kind).toBe("reference");
-
-			});
-
-			it("returns a shape with captive set to true", async () => {
-
-				expect(reference(resource({}), { captive: true }).captive).toBe(true);
-
-			});
-
-			it("returns a shape with default model", async () => {
-
-				expect(reference(resource({}), { captive: true }).model).toBe("app:/");
-
-			});
-
-			it("returns an immutable shape", async () => {
-
-				const shape = reference(resource({}), { captive: true });
-
-				expect(() => (shape as any).kind = "string").toThrow();
-				expect(() => (shape as any).captive = false).toThrow();
-
-			});
+			expect(shape[flag]).toBe(true);
+			expect(() => (shape as any)[flag] = false).toThrow();
 
 		});
 
@@ -167,66 +115,33 @@ describe("factories", () => {
 
 describe("operators", () => {
 
-	describe("validateReference", () => {
+	describe("validateReferences", () => {
 
 		describe("type filtering", () => {
 
-			it("returns undefined for valid reference values", async () => {
+			it.each<[string, readonly unknown[]]>([
+				["valid reference values", ["app:/users/123"]],
+				["empty values", []]
+			])("returns undefined for %s", async (_label, values) => {
 
-				expect(validateReferences(["app:/users/123"], reference(resource({})))).toBeUndefined();
-
-			});
-
-			it("returns undefined for empty values array", async () => {
-
-				expect(validateReferences([], reference(resource({})))).toBeUndefined();
+				expect(validateReferences(values, reference(resource({})))).toBeUndefined();
 
 			});
 
-			it("returns trace with kind key for non-reference value", async () => {
+			it.each<[string, readonly unknown[], RegExp]>([
+				["a single non-reference value", [42], /expected <reference> values$/],
+				["mixed valid and non-reference values", ["app:/users/123", 42], /expected <reference> values$/],
+				["multiple non-reference values", [42, true], /expected <reference> values \(2\/2\)/],
 
-				const trace = validateReferences([42], reference(resource({})));
+				// references MUST be absolute IRIs; a root-relative string carries no scheme
+
+				["a relative (non-absolute) IRI", ["/users/123"], /expected <reference> values$/]
+			])("returns a kind trace for %s", async (_label, values, message) => {
+
+				const trace = validateReferences(values, reference(resource({})));
 
 				expect(trace).toHaveProperty("{kind}");
-
-			});
-
-			it("returns trace with kind key for multiple non-reference values", async () => {
-
-				const trace = validateReferences([42, true], reference(resource({})));
-
-				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
-
-			});
-
-			it("returns trace with kind key for mixed values", async () => {
-
-				const trace = validateReferences(["app:/users/123", 42], reference(resource({})));
-
-				expect(trace).toHaveProperty("{kind}");
-
-			});
-
-		});
-
-		describe("no constraints", () => {
-
-			it("accepts any reference when target shape has no constraints", async () => {
-
-				const target = resource({});
-				const shape = reference(target);
-
-				expect(validateReferences(["app:/users/123"], shape)).toBeUndefined();
-
-			});
-
-			it("accepts empty values", async () => {
-
-				const target = resource({});
-				const shape = reference(target);
-
-				expect(validateReferences([], shape)).toBeUndefined();
+				expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
 
 			});
 
@@ -296,87 +211,58 @@ describe("operators", () => {
 
 	describe("mergeReference", () => {
 
-		describe("kind", () => {
+		it("preserves kind as 'reference'", async () => {
 
-			it("preserves kind as 'reference'", async () => {
+			const merged = mergeReference(reference(resource({})), reference(resource({})));
 
-				const merged = mergeReference(reference(resource({})), reference(resource({})));
-
-				expect(merged.kind).toBe("reference");
-
-			});
+			expect(merged.kind).toBe("reference");
 
 		});
 
-		describe("model", () => {
+		it("merges shapes with equal models", async () => {
 
-			it("merges shapes with equal models", async () => {
+			const merged = mergeReference(reference(resource({})), reference(resource({})));
 
-				const merged = mergeReference(reference(resource({})), reference(resource({})));
-
-				expect(merged.model).toBe("app:/");
-
-			});
+			expect(merged.model).toBe("app:/");
 
 		});
 
-		describe("foreign", () => {
+		describe.each<[string, "foreign" | "captive", ReferenceConstraints]>([
+			["foreign", "foreign", { foreign: true }],
+			["captive", "captive", { captive: true }]
+		])("%s", (_label, flag, constraints) => {
 
-			it("inherits foreign from source", async () => {
+			it(`inherits ${flag} from source`, async () => {
+
+				const merged = mergeReference(reference(resource({})), reference(resource({}), constraints));
+
+				expect(merged[flag]).toBe(true);
+
+			});
+
+			it(`preserves absent ${flag} when neither defines it`, async () => {
+
+				const merged = mergeReference(reference(resource({})), reference(resource({})));
+
+				expect(merged[flag]).toBeUndefined();
+
+			});
+
+			it(`tolerates matching ${flag} on both target and source`, async () => {
 
 				const merged = mergeReference(
-					reference(resource({})),
-					reference(resource({}), { foreign: true })
+					reference(resource({}), constraints),
+					reference(resource({}), constraints)
 				);
 
-				expect(merged.foreign).toBe(true);
+				expect(merged[flag]).toBe(true);
 
 			});
 
-			it("preserves absent foreign when neither defines it", async () => {
-
-				const merged = mergeReference(reference(resource({})), reference(resource({})));
-
-				expect(merged.foreign).toBeUndefined();
-
-			});
-
-			it("rejects foreign definition by target", async () => {
+			it(`rejects ${flag} redefinition by target`, async () => {
 
 				expect(() => mergeReference(
-					reference(resource({}), { foreign: true }),
-					reference(resource({}))
-				)).toThrow(TraceError);
-
-			});
-
-		});
-
-		describe("captive", () => {
-
-			it("inherits captive from source", async () => {
-
-				const merged = mergeReference(
-					reference(resource({})),
-					reference(resource({}), { captive: true })
-				);
-
-				expect(merged.captive).toBe(true);
-
-			});
-
-			it("preserves absent captive when neither defines it", async () => {
-
-				const merged = mergeReference(reference(resource({})), reference(resource({})));
-
-				expect(merged.captive).toBeUndefined();
-
-			});
-
-			it("rejects captive definition by target", async () => {
-
-				expect(() => mergeReference(
-					reference(resource({}), { captive: true }),
+					reference(resource({}), constraints),
 					reference(resource({}))
 				)).toThrow(TraceError);
 
@@ -386,14 +272,22 @@ describe("operators", () => {
 
 		describe("shape", () => {
 
-			it("inherits shape from source", async () => {
+			it("preserves the shared target shape", async () => {
 
 				const target = resource({});
-				const source = resource({});
 
-				const merged = mergeReference(reference(target), reference(source));
+				const merged = mergeReference(reference(target), reference(target));
 
-				expect(merged.shape).toBe(source);
+				expect(merged.shape).toBe(target);
+
+			});
+
+			it("rejects a divergent target shape", async () => {
+
+				expect(() => mergeReference(
+					reference(resource({ name: required(string()) })),
+					reference(resource({ label: required(string()) }))
+				)).toThrow(TraceError);
 
 			});
 

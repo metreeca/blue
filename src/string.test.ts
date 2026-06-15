@@ -33,22 +33,14 @@ describe("factories", () => {
 
 			});
 
-			it("returns a shape with default model", async () => {
+			it.each<[string, () => string, string]>([
+				["no arguments", () => string().model, ""],
+				["empty constraints", () => string({}).model, ""],
+				["model argument", () => string("example").model, "example"],
+				["model constraint", () => string({ model: "example" }).model, "example"]
+			])("resolves model from %s", async (_label, model, expected) => {
 
-				expect(string().model).toBe("");
-				expect(string({}).model).toBe("");
-
-			});
-
-			it("returns a shape with model argument", async () => {
-
-				expect(string("example").model).toBe("example");
-
-			});
-
-			it("returns a shape with model constraint", async () => {
-
-				expect(string({ model: "example" }).model).toBe("example");
+				expect(model()).toBe(expected);
 
 			});
 
@@ -250,43 +242,25 @@ describe("operators", () => {
 
 		describe("type filtering", () => {
 
-			it("returns undefined for valid string values", async () => {
+			it.each<[string, readonly unknown[]]>([
+				["valid string values", ["hello"]],
+				["empty values array", []]
+			])("returns undefined for %s", async (_label, values) => {
 
-				expect(validateString(["hello"], string())).toBeUndefined();
-
-			});
-
-			it("returns undefined for empty values array", async () => {
-
-				expect(validateString([], string())).toBeUndefined();
+				expect(validateString(values, string())).toBeUndefined();
 
 			});
 
-			it("returns trace with kind key for non-string value", async () => {
+			it.each<[string, readonly unknown[], RegExp]>([
+				["a single non-string value", [42], /expected <string> values$/],
+				["mixed valid and non-string values", [42, "hello", true], /expected <string> values \(2\/3\)/],
+				["multiple non-string values", [42, true], /expected <string> values \(2\/2\)/]
+			])("returns a kind trace for %s", async (_label, values, message) => {
 
-				const trace = validateString([42], string());
+				const trace = validateString(values, string());
 
-				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{kind}");
-
-			});
-
-			it("returns trace with kind key for multiple non-string values", async () => {
-
-				const trace = validateString([42, true], string());
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
-
-			});
-
-			it("returns trace with kind key for mixed values", async () => {
-
-				const trace = validateString([42, "hello", true], string());
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{kind}");
+				expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
 
 			});
 
@@ -662,33 +636,15 @@ describe("operators", () => {
 
 		describe("per-value errors", () => {
 
-			it("reports failure with count prefix for multiple failing values", async () => {
+			it.each<[string, readonly string[], RegExp]>([
+				["a count prefix for multiple failing values", ["ab", "c"], /^\(2\/2\) /],
+				["only failing values in the count prefix", ["ab", "hello", "c"], /^\(2\/3\) /],
+				["no count prefix for a single failing value", ["ab"], /^expected string length >= <3>/]
+			])("reports %s", async (_label, values, message) => {
 
-				const trace = validateString(["ab", "c"], string({ minLength: 3 }));
+				const trace = validateString(values, string({ minLength: 3 }));
 
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{minLength}");
-				expect((trace as Record<string, string>)["{minLength}"]).toMatch(/^\(2\/2\)/);
-
-			});
-
-			it("reports failure with count prefix for partial failures", async () => {
-
-				const trace = validateString(["ab", "hello", "c"], string({ minLength: 3 }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{minLength}");
-				expect((trace as Record<string, string>)["{minLength}"]).toMatch(/^\(2\/3\)/);
-
-			});
-
-			it("reports failure without count prefix for single value", async () => {
-
-				const trace = validateString(["ab"], string({ minLength: 3 }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{minLength}");
-				expect((trace as Record<string, string>)["{minLength}"]).not.toMatch(/^\(/);
+				expect((trace as Record<string, string>)["{minLength}"]).toMatch(message);
 
 			});
 

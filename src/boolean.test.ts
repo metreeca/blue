@@ -33,22 +33,14 @@ describe("factories", () => {
 
 			});
 
-			it("returns a shape with default model", async () => {
+			it.each<[string, () => boolean, boolean]>([
+				["no arguments", () => boolean().model, false],
+				["empty constraints", () => boolean({}).model, false],
+				["model argument", () => boolean(true).model, true],
+				["model constraint", () => boolean({ model: true }).model, true]
+			])("resolves model from %s", async (_label, model, expected) => {
 
-				expect(boolean().model).toBe(false);
-				expect(boolean({}).model).toBe(false);
-
-			});
-
-			it("returns a shape with model argument", async () => {
-
-				expect(boolean(true).model).toBe(true);
-
-			});
-
-			it("returns a shape with model constraint", async () => {
-
-				expect(boolean({ model: true }).model).toBe(true);
+				expect(model()).toBe(expected);
 
 			});
 
@@ -61,17 +53,9 @@ describe("factories", () => {
 
 			});
 
-		});
+			it("includes only kind and model properties", async () => {
 
-		describe("constraints", () => {
-
-			describe("combined", () => {
-
-				it("includes only provided properties", async () => {
-
-					expect(Object.keys(boolean()).sort()).toEqual(["kind", "model"]);
-
-				});
+				expect(Object.keys(boolean()).sort()).toEqual(["kind", "model"]);
 
 			});
 
@@ -85,47 +69,25 @@ describe("operators", () => {
 
 	describe("validateBoolean", () => {
 
-		describe("type filtering", () => {
+		it.each<[string, readonly unknown[]]>([
+			["valid boolean values", [true, false]],
+			["empty values", []]
+		])("returns undefined for %s", async (_label, values) => {
 
-			it("returns undefined for valid boolean values", async () => {
+			expect(validateBoolean(values, boolean())).toBeUndefined();
 
-				expect(validateBoolean([true, false], boolean())).toBeUndefined();
+		});
 
-			});
+		it.each<[string, readonly unknown[], RegExp]>([
+			["a single non-boolean value", [42], /expected <boolean> values$/],
+			["mixed valid and non-boolean values", [true, 42, "hello"], /expected <boolean> values \(2\/3\)/],
+			["multiple non-boolean values", [42, "hello"], /expected <boolean> values \(2\/2\)/]
+		])("returns a kind trace for %s", async (_label, values, message) => {
 
-			it("returns undefined for empty values", async () => {
+			const trace = validateBoolean(values, boolean());
 
-				expect(validateBoolean([], boolean())).toBeUndefined();
-
-			});
-
-			it("returns trace with kind key for non-boolean value", async () => {
-
-				const trace = validateBoolean([42], boolean());
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{kind}");
-
-			});
-
-			it("returns trace with kind key for multiple non-boolean values", async () => {
-
-				const trace = validateBoolean([42, "hello"], boolean());
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
-
-			});
-
-			it("returns trace with kind key for mixed values", async () => {
-
-				const trace = validateBoolean([true, 42, "hello"], boolean());
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{kind}");
-
-			});
+			expect(trace).toHaveProperty("{kind}");
+			expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
 
 		});
 
@@ -133,41 +95,21 @@ describe("operators", () => {
 
 	describe("mergeBoolean", () => {
 
-		describe("kind", () => {
+		it("preserves kind as 'boolean'", async () => {
 
-			it("preserves kind as 'boolean'", async () => {
-
-				const merged = mergeBoolean(boolean(), boolean());
-
-				expect(merged.kind).toBe("boolean");
-
-			});
+			expect(mergeBoolean(boolean(), boolean()).kind).toBe("boolean");
 
 		});
 
-		describe("model", () => {
+		it.each([false, true])("merges shapes with equal model <%s>", async (model) => {
 
-			it("merges shapes with equal models", async () => {
+			expect(mergeBoolean(boolean(model), boolean(model)).model).toBe(model);
 
-				const merged = mergeBoolean(boolean(), boolean());
+		});
 
-				expect(merged.model).toBe(false);
+		it("rejects shapes with different models", async () => {
 
-			});
-
-			it("merges shapes with equal non-default models", async () => {
-
-				const merged = mergeBoolean(boolean(true), boolean(true));
-
-				expect(merged.model).toBe(true);
-
-			});
-
-			it("rejects shapes with different models", async () => {
-
-				expect(() => mergeBoolean(boolean(true), boolean(false))).toThrow(RangeError);
-
-			});
+			expect(() => mergeBoolean(boolean(true), boolean(false))).toThrow(RangeError);
 
 		});
 

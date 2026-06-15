@@ -7,8 +7,8 @@ Declarative blueprints for model-driven linked data processing.
 **@metreeca/blue** provides a shape-based schema framework for the linked data model defined
 by [@metreeca/qest](https://metreeca.github.io/qest/).
 
-Shape-based schemas go beyond structural validation, capturing the complete semantics of a resource — structure,
-constraints, metadata, and relationships — enabling them to act as a single source of truth for automated validation,
+Shape-based schemas go beyond structural validation, capturing the complete semantics of a resource (structure,
+constraints, metadata, and relationships), enabling them to act as a single source of truth for automated validation,
 persistence, API publishing, UI generation, and more:
 
 - **Define Once, Use Everywhere**: a single schema drives all automated processes
@@ -53,7 +53,7 @@ npm install @metreeca/blue
 > | [@metreeca/blue/boolean]       | Boolean shape and factories                |
 > | [@metreeca/blue/number]        | Numeric shape and factories                |
 > | [@metreeca/blue/string]        | Textual shape and factories                |
-> | [@metreeca/blue/localised]     | Localised text shape and factories         |
+> | [@metreeca/blue/text]          | Localised text shape and factories         |
 > | [@metreeca/blue/reference]     | Reference shape and factories              |
 > | [@metreeca/blue/resource]      | Resource shape and factories               |
 
@@ -67,7 +67,7 @@ npm install @metreeca/blue
 
 [@metreeca/blue/string]: https://metreeca.github.io/blue/modules/string.html
 
-[@metreeca/blue/localised]: https://metreeca.github.io/blue/modules/localised.html
+[@metreeca/blue/text]: https://metreeca.github.io/blue/modules/text.html
 
 [@metreeca/blue/reference]: https://metreeca.github.io/blue/modules/reference.html
 
@@ -83,7 +83,7 @@ import { multiple, optional, required, union } from "@metreeca/blue/value";
 import { boolean } from "@metreeca/blue/boolean";
 import { number } from "@metreeca/blue/number";
 import { string, url } from "@metreeca/blue/string";
-import { localised } from "@metreeca/blue/localised";
+import { text } from "@metreeca/blue/text";
 import { reference } from "@metreeca/blue/reference";
 import { id, resource, type } from "@metreeca/blue/resource";
 
@@ -96,8 +96,8 @@ function Thing() {
 
 function Product() {
 	return resource({ extends: Thing }, {
-		name: required(localised()),
-		description: optional(localised()),
+		name: required(text()),
+		description: optional(text()),
 		price: required(number({ minInclusive: 0 })),
 		inStock: required(boolean()),
 		tags: multiple(string()),
@@ -117,16 +117,16 @@ function Vendor() {
 	return resource({ extends: Thing }, {
 		name: required(string()),
 		website: required(url()),
-		address: optional(union({
-			text: string(),
-			PostalAddress: reference(PostalAddress),
-			VirtualLocation: reference(VirtualLocation)
-		}))
+		address: optional(union(
+			string(),
+			PostalAddress(),
+			VirtualLocation()
+		))
 	});
 }
 ```
 
-Shape factories like `string()`, `number()`, `boolean()`, `localised()`, and `reference()` define the expected value
+Shape factories like `string()`, `number()`, `boolean()`, `text()`, and `reference()` define the expected value
 type and optional constraints for each property. Cardinality helpers wrap shape factories to control how many values are
 expected and to determine the inferred TypeScript type:
 
@@ -134,43 +134,96 @@ expected and to determine the inferred TypeScript type:
 |-----------------|-------------|-----------------------------|
 | `required(s)`   | 1..1        | `V`                         |
 | `optional(s)`   | 0..1        | `undefined \| V`            |
-| `repeatable(s)` | 1..*        | `readonly [V, ...V[]]`      |
+| `repeatable(s)` | 1..*        | `readonly V[]`              |
 | `multiple(s)`   | 0..*        | `undefined \| readonly V[]` |
 
-Resource properties link to other resources in two ways. A `reference()` wrapper links to a **standalone resource** — an
-independently identified and managed entity like `Vendor`. A direct shape inclusion defines an **embedded resource** — a
+Resource properties link to other resources in two ways. A `reference()` wrapper links to a **standalone resource**, an
+independently identified and managed entity like `Vendor`. A direct shape inclusion defines an **embedded resource**, a
 nested object with no independent identity, created and managed together with its parent like `Rating`.
 
-Properties that accept multiple types are modelled as unions — discriminated variants wrapped in
-[index maps](https://www.w3.org/TR/json-ld11/#data-indexing), where each key identifies a type alternative. At runtime,
-union values are keyed by variant name:
+Properties that accept multiple types are modelled as unions of positional variants. A value satisfies the union if it
+satisfies at least one variant; at runtime, values are stored directly with no variant wrapping. Each variant is a
+literal, reference, or resource shape; localised `text()` is a whole-property type and is never a union variant, so
+`union()` rejects a text shape. Either of the following representations is accepted at the same `address` position:
+
+```json
+{ "address": "12 Harbour Street, Copenhagen" }
+```
 
 ```json
 {
   "address": {
-    "PostalAddress": {
-      "id": "https://data.example.com/addresses/456",
-      "streetAddress": "12 Harbour Street",
-      "addressLocality": "Copenhagen"
-    }
+    "streetAddress": "12 Harbour Street",
+    "addressLocality": "Copenhagen"
   }
 }
 ```
 
-## Type Inference
+## Extending Schemas
 
-Schemas double as TypeScript type definitions. The `Infer` utility extracts the model type:
+Use `extends` to inherit properties and constraints from a parent shape. Local entries augment the parent and may
+override inherited ones, but only by *narrowing*: overrides may restrict inherited constraints, never relax them.
+Cardinality narrows monotonically (`required` may override `optional`, but not the reverse), per-kind constraints
+intersect, and the override is rejected at the call site when the child relaxes the parent.
 
 ```ts
-import { type Infer } from "@metreeca/blue/value";
+const NamedThing = resource({
+    id: id(),
+    name: required(string({ minLength: 1 }))
+});
 
-type ProductType = Infer<typeof Product>;
+const Vendor = resource({ extends: NamedThing }, {
+    name: required(string({ minLength: 3, maxLength: 80 })), // narrows minLength
+    rating: optional(number({ minInclusive: 0, maxInclusive: 5 }))
+});
+```
+
+### Narrowing union slots
+
+When the parent declares a `union(...)` slot, an extending shape may narrow it in two forms:
+
+- **Single-variant narrowing** — the child supplies a non-union value shape whose discriminator (`kind`, plus
+  `class` for `reference` / `resource` variants) appears exactly once among the parent's variants. The merged slot
+  becomes a bare value shape; consumers see the variant's plain model rather than the indexed-record form.
+- **Union subsetting** — the child supplies a smaller `union(...)`; for each discriminator group in the parent, the
+  child must contain either all parent variants of that group in the same relative order, or none. Surviving variants
+  are merged pairwise; dropped variants are absent from the result.
+
+```ts
+const Entity = resource({
+    code: required(union(string(), number()))
+});
+
+// Form 1 — narrows the slot to a bare string
+const Vendor = resource({ extends: Entity }, {
+    code: required(string({ pattern: "^[A-Z]" }))
+});
+
+// Form 2 — keeps the union but drops the string variant wholesale
+const Numbered = resource({ extends: Entity }, {
+    code: required(union(number({ minInclusive: 0 })))
+});
+```
+
+The merged union's `model` re-indexes contiguously from `0`: dropping a parent variant renumbers every later variant.
+Consumers must key off the shape's own `model`, not assume positional alignment with an ancestor.
+
+## Type Inference
+
+Schemas double as TypeScript type definitions. The `State` utility extracts the runtime state
+value type matching a shape's template; pair it with `Schema` whenever the template form
+itself is needed:
+
+```ts
+import { type State } from "@metreeca/blue/value";
+
+type ProductType = State<typeof Product>;
 
 // {
-//     id: IRI,
-//     type: undefined | IRI,
-//     name: Local,
-//     description: undefined | Local,
+//     id: Reference,
+//     type: Reference,
+//     name: Text,
+//     description: undefined | Text,
 //     price: number,
 //     inStock: boolean,
 //     tags: undefined | readonly string[],
@@ -179,7 +232,7 @@ type ProductType = Infer<typeof Product>;
 // }
 ```
 
-No separate interface needed — the schema is the type definition.
+No separate interface needed: the schema is the type definition.
 
 ## Validating Resources
 
@@ -191,7 +244,7 @@ import { validate } from "@metreeca/blue";
 
 validate(data, { shape: Product })({
 	value: product => {
-		// product is typed as Infer<typeof Product>
+		// product is typed as State<typeof Product>
 	},
 	trace: trace => {
 		// trace describes validation violations
@@ -201,36 +254,80 @@ validate(data, { shape: Product })({
 
 All constraints are enforced, including type, cardinality, closed-shape checks, and custom validators. Unknown and
 missing properties are both rejected. On success, the value is an immutable copy validated against a verified and
-flattened copy of the shape. The function is idempotent on a specific shape: re-validation against the same shape
-trusts the previous result without repeating the validation process.
+flattened copy of the shape. The function is idempotent on a specific shape: re-validation against the same shape trusts
+the previous result without repeating the validation process.
 
-## Validating Templates
+## Validating Projections
 
-The same `validate` function validates retrieval
-[templates](https://metreeca.github.io/qest/types/template.Template.html) when the `fetch` option is set to `true`:
+When the projection template is not bonded to the shape (typically at API boundaries where `shape` defines the
+admissible surface and the projection arrives per request), pass `model` as a separate template argument. The result is
+narrowed to `Instance<T>`, where `T` is inferred from `model`:
 
 ```ts
 import { validate } from "@metreeca/blue";
 
-validate(data, { fetch: true, shape: Product });
-validate(data, { fetch: true, shape: Product, plain: true });
-validate(data, { fetch: true, shape: Product, depth: 0 });
+const model = { id: "", name: "" }; // projection requested by the caller
+
+validate(response, { shape: Product, model })({
+	value: product => {
+		// product is typed as { readonly id: Reference; readonly name: string }
+	},
+	trace: trace => {
+		// trace describes validation violations
+	}
+});
+```
+
+Only the projected keys are checked: constraints on keys absent from `model` are not enforced, so unrequested required
+fields do not trigger `minCount` violations. Reference-shape slots additionally accept an expanded nested resource,
+validated against the linked target shape narrowed by the nested projection in `model`.
+
+## Validating Templates
+
+The same `validate` function validates retrieval
+[templates](https://metreeca.github.io/qest/types/template.Template.html) when the `model` option is set to `true`:
+
+```ts
+import { validate } from "@metreeca/blue";
+
+validate(data, { model: true, shape: Product });
+validate(data, { model: true, shape: Product, plain: true });
+validate(data, { model: true, shape: Product, depth: 0 });
+validate(data, { model: true, shape: Product, limit: 100 });
 ```
 
 Type and structural constraints are enforced; value constraints are skipped as query values are placeholders. Missing
-properties are accepted as not requested. Where a property specifies a reference shape, the query may be either an IRI
-reference or a nested template validated against the target shape.
+properties are accepted as not requested; explicit `undefined` entries are equivalent and mark optional template or
+projection slots elided at construction time. Where a property specifies a reference shape, the query may be either an
+IRI reference placeholder, retrieving only the identifier, or a nested template validated against the target shape. A
+reference placeholder is never resolved on decoding, so it accepts any IRI reference (the empty string, a root-relative
+or relative reference, or an absolute IRI); reference values in selection operands, by contrast, are resolved against the
+base IRI and absolute. A union-typed property is addressed only through the indexed form (`{"0": ..., "1": ...}`), one
+placeholder per branch; a plain placeholder over it is rejected. Projection cells over a localised property carry a
+complete localised value whose per-language-tag shape is pinned to the property's per-tag cardinality (a single string
+for single-string-per-tag, a singleton array for array-per-tag); the localised value is assembled once per row rather
+than fanned out per tag.
+
+A localised property additionally coalesces under language negotiation, at its per-tag cardinality: its template slot
+also accepts a coalesced placeholder for the negotiated value (a bare string for single-string-per-tag, a single-element
+string array for array-per-tag), and a selection may constrain it with a plain-string operand (comparison, text search,
+or option) matched existentially over the coalesced value set under ordinary string semantics. Sorting and focusing
+still require a single-valued key, so they accept a coalesced localised key only where it resolves single-valued.
+
+The `plain`, `depth`, and `limit` options bound the accepted query language: `plain` rejects aggregate transforms
+(`count`, `sum`, `min`, `max`, `avg`); `depth` caps nested template expansion and property path length; `limit` caps the
+`#` pagination constraint and is injected as a default when missing.
 
 > [!CAUTION]
 >
 > By default, templates support the full query language, including aggregate transforms and nested expansion.
 > When exposing endpoints to untrusted clients, restrict query complexity as required by setting `plain`
-> to `true` and/or `depth` to `0` or a positive value.
+> to `true`, `depth` to `0` or a positive value, and/or `limit` to a maximum result set size.
 
 # SHACL Foundations
 
 [SHACL](https://www.w3.org/TR/shacl/) (Shapes Constraint Language) is a [W3C](https://www.w3.org/) standard for
-describing and validating RDF graphs. It defines *shapes* — sets of constraints that nodes in a graph must satisfy —
+describing and validating RDF graphs. It defines *shapes* (sets of constraints that nodes in a graph must satisfy)
 covering structure, cardinality, value ranges, and logical combinations.
 
 **@metreeca/blue** implements a controlled SHACL subset tailored to the

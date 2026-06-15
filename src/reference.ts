@@ -15,7 +15,68 @@
  */
 
 /**
- * Reference shape, constraints, and factory.
+ * Reference shape and factories.
+ *
+ * Defines {@link ReferenceShape} and the {@link reference} factory used to link a resource to
+ * another **standalone resource** identified by an absolute IRI. References pair an IRI value
+ * with a {@link ResourceShape} that describes the target resource, supporting circular and
+ * self-referential definitions through lazy resolution.
+ *
+ * **Defining Reference Properties**
+ *
+ * Wrap a target resource shape with {@link reference} and apply a cardinality factory:
+ *
+ * ```typescript
+ * import { required, multiple } from '@metreeca/blue/value';
+ * import { reference } from '@metreeca/blue/reference';
+ * import { resource, id } from '@metreeca/blue/resource';
+ *
+ * const Vendor = resource({
+ *   id: id()
+ * });
+ *
+ * const Product = resource({
+ *   id: id(),
+ *   vendor: required(reference(Vendor)),
+ *   suppliers: multiple(reference(Vendor))
+ * });
+ * ```
+ *
+ * **Standalone vs Embedded Resources**
+ *
+ * A `reference()` wrapper links to a **standalone resource**, an independently identified
+ * and managed entity. A direct shape inclusion (without the wrapper) defines an
+ * **embedded resource**, a nested object with no independent identity, created and managed
+ * together with its parent. See {@link resource | resource} for the embedded form.
+ *
+ * **Retrieval Forms**
+ *
+ * In a retrieval template, a reference-valued property accepts either form:
+ *
+ * 1. **IRI reference** — a bare IRI reference placeholder retrieves only the identifier of the
+ *    linked resource, without inspecting any of its properties. As a placeholder it is never
+ *    resolved on decoding, so it admits any IRI reference: the empty string, a root-relative or
+ *    relative reference, or an absolute IRI. Reference values proper (the operands of a selection)
+ *    are resolved against the base IRI and absolute by validation time.
+ * 2. **Nested resource template** — a nested template retrieves the requested subset of
+ *    the linked resource, validated against its target shape and subject to the template
+ *    validator's `depth` budget (if any).
+ *
+ * Setting the template validator's `depth` option to `0` disables form 2 while still
+ * accepting form 1. See {@link index!validate | validate} for the full form comparison and
+ * {@link resource!ResourceShape} for the companion embedded form.
+ *
+ * **Foreign and Captive References**
+ *
+ * The optional {@link ReferenceConstraints.foreign | foreign} and
+ * {@link ReferenceConstraints.captive | captive} flags refine the link semantics:
+ *
+ * - `foreign` marks the reference as a read-only view over data owned by the target resource;
+ *   foreign properties are accepted in retrieval templates but rejected in resource state
+ * - `captive` marks the referenced resource as existentially dependent on the source resource:
+ *   it has its own identity and lifecycle but is cascade-removed when the source is deleted
+ *
+ * The two flags are independent and may be combined.
  *
  * @module
  *
@@ -83,22 +144,24 @@ export interface ReferenceShape extends ReferenceConstraints {
  * The `foreign` and `captive` flags are independent and may be combined. Their interaction determines how insert and
  * remove operations behave on properties backed by the reference shape:
  *
- * | `foreign` | `captive` | Insert                                     | Remove
- *                                                               |
- * |:---------:|:---------:|--------------------------------------------|-------------------------------------------------------------------------------------------------------------|
- * |     —     |     —     | Writes data via forward/reverse predicates | Deletes data via forward/reverse predicates
- *                                                               |
- * |     ✓     |           | No-op (read-only view)                     | Deletes data via forward/reverse predicates
- *                                                               |
- * |           |     ✓     | Writes data via forward/reverse predicates | Deletes data via forward/reverse predicates
- * and cascade-removes referenced resource with the same semantics |
- * |     ✓     |     ✓     | No-op (read-only view)                     | Deletes data via forward/reverse predicates
- * and cascade-removes referenced resource with the same semantics |
+ * | `foreign` | `captive` | Insert                    | Remove                              |
+ * |:---------:|:---------:|---------------------------|-------------------------------------|
+ * |     —     |     —     | Writes forward/reverse    | Deletes forward/reverse             |
+ * |     ✓     |     —     | No-op (read-only view)    | Deletes forward/reverse             |
+ * |     —     |     ✓     | Writes forward/reverse    | Deletes forward/reverse and cascade |
+ * |     ✓     |     ✓     | No-op (read-only view)    | Deletes forward/reverse and cascade |
  *
- * The {@link resource!PropertyConstraints.forward | forward} and
- * {@link resource!PropertyConstraints.reverse | reverse} mappings on the enclosing
- * {@link resource!PropertyConstraints | property} determine which property mappings are written and deleted by these
- * operations.
+ * Here *forward/reverse* is shorthand for the forward and reverse predicates declared on the enclosing property;
+ * *cascade* means the referenced resource is removed with the same semantics.
+ *
+ * The {@link resource!PropertyConstraints.forward | forward} and {@link resource!PropertyConstraints.reverse |
+ * reverse} mappings on the enclosing {@link resource!PropertyConstraints | property} determine which property mappings
+ * are written and deleted by these operations.
+ *
+ * The `foreign` + `captive` combination models the parent side of a parent/children composition: the child owns the
+ * link, while the parent's view writes nothing on insert (`foreign`) but cascade-removes the children on deletion
+ * (`captive`). Link direction is immaterial, as long as both definitions share the same predicate IRI; children keep
+ * independent identity and lifecycle otherwise.
  */
 export interface ReferenceConstraints {
 
@@ -134,9 +197,9 @@ export interface ReferenceConstraints {
 	 *
 	 * > [!IMPORTANT]
 	 * > Captive resources are independent from {@link resource!resource | embedded resources}. Embedded resources have
-	 * > no independent identity or lifecycle ({@link resource!id | id} / {@link resource!type | type} rejected) and
-	 * > are always managed as part of their parent; captive resources have both and can be managed independently, but
-	 * > are cascade-deleted with the source resource.
+	 * > no independent identity or lifecycle ({@link resource!id | id} / {@link resource!type | type} rejected during
+	 * > state validation) and are always managed as part of their parent; captive resources have both and can be
+	 * > managed independently, but are cascade-deleted with the source resource.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *

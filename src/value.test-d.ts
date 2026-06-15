@@ -15,69 +15,73 @@
  */
 
 import type { IRI } from "@metreeca/core/resource";
-import type { Localised, Resource } from "@metreeca/qest/resource";
+import type { Text } from "@metreeca/qest/resource";
+import type { Selection } from "@metreeca/qest/template";
 import { assertType, describe, expectTypeOf, test } from "vitest";
 import type { BooleanShape } from "./boolean.js";
-import { localised, type LocalisedShape } from "./localised.js";
 import { integer, type NumberShape } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import { property, resource, type ResourceShape } from "./resource.js";
 import { string, type StringShape } from "./string.js";
+import { text, type TextShape } from "./text.js";
 import {
-	type Cardinality,
-	type Infer,
+	type Bounds,
+	cardinality,
 	multiple,
 	optional,
 	repeatable,
 	required,
-	union,
-	type ValuesShape
+	type State,
+	union
 } from "./value.js";
 
 
-describe("Infer", () => {
+describe("State", () => {
 
 	describe("value shapes", () => {
 
 		test("BooleanShape → boolean", () => {
-			expectTypeOf<Infer<BooleanShape>>().toEqualTypeOf<boolean>();
+			expectTypeOf<State<BooleanShape>>().toEqualTypeOf<boolean>();
 		});
 
 		test("NumberShape → number", () => {
-			expectTypeOf<Infer<NumberShape>>().toEqualTypeOf<number>();
+			expectTypeOf<State<NumberShape>>().toEqualTypeOf<number>();
 		});
 
 		test("StringShape → string", () => {
-			expectTypeOf<Infer<StringShape>>().toEqualTypeOf<string>();
+			expectTypeOf<State<StringShape>>().toEqualTypeOf<string>();
 		});
 
-		test("LocalisedShape → Localised", () => {
-			expectTypeOf<Infer<LocalisedShape>>().toEqualTypeOf<Localised>();
+		test("TextShape → Text", () => {
+			expectTypeOf<State<TextShape>>().toEqualTypeOf<Text>();
 		});
 
-		test("LocalisedShape accepts string shorthand", () => {
-			expectTypeOf<string>().toExtend<Infer<LocalisedShape>>();
+		test("TextShape rejects string shorthand", () => {
+			expectTypeOf<string>().not.toExtend<State<TextShape>>();
 		});
 
-		test("LocalisedShape accepts string array shorthand", () => {
-			expectTypeOf<readonly string[]>().toExtend<Infer<LocalisedShape>>();
+		test("TextShape rejects string array shorthand", () => {
+			expectTypeOf<readonly string[]>().not.toExtend<State<TextShape>>();
 		});
 
 		test("ReferenceShape → Reference", () => {
-			expectTypeOf<Infer<ReferenceShape>>().toEqualTypeOf<IRI>();
+			expectTypeOf<State<ReferenceShape>>().toEqualTypeOf<IRI>();
 		});
 
-		test("ResourceShape → Resource", () => {
-			expectTypeOf<Infer<ResourceShape>>().toEqualTypeOf<Resource>();
+		test("ResourceShape → Resource-like record", () => {
+			expectTypeOf<State<ResourceShape>>().toBeObject();
 		});
 
 		test("ValueShape → union of all model types", () => {
-			expectTypeOf<Infer<ValuesShape>>()
-				.toEqualTypeOf<boolean | number | string | Localised | IRI | Resource>();
+			expectTypeOf<State<BooleanShape>>().toExtend<boolean>();
+			expectTypeOf<State<NumberShape>>().toExtend<number>();
+			expectTypeOf<State<StringShape>>().toExtend<string>();
+			expectTypeOf<State<TextShape>>().toExtend<Text>();
+			expectTypeOf<State<ReferenceShape>>().toExtend<IRI>();
 		});
 
 		test("lazy resource factory → unwrapped model type", () => {
-			expectTypeOf<Infer<() => ResourceShape>>().toEqualTypeOf<Resource>();
+			expectTypeOf<State<() => ResourceShape>>().toBeObject();
 		});
 
 	});
@@ -94,29 +98,24 @@ describe("Infer", () => {
 		}
 
 		test("required → T", () => {
-			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("req").toEqualTypeOf<string>();
+			expectTypeOf<State<typeof Shape>>().toHaveProperty("req").toEqualTypeOf<string>();
 		});
 
 		test("optional → undefined | T", () => {
-			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("opt").toEqualTypeOf<string | undefined>();
+			expectTypeOf<State<typeof Shape>>().toHaveProperty("opt").toEqualTypeOf<string | undefined>();
 		});
 
 		test("multiple → undefined | readonly T[]", () => {
-			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("mult").toEqualTypeOf<readonly string[] | undefined>();
+			expectTypeOf<State<typeof Shape>>().toHaveProperty("mult").toEqualTypeOf<readonly string[] | undefined>();
 		});
 
-		test("repeatable → readonly [T, ...T[]]", () => {
-			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("rep").toEqualTypeOf<readonly [string, ...string[]]>();
+		test("repeatable → readonly T[]", () => {
+			expectTypeOf<State<typeof Shape>>().toHaveProperty("rep").toEqualTypeOf<readonly string[]>();
 		});
 
 		test("rejects undefined for required", () => {
 			// @ts-expect-error - required cannot be undefined
-			assertType<Infer<typeof Shape>>({ req: undefined, rep: ["x"] });
-		});
-
-		test("rejects empty array for repeatable", () => {
-			// @ts-expect-error - repeatable cannot be empty
-			assertType<Infer<typeof Shape>>({ req: "x", rep: [] });
+			assertType<State<typeof Shape>>({ req: undefined, rep: ["x"] });
 		});
 
 	});
@@ -133,50 +132,50 @@ describe("Infer", () => {
 		}
 
 		test("required → T", () => {
-			expectTypeOf<Infer<typeof NakedShape>>().toHaveProperty("req").toEqualTypeOf<string>();
+			expectTypeOf<State<typeof NakedShape>>().toHaveProperty("req").toEqualTypeOf<string>();
 		});
 
 		test("optional → undefined | T", () => {
-			expectTypeOf<Infer<typeof NakedShape>>().toHaveProperty("opt").toEqualTypeOf<string | undefined>();
+			expectTypeOf<State<typeof NakedShape>>().toHaveProperty("opt").toEqualTypeOf<string | undefined>();
 		});
 
 		test("multiple → undefined | readonly T[]", () => {
-			expectTypeOf<Infer<typeof NakedShape>>().toHaveProperty("mult").toEqualTypeOf<readonly string[] | undefined>();
+			expectTypeOf<State<typeof NakedShape>>().toHaveProperty("mult").toEqualTypeOf<readonly string[] | undefined>();
 		});
 
-		test("repeatable → readonly [T, ...T[]]", () => {
-			expectTypeOf<Infer<typeof NakedShape>>().toHaveProperty("rep").toEqualTypeOf<readonly [string, ...string[]]>();
+		test("repeatable → readonly T[]", () => {
+			expectTypeOf<State<typeof NakedShape>>().toHaveProperty("rep").toEqualTypeOf<readonly string[]>();
 		});
 
-		test("union accepts string variant", () => {
+		test("union accepts first variant", () => {
 			function UnionShape() {
 				return resource({
-					value: optional(union({ string: string(), number: integer() }))
+					value: optional(union(string(), integer()))
 				});
 			}
 
-			assertType<Infer<typeof UnionShape>>({ value: { string: "text" } });
+			assertType<State<typeof UnionShape>>({ value: "text" });
 		});
 
-		test("union accepts number variant", () => {
+		test("union accepts second variant", () => {
 			function UnionShape() {
 				return resource({
-					value: optional(union({ string: string(), number: integer() }))
+					value: optional(union(string(), integer()))
 				});
 			}
 
-			assertType<Infer<typeof UnionShape>>({ value: { number: 42 } });
+			assertType<State<typeof UnionShape>>({ value: 42 });
 		});
 
 		test("union rejects invalid type", () => {
 			function UnionShape() {
 				return resource({
-					value: optional(union({ string: string(), number: integer() }))
+					value: optional(union(string(), integer()))
 				});
 			}
 
 			// @ts-expect-error - boolean not a valid variant value
-			assertType<Infer<typeof UnionShape>>({ value: { string: true } });
+			assertType<State<typeof UnionShape>>({ value: true });
 		});
 
 		test("mixed property and naked range", () => {
@@ -187,8 +186,8 @@ describe("Infer", () => {
 				});
 			}
 
-			expectTypeOf<Infer<typeof MixedShape>>().toHaveProperty("name").toEqualTypeOf<string>();
-			expectTypeOf<Infer<typeof MixedShape>>().toHaveProperty("age").toEqualTypeOf<number | undefined>();
+			expectTypeOf<State<typeof MixedShape>>().toHaveProperty("name").toEqualTypeOf<string>();
+			expectTypeOf<State<typeof MixedShape>>().toHaveProperty("age").toEqualTypeOf<number | undefined>();
 		});
 
 		test("rejects undefined for required", () => {
@@ -200,7 +199,7 @@ describe("Infer", () => {
 			}
 
 			// @ts-expect-error - required cannot be undefined
-			assertType<Infer<typeof NakedRequired>>({ req: undefined, rep: ["x"] });
+			assertType<State<typeof NakedRequired>>({ req: undefined, rep: ["x"] });
 		});
 
 	});
@@ -208,44 +207,46 @@ describe("Infer", () => {
 	describe("locals", () => {
 
 		const Shape = resource({
-			title: required(localised()),
-			keywords: multiple(localised())
+			title: required(text()),
+			keywords: multiple(text())
 		});
 
-		test("infers string | { readonly [tag: string]: string } type for scalar cardinality", () => {
-			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("title").toEqualTypeOf<string | {
+		test("infers { readonly [tag: string]: string } type for scalar cardinality", () => {
+			expectTypeOf<State<typeof Shape>>().toHaveProperty("title").toEqualTypeOf<{
 				readonly [tag: string]: string
 			}>();
 		});
 
-		test("infers readonly string[] | { readonly [tag: string]: readonly string[] } | undefined type for array cardinality", () => {
-			expectTypeOf<Infer<typeof Shape>>().toHaveProperty("keywords").toEqualTypeOf<readonly string[] | {
+		test("infers { readonly [tag: string]: readonly string[] } | undefined type for array cardinality", () => {
+			expectTypeOf<State<typeof Shape>>().toHaveProperty("keywords").toEqualTypeOf<{
 				readonly [tag: string]: readonly string[]
 			} | undefined>();
 		});
 
-		test("scalar local accepts string shorthand", () => {
-			expectTypeOf<string>().toExtend<Infer<typeof Shape>["title"]>();
+		test("scalar local rejects string shorthand", () => {
+			expectTypeOf<string>().not.toExtend<State<typeof Shape>["title"]>();
 		});
 
-		test("array local accepts string array shorthand", () => {
-			expectTypeOf<readonly string[]>().toExtend<NonNullable<Infer<typeof Shape>["keywords"]>>();
+		test("array local rejects string array shorthand", () => {
+			expectTypeOf<readonly string[]>().not.toExtend<NonNullable<State<typeof Shape>["keywords"]>>();
 		});
 
 		test("accepts tagged object for scalar local", () => {
-			assertType<Infer<typeof Shape>>({ title: { en: "Hello" } });
+			assertType<State<typeof Shape>>({ title: { en: "Hello" }, keywords: undefined });
 		});
 
-		test("accepts string shorthand for scalar local", () => {
-			assertType<Infer<typeof Shape>>({ title: "Hello" });
+		test("rejects string shorthand for scalar local", () => {
+			// @ts-expect-error - bare string no longer accepted; tag map required
+			assertType<State<typeof Shape>>({ title: "Hello", keywords: undefined });
 		});
 
 		test("accepts tagged object for array local", () => {
-			assertType<Infer<typeof Shape>>({ title: "Hello", keywords: { en: ["a", "b"] } });
+			assertType<State<typeof Shape>>({ title: { und: "Hello" }, keywords: { en: ["a", "b"] } });
 		});
 
-		test("accepts string array shorthand for array local", () => {
-			assertType<Infer<typeof Shape>>({ title: "Hello", keywords: ["a", "b"] });
+		test("rejects string array shorthand for array local", () => {
+			// @ts-expect-error - bare string array no longer accepted; tag map required
+			assertType<State<typeof Shape>>({ title: { und: "Hello" }, keywords: ["a", "b"] });
 		});
 
 	});
@@ -254,31 +255,21 @@ describe("Infer", () => {
 
 		function Shape() {
 			return resource({
-				value: property(required(union({ string: string(), number: integer() })))
+				value: property(required(union(string(), integer())))
 			});
 		}
 
-		test("accepts string variant", () => {
-			assertType<Infer<typeof Shape>>({ value: { string: "text" } });
+		test("accepts first variant", () => {
+			assertType<State<typeof Shape>>({ value: "text" });
 		});
 
-		test("accepts number variant", () => {
-			assertType<Infer<typeof Shape>>({ value: { number: 42 } });
+		test("accepts second variant", () => {
+			assertType<State<typeof Shape>>({ value: 42 });
 		});
 
 		test("rejects invalid type", () => {
 			// @ts-expect-error - boolean not a valid variant value
-			assertType<Infer<typeof Shape>>({ value: { string: true } });
-		});
-
-		test("rejects bare value without variant key", () => {
-			// @ts-expect-error - union values must be indexed by variant identifier
-			assertType<Infer<typeof Shape>>({ value: "text" });
-		});
-
-		test("rejects unknown variant identifier", () => {
-			// @ts-expect-error - 'unknown' is not a declared variant
-			assertType<Infer<typeof Shape>>({ value: { unknown: "text" } });
+			assertType<State<typeof Shape>>({ value: true });
 		});
 
 	});
@@ -300,13 +291,13 @@ describe("Infer", () => {
 			}
 
 			test("includes inherited properties", () => {
-				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("name").toEqualTypeOf<string>();
-				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("code").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Derived>>().toHaveProperty("name").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Derived>>().toHaveProperty("code").toEqualTypeOf<string>();
 			});
 
 			test("rejects missing inherited property", () => {
 				// @ts-expect-error - missing inherited 'name'
-				assertType<Infer<typeof Derived>>({ code: "own" });
+				assertType<State<typeof Derived>>({ code: "own" });
 			});
 
 		});
@@ -332,14 +323,14 @@ describe("Infer", () => {
 			}
 
 			test("includes properties from all parents", () => {
-				expectTypeOf<Infer<typeof Multi>>().toHaveProperty("name").toEqualTypeOf<string>();
-				expectTypeOf<Infer<typeof Multi>>().toHaveProperty("label").toEqualTypeOf<string | undefined>();
-				expectTypeOf<Infer<typeof Multi>>().toHaveProperty("id").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Multi>>().toHaveProperty("name").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Multi>>().toHaveProperty("label").toEqualTypeOf<string | undefined>();
+				expectTypeOf<State<typeof Multi>>().toHaveProperty("id").toEqualTypeOf<string>();
 			});
 
 			test("rejects missing property from parent", () => {
 				// @ts-expect-error - missing 'name' from Base
-				assertType<Infer<typeof Multi>>({ label: "mixin", id: "own" });
+				assertType<State<typeof Multi>>({ label: "mixin", id: "own" });
 			});
 
 		});
@@ -365,14 +356,14 @@ describe("Infer", () => {
 			}
 
 			test("includes properties from all ancestors", () => {
-				expectTypeOf<Infer<typeof Child>>().toHaveProperty("a").toEqualTypeOf<string>();
-				expectTypeOf<Infer<typeof Child>>().toHaveProperty("b").toEqualTypeOf<string>();
-				expectTypeOf<Infer<typeof Child>>().toHaveProperty("c").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Child>>().toHaveProperty("a").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Child>>().toHaveProperty("b").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Child>>().toHaveProperty("c").toEqualTypeOf<string>();
 			});
 
 			test("rejects missing grandparent property", () => {
 				// @ts-expect-error - missing 'a' from GrandParent
-				assertType<Infer<typeof Child>>({ b: "parent", c: "child" });
+				assertType<State<typeof Child>>({ b: "parent", c: "child" });
 			});
 
 		});
@@ -404,10 +395,10 @@ describe("Infer", () => {
 			}
 
 			test("includes properties from all paths", () => {
-				expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("id").toEqualTypeOf<string>();
-				expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("left").toEqualTypeOf<string>();
-				expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("right").toEqualTypeOf<string>();
-				expectTypeOf<Infer<typeof Diamond>>().toHaveProperty("own").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Diamond>>().toHaveProperty("id").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Diamond>>().toHaveProperty("left").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Diamond>>().toHaveProperty("right").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Diamond>>().toHaveProperty("own").toEqualTypeOf<string>();
 			});
 
 		});
@@ -429,14 +420,14 @@ describe("Infer", () => {
 			}
 
 			test("preserves optionality from parent", () => {
-				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("reqBase").toEqualTypeOf<string>();
-				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("optBase").toEqualTypeOf<string | undefined>();
-				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("reqOwn").toEqualTypeOf<number>();
-				expectTypeOf<Infer<typeof Derived>>().toHaveProperty("optOwn").toEqualTypeOf<number | undefined>();
+				expectTypeOf<State<typeof Derived>>().toHaveProperty("reqBase").toEqualTypeOf<string>();
+				expectTypeOf<State<typeof Derived>>().toHaveProperty("optBase").toEqualTypeOf<string | undefined>();
+				expectTypeOf<State<typeof Derived>>().toHaveProperty("reqOwn").toEqualTypeOf<number>();
+				expectTypeOf<State<typeof Derived>>().toHaveProperty("optOwn").toEqualTypeOf<number | undefined>();
 			});
 
-			test("allows omitting optional properties", () => {
-				assertType<Infer<typeof Derived>>({ reqBase: "x", reqOwn: 1 });
+			test("allows undefined for optional properties", () => {
+				assertType<State<typeof Derived>>({ reqBase: "x", reqOwn: 1, optBase: undefined, optOwn: undefined });
 			});
 
 		});
@@ -451,7 +442,7 @@ describe("Infer", () => {
 				name: property(required(string()))
 			});
 
-			expectTypeOf<Infer<typeof DirectShape>>().toHaveProperty("name").toEqualTypeOf<string>();
+			expectTypeOf<State<typeof DirectShape>>().toHaveProperty("name").toEqualTypeOf<string>();
 
 		});
 
@@ -463,7 +454,7 @@ describe("Infer", () => {
 				});
 			}
 
-			expectTypeOf<Infer<typeof LazyShape>>().toHaveProperty("name").toEqualTypeOf<string>();
+			expectTypeOf<State<typeof LazyShape>>().toHaveProperty("name").toEqualTypeOf<string>();
 
 		});
 
@@ -479,20 +470,20 @@ describe("Infer", () => {
 		}
 
 		test("infers as IRI", () => {
-			expectTypeOf<Infer<typeof TreeNode>>().toHaveProperty("children").toEqualTypeOf<undefined | readonly IRI[]>();
+			expectTypeOf<State<typeof TreeNode>>().toHaveProperty("children").toEqualTypeOf<undefined | readonly IRI[]>();
 		});
 
 		test("accepts IRI array", () => {
-			assertType<Infer<typeof TreeNode>>({ label: "root", children: ["/child1" as IRI, "/child2" as IRI] });
+			assertType<State<typeof TreeNode>>({ label: "root", children: ["/child1" as IRI, "/child2" as IRI] });
 		});
 
 		test("accepts undefined", () => {
-			assertType<Infer<typeof TreeNode>>({ label: "leaf" });
+			assertType<State<typeof TreeNode>>({ label: "leaf", children: undefined });
 		});
 
 		test("rejects non-IRI values", () => {
 			// @ts-expect-error - number not assignable to IRI
-			assertType<Infer<typeof TreeNode>>({ label: "root", children: [1, 2] });
+			assertType<State<typeof TreeNode>>({ label: "root", children: [1, 2] });
 		});
 
 	});
@@ -506,18 +497,19 @@ describe("Infer", () => {
 				age: optional(integer())
 			});
 
-			expectTypeOf<Infer<typeof shape>>().toHaveProperty("name").toEqualTypeOf<string>();
-			expectTypeOf<Infer<typeof shape>>().toHaveProperty("age").toEqualTypeOf<number | undefined>();
+			expectTypeOf<State<typeof shape>>().toHaveProperty("name").toEqualTypeOf<string>();
+			expectTypeOf<State<typeof shape>>().toHaveProperty("age").toEqualTypeOf<number | undefined>();
 
 		});
 
-		test("accepts extra properties via Resource index signature", () => {
+		test("rejects extra properties (closed-shape semantics)", () => {
 
 			const shape = resource({
 				name: required(string())
 			});
 
-			assertType<Infer<typeof shape>>({ name: "test", extra: "unexpected" });
+			// @ts-expect-error - extra properties not allowed on closed resource shapes
+			assertType<State<typeof shape>>({ name: "test", extra: "unexpected" });
 
 		});
 
@@ -535,22 +527,22 @@ describe("Infer", () => {
 		describe("required property", () => {
 
 			test("accepts correct type", () => {
-				assertType<Infer<typeof Shape>>({ name: "Alice", roles: ["admin"] });
+				assertType<State<typeof Shape>>({ name: "Alice", age: undefined, tags: undefined, roles: ["admin"] });
 			});
 
 			test("rejects wrong type", () => {
 				// @ts-expect-error - number not assignable to string
-				assertType<Infer<typeof Shape>>({ name: 123, roles: ["admin"] });
+				assertType<State<typeof Shape>>({ name: 123, age: undefined, tags: undefined, roles: ["admin"] });
 			});
 
 			test("rejects undefined", () => {
 				// @ts-expect-error - required cannot be undefined
-				assertType<Infer<typeof Shape>>({ name: undefined, roles: ["admin"] });
+				assertType<State<typeof Shape>>({ name: undefined, age: undefined, tags: undefined, roles: ["admin"] });
 			});
 
 			test("rejects missing property", () => {
 				// @ts-expect-error - missing required 'name'
-				assertType<Infer<typeof Shape>>({ roles: ["admin"] });
+				assertType<State<typeof Shape>>({ age: undefined, tags: undefined, roles: ["admin"] });
 			});
 
 		});
@@ -558,16 +550,16 @@ describe("Infer", () => {
 		describe("optional property", () => {
 
 			test("accepts correct type", () => {
-				assertType<Infer<typeof Shape>>({ name: "Alice", age: 30, roles: ["admin"] });
+				assertType<State<typeof Shape>>({ name: "Alice", age: 30, tags: undefined, roles: ["admin"] });
 			});
 
-			test("accepts omitted", () => {
-				assertType<Infer<typeof Shape>>({ name: "Alice", roles: ["admin"] });
+			test("accepts undefined", () => {
+				assertType<State<typeof Shape>>({ name: "Alice", age: undefined, tags: undefined, roles: ["admin"] });
 			});
 
 			test("rejects wrong type", () => {
 				// @ts-expect-error - string not assignable to number
-				assertType<Infer<typeof Shape>>({ name: "Alice", age: "thirty", roles: ["admin"] });
+				assertType<State<typeof Shape>>({ name: "Alice", age: "thirty", tags: undefined, roles: ["admin"] });
 			});
 
 		});
@@ -575,21 +567,21 @@ describe("Infer", () => {
 		describe("multiple property", () => {
 
 			test("accepts array", () => {
-				assertType<Infer<typeof Shape>>({ name: "Alice", tags: ["a", "b"], roles: ["admin"] });
+				assertType<State<typeof Shape>>({ name: "Alice", age: undefined, tags: ["a", "b"], roles: ["admin"] });
 			});
 
-			test("accepts omitted", () => {
-				assertType<Infer<typeof Shape>>({ name: "Alice", roles: ["admin"] });
+			test("accepts undefined", () => {
+				assertType<State<typeof Shape>>({ name: "Alice", age: undefined, tags: undefined, roles: ["admin"] });
 			});
 
 			test("rejects scalar", () => {
 				// @ts-expect-error - scalar not assignable to array
-				assertType<Infer<typeof Shape>>({ name: "Alice", tags: "single", roles: ["admin"] });
+				assertType<State<typeof Shape>>({ name: "Alice", age: undefined, tags: "single", roles: ["admin"] });
 			});
 
 			test("rejects wrong element type", () => {
 				// @ts-expect-error - number[] not assignable to string[]
-				assertType<Infer<typeof Shape>>({ name: "Alice", tags: [1, 2, 3], roles: ["admin"] });
+				assertType<State<typeof Shape>>({ name: "Alice", age: undefined, tags: [1, 2, 3], roles: ["admin"] });
 			});
 
 		});
@@ -597,26 +589,26 @@ describe("Infer", () => {
 		describe("repeatable property", () => {
 
 			test("accepts non-empty array", () => {
-				assertType<Infer<typeof Shape>>({ name: "Alice", roles: ["admin", "user"] });
+				assertType<State<typeof Shape>>({
+					name: "Alice",
+					age: undefined,
+					tags: undefined,
+					roles: ["admin", "user"]
+				});
 			});
 
 			test("accepts single element", () => {
-				assertType<Infer<typeof Shape>>({ name: "Alice", roles: ["admin"] });
-			});
-
-			test("rejects empty array", () => {
-				// @ts-expect-error - empty array not assignable to non-empty tuple
-				assertType<Infer<typeof Shape>>({ name: "Alice", roles: [] });
+				assertType<State<typeof Shape>>({ name: "Alice", age: undefined, tags: undefined, roles: ["admin"] });
 			});
 
 			test("rejects undefined", () => {
 				// @ts-expect-error - undefined not assignable to non-empty tuple
-				assertType<Infer<typeof Shape>>({ name: "Alice", roles: undefined });
+				assertType<State<typeof Shape>>({ name: "Alice", age: undefined, tags: undefined, roles: undefined });
 			});
 
 			test("rejects scalar", () => {
 				// @ts-expect-error - scalar not assignable to array
-				assertType<Infer<typeof Shape>>({ name: "Alice", roles: "admin" });
+				assertType<State<typeof Shape>>({ name: "Alice", age: undefined, tags: undefined, roles: "admin" });
 			});
 
 		});
@@ -625,46 +617,110 @@ describe("Infer", () => {
 
 });
 
-describe("Cardinality", () => {
+describe("union", () => {
 
-	test("required (1,1) → V", () => {
-		expectTypeOf<Cardinality<string, 1, 1>>().toEqualTypeOf<string>();
+	test("rejects a text variant", () => {
+		// @ts-expect-error - localised text is a whole-property type, never a union variant
+		union(text());
+		// @ts-expect-error - localised text is a whole-property type, never a union variant
+		union(string(), text());
 	});
 
-	test("optional (undefined,1) → undefined | V", () => {
-		expectTypeOf<Cardinality<string, undefined, 1>>().toEqualTypeOf<undefined | string>();
+});
+
+describe("Bounds", () => {
+
+	describe("with cardinality", () => {
+
+		test("required (L = 1, U = 1) returns raw model", () => {
+			expectTypeOf<Bounds<StringShape, 1, 1>>().toEqualTypeOf<string>();
+		});
+
+		test("optional (L = undefined, U = 1) adds undefined arm", () => {
+			expectTypeOf<Bounds<StringShape, undefined, 1>>().toEqualTypeOf<undefined | string>();
+		});
+
+		test("repeatable (L = 1, U = undefined) wraps in singleton tuple", () => {
+			expectTypeOf<Bounds<StringShape, 1, undefined>>().toEqualTypeOf<readonly [string]>();
+		});
+
+		test("multiple (L = undefined, U = undefined) wraps in singleton tuple with undefined arm", () => {
+			expectTypeOf<Bounds<StringShape, undefined, undefined>>()
+				.toEqualTypeOf<undefined | readonly [string]>();
+		});
+
+		test("multi number shape (L = 1, U = undefined) → readonly [number]", () => {
+			expectTypeOf<Bounds<NumberShape, 1, undefined>>().toEqualTypeOf<readonly [number]>();
+		});
+
+		describe("Text", () => {
+
+			test("required scalar → { [tag]: string }", () => {
+				expectTypeOf<Bounds<TextShape, 1, 1>>().toEqualTypeOf<
+					{ readonly [tag: string]: string }
+				>();
+			});
+
+			test("optional scalar adds undefined arm", () => {
+				expectTypeOf<Bounds<TextShape, undefined, 1>>().toEqualTypeOf<
+					undefined | { readonly [tag: string]: string }
+				>();
+			});
+
+			test("repeatable → { [tag]: readonly [string] }", () => {
+				expectTypeOf<Bounds<TextShape, 1, undefined>>().toEqualTypeOf<
+					{ readonly [tag: string]: readonly [string] }
+				>();
+			});
+
+			test("multiple adds undefined arm", () => {
+				expectTypeOf<Bounds<TextShape, undefined, undefined>>().toEqualTypeOf<
+					undefined | { readonly [tag: string]: readonly [string] }
+				>();
+			});
+
+		});
+
 	});
 
-	test("multiple (undefined,undefined) → undefined | readonly V[]", () => {
-		expectTypeOf<Cardinality<string, undefined, undefined>>().toEqualTypeOf<undefined | readonly string[]>();
+});
+
+describe("selection injection", () => {
+
+	test("tuple factory accepts optional selection parameter", () => {
+		const factory = cardinality(2, 5);
+		factory(string(), { "#": 10 } satisfies Selection);
 	});
 
-	test("repeatable (1,undefined) → readonly [V, ...V[]]", () => {
-		expectTypeOf<Cardinality<string, 1, undefined>>().toEqualTypeOf<readonly [string, ...string[]]>();
+	test("tuple factory accepts undefined upper with selection", () => {
+		const factory = cardinality(2);
+		factory(string(), { "#": 10 } satisfies Selection);
 	});
 
-	describe("union model distribution", () => {
+	test("scalar factory rejects selection parameter", () => {
+		const factory = cardinality(1, 1);
+		// @ts-expect-error - selection not accepted when U extends 1 for non-Text
+		factory(string(), { "#": 10 });
+	});
 
-		type UnionModel = { readonly text?: string; readonly postal?: string };
+	test("scalar factory accepts selection for Text shape", () => {
+		const factory = cardinality(1, 1);
+		factory(text({ en: "", it: "" }), { "#": 10 } satisfies Selection);
+	});
 
-		test("required union (1,1) → scalar model unchanged", () => {
-			expectTypeOf<Cardinality<UnionModel, 1, 1>>().toEqualTypeOf<UnionModel>();
-		});
+	test("Text factory accepts selection with undefined upper", () => {
+		const factory = cardinality(1);
+		factory(text({ en: "", it: "" }), { "#": 10 } satisfies Selection);
+	});
 
-		test("optional union (undefined,1) → undefined | scalar model", () => {
-			expectTypeOf<Cardinality<UnionModel, undefined, 1>>().toEqualTypeOf<undefined | UnionModel>();
-		});
+	test("selection does not surface in SetShape type", () => {
+		const range = cardinality(2, 5)(string(), { "#": 10 });
+		expectTypeOf(range.model).toEqualTypeOf<readonly [string]>();
+	});
 
-		test("multiple union (undefined,undefined) → undefined | readonly array", () => {
-			expectTypeOf<Cardinality<UnionModel, undefined, undefined>>()
-				.toEqualTypeOf<undefined | readonly UnionModel[]>();
-		});
-
-		test("repeatable union (1,undefined) → non-empty readonly array", () => {
-			expectTypeOf<Cardinality<UnionModel, 1, undefined>>()
-				.toEqualTypeOf<readonly [UnionModel, ...UnionModel[]]>();
-		});
-
+	test("selection does not surface in Text SetShape type", () => {
+		const range = cardinality(1, 1)(text({ en: "", it: "" }), { "#": 10 });
+		expectTypeOf(range.model).toEqualTypeOf<{ readonly en: string; readonly it: string }>();
 	});
 
 });

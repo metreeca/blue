@@ -82,70 +82,6 @@ export function checkNumber({
 
 }
 
-
-/**
- * Validates values against a number shape.
- *
- * Filters input values by type, reporting non-numeric values under the `kind` key, then enforces
- * numeric constraints on matching values.
- */
-export function validateNumber(values: readonly unknown[], {
-
-	kind,
-
-	minExclusive,
-	maxExclusive,
-	minInclusive,
-	maxInclusive,
-
-	in: allowed,
-	hasValue
-
-}: NumberShape): undefined | Trace {
-
-	const matching = values.filter(isNumber);
-	const mistyped = values.length-matching.length;
-
-	return collect({
-
-		"{kind}": mistyped === 0
-			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
-
-		"{minExclusive}": every(matching, value =>
-			minExclusive === undefined || value > minExclusive
-			|| `expected values > <${minExclusive}>`
-		),
-
-		"{maxExclusive}": every(matching, value =>
-			maxExclusive === undefined || value < maxExclusive
-			|| `expected values < <${maxExclusive}>`
-		),
-
-		"{minInclusive}": every(matching, value =>
-			minInclusive === undefined || value >= minInclusive
-			|| `expected values >= <${minInclusive}>`
-		),
-
-		"{maxInclusive}": every(matching, value =>
-			maxInclusive === undefined || value <= maxInclusive
-			|| `expected values <= <${maxInclusive}>`
-		),
-
-		"{in}": every(matching, value =>
-			allowed === undefined || allowed.includes(value)
-			|| `expected values in [${allowed.join(", ")}]`
-		),
-
-		"{hasValue}": group(matching, group =>
-			hasValue === undefined || hasValue.every(v => group.includes(v))
-			|| `expected values to include [${hasValue.join(", ")}]`
-		)
-
-	});
-
-}
-
-
 /**
  * Merges an overriding number shape with an inherited base shape.
  *
@@ -252,6 +188,71 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 
 		in: allowed as NumberShape["in"],
 		hasValue: hasValue as NumberShape["hasValue"]
+
+	});
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Validates values against a number shape.
+ *
+ * Filters input values by type, reporting non-numeric values under the `kind` key, then enforces
+ * numeric constraints on matching values.
+ */
+export function validateNumber(values: readonly unknown[], {
+
+	kind,
+
+	minExclusive,
+	maxExclusive,
+	minInclusive,
+	maxInclusive,
+
+	in: allowed,
+	hasValue
+
+}: NumberShape): undefined | Trace {
+
+	const matching = values.filter(isNumber);
+	const mistyped = values.length-matching.length;
+
+	return collect({
+
+		"{kind}": mistyped === 0
+			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+
+		"{minExclusive}": every(matching, value =>
+			minExclusive === undefined || value > minExclusive
+			|| `expected values > <${minExclusive}>`
+		),
+
+		"{maxExclusive}": every(matching, value =>
+			maxExclusive === undefined || value < maxExclusive
+			|| `expected values < <${maxExclusive}>`
+		),
+
+		"{minInclusive}": every(matching, value =>
+			minInclusive === undefined || value >= minInclusive
+			|| `expected values >= <${minInclusive}>`
+		),
+
+		"{maxInclusive}": every(matching, value =>
+			maxInclusive === undefined || value <= maxInclusive
+			|| `expected values <= <${maxInclusive}>`
+		),
+
+		"{in}": every(matching, value =>
+			allowed === undefined || allowed.includes(value)
+			|| `expected values in [${allowed.join(", ")}]`
+		),
+
+		"{hasValue}": group(matching, group =>
+			hasValue === undefined || hasValue.every(v => group.includes(v))
+			|| `expected values to include [${hasValue.join(", ")}]`
+		)
 
 	});
 

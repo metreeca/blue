@@ -28,26 +28,6 @@ import type { Trace } from "./index.js";
 
 
 /**
- * Validates values against a boolean shape.
- *
- * Filters input values by type, reporting non-boolean values under the `kind` key.
- */
-export function validateBoolean(values: readonly unknown[], { kind }: BooleanShape): undefined | Trace {
-
-	const matching = values.filter(isBoolean);
-	const mistyped = values.length-matching.length;
-
-	return collect({
-
-		"{kind}": mistyped === 0
-			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`
-
-	});
-
-}
-
-
-/**
  * Merges an overriding boolean shape with an inherited base shape.
  *
  * Validates that `kind` and `model` match between target and source.
@@ -78,6 +58,28 @@ export function mergeBoolean(target: BooleanShape, source: BooleanShape): Boolea
 
 		kind: target.kind,
 		model: target.model
+
+	});
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Validates values against a boolean shape.
+ *
+ * Filters input values by type, reporting non-boolean values under the `kind` key.
+ */
+export function validateBoolean(values: readonly unknown[], { kind }: BooleanShape): undefined | Trace {
+
+	const matching = values.filter(isBoolean);
+	const mistyped = values.length-matching.length;
+
+	return collect({
+
+		"{kind}": mistyped === 0
+			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`
 
 	});
 

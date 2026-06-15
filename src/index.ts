@@ -17,8 +17,9 @@
 /**
  * Linked data validation API.
  *
- * Provides validation for linked data {@link Resource | resources} and retrieval {@link Template | templates} against
- * {@link https://www.w3.org/TR/shacl/ | SHACL}-derived {@link ResourceShape | shapes}.
+ * Provides validation for linked data {@link @metreeca/qest!Resource | resources} and retrieval
+ * {@link Template | templates} against {@link https://www.w3.org/TR/shacl/ | SHACL}-derived
+ * {@link ResourceShape | shapes}.
  *
  * **Defining Shapes**
  *
@@ -54,16 +55,40 @@
  * });
  * ```
  *
- * **Validating Templates**
+ * **Validating Projections**
  *
- * Validate retrieval {@link Template | templates} using {@link validate} with `fetch: true`:
+ * When the projection {@link Template} is not bonded to the shape (typically at API boundaries where `shape` defines
+ * the admissible surface and the projection arrives per request), pass `model` as a separate argument. The return
+ * value is narrowed to `Instance<T>` where `T` is inferred from `model`:
  *
  * ```typescript
- * validate(data, { fetch: true, shape: Product });
- * validate(data, { fetch: true, shape: Product, plain: true });
- * validate(data, { fetch: true, shape: Product, depth: 0 });
- * validate(data, { fetch: true, shape: Product, limit: 100 });
+ * const model = { id: "", name: "" };       // projection requested by the caller
+ *
+ * validate(response, { shape: Product, model })({
+ *   value: product => console.log(product.name),   // typed as { readonly id: Reference; readonly name: string }
+ *   trace: trace => console.error(trace)
+ * });
  * ```
+ *
+ * **Validating Templates**
+ *
+ * Validate a retrieval {@link Template | template} using {@link validate} with `model: true`:
+ *
+ * ```typescript
+ * validate(data, { shape: Product, model: true });
+ * validate(data, { shape: Product, model: true, plain: true });
+ * validate(data, { shape: Product, model: true, depth: 0 });
+ * validate(data, { shape: Product, model: true, limit: 100 });
+ * ```
+ *
+ * The `model` option answers "are we validating a model, or validating against one?" and selects between the three
+ * modes shown above:
+ *
+ * - omitted or `false` — validate `value` as an instance against the shape's bonded model
+ * - a projection {@link Template} value — validate `value` as an instance against that explicit projection; narrows
+ * the
+ *     return to `Instance<T>` where `T` is inferred from `model`
+ * - `true` — validate `value` as a retrieval template (the model itself, not an instance of it)
  *
  * > [!CAUTION]
  * > By default, templates support the full query language, including aggregate transforms and nested expansion.
@@ -75,17 +100,17 @@
  * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
  */
 
-import { isArray, isObject, type Lazy } from "@metreeca/core";
-import { seal } from "@metreeca/core/deep";
+import { type Lazy } from "@metreeca/core";
+import { equals, seal } from "@metreeca/core/deep";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { type Reference } from "@metreeca/qest";
-import type { Resource } from "@metreeca/qest/resource";
-import type { Query, Template } from "@metreeca/qest/template";
+import type { Instance, Template } from "@metreeca/qest/template";
 import { TraceError } from "./index.core.js";
 import type { ReferenceShape } from "./reference.js";
-import { validateResource, validateTemplate } from "./resource.core.js";
+import { enforce, validateResource, validateResult, validateTemplate } from "./resource.core.js";
 import type { ResourceShape } from "./resource.js";
-import { materialize } from "./value.core.js";
+
+import { eager } from "./value.js";
 
 export { TraceError };
 
@@ -141,18 +166,24 @@ export type Validator<T = unknown> =
  *
  * Enforces all shape constraints including type, cardinality, closed-shape checks, and custom validators.
  * Unknown and missing properties are both rejected; all declared properties are required unless marked optional
- * by the shape.
+ * by the shape. The return value is narrowed to `Instance<T>` where `T` is the projection {@link Template} bonded
+ * to the shape's `model` slot.
+ *
+ * > [!TIP]
+ * > When the projection template is not bonded to the shape (for example at API boundaries where `shape` and the
+ * > requested projection arrive as independent inputs) use the projection-form overload that takes `model` as a
+ * > separate argument.
  *
  * > [!TIP]
  * > The function is idempotent on a specific shape: on re-validation against the same shape, the previous
  * > association is trusted without repeating the validation process, so that you can safely re-validate defensively.
  *
- * @typeParam T The {@link Resource} type inferred from `shape`
+ * @typeParam T The projection {@link Template} inferred from the shape's bonded `model` slot
  *
  * @param value The value to validate as a resource
  * @param opts Validation options
- * @param opts.fetch Must be `false` or omitted to select resource validation mode
  * @param opts.shape The {@link Lazy} {@link ResourceShape} defining validation constraints
+ * @param opts.model Omit (or pass `false`) to validate `value` as an instance against the shape's bonded model
  * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} entry; if provided and the
  *     resource contains an `id` property, the `id` value must match this reference exactly; ignored if the resource
  *     has no `id` entry
@@ -164,17 +195,70 @@ export type Validator<T = unknown> =
  *
  * @throws {TraceError} If the shape is malformed (see {@link resource!resource | resource})
  */
-export function validate<T extends Resource>(value: unknown, opts: {
-
-	readonly fetch?: false
+export function validate<T extends Template>(value: unknown, opts: {
 
 	readonly shape: Lazy<ResourceShape & { model: T }>
+	readonly model?: false
 
 	readonly entry?: Reference
 
 }): Relay<{
 
-	readonly value: T,
+	readonly value: Instance<T>,
+	readonly trace: Trace
+
+}>;
+
+/**
+ * Validates a retrieval result against a shape under an explicit projection template.
+ *
+ * Narrows the admissibility check to the surface projected by `model`: constraints declared in `shape` are enforced
+ * only for keys named in `model`, recursing into nested shapes for nested templates and dropping any shape leaf
+ * without a counterpart in `model`. Intended for call sites that receive `shape` and the requested projection as
+ * independent inputs, such as response-validating adapters or API boundary validators where the admissible surface
+ * is fixed and the projection varies per request.
+ *
+ * Differs from the bonded-shape resource overload in three ways:
+ *
+ * - **Partial resources** — constraints on keys absent from `model` are not enforced; unrequested required fields do
+ *     not trigger `minCount` violations.
+ * - **Expanded nested references** — slots of {@link ReferenceShape} kind accept an expanded nested resource in
+ *     addition to a bare {@link Reference}, validated against the linked resource's target shape narrowed by the
+ *     nested projection in `model`.
+ * - **Projection results** — the return value is narrowed to `Instance<T>` where `T` is inferred from `model`.
+ *
+ * > [!TIP]
+ * > The function is idempotent on a specific `(shape, model)` combination: on re-validation against the same shape
+ * > and model the previous association is trusted without repeating the validation process, so that you can safely
+ * > re-validate defensively.
+ *
+ * @typeParam T The projection {@link Template} inferred from `model`
+ *
+ * @param value The value to validate as a retrieval result
+ * @param opts Validation options
+ * @param opts.shape The {@link Lazy} {@link ResourceShape} defining the admissible surface
+ * @param opts.model Projection {@link Template} narrowing the admissibility check to the projected surface and the
+ *     return value to `Instance<T>`
+ * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} entry; if provided and the
+ *     resource contains an `id` property, the `id` value must match this reference exactly; ignored if the resource
+ *     has no `id` entry
+ *
+ * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the
+ *     value is an immutable copy validated against a verified and flattened copy of the shape narrowed by `model`
+ *     (see {@link resource!resource | resource}); on failure, the trace describes constraint violations
+ *
+ * @throws {TraceError} If the shape is malformed (see {@link resource!resource | resource})
+ */
+export function validate<T extends Template>(value: unknown, opts: {
+
+	readonly shape: Lazy<ResourceShape>
+	readonly model: T
+
+	readonly entry?: Reference
+
+}): Relay<{
+
+	readonly value: Instance<T>,
 	readonly trace: Trace
 
 }>;
@@ -184,7 +268,8 @@ export function validate<T extends Resource>(value: unknown, opts: {
  *
  * Enforces type and structural constraints; value constraints are skipped as query values are placeholders.
  * Cardinality is checked for shape consistency (scalar if `maxCount` is 1, singleton tuple otherwise);
- * missing properties are accepted as not requested and unknown properties in expression paths are silently ignored.
+ * missing properties are accepted as not requested. Bindings whose probe — `path` and `pipe` — fails to resolve
+ * against the shape are rejected with an atomic trace under the binding key.
  *
  * > [!CAUTION]
  * > By default, templates support the full query language, including aggregate transforms and nested expansion.
@@ -192,9 +277,18 @@ export function validate<T extends Resource>(value: unknown, opts: {
  * > to `true`, `depth` to `0` or a positive value, and/or `limit` to a maximum result set size.
  *
  * > [!TIP]
- * > Wherever a property specifies a {@link ReferenceShape}, the query may be either an IRI {@link Reference}
- * > (retrieving just the id) or a nested {@link Template} (retrieving a projection of the referenced resource,
- * > validated against its target shape).
+ * > Retrieval forms for linked resources differ by shape kind:
+ * >
+ * > | Shape kind                                           | IRI reference | Nested template |
+ * > |------------------------------------------------------|:-------------:|:---------------:|
+ * > | Embedded resource — direct {@link ResourceShape}     |       —       |        ✓        |
+ * > | Standalone resource — {@link ReferenceShape} wrapper |       ✓       |        ✓        |
+ * >
+ * > An **IRI reference** is a bare IRI reference placeholder retrieving only the identifier; as a placeholder it is
+ * > never resolved on decoding, so it admits any IRI reference (the empty string, a root-relative or relative
+ * > reference, or an absolute IRI). A **nested template** is a {@link Template} retrieving the requested subset of the
+ * > linked resource, validated against its target shape and subject to the `depth` budget (if any). Setting `depth`
+ * > to `0` disables the nested-template form for references while still accepting IRI references.
  *
  * > [!TIP]
  * > The function is idempotent on a specific shape: on re-validation against the same shape, the previous
@@ -204,16 +298,17 @@ export function validate<T extends Resource>(value: unknown, opts: {
  *
  * @param value The value to validate as a template
  * @param opts Validation options
- * @param opts.fetch Must be `true` to select template validation mode
  * @param opts.shape The {@link Lazy} {@link ResourceShape} defining the expected structure
+ * @param opts.model Must be `true` to validate `value` as a retrieval template rather than as an instance
  * @param opts.plain Whether to reject aggregate transforms (`count`, `sum`, `min`, `max`, `avg`); `true` rejects
  *     any binding containing aggregate transforms; defaults to `false`
  * @param opts.depth Maximum depth for nested {@link Template} expansion and property paths in query probes,
  *     where each nesting level or path segment counts against the budget; `0` rejects any nested {@link Template}
  *     while still accepting IRI references; if omitted, no depth constraint is enforced
- * @param opts.limit Maximum value for the {@link Query | `#`} pagination constraint in queries; if a query
- *     specifies `#` exceeding this value, the query is rejected; if the query omits `#`, the limit value is injected
- *     as a default; if omitted, no limit constraint is enforced and no `#` is injected
+ * @param opts.limit Maximum value for the {@link @metreeca/qest!Selection | `#`} pagination constraint in queries;
+ *     a positive value caps the result set: a query whose `#` exceeds it, or is `0` (unbounded), is rejected, and a
+ *     query omitting `#` has the limit injected as a default; a value of `0`, like omitting the option, is itself
+ *     unbounded, enforcing no limit and injecting no `#`
  *
  * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the
  *     value is an immutable copy validated against a verified and flattened copy of the shape
@@ -223,8 +318,8 @@ export function validate<T extends Resource>(value: unknown, opts: {
  */
 export function validate<T extends Template>(value: unknown, opts: {
 
-	readonly fetch: true
 	readonly shape: Lazy<ResourceShape>
+	readonly model: true
 
 	readonly plain?: boolean
 	readonly depth?: number
@@ -242,8 +337,8 @@ export function validate<T extends Template>(value: unknown, opts: {
  */
 export function validate(value: unknown, {
 
-	fetch,
 	shape,
+	model,
 
 	entry,
 
@@ -253,8 +348,8 @@ export function validate(value: unknown, {
 
 }: {
 
-	readonly fetch?: boolean
 	readonly shape: Lazy<ResourceShape>
+	readonly model?: boolean | Template
 
 	readonly entry?: Reference
 
@@ -269,13 +364,13 @@ export function validate(value: unknown, {
 
 }> {
 
-	const materialized = materialize(shape);
+	const resolved = eager(shape);
 
-	if ( fetch ) {
+	if ( model === true ) {
 
 		const sealed = seal<{
 
-			readonly fetch: boolean
+			readonly model: boolean | Template
 			readonly shape: ResourceShape
 
 			readonly plain?: boolean
@@ -284,25 +379,25 @@ export function validate(value: unknown, {
 
 		}>(value, Validated);
 
-		if ( sealed !== undefined && sealed.fetch
-			&& materialized === sealed.shape
+		if ( sealed !== undefined && sealed.model === true
+			&& resolved === sealed.shape
 			&& (!plain || sealed.plain)
 			&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
-			&& (limit === undefined || sealed.limit !== undefined && sealed.limit <= limit)
+			&& (!limit || sealed.limit && sealed.limit <= limit) // limit === 0 effectively undefined
 		) {
 
 			return createRelay({ value });
 
 		} else {
 
-			const trace = validateTemplate([value], materialized, { depth, plain, limit });
+			const trace = validateTemplate([value], resolved, { depth, plain, limit });
 
 			return trace !== undefined ? createRelay({ trace }) : createRelay({
 
-				value: seal(enforce(value), Validated, {
+				value: seal(enforce(value, resolved, { limit }), Validated, {
 
-					fetch: true,
-					shape: materialized,
+					model: true,
+					shape: resolved,
 
 					plain,
 					depth,
@@ -312,53 +407,22 @@ export function validate(value: unknown, {
 
 			});
 
-			/**
-			 * Recursively injects `#: limit` into query tuples that don't already specify a `#` constraint.
-			 *
-			 * Walks the template structure, identifying queries as objects inside singleton array tuples
-			 * and defaulting their `#` constraint to the configured limit.
-			 */
-			function enforce(value: unknown): unknown {
-				if ( limit === undefined ) {
-
-					return value;
-
-				} else if ( isObject(value) ) {
-
-					return Object.fromEntries(Object.entries(value).map(([key, val]) =>
-						[key, enforce(val)]
-					));
-
-				} else if ( isArray(value, [v => isObject(v)]) ) {
-
-					const query = enforce(value[0]) as Query;
-
-					return !("#" in query)
-						? [{ ...query, "#": limit }]
-						: [query];
-
-				} else {
-
-					return value;
-
-				}
-			}
-
 		}
 
-	} else {
+	} else if ( model !== undefined && model !== false ) {
 
 		const sealed = seal<{
 
-			readonly fetch: boolean
+			readonly model: boolean | Template
 			readonly shape: ResourceShape
 
 			readonly entry?: Reference
 
 		}>(value, Validated);
 
-		if ( sealed !== undefined && !sealed.fetch
-			&& materialized === sealed.shape
+		if ( sealed !== undefined && sealed.model !== true && sealed.model !== false
+			&& equals(sealed.model, model)
+			&& resolved === sealed.shape
 			&& (entry === undefined || sealed.entry === entry)
 		) {
 
@@ -366,14 +430,51 @@ export function validate(value: unknown, {
 
 		} else {
 
-			const trace = validateResource([value], materialized, { entry });
+			const trace = validateResult([value], { shape: resolved, model, entry });
 
 			return trace !== undefined ? createRelay({ trace }) : createRelay({
 
 				value: seal(value, Validated, {
 
-					fetch: false,
-					shape: materialized,
+					model,
+					shape: resolved,
+
+					entry
+
+				})
+
+			});
+
+		}
+
+	} else {
+
+		const sealed = seal<{
+
+			readonly model: boolean | Template
+			readonly shape: ResourceShape
+
+			readonly entry?: Reference
+
+		}>(value, Validated);
+
+		if ( sealed !== undefined && sealed.model === false
+			&& resolved === sealed.shape
+			&& (entry === undefined || sealed.entry === entry)
+		) {
+
+			return createRelay({ value });
+
+		} else {
+
+			const trace = validateResource([value], resolved, { entry });
+
+			return trace !== undefined ? createRelay({ trace }) : createRelay({
+
+				value: seal(value, Validated, {
+
+					model: false,
+					shape: resolved,
 
 					entry
 

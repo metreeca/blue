@@ -20,32 +20,22 @@
  * @module
  */
 
-import { isArray, isFunction, isIdentifier, isObject, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { mergeBoolean, validateBoolean } from "./boolean.core.js";
 import type { BooleanShape } from "./boolean.js";
 import { collect, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
-import { mergeLocalised, validateLocalised } from "./localised.core.js";
-import type { LocalisedShape } from "./localised.js";
 import { mergeNumber, validateNumber } from "./number.core.js";
 import type { NumberShape } from "./number.js";
 import { mergeReference, validateReferences } from "./reference.core.js";
 import type { ReferenceShape } from "./reference.js";
-import { flatten, mergeResource, validateResource } from "./resource.core.js";
+import { mergeResource, validateResource } from "./resource.core.js";
 import { type ResourceShape } from "./resource.js";
 import { mergeString, validateString } from "./string.core.js";
 import { type StringShape } from "./string.js";
-import type { SetShape, UnionShape, ValuesShape } from "./value.js";
-
-
-/**
- * Cache for materialised shapes from lazy factories.
- *
- * Uses WeakMap so entries are automatically released when the factory function is no longer referenced.
- * A `null` entry signals a factory currently being resolved, enabling circular dependency detection.
- */
-const cache = new WeakMap<() => ValuesShape | UnionShape, null | ValuesShape | UnionShape>();
+import { mergeText, validateText } from "./text.core.js";
+import type { TextShape } from "./text.js";
+import { eager, type SetShape, type Shape, type UnionShape, type ValueShape, type ValuesShape } from "./value.js";
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -81,184 +71,6 @@ export function checkValues({
 
 
 /**
- * Validates values against a shape, dispatching to the appropriate type-specific validator.
- *
- * @param values The values to validate
- * @param shape The shape defining validation constraints
- *
- * @returns A keyed trace of validation errors, or `undefined` if all values are valid
- */
-export function validateValue(values: readonly unknown[], shape: ValuesShape): undefined | Trace {
-
-	switch ( shape.kind ) {
-
-		case "boolean":
-
-			return validateBoolean(values, shape);
-
-		case "number":
-
-			return validateNumber(values, shape);
-
-		case "string":
-
-			return validateString(values, shape);
-
-		case "localised":
-
-			return validateLocalised(values, shape);
-
-		case "reference":
-
-			return validateReferences(values, shape);
-
-		case "resource":
-
-			return validateResource(values, shape);
-
-	}
-
-}
-
-/**
- * Validates a scalar union value against a {@link UnionShape}.
- *
- * Expects an {@link @metreeca/qest!Indexed | Indexed} container with exactly one key matching a variant name.
- * The value is unwrapped and validated against the matched variant; reference variants are dereferenced through
- * their target resource shape.
- *
- * @param values The values to validate; at most one object value is expected
- * @param union The union shape defining the variant alternatives
- *
- * @returns A keyed trace of validation errors, or `undefined` if the value is valid
- *
- * @see {@link validateArrayUnion} for multi-valued union validation
- */
-export function validateScalarUnion(values: readonly unknown[], union: UnionShape): undefined | Trace {
-
-	if ( values.length === 0 ) {
-
-		return undefined;
-
-	} else if ( values.length > 1 ) {
-
-		return collect({ "{kind}": "expected at most one <union> value" });
-
-	} else if ( !values.every(v => isObject(v)) ) {
-
-		return collect({ "{kind}": "expected <union> value" });
-
-	} else {
-
-		const entries = Object.entries(values[0]);
-		const variants = Object.keys(union.variants);
-
-		const invalid = entries.reduce((trace, [key, entry]) => {
-
-			return !isIdentifier(key) ? { ...trace, [key]: "expected identifier key" }
-				: !(key in union.variants) ? { ...trace, [key]: `expected variant key in [${variants.join(", ")}]` }
-					: isArray(entry) ? { ...trace, [key]: "expected scalar value" }
-						: entries.length > 1 ? { ...trace, [key]: "expected at most one variant key" }
-							: trace;
-
-		}, {});
-
-		if ( Object.keys(invalid).length > 0 ) {
-
-			return invalid;
-
-		} else {
-
-			return collect(Object.fromEntries(
-				entries.map(([key, entry]) => {
-
-					const variant = union.variants[key];
-
-					// dereference through reference shapes to validate against the target resource
-
-					return [key, variant.kind === "reference"
-						? validateResource([entry], materialize(variant.shape))
-						: validateValue([entry], variant)
-					];
-
-				})
-			));
-
-		}
-	}
-}
-
-/**
- * Validates a multi-valued union record against a {@link UnionShape}.
- *
- * Expects an {@link @metreeca/qest!Indexed | Indexed} record mapping variant names to arrays of values. Each key
- * must be a recognised variant name and each entry must be an array. Array elements are validated against the
- * corresponding variant shape; reference variants are dereferenced through their target resource shape.
- *
- * @param values The values to validate; at most one object value is expected
- * @param union The union shape defining the variant alternatives
- *
- * @returns A keyed trace of validation errors, or `undefined` if the record is valid
- *
- * @see {@link validateScalarUnion} for scalar union validation
- */
-export function validateArrayUnion(values: readonly unknown[], union: UnionShape): undefined | Trace {
-
-	if ( values.length === 0 ) {
-
-		return undefined;
-
-	} else if ( values.length > 1 ) {
-
-		return collect({ "{kind}": "expected at most one <union> value" });
-
-	} else if ( !values.every(v => isObject(v)) ) {
-
-		return collect({ "{kind}": "expected <union> value" });
-
-	} else {
-
-		const entries = Object.entries(values[0]);
-		const variants = Object.keys(union.variants);
-
-		const invalid = entries.reduce((trace, [key, entry]) => {
-
-			return !isIdentifier(key) ? { ...trace, [key]: "expected identifier key" }
-				: !(key in union.variants) ? { ...trace, [key]: `expected variant key in [${variants.join(", ")}]` }
-					: !isArray(entry) ? { ...trace, [key]: "expected array value" }
-						: trace;
-
-		}, {});
-
-		if ( Object.keys(invalid).length > 0 ) {
-
-			return invalid;
-
-		} else {
-
-			return collect(Object.fromEntries(
-				entries.map(([key, entry]) => {
-
-					const variant = union.variants[key];
-
-					// dereference through reference shapes to validate against the target resource
-
-					return [key, variant.kind === "reference"
-						? validateResource(entry as unknown[], materialize(variant.shape))
-						: validateValue(entry as unknown[], variant)
-					];
-
-				})
-			));
-
-		}
-
-	}
-
-}
-
-
-/**
  * Merges an overriding value shape with an inherited base shape.
  *
  * Dispatches to the appropriate shape-specific merge function based on the `kind` discriminator.
@@ -287,9 +99,9 @@ export function mergeValue<T extends ValuesShape>(target: T, source: T): T {
 
 			return mergeString(target, source as StringShape) as T;
 
-		case "localised":
+		case "text":
 
-			return mergeLocalised(target, source as LocalisedShape) as T;
+			return mergeText(target, source as TextShape) as T;
 
 		case "reference":
 
@@ -306,8 +118,11 @@ export function mergeValue<T extends ValuesShape>(target: T, source: T): T {
 /**
  * Merges an overriding {@link SetShape} with an inherited base.
  *
- * Validates that the override narrows cardinality constraints and that the value shape kinds match,
- * then delegates to the appropriate value shape or union merge function.
+ * Validates that the override narrows cardinality constraints, then delegates to the appropriate value shape or union
+ * merge function. When the parent shape is a {@link UnionShape | union} and the child shape is not, dispatches to
+ * single-variant narrowing: the child must match exactly one parent variant by *discriminator* (`kind` for `boolean` /
+ * `text`; `(kind, datatype)` for `string` / `number`; `(kind, class)` for `reference` / `resource`), and the result's
+ * `shape` is the merged non-union value shape.
  *
  * @param target The overriding child {@link SetShape}
  * @param source The inherited parent {@link SetShape}
@@ -339,9 +154,11 @@ export function mergeValues(target: SetShape, source: SetShape): SetShape {
 			|| target.maxCount <= source.maxCount
 			|| `widened limit <${target.maxCount}> beyond <${source.maxCount}>`,
 
-		// structural: shape kind must match
+		// structural: shape kind must match — exception: child non-union may narrow a parent union
+		//             (single-variant narrowing dispatched via narrow below)
 
-		"{shape}": target.shape.kind === source.shape.kind
+		"{shape}": source.shape.kind === "union"
+			|| target.shape.kind === source.shape.kind
 			|| `mismatched kinds <${target.shape.kind}> vs <${source.shape.kind}>`,
 
 		// post-merge constraint consistency
@@ -358,14 +175,13 @@ export function mergeValues(target: SetShape, source: SetShape): SetShape {
 
 	const isScalar = maxCount === 1;
 
-	const shape = target.shape.kind === "union"
-		? mergeUnion(target.shape, source.shape as UnionShape)
-		: mergeValue(target.shape as ValuesShape, source.shape as ValuesShape);
+	const shape: Shape = source.shape.kind === "union"
+		? target.shape.kind === "union"
+			? mergeUnion(target.shape, source.shape)
+			: narrow(target.shape, source.shape)
+		: mergeValue(target.shape as ValuesShape, source.shape);
 
-	const model = isScalar ? shape.model
-		: shape.kind === "union"
-			? Object.fromEntries(Object.entries(shape.model).map(([key, value]) => [key, [value]]))
-			: [shape.model];
+	const model = isScalar ? shape.model : [shape.model];
 
 	return immutable({
 
@@ -377,53 +193,176 @@ export function mergeValues(target: SetShape, source: SetShape): SetShape {
 		shape,
 		model
 
-	});
+	}) as SetShape;
+
+
+	/**
+	 * Narrows a parent {@link UnionShape} to a single non-union value shape.
+	 *
+	 * Selects the unique parent variant whose discriminator matches the child shape and merges them via
+	 * {@link mergeValue}. Rejects when the child's discriminator is absent from, or non-unique within, the parent.
+	 *
+	 * @param target The overriding child value shape (non-union)
+	 * @param source The inherited parent {@link UnionShape}
+	 *
+	 * @returns The merged value shape
+	 *
+	 * @throws {TraceError} On absent or non-unique discriminator
+	 */
+	function narrow(target: ValuesShape, source: UnionShape): ValuesShape {
+
+		const key = discriminator(target);
+		const matches = source.variants.filter(variant => discriminator(variant) === key);
+
+		if ( matches.length === 0 ) {
+			throw new TraceError("incompatible value set override", {
+				"{shape}": `discriminator <${key}> absent from parent union`
+			});
+		}
+
+		if ( matches.length > 1 ) {
+			throw new TraceError("incompatible value set override", {
+				"{shape}": `discriminator <${key}> non-unique within parent union`
+			});
+		}
+
+		return mergeValue(target, matches[0] as typeof target);
+
+	}
 
 }
 
 /**
  * Merges an overriding union with an inherited base union.
  *
- * Variant keys must match exactly between target and source. Each matched variant is merged
- * using the appropriate value shape merge function.
+ * The child union may drop branches and tighten the branches it keeps, but never add new ones. Concretely, every child
+ * branch must match a parent branch, which it overrides via {@link mergeValue}; parent branches with no child match are
+ * dropped from the result.
+ *
+ * Implementation note: branches are matched by *discriminator* (`kind` for `boolean` / `text`; `(kind, datatype)` for
+ * `string` / `number`; `(kind, class)` for `reference` / `resource`). Several branches may still share a discriminator
+ * (for example two same-datatype `string` variants differing only in constraints); these have no identity other than
+ * their position, so the child union cannot drop just some of them without making the remaining matches ambiguous.
+ * Matching is therefore positional within each group: the child union must keep either all parent branches of a group
+ * in their original order, or none. The merged `model` re-indexes contiguously from `0`.
  *
  * @param target The overriding child union
  * @param source The inherited parent union
  *
  * @returns The merged union
  *
- * @throws {TraceError} On variant key mismatch or incompatible variant overrides
+ * @throws {TraceError} On partial-group retention, out-of-order variants, or incompatible pairwise overrides
  */
 export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
 
-	const targetKeys = Object.keys(target.variants).sort();
-	const sourceKeys = Object.keys(source.variants).sort();
+	const sourceGroups = group(source.variants);
+	const targetGroups = group(target.variants);
 
-	const missing = sourceKeys.filter(key => !target.variants[key]);
-	const unexpected = targetKeys.filter(key => !source.variants[key]);
+	// each child group must match a parent group, with equal arity (full retention)
 
-	if ( missing.length > 0 || unexpected.length > 0 ) {
-		throw new TraceError("incompatible union shape override", {
-			...Object.fromEntries(missing.map(key => [key, "missing variant key"])),
-			...Object.fromEntries(unexpected.map(key => [key, "unexpected variant key"]))
-		});
+	for (const [key, targetGroup] of targetGroups) {
+
+		const sourceGroup = sourceGroups.get(key);
+
+		if ( sourceGroup === undefined ) {
+			throw new TraceError("incompatible union shape override", {
+				"{variants}": `discriminator <${key}> not present in parent union`
+			});
+		}
+
+		if ( targetGroup.length !== sourceGroup.length ) {
+			throw new TraceError("incompatible union shape override", {
+				"{variants}": `partial group retention for <${key}>: child <${targetGroup.length}> vs parent <${sourceGroup.length}>`
+			});
+		}
+
 	}
 
-	const variants = Object.fromEntries(
-		targetKeys.map(key => [key, mergeValue(target.variants[key], source.variants[key])])
-	);
+	// child group order must follow parent group order (subsequence)
+
+	const sourceKeys = [...sourceGroups.keys()];
+	let cursor = 0;
+
+	for (const key of targetGroups.keys()) {
+
+		while ( cursor < sourceKeys.length && sourceKeys[cursor] !== key ) { cursor++; }
+
+		if ( cursor >= sourceKeys.length ) {
+			throw new TraceError("incompatible union shape override", {
+				"{variants}": `out-of-order discriminator <${key}>`
+			});
+		}
+
+		cursor++;
+
+	}
+
+	// build merged variants in parent group order; dropped groups are absent from the result
+
+	const variants = [...sourceGroups].flatMap(([key, sourceGroup]) => {
+
+		const targetGroup = targetGroups.get(key);
+
+		return targetGroup === undefined ? []
+			: sourceGroup.map((sourceVariant, index) => mergeValue(targetGroup[index], sourceVariant));
+
+	});
 
 	return immutable({
 
 		kind: target.kind,
 
-		model: Object.fromEntries(
-			Object.entries(variants).map(([key, shape]) => [key, shape.model])
-		),
+		model: Object.fromEntries(variants.map((v, i) => [`${i}`, v.model])),
 
 		variants
 
 	});
+
+
+	/**
+	 * Groups variants by discriminator, preserving first-occurrence order in the resulting map.
+	 */
+	function group(variants: readonly ValueShape[]): Map<string, ValueShape[]> {
+
+		return variants.reduce((groups, variant) => {
+
+			const key = discriminator(variant);
+			const existing = groups.get(key);
+
+			if ( existing === undefined ) {
+				groups.set(key, [variant]);
+			} else {
+				existing.push(variant);
+			}
+
+			return groups;
+
+		}, new Map<string, ValueShape[]>());
+
+	}
+
+}
+
+
+/**
+ * Computes the *discriminator* key for a union variant.
+ *
+ * Returns `kind` for `boolean` and `text` variants. For `string` and `number` variants, returns `kind` paired with the
+ * prototype `model` value, which proxies the datatype, so that unions of differently-typed strings or numbers are
+ * treated as distinct discriminator groups. For `reference` and `resource` variants, returns `kind` paired with the
+ * target {@link ResourceShape.class | class} IRI, so that unions of differently-classed references or resources are
+ * treated as distinct discriminator groups.
+ *
+ * @param variant The union variant
+ *
+ * @returns The discriminator key
+ */
+function discriminator(variant: ValuesShape): string {
+
+	return variant.kind === "reference" ? `reference:${eager(variant.shape).class ?? ""}`
+		: variant.kind === "resource" ? `resource:${variant.class ?? ""}`
+			: variant.kind === "string" || variant.kind === "number" ? `${variant.kind}:${variant.model}`
+				: variant.kind;
 
 }
 
@@ -431,59 +370,84 @@ export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Resolves a {@link Lazy} shape, caching factory results for idempotent materialisation.
+ * Validates values against a shape, dispatching to the appropriate type-specific validator.
  *
- * When given a factory function, returns the cached result if available, otherwise calls the factory, flattens
- * {@link ResourceShape} results through {@link flatten}, caches the result, and returns it.
- * Direct resource shapes are also flattened; other shapes are returned unchanged.
+ * @param values The values to validate
+ * @param shape The shape defining validation constraints
  *
- * @param shape A value shape or factory function returning one
- *
- * @returns The resolved and, for resource shapes, flattened shape
+ * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
-export function materialize<T extends ValuesShape | UnionShape>(shape: Lazy<T>): T {
+export function validateValue(values: readonly unknown[], shape: ValuesShape): undefined | Trace {
 
-	if ( isFunction(shape) ) {
+	switch ( shape.kind ) {
 
-		const cached = cache.get(shape);
+		case "boolean":
 
-		if ( cached === null ) {
+			return validateBoolean(values, shape);
 
-			throw new TraceError("circular extends chain", {
-				[shape.name || "<anonymous>"]: "circular dependency"
-			});
+		case "number":
 
-		} else if ( cached === undefined ) {
+			return validateNumber(values, shape);
 
-			cache.set(shape, null);
+		case "string":
 
-			try {
+			return validateString(values, shape);
 
-				const resolved = shape();
-				const flattened = (resolved.kind === "resource" ? flatten(resolved) : resolved);
+		case "text":
 
-				cache.set(shape, flattened);
+			return validateText(values, shape);
 
-				return flattened as T;
+		case "reference":
 
-			} catch ( error ) {
+			return validateReferences(values, shape);
 
-				cache.delete(shape);
+		case "resource":
 
-				throw error;
+			return validateResource(values, shape);
 
-			}
+	}
+
+}
+
+/**
+ * Validates values against a {@link UnionShape} disjunctively.
+ *
+ * Each value is matched against the union variants in order. A value satisfies the union if it
+ * satisfies at least one variant; reference variants are dereferenced through their target
+ * resource shape. On failure, the trace aggregates the per-variant traces under positional keys
+ * (`[0]`, `[1]`, …).
+ *
+ * @param values The values to validate
+ * @param union The union shape defining the variant alternatives
+ *
+ * @returns A keyed trace of validation errors, or `undefined` if every value matches a variant
+ */
+export function validateUnion(values: readonly unknown[], union: UnionShape): undefined | Trace {
+
+	function validateOne(value: unknown): undefined | Trace {
+
+		const traces = union.variants.map(variant =>
+			variant.kind === "reference"
+				? validateResource([value], eager(variant.shape))
+				: validateValue([value], variant)
+		);
+
+		if ( traces.some(t => t === undefined) ) {
+
+			return undefined;
 
 		} else {
 
-			return cached as T;
+			return collect(Object.fromEntries(
+				traces.map((trace, index) => [`[${index}]`, trace])
+			)) ?? "no union variant matched";
 
 		}
 
-	} else {
-
-		return (shape.kind === "resource" ? flatten(shape) : shape) as T;
-
 	}
+
+	return collect(Object.fromEntries(
+		values.map((value, index) => [`[${index}]`, validateOne(value)])
+	));
 
 }

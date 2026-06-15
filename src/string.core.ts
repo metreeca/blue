@@ -66,65 +66,6 @@ export function checkString({
 
 }
 
-
-/**
- * Validates values against a string shape.
- *
- * Filters input values by type, reporting non-string values under the `kind` key, then enforces
- * string constraints on matched values.
- */
-export function validateString(values: readonly unknown[], {
-
-	kind,
-
-	minLength,
-	maxLength,
-
-	pattern,
-
-	in: allowed,
-	hasValue
-
-}: StringShape): undefined | Trace {
-
-	const matching = values.filter(isString);
-	const mistyped = values.length-matching.length;
-
-	return collect({
-
-		"{kind}": mistyped === 0
-			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
-
-		"{minLength}": every(matching, value =>
-			minLength === undefined || value.length >= minLength
-			|| `expected string length >= <${minLength}>`
-		),
-
-		"{maxLength}": every(matching, value =>
-			maxLength === undefined || value.length <= maxLength
-			|| `expected string length <= <${maxLength}>`
-		),
-
-		"{pattern}": every(matching, value =>
-			pattern === undefined || new RegExp(pattern).test(value)
-			|| `expected string matching </${pattern}/>`
-		),
-
-		"{in}": every(matching, value =>
-			allowed === undefined || allowed.includes(value)
-			|| `expected values in [${allowed.join(", ")}]`
-		),
-
-		"{hasValue}": group(matching, group =>
-			hasValue === undefined || hasValue.every(v => group.includes(v))
-			|| `expected values to include [${hasValue.join(", ")}]`
-		)
-
-	});
-
-}
-
-
 /**
  * Merges an overriding string shape with an inherited base shape.
  *
@@ -220,6 +161,66 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 
 		in: allowed as StringShape["in"],
 		hasValue: hasValue as StringShape["hasValue"]
+
+	});
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Validates values against a string shape.
+ *
+ * Filters input values by type, reporting non-string values under the `kind` key, then enforces
+ * string constraints on matched values.
+ */
+export function validateString(values: readonly unknown[], {
+
+	kind,
+
+	minLength,
+	maxLength,
+
+	pattern,
+
+	in: allowed,
+	hasValue
+
+}: StringShape): undefined | Trace {
+
+	const matching = values.filter(isString);
+	const mistyped = values.length-matching.length;
+
+	return collect({
+
+		"{kind}": mistyped === 0
+			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+
+		"{minLength}": every(matching, value =>
+			minLength === undefined || value.length >= minLength
+			|| `expected string length >= <${minLength}>`
+		),
+
+		"{maxLength}": every(matching, value =>
+			maxLength === undefined || value.length <= maxLength
+			|| `expected string length <= <${maxLength}>`
+		),
+
+		"{pattern}": every(matching, value =>
+			pattern === undefined || new RegExp(pattern).test(value)
+			|| `expected string matching </${pattern}/>`
+		),
+
+		"{in}": every(matching, value =>
+			allowed === undefined || allowed.includes(value)
+			|| `expected values in [${allowed.join(", ")}]`
+		),
+
+		"{hasValue}": group(matching, group =>
+			hasValue === undefined || hasValue.every(v => group.includes(v))
+			|| `expected values to include [${hasValue.join(", ")}]`
+		)
 
 	});
 

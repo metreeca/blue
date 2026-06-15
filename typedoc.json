@@ -17,11 +17,16 @@
   "sourceLinkExternal": true,
   "markdownLinkExternal": true,
   "externalSymbolLinkMappings": {
+    "typescript": {
+      "NumberConstructor.MIN_SAFE_INTEGER": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MIN_SAFE_INTEGER",
+      "NumberConstructor.MAX_SAFE_INTEGER": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER"
+    },
     "@metreeca/core": {
       "Relay": "https://metreeca.github.io/core/types/relay.Relay.html",
       "isIdentifier": "https://metreeca.github.io/core/functions/index.isIdentifier.html",
       "Identifier": "https://metreeca.github.io/core/types/index.Identifier.html",
       "Lazy": "https://metreeca.github.io/core/types/index.Lazy.html",
+      "Eager": "https://metreeca.github.io/core/types/index.Eager.html",
       "IRI": "https://metreeca.github.io/core/types/resource.IRI.html",
       "Namespace": "https://metreeca.github.io/core/types/resource.Namespace.html",
       "Variant": "https://metreeca.github.io/core/types/resource.Variant.html",
@@ -29,22 +34,27 @@
       "TagRange": "https://metreeca.github.io/core/types/language.TagRange.html"
     },
     "@metreeca/qest": {
-      "Resource": "https://metreeca.github.io/qest/types/state.Resource.html",
-      "Reference": "https://metreeca.github.io/qest/types/state.Reference.html",
-      "Value": "https://metreeca.github.io/qest/types/state.Value.html",
-      "Localised": "https://metreeca.github.io/qest/types/state.Localised.html",
-      "Locale": "https://metreeca.github.io/qest/types/model.Locale.html",
-      "Indexed": "https://metreeca.github.io/qest/types/state.Indexed.html",
-      "decodeResource": "https://metreeca.github.io/qest/functions/state.decodeResource.html",
-      "decodeQuery": "https://metreeca.github.io/qest/functions/query.decodeQuery.html",
-      "Template": "https://metreeca.github.io/qest/types/model.Template.html",
-      "Query": "https://metreeca.github.io/qest/types/model.Query.html",
-      "Binding": "https://metreeca.github.io/qest/types/model.Binding.html",
-      "isValue": "https://metreeca.github.io/qest/functions/state.isValue.html",
-      "isQuery": "https://metreeca.github.io/qest/functions/model.isQuery.html",
-      "Probe": "https://metreeca.github.io/qest/types/model.Probe.html",
-      "__type.path": "https://metreeca.github.io/qest/types/model.Probe.html",
-      "__type.pipe": "https://metreeca.github.io/qest/types/model.Probe.html"
+      "Resource": "https://metreeca.github.io/qest/types/resource.Resource.html",
+      "Reference": "https://metreeca.github.io/qest/types/index.Reference.html",
+      "Value": "https://metreeca.github.io/qest/types/resource.Value.html",
+      "Text": "https://metreeca.github.io/qest/types/resource.Text.html",
+      "Locale": "https://metreeca.github.io/qest/types/template.Locale.html",
+      "defaultBase": "https://metreeca.github.io/qest/variables/index.defaultBase.html",
+      "decodeResource": "https://metreeca.github.io/qest/functions/resource.decodeResource.html",
+      "decodeSelection": "https://metreeca.github.io/qest/functions/template.decodeSelection.html",
+      "Template": "https://metreeca.github.io/qest/types/template.Template.html",
+      "Query": "https://metreeca.github.io/qest/types/template.Query.html",
+      "Placeholders": "https://metreeca.github.io/qest/types/template.Placeholders.html",
+      "Placeholder": "https://metreeca.github.io/qest/types/template.Placeholder.html",
+      "Union": "https://metreeca.github.io/qest/types/template.Union.html",
+      "Projection": "https://metreeca.github.io/qest/types/template.Projection.html",
+      "Selection": "https://metreeca.github.io/qest/types/template.Selection.html",
+      "Binding": "https://metreeca.github.io/qest/types/template.Binding.html",
+      "isValue": "https://metreeca.github.io/qest/functions/resource.isValue.html",
+      "Instance": "https://metreeca.github.io/qest/types/template.Instance.html",
+      "Probe": "https://metreeca.github.io/qest/types/template.Probe.html",
+      "__type.path": "https://metreeca.github.io/qest/types/template.Probe.html",
+      "__type.pipe": "https://metreeca.github.io/qest/types/template.Probe.html"
     }
   },
   "navigationLinks": {

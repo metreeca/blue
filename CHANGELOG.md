@@ -11,10 +11,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Add `Validator<T>` type for custom value validators returning `undefined | true | Trace`
 - Add `validate()` overloaded function — resource validation with `{ shape }` and template validation with
-	`{ fetch: true, shape }`; returns a `Relay` resolving to `{ value }` on success or `{ trace }` on failure;
-	idempotent on a specific shape, skipping re-validation when the same shape and compatible options are presented again
-- Add `plain` option to template validation for rejecting aggregate transforms (count, sum, min, max, avg); defaults
-	to `false`
+	`{ fetch: true, shape }`; returns a `Relay` resolving to `{ value }` on success or `{ trace }` on failure; idempotent
+	on a specific shape, skipping re-validation when the same shape and compatible options are presented again
+- Add `plain` option to template validation for rejecting aggregate transforms (count, sum, min, max, avg); defaults to
+	`false`
 - Add `entry` option to resource validation for matching the resource's `id` entry against an expected reference;
 	ignored when the resource has no `id` entry; idempotency sealing accounts for the entry value
 - Add `depth` option to template validation for limiting nested reference and resource expansion and property path
@@ -23,7 +23,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	`#` exceeding this value, the query is rejected; if the query omits `#`, the limit value is injected as a default;
 	defaults to unlimited
 - Add `reference` module with `ReferenceShape` interface, `ReferenceConstraints` interface, and `reference()` factory
-  accepting optional constraints (`foreign`, `captive`)
+	accepting optional constraints (`foreign`, `captive`)
 - Add `value` module with composite shapes (`SetShape`, `UnionShape`), cardinality factories (`required`, `optional`,
 	`repeatable`, `multiple`, `cardinality`), `union()` factory, `apply()` probe resolver, and type utilities (`Infer`,
 	`Eager`, `Declared`, `Cardinality`, `Variants`)
@@ -33,10 +33,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `url()` string factory as a convenience alias for `iri({ variant: "hierarchical" })`
 - Add `const` type parameters to `localised()`, `number()`, and `string()` constraint overloads — non-empty array
 	constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
-- Add `resource()` overload accepting `Lazy<T>` — validates, materialises, and deeply flattens manual shape definitions
-	with memoised caching
 - Add `model` field to `SetShape` — holds the runtime prototype value, computed from the shape model and cardinality
-- Reject `id`/`type` entries in embedded resource shapes
+- Reject `id`/`type` entries in embedded resource shapes during state validation
 
 ### Changed
 
@@ -51,8 +49,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	criteria, and pagination limits are now only permitted inside singleton template tuples for collection properties
 - **Breaking:** Rename `ValuesShape` to `SetShape` and change `kind` discriminator from `"values"` to `"set"` (Closes
 	#17)
-- **Breaking:** Split `ValueShape` into `ValueShape` (scalar-or-set shapes) and `ValuesShape` (all concrete value
-	shapes including `LocalisedShape`)
+- **Breaking:** Split `ValueShape` into `ValueShape` (scalar-or-set shapes) and `ValuesShape` (all concrete value shapes
+	including `LocalisedShape`)
 - **Breaking:** Unify `local()`/`locals()` into single `localised()` factory — cardinality of the enclosing `SetShape`
 	determines whether each tag holds a scalar or an array; `minCount`/`maxCount` apply per tag (Closes #16)
 - **Breaking:** Multi-valued union properties now represent values as a single indexed record with per-variant arrays
@@ -99,6 +97,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Enforce class-level constraints conjunctively across the inheritance chain in resource validation
 - Reject IRI strings for embedded `ResourceShape` properties — only nested models are accepted
 - Enforce string type validation on `id`/`type` template values
+- Align property-value absence with qest's documented contract in resource validation: `undefined` and `[]` are absent
+	on any slot; `{}` is absent on slots accepting a nested Resource (`reference` / `resource` kinds, or unions
+	containing one) and remains a `{kind}` type mismatch on literal slots; `{}`, `{ und: [] }`, and language maps with
+	all-empty-array entries are absent on `localised` slots; `{}` elements are dropped from a multi-valued Resource-
+	accepting slot's array before per-element validation and cardinality checks
 
 ## [0.9.1](https://github.com/metreeca/blue/releases/tag/v0.9.1)
 

@@ -33,22 +33,14 @@ describe("factories", () => {
 
 			});
 
-			it("returns a shape with default model", async () => {
+			it.each<[string, () => number, number]>([
+				["no arguments", () => number().model, 0],
+				["empty constraints", () => number({}).model, 0],
+				["model argument", () => number(42).model, 42],
+				["model constraint", () => number({ model: 42 }).model, 42]
+			])("resolves model from %s", async (_label, model, expected) => {
 
-				expect(number().model).toBe(0);
-				expect(number({}).model).toBe(0);
-
-			});
-
-			it("returns a shape with model argument", async () => {
-
-				expect(number(42).model).toBe(42);
-
-			});
-
-			it("returns a shape with model constraint", async () => {
-
-				expect(number({ model: 42 }).model).toBe(42);
+				expect(model()).toBe(expected);
 
 			});
 
@@ -130,6 +122,51 @@ describe("factories", () => {
 
 	});
 
+	describe.each([
+		["byte", byte, -128, 127],
+		["short", short, -32768, 32767],
+		["int", int, -2147483648, 2147483647],
+		["long", long, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+		["float", float, -((2 - 2 ** -23) * 2 ** 127), (2 - 2 ** -23) * 2 ** 127]
+	] as const)("%s range defaults", (_label, factory, expectedMin, expectedMax) => {
+
+		it("applies default range bounds", async () => {
+
+			const shape = factory();
+
+			expect(shape.minInclusive).toBe(expectedMin);
+			expect(shape.maxInclusive).toBe(expectedMax);
+
+		});
+
+		it("preserves the unsupplied bound when one is overridden", async () => {
+
+			const shape = factory({ minInclusive: 0 });
+
+			expect(shape.minInclusive).toBe(0);
+			expect(shape.maxInclusive).toBe(expectedMax);
+
+		});
+
+	});
+
+	describe.each([
+		["double", double],
+		["integer", integer],
+		["decimal", decimal]
+	] as const)("%s no range defaults", (_label, factory) => {
+
+		it("omits range bounds by default", async () => {
+
+			const shape = factory();
+
+			expect(shape.minInclusive).toBeUndefined();
+			expect(shape.maxInclusive).toBeUndefined();
+
+		});
+
+	});
+
 });
 
 describe("operators", () => {
@@ -204,43 +241,25 @@ describe("operators", () => {
 
 		describe("type filtering", () => {
 
-			it("returns undefined for valid numeric values", async () => {
+			it.each<[string, readonly unknown[]]>([
+				["valid numeric values", [42]],
+				["empty values array", []]
+			])("returns undefined for %s", async (_label, values) => {
 
-				expect(validateNumber([42], number())).toBeUndefined();
-
-			});
-
-			it("returns undefined for empty values array", async () => {
-
-				expect(validateNumber([], number())).toBeUndefined();
+				expect(validateNumber(values, number())).toBeUndefined();
 
 			});
 
-			it("returns trace with kind key for non-numeric value", async () => {
+			it.each<[string, readonly unknown[], RegExp]>([
+				["a single non-numeric value", ["hello"], /expected <number> values$/],
+				["mixed valid and non-numeric values", ["hello", 42, true], /expected <number> values \(2\/3\)/],
+				["multiple non-numeric values", ["hello", true], /expected <number> values \(2\/2\)/]
+			])("returns a kind trace for %s", async (_label, values, message) => {
 
-				const trace = validateNumber(["hello"], number());
+				const trace = validateNumber(values, number());
 
-				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{kind}");
-
-			});
-
-			it("returns trace with kind key for multiple non-numeric values", async () => {
-
-				const trace = validateNumber(["hello", true], number());
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
-
-			});
-
-			it("returns trace with kind key for mixed values", async () => {
-
-				const trace = validateNumber(["hello", 42, true], number());
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{kind}");
+				expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
 
 			});
 
@@ -510,30 +529,15 @@ describe("operators", () => {
 
 		describe("per-value errors", () => {
 
-			it("includes count prefix for multiple failing values", async () => {
+			it.each<[string, readonly number[], RegExp]>([
+				["a count prefix for multiple failing values", [-1, -2], /^\(2\/2\) /],
+				["only failing values in the count prefix", [-1, 50, -2], /^\(2\/3\) /],
+				["no count prefix for a single failing value", [-1], /^expected values >= <0>/]
+			])("includes %s", async (_label, values, message) => {
 
-				const result = validateNumber([-1, -2], number({ minInclusive: 0 }));
+				const trace = validateNumber(values, number({ minInclusive: 0 }));
 
-				expect(typeof result === "object" && typeof (result as any)["{minInclusive}"] === "string"
-					&& (result as any)["{minInclusive}"].startsWith("(2/2)")).toBeTruthy();
-
-			});
-
-			it("reports errors only for failing values in count prefix", async () => {
-
-				const result = validateNumber([-1, 50, -2], number({ minInclusive: 0 }));
-
-				expect(typeof result === "object" && typeof (result as any)["{minInclusive}"] === "string"
-					&& (result as any)["{minInclusive}"].startsWith("(2/3)")).toBeTruthy();
-
-			});
-
-			it("omits count prefix for single value", async () => {
-
-				const result = validateNumber([-1], number({ minInclusive: 0 }));
-
-				expect(typeof result === "object" && typeof (result as any)["{minInclusive}"] === "string"
-					&& !(result as any)["{minInclusive}"].startsWith("(")).toBeTruthy();
+				expect((trace as Record<string, string>)["{minInclusive}"]).toMatch(message);
 
 			});
 

@@ -14,33 +14,35 @@
  * limitations under the License.
  */
 
-import { asTag } from "@metreeca/core/language";
+import { assert } from "@metreeca/core/report";
+import { isTag } from "@metreeca/core/language";
 import { createNamespace } from "@metreeca/core/resource";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { TraceError } from "./index.core.js";
 import { type Trace, type Validator } from "./index.js";
-import { localised } from "./localised.js";
+import { text } from "./text.js";
 import { integer } from "./number.js";
-import { mergeReference, validateReferences } from "./reference.core.js";
-import {  reference } from "./reference.js";
+import { reference } from "./reference.js";
 import {
-	checkEmbeddings,
 	checkParents,
 	checkPredicates,
 	checkResource,
 	checkSingletons,
+	enforce,
 	flatten,
 	match,
 	mergeProperty,
 	mergeResource,
 	validateResource,
+	validateResult,
 	validateTemplate
 } from "./resource.core.js";
 import { id, property, type Property, resource, type ResourceShape, type } from "./resource.js";
-import { string, year } from "./string.js";
+import { date, string } from "./string.js";
 import {
 	cardinality,
+	eager,
 	multiple,
 	optional,
 	repeatable,
@@ -72,7 +74,7 @@ describe("factories", () => {
 			it("normalizes naked range with union shape to Property", async () => {
 
 				const shape = resource({
-					value: optional(union({ string: string(), number: integer() }))
+					value: optional(union(string(), integer()))
 				});
 
 				expect(shape.properties.value).toBeDefined();
@@ -80,8 +82,8 @@ describe("factories", () => {
 
 				const rangeShape = ((shape.properties.value as Property).range as SetShape).shape;
 				expect(rangeShape.kind).toBe("union");
-				expect((rangeShape as UnionShape).variants.string.kind).toBe("string");
-				expect((rangeShape as UnionShape).variants.number.kind).toBe("number");
+				expect((rangeShape as UnionShape).variants[0].kind).toBe("string");
+				expect((rangeShape as UnionShape).variants[1].kind).toBe("number");
 
 			});
 
@@ -108,61 +110,6 @@ describe("factories", () => {
 				expect(shape.properties.name).toBeDefined();
 				expect((shape.properties.name as Property).range.kind).toBe("set");
 				expect(((shape.properties.name as Property).range as SetShape).shape.kind).toBe("string");
-
-			});
-
-		});
-
-		describe("lazy factory", () => {
-
-			it("materialises a lazy factory and returns a validated shape", async () => {
-
-				const shape = resource(() => resource({
-					name: required(string())
-				}));
-
-				expect(shape.kind).toBe("resource");
-				expect(shape.properties.name).toBeDefined();
-
-			});
-
-			it("returns the same shape when called with a direct resource shape", async () => {
-
-				const direct = resource({
-					name: required(string())
-				});
-
-				const lazy = resource(direct);
-
-				expect(lazy).toBe(direct);
-
-			});
-
-			it("caches factory results for idempotent materialisation", async () => {
-
-				const factory = () => resource({
-					name: required(string())
-				});
-
-				const first = resource(factory);
-				const second = resource(factory);
-
-				expect(first).toBe(second);
-
-			});
-
-			it("flattens inherited constraints from a lazy factory", async () => {
-
-				const Parent = resource({
-					name: required(string())
-				});
-
-				const Child = resource(() => resource({ extends: Parent }, {
-					age: optional(integer())
-				}));
-
-				expect(Child.properties.name).toBeDefined();
-				expect(Child.properties.age).toBeDefined();
 
 			});
 
@@ -222,93 +169,6 @@ describe("factories", () => {
 
 		});
 
-		describe("from shape", () => {
-
-			it("returns a resource shape with kind 'resource'", async () => {
-
-				const original = resource({
-					name: property(required(string()))
-				});
-
-				const reprocessed = resource(original);
-
-				expect(reprocessed.kind).toBe("resource");
-
-			});
-
-			it("preserves properties from the original shape", async () => {
-
-				const original = resource({
-					name: property(required(string())),
-					age: property(optional(integer()))
-				});
-
-				const reprocessed = resource(original);
-
-				expect(reprocessed.properties.name).toBeDefined();
-				expect(reprocessed.properties.age).toBeDefined();
-
-			});
-
-			it("resolves namespace from the original shape", async () => {
-
-				const ns = createNamespace("http://example.org/");
-
-				const original = resource({ namespace: ns }, {
-					name: required(string())
-				});
-
-				const reprocessed = resource(original);
-
-				expect((reprocessed.properties.name as Property).forward).toBe("http://example.org/name");
-
-			});
-
-			it("preserves constraints from the original shape", async () => {
-
-				const ns = createNamespace("http://example.org/");
-
-				const original = resource({ namespace: ns }, {
-					name: required(string())
-				});
-
-				const reprocessed = resource(original);
-
-				expect(reprocessed.namespace).toBe(ns);
-
-			});
-
-			it("returns an immutable shape", async () => {
-
-				const original = resource({
-					name: property(required(string()))
-				});
-
-				const reprocessed = resource(original);
-
-				expect(() => {
-					(reprocessed as any).kind = "string";
-				}).toThrow();
-
-			});
-
-			it("rebuilds the model from properties", async () => {
-
-				const original = resource({
-					name: required(string()),
-					age: optional(integer())
-				});
-
-				const reprocessed = resource(original);
-
-				expect(reprocessed.model).toBeDefined();
-				expect(reprocessed.model).toHaveProperty("name");
-				expect(reprocessed.model).toHaveProperty("age");
-
-			});
-
-		});
-
 		describe("deep flattening", () => {
 
 			it("flattens an unflattened nested ResourceShape in a property range", async () => {
@@ -355,12 +215,12 @@ describe("factories", () => {
 				} as ResourceShape;
 
 				const Outer = resource({
-					contact: required(union({ person: Unflattened, org: string() }))
+					contact: required(union(Unflattened, string()))
 				});
 
 				const range = (Outer.properties.contact as Property).range as SetShape;
 				const variants = (range.shape as UnionShape).variants;
-				const nested = variants.person as ResourceShape;
+				const nested = variants[0] as ResourceShape;
 
 				expect(nested.properties.name).toBeDefined();
 				expect(nested.properties.age).toBeDefined();
@@ -390,7 +250,7 @@ describe("factories", () => {
 
 				expect(ref.kind).toBe("reference");
 
-				const target = resource((ref as { shape: () => ResourceShape }).shape);
+				const target = eager((ref as { shape: () => ResourceShape }).shape);
 
 				expect(target.properties.name).toBeDefined();
 				expect(target.properties.age).toBeDefined();
@@ -419,34 +279,6 @@ describe("factories", () => {
 				});
 
 				const nested = ((Outer.properties.person as Property).range as SetShape).shape as ResourceShape;
-
-				expect(nested.properties.name).toBeDefined();
-				expect(nested.properties.age).toBeDefined();
-
-			});
-
-			it("flattens nested ResourceShape with shape overload", async () => {
-
-				const Parent = resource({
-					name: required(string())
-				});
-
-				const Unflattened = {
-					kind: "resource",
-					model: {},
-					extends: Parent,
-					properties: {
-						age: property(optional(integer()))
-					}
-				} as ResourceShape;
-
-				const manual = resource({
-					person: required(Unflattened)
-				});
-
-				const reprocessed = resource(manual);
-
-				const nested = ((reprocessed.properties.person as Property).range as SetShape).shape as ResourceShape;
 
 				expect(nested.properties.name).toBeDefined();
 				expect(nested.properties.age).toBeDefined();
@@ -662,8 +494,8 @@ describe("factories", () => {
 				});
 
 				const shape = resource({
-					name: { [asTag("en")]: "Person" },
-					description: { [asTag("en")]: "A person resource" },
+					name: { [assert("en", isTag)]: "Person" },
+					description: { [assert("en", isTag)]: "A person resource" },
 					extends: Base
 				}, {
 					age: property(optional(integer()))
@@ -671,8 +503,8 @@ describe("factories", () => {
 
 				expect(shape).toMatchObject({
 					kind: "resource",
-					name: { [asTag("en")]: "Person" },
-					description: { [asTag("en")]: "A person resource" },
+					name: { [assert("en", isTag)]: "Person" },
+					description: { [assert("en", isTag)]: "A person resource" },
 					extends: Base
 				});
 
@@ -1120,38 +952,32 @@ describe("factories", () => {
 
 			describe("unions", () => {
 
-				it("uses record model mapping variant identifiers to their model values", async () => {
+				it("uses indexed variant models as the prototype", async () => {
 
 					const shape = resource({
-						value: required(union({
-							string: string(),
-							number: integer()
-						}))
+						value: required(union(
+							string(),
+							integer()
+						))
 					});
 
 					expect(shape.model).toEqual({
-						value: {
-							string: "",
-							number: 1
-						}
+						value: { "0": "", "1": 1 }
 					});
 
 				});
 
-				it("distributes variant arrays in model when maxCount>1", async () => {
+				it("wraps indexed variant models in a singleton tuple when maxCount>1", async () => {
 
 					const shape = resource({
-						values: multiple(union({
-							string: string(),
-							number: integer()
-						}))
+						values: multiple(union(
+							string(),
+							integer()
+						))
 					});
 
 					expect(shape.model).toEqual({
-						values: {
-							string: [""],
-							number: [1]
-						}
+						values: [{ "0": "", "1": 1 }]
 					});
 
 				});
@@ -1327,14 +1153,14 @@ describe("factories", () => {
 
 			it("accepts a range with union shape", async () => {
 
-				const prop = property(required(union({ string: string(), number: integer() })));
+				const prop = property(required(union(string(), integer())));
 
 				expect(prop.range.kind).toBe("set");
 
 				const rangeShape = (prop.range as SetShape).shape;
 				expect(rangeShape.kind).toBe("union");
-				expect((rangeShape as UnionShape).variants.string.kind).toBe("string");
-				expect((rangeShape as UnionShape).variants.number.kind).toBe("number");
+				expect((rangeShape as UnionShape).variants[0].kind).toBe("string");
+				expect((rangeShape as UnionShape).variants[1].kind).toBe("number");
 
 			});
 
@@ -1410,108 +1236,6 @@ describe("factories", () => {
 	});
 
 
-	describe.each([
-		["multiple", multiple, undefined, undefined],
-		["repeatable", repeatable, 1, undefined],
-		["optional", optional, undefined, 1],
-		["required", required, 1, 1]
-	])("%s", (_label, factory, expectedMin, expectedMax) => {
-
-		it("returns a range with expected cardinality", async () => {
-
-			const range = factory(string());
-
-			expect(range.minCount).toBe(expectedMin);
-			expect(range.maxCount).toBe(expectedMax);
-			expect(range.shape.kind).toBe("string");
-
-		});
-
-		it("returns an immutable range", async () => {
-
-			const range = factory(string());
-
-			expect(() => {
-				(range as any).minCount = 99;
-			}).toThrow();
-
-		});
-
-		it("includes only expected properties", async () => {
-
-			const range = factory(string());
-
-			expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "model", "shape"]);
-
-		});
-
-	});
-
-
-	describe("reference", () => {
-
-		describe("shape", () => {
-
-			it("returns a shape with kind 'reference'", async () => {
-
-				expect(reference(resource({})).kind).toBe("reference");
-
-			});
-
-			it("returns a shape with default model", async () => {
-
-				expect(reference(resource({})).model).toBe("app:/");
-
-			});
-
-			it("returns an immutable shape", async () => {
-
-				const shape = reference(resource({}));
-
-				expect(() => (shape as any).kind = "string").toThrow();
-				expect(() => (shape as any).model = "/test").toThrow();
-
-			});
-
-		});
-
-	});
-
-	describe("foreign", () => {
-
-		describe("shape", () => {
-
-			it("returns a shape with kind 'reference'", async () => {
-
-				expect(reference(resource({}), { foreign: true }).kind).toBe("reference");
-
-			});
-
-			it("returns a shape with foreign set to true", async () => {
-
-				expect(reference(resource({}), { foreign: true }).foreign).toBe(true);
-
-			});
-
-			it("returns a shape with default model", async () => {
-
-				expect(reference(resource({}), { foreign: true }).model).toBe("app:/");
-
-			});
-
-			it("returns an immutable shape", async () => {
-
-				const shape = reference(resource({}), { foreign: true });
-
-				expect(() => (shape as any).kind = "string").toThrow();
-				expect(() => (shape as any).foreign = false).toThrow();
-
-			});
-
-		});
-
-	});
-
 });
 
 describe("operators", () => {
@@ -1558,4612 +1282,6 @@ describe("operators", () => {
 
 	});
 
-
-	describe("validateReference", () => {
-
-		describe("type filtering", () => {
-
-			it("returns undefined for valid reference values", async () => {
-
-				expect(validateReferences(["app:/users/123"], reference(resource({})))).toBeUndefined();
-
-			});
-
-			it("returns undefined for empty values array", async () => {
-
-				expect(validateReferences([], reference(resource({})))).toBeUndefined();
-
-			});
-
-			it("returns trace with kind key for non-reference value", async () => {
-
-				const trace = validateReferences([42], reference(resource({})));
-
-				expect(trace).toHaveProperty("{kind}");
-
-			});
-
-			it("returns trace with kind key for multiple non-reference values", async () => {
-
-				const trace = validateReferences([42, true], reference(resource({})));
-
-				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(/\(2\/2\)/);
-
-			});
-
-			it("returns trace with kind key for mixed values", async () => {
-
-				const trace = validateReferences(["app:/users/123", 42], reference(resource({})));
-
-				expect(trace).toHaveProperty("{kind}");
-
-			});
-
-		});
-
-		describe("no constraints", () => {
-
-			it("accepts any reference when target shape has no constraints", async () => {
-
-				const target = resource({});
-				const shape = reference(target);
-
-				expect(validateReferences(["app:/users/123"], shape)).toBeUndefined();
-
-			});
-
-			it("accepts empty values", async () => {
-
-				const target = resource({});
-				const shape = reference(target);
-
-				expect(validateReferences([], shape)).toBeUndefined();
-
-			});
-
-		});
-
-		describe.each([
-
-			{
-				constraint: "pattern",
-				options: { pattern: "/users/{id}" } as const,
-				valid: ["app:/users/123"],
-				invalid: ["app:/products/123"],
-				errorKey: "{pattern}"
-			},
-
-			{
-				constraint: "in",
-				options: { in: ["app:/users/1", "app:/users/2"] } as const,
-				valid: ["app:/users/1"],
-				invalid: ["app:/users/99"],
-				errorKey: "{in}"
-			},
-
-			{
-				constraint: "hasValue",
-				options: { hasValue: ["app:/users/1"] } as const,
-				valid: ["app:/users/1", "app:/users/2"],
-				invalid: ["app:/users/2"],
-				errorKey: "{hasValue}"
-			}
-
-		])("$constraint constraint", ({ options, valid, invalid, errorKey }) => {
-
-			it("accepts valid references", async () => {
-
-				const shape = reference(resource(options, {}));
-
-				expect(validateReferences(valid, shape)).toBeUndefined();
-
-			});
-
-			it("rejects invalid references", async () => {
-
-				const shape = reference(resource(options, {}));
-
-				expect(validateReferences(invalid, shape)).toHaveProperty(errorKey);
-
-			});
-
-		});
-
-		describe("lazy shape resolution", () => {
-
-			it("resolves lazy shape function before validation", async () => {
-
-				const target = resource({ pattern: "/users/{id}" }, {});
-				const shape = reference(() => target);
-
-				expect(validateReferences(["app:/users/123"], shape)).toBeUndefined();
-				expect(validateReferences(["app:/products/123"], shape)).toHaveProperty("{pattern}");
-
-			});
-
-		});
-
-	});
-
-	describe("validateResource", () => {
-
-		describe("resource constraints", () => {
-
-			describe("closed shape", () => {
-
-				const named = resource({
-					name: required(string()),
-					age: optional(integer())
-				});
-
-
-				it("accepts empty resource with no properties", async () => {
-
-					expect(validateResource([{}], resource({}))).toBeUndefined();
-
-				});
-
-				it("accepts resource with subset of defined properties", async () => {
-
-					expect(validateResource([{ name: "Alice" }], named)).toBeUndefined();
-
-				});
-
-				it("accepts declared id property", async () => {
-
-					const shape = resource({
-						id: id(),
-						name: required(string())
-					});
-
-					expect(validateResource([{ "id": "app:/users/123", name: "Alice" }], shape)).toBeUndefined();
-
-				});
-
-				it("accepts declared type property", async () => {
-
-					const shape = resource({
-						type: type(),
-						name: required(string())
-					});
-
-					expect(validateResource([{
-						"type": "app:/types/Person",
-						name: "Alice"
-					}], shape)).toBeUndefined();
-
-				});
-
-				it("accepts properties from inherited shape", async () => {
-
-					const Base = resource({
-						code: required(integer())
-					});
-
-					const Derived = resource({ extends: Base }, {
-						name: required(string())
-					});
-
-					expect(validateResource([{ code: 1, name: "Alice" }], Derived)).toBeUndefined();
-
-				});
-
-				it("rejects unknown property", async () => {
-
-					const trace = validateResource([{ name: "Alice", extra: "value" }], named) as Record<string, Trace>;
-
-					expect(trace["[0]"]).toHaveProperty("extra");
-
-				});
-
-			});
-
-			describe("foreign references", () => {
-
-				const Target = resource({ id: id(), label: required(string()) });
-
-				const shape = resource({
-					name: required(string()),
-					children: multiple(reference(Target, { foreign: true }))
-				});
-
-
-				it("accepts resource without foreign property", async () => {
-
-					expect(validateResource([{ name: "Alice" }], shape)).toBeUndefined();
-
-				});
-
-				it("rejects foreign property with IRI value", async () => {
-
-					const trace = validateResource([{ name: "Alice", children: ["app:/items/1"] }], shape) as Record<string, Trace>;
-
-					expect(trace["[0]"]).toHaveProperty("children");
-
-				});
-
-				it("rejects foreign property with nested resource", async () => {
-
-					const trace = validateResource([{ name: "Alice", children: [{ label: "Child" }] }], shape) as Record<string, Trace>;
-
-					expect(trace["[0]"]).toHaveProperty("children");
-
-				});
-
-				it("accepts foreign property when undefined", async () => {
-
-					expect(validateResource([{ name: "Alice", children: undefined }], shape)).toBeUndefined();
-
-				});
-
-				it("accepts non-foreign reference property", async () => {
-
-					const owned = resource({
-						name: required(string()),
-						parent: optional(reference(Target))
-					});
-
-					expect(validateResource([{ name: "Alice", parent: "app:/items/1" }], owned)).toBeUndefined();
-
-				});
-
-
-				describe("unions", () => {
-
-					const Other = resource({ id: id(), code: required(integer()) });
-
-
-					it("rejects property when all union variants are foreign", async () => {
-
-						const all = resource({
-							name: required(string()),
-							links: required(union({
-								children: reference(Target, { foreign: true }),
-								related: reference(Other, { foreign: true })
-							}))
-						});
-
-						const trace = validateResource([{
-							name: "Alice",
-							links: { children: { label: "Child" } }
-						}], all) as Record<string, Trace>;
-
-						expect(trace["[0]"]).toHaveProperty("links");
-
-					});
-
-					it("accepts property when at least one union variant is non-foreign", async () => {
-
-						const mixed = resource({
-							name: required(string()),
-							links: required(union({
-								parent: reference(Target),
-								children: reference(Other, { foreign: true })
-							}))
-						});
-
-						expect(validateResource([{
-							name: "Alice",
-							links: { parent: { label: "Parent" } }
-						}], mixed)).toBeUndefined();
-
-					});
-
-					it("rejects foreign variant key in mixed union", async () => {
-
-						const mixed = resource({
-							name: required(string()),
-							links: required(union({
-								parent: reference(Target),
-								children: reference(Other, { foreign: true })
-							}))
-						});
-
-						const trace = validateResource([{
-							name: "Alice",
-							links: { children: { code: 1 } }
-						}], mixed) as Record<string, Trace>;
-
-						expect(trace["[0]"]).toHaveProperty("links");
-
-					});
-
-				});
-
-			});
-
-			describe("custom validators", () => {
-
-				const adultValidator: Validator = (r) => {
-					return (r as any).age >= 18 ? undefined : "must be adult";
-				};
-
-				const validated = resource({
-					validators: [adultValidator]
-				}, {
-					age: required(integer())
-				});
-
-
-				it("accepts resource passing custom validator", async () => {
-
-					expect(validateResource([{ age: 25 }], validated)).toBeUndefined();
-
-				});
-
-				it("rejects resource failing custom validator", async () => {
-
-					expect(validateResource([{ age: 15 }], validated)).toBeDefined();
-
-				});
-
-				it("runs all custom validators", async () => {
-
-					const v1: Validator = (r) => (r as any).a > 0 ? undefined : "a must be positive";
-					const v2: Validator = (r) => (r as any).b > 0 ? undefined : "b must be positive";
-
-					const shape = resource({
-						validators: [v1, v2]
-					}, {
-						a: required(integer()),
-						b: required(integer())
-					});
-
-					// both pass
-
-					expect(validateResource([{ a: 1, b: 1 }], shape)).toBeUndefined();
-
-					// first fails
-
-					expect(validateResource([{ a: -1, b: 1 }], shape)).toBeDefined();
-
-					// second fails
-
-					expect(validateResource([{ a: 1, b: -1 }], shape)).toBeDefined();
-
-				});
-
-				it("enforces inherited validators", async () => {
-
-					const validator: Validator = (r) => {
-						return (r as any).age >= 18 ? undefined : "must be adult";
-					};
-
-					const Base = resource({ validators: [validator] }, {
-						age: required(integer())
-					});
-
-					const Derived = resource({ extends: Base }, {
-						name: required(string())
-					});
-
-					expect(validateResource([{ age: 25, name: "Alice" }], Derived)).toBeUndefined();
-					expect(validateResource([{ age: 15, name: "Bob" }], Derived)).toBeDefined();
-
-				});
-
-			});
-
-			describe("trace structure", () => {
-
-				it("returns keyed trace for value-level violations", async () => {
-
-					const shape = resource({
-						age: required(integer({ minInclusive: 0 }))
-					});
-
-					const trace = validateResource([{ age: -5 }], shape) as Record<string, Trace>;
-
-					expect(trace["[0]"]).toHaveProperty("age");
-
-				});
-
-				it("includes property path in nested traces", async () => {
-
-					const Address = resource({
-						city: required(string({ minLength: 1 }))
-					});
-
-					const Person = resource({
-						address: required(Address)
-					});
-
-					const trace = validateResource([{ address: { city: "" } }], Person) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("address");
-
-					const address = inner["address"] as Record<string, Trace>;
-
-					expect(address).toHaveProperty(["[0]", "city"]);
-
-				});
-
-				it("includes both unknown and invalid property traces in dictionary", async () => {
-
-					const Address = resource({
-						city: required(string({ minLength: 1 }))
-					});
-
-					const shape = resource({
-						address: required(Address)
-					});
-
-					const trace = validateResource([{
-						address: { city: "" },
-						extra: "value"
-					}], shape) as Record<string, Trace>;
-
-					expect(trace["[0]"]).toHaveProperty("extra");
-					expect(trace["[0]"]).toHaveProperty("address");
-
-				});
-
-			});
-
-		});
-
-		describe("id constraints", () => {
-
-			it("accepts single absolute IRI", async () => {
-
-				const shape = resource({ id: id() });
-
-				expect(validateResource([{ "id": "app:/users/123" }], shape)).toBeUndefined();
-
-			});
-
-			it("accepts missing id", async () => {
-
-				const shape = resource({ id: id() });
-
-				expect(validateResource([{}], shape)).toBeUndefined();
-
-			});
-
-			it("rejects non-IRI value", async () => {
-
-				const shape = resource({ id: id() });
-
-				const trace = validateResource([{ "id": "not an iri" }], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
-
-				expect(inner).toHaveProperty("id");
-				expect(inner["id"]).toHaveProperty("{kind}");
-
-			});
-
-			it("rejects multiple values", async () => {
-
-				const shape = resource({ id: id() });
-
-				const trace = validateResource([{ "id": ["/users/1", "/users/2"] }], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
-
-				expect(inner).toHaveProperty("id");
-				expect(inner["id"]).toHaveProperty("{kind}");
-
-			});
-
-			describe("pattern", () => {
-
-				it("accepts id matching pattern", async () => {
-
-					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
-
-					expect(validateResource([{ "id": "app:/users/123" }], shape)).toBeUndefined();
-
-				});
-
-				it("accepts wildcard pattern", async () => {
-
-					const shape = resource({ pattern: "/users/*" }, { id: id() });
-
-					expect(validateResource([{ "id": "app:/users/123/profile" }], shape)).toBeUndefined();
-
-				});
-
-				it("rejects id not matching pattern", async () => {
-
-					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
-
-					const trace = validateResource([{ "id": "/products/123" }], shape) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{pattern}");
-
-				});
-
-				it("accepts missing id", async () => {
-
-					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
-
-					expect(validateResource([{}], shape)).toBeUndefined();
-
-				});
-
-			});
-
-			describe("in", () => {
-
-				it("accepts id in allowed enumeration", async () => {
-
-					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
-
-					expect(validateResource([{ "id": "app:/users/alice" }], shape)).toBeUndefined();
-
-				});
-
-				it("rejects id not in allowed enumeration", async () => {
-
-					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
-
-					const trace = validateResource([{ "id": "app:/users/charlie" }], shape) as Record<string, Trace>;
-					const inner = trace["<app:/users/charlie>"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{in}");
-
-				});
-
-				it("accepts missing id", async () => {
-
-					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
-
-					expect(validateResource([{}], shape)).toBeUndefined();
-
-				});
-
-			});
-
-			describe("hasValue", () => {
-
-				it("accepts id matching required value", async () => {
-
-					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
-
-					expect(validateResource([{ "id": "app:/users/admin" }], shape)).toBeUndefined();
-
-				});
-
-				it("rejects id not matching required value", async () => {
-
-					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
-
-					const trace = validateResource([{ "id": "app:/users/guest" }], shape) as Record<string, Trace>;
-					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{hasValue}");
-
-				});
-
-				it("accepts missing id", async () => {
-
-					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
-
-					expect(validateResource([{}], shape)).toBeUndefined();
-
-				});
-
-			});
-
-		});
-
-		describe("inherited class-level constraints", () => {
-
-			describe("pattern", () => {
-
-				it("enforces parent pattern on child", async () => {
-
-					const Parent = resource({ pattern: "/users/{id}" }, { id: id() });
-					const Child = resource({ extends: Parent }, { name: required(string()) });
-
-					expect(validateResource([{ "id": "app:/users/123", "name": "Alice" }], Child)).toBeUndefined();
-
-					const trace = validateResource([{
-						"id": "app:/products/123",
-						"name": "Alice"
-					}], Child) as Record<string, Trace>;
-					const inner = trace["<app:/products/123>"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{pattern}");
-
-				});
-
-				it("enforces both parent and child patterns conjunctively", async () => {
-
-					const Parent = resource({ pattern: "/org/*" }, { id: id() });
-					const Child = resource({
-						extends: Parent,
-						pattern: "/org/users/{id}"
-					}, { name: required(string()) });
-
-					expect(validateResource([{ "id": "app:/org/users/123", "name": "Alice" }], Child)).toBeUndefined();
-
-					const trace = validateResource([{
-						"id": "app:/org/products/123",
-						"name": "Alice"
-					}], Child) as Record<string, Trace>;
-					const inner = trace["<app:/org/products/123>"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-
-					// with multiple patterns, keys are indexed
-					const idTrace = inner["id"] as Record<string, Trace>;
-					expect(idTrace).toSatisfy((t: Record<string, unknown>) =>
-						Object.keys(t).some(k => k.startsWith("{pattern}"))
-					);
-
-				});
-
-			});
-
-			describe("in", () => {
-
-				it("enforces parent in constraint on child", async () => {
-
-					const Parent = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
-					const Child = resource({ extends: Parent }, { name: required(string()) });
-
-					expect(validateResource([{ "id": "app:/users/alice", "name": "Alice" }], Child)).toBeUndefined();
-
-					const trace = validateResource([{
-						"id": "app:/users/charlie",
-						"name": "Charlie"
-					}], Child) as Record<string, Trace>;
-					const inner = trace["<app:/users/charlie>"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{in}");
-
-				});
-
-			});
-
-			describe("hasValue", () => {
-
-				it("enforces parent hasValue constraint on child", async () => {
-
-					const Parent = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
-					const Child = resource({ extends: Parent }, { name: required(string()) });
-
-					expect(validateResource([{ "id": "app:/users/admin", "name": "Admin" }], Child)).toBeUndefined();
-
-					const trace = validateResource([{
-						"id": "app:/users/guest",
-						"name": "Guest"
-					}], Child) as Record<string, Trace>;
-					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{hasValue}");
-
-				});
-
-				it("enforces parent and child hasValue conjunctively", async () => {
-
-					const Parent = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
-					const Child = resource({
-						extends: Parent,
-						hasValue: ["app:/users/root"]
-					}, { name: required(string()) });
-
-					// id "app:/users/guest" fails both parent and child hasValue
-
-					const trace = validateResource([
-						{ "id": "app:/users/guest", "name": "Guest" }
-					], Child) as Record<string, Trace>;
-					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("id");
-
-					// with multiple hasValue lists, keys are indexed
-					const idTrace = inner["id"] as Record<string, unknown>;
-					expect(idTrace).toSatisfy((t: Record<string, unknown>) =>
-						Object.keys(t).some(k => k.startsWith("{hasValue}"))
-					);
-
-				});
-
-			});
-
-		});
-
-		describe("type constraints", () => {
-
-			it("accepts single absolute IRI", async () => {
-
-				const shape = resource({ type: type() });
-
-				expect(validateResource([{ "type": "app:/types/Person" }], shape)).toBeUndefined();
-
-			});
-
-			it("accepts missing type", async () => {
-
-				const shape = resource({ type: type() });
-
-				expect(validateResource([{}], shape)).toBeUndefined();
-
-			});
-
-			it("rejects non-IRI value", async () => {
-
-				const shape = resource({ type: type() });
-
-				const trace = validateResource([{ "type": "not an iri" }], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
-
-				expect(inner).toHaveProperty("type");
-				expect(inner["type"]).toHaveProperty("{kind}");
-
-			});
-
-			it("rejects multiple values", async () => {
-
-				const shape = resource({ type: type() });
-
-				const trace = validateResource([{ "type": ["/types/A", "/types/B"] }], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
-
-				expect(inner).toHaveProperty("type");
-				expect(inner["type"]).toHaveProperty("{kind}");
-
-			});
-
-		});
-
-		describe("property constraints", () => {
-
-			describe("required property", () => {
-
-				const named = resource({
-					name: required(string())
-				});
-
-
-				it("accepts present required property", async () => {
-
-					expect(validateResource([{ name: "Alice" }], named)).toBeUndefined();
-
-				});
-
-				it("rejects missing required property", async () => {
-
-					const trace = validateResource([{}], named) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("name");
-					expect(inner["name"]).toHaveProperty("{minCount}");
-
-				});
-
-				it("rejects array value", async () => {
-
-					const trace = validateResource([{ name: ["Alice"] }], named) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("name");
-					expect(inner["name"]).toHaveProperty("{kind}");
-
-				});
-
-			});
-
-			describe("optional property", () => {
-
-				const aged = resource({
-					age: optional(integer())
-				});
-
-
-				it("accepts present optional property", async () => {
-
-					expect(validateResource([{ age: 30 }], aged)).toBeUndefined();
-
-				});
-
-				it("accepts missing optional property", async () => {
-
-					expect(validateResource([{}], aged)).toBeUndefined();
-
-				});
-
-				it("rejects array value", async () => {
-
-					const trace = validateResource([{ age: [30] }], aged) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("age");
-					expect(inner["age"]).toHaveProperty("{kind}");
-
-				});
-
-			});
-
-			describe("repeatable property", () => {
-
-				const tagged = resource({
-					tags: repeatable(string())
-				});
-
-
-				it("accepts array with single element", async () => {
-
-					expect(validateResource([{ tags: ["a"] }], tagged)).toBeUndefined();
-
-				});
-
-				it("accepts array with multiple elements", async () => {
-
-					expect(validateResource([{ tags: ["a", "b", "c"] }], tagged)).toBeUndefined();
-
-				});
-
-				it("rejects empty array", async () => {
-
-					const trace = validateResource([{ tags: [] }], tagged) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("tags");
-					expect(inner["tags"]).toHaveProperty("{minCount}");
-
-				});
-
-				it("rejects missing repeatable property", async () => {
-
-					const trace = validateResource([{}], tagged) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("tags");
-					expect(inner["tags"]).toHaveProperty("{minCount}");
-
-				});
-
-				it("rejects scalar value", async () => {
-
-					const trace = validateResource([{ tags: "a" }], tagged) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("tags");
-					expect(inner["tags"]).toHaveProperty("{kind}");
-
-				});
-
-			});
-
-			describe("multiple property", () => {
-
-				const aliased = resource({
-					aliases: multiple(string())
-				});
-
-
-				it("accepts array with single element", async () => {
-
-					expect(validateResource([{ aliases: ["x"] }], aliased)).toBeUndefined();
-
-				});
-
-				it("accepts array with multiple elements", async () => {
-
-					expect(validateResource([{ aliases: ["x", "y", "z"] }], aliased)).toBeUndefined();
-
-				});
-
-				it("accepts empty array", async () => {
-
-					expect(validateResource([{ aliases: [] }], aliased)).toBeUndefined();
-
-				});
-
-				it("accepts missing multiple property", async () => {
-
-					expect(validateResource([{}], aliased)).toBeUndefined();
-
-				});
-
-				it("rejects scalar value", async () => {
-
-					const trace = validateResource([{ aliases: "x" }], aliased) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
-
-					expect(inner).toHaveProperty("aliases");
-					expect(inner["aliases"]).toHaveProperty("{kind}");
-
-				});
-
-			});
-
-			describe("custom cardinality", () => {
-
-				describe.each([
-
-					{
-						constraint: "minCount",
-						cardinalityArgs: [2, undefined] as const,
-						accepted: [["a", "b"], ["a", "b", "c"]],
-						rejected: [["a"]],
-						errorKey: "{minCount}"
-					},
-
-					{
-						constraint: "maxCount",
-						cardinalityArgs: [undefined, 3] as const,
-						accepted: [["a", "b", "c"], ["a"]],
-						rejected: [["a", "b", "c", "d"]],
-						errorKey: "{maxCount}"
-					},
-
-					{
-						constraint: "minCount and maxCount",
-						cardinalityArgs: [2, 4] as const,
-						accepted: [["a", "b"], ["a", "b", "c", "d"]],
-						rejected: [["a"], ["a", "b", "c", "d", "e"]],
-						errorKey: undefined
-					}
-
-				])("$constraint", ({ cardinalityArgs, accepted, rejected, errorKey }) => {
-
-					it("accepts arrays within bounds", async () => {
-
-						const shape = resource({
-							tags: cardinality(cardinalityArgs[0], cardinalityArgs[1])(string())
-						});
-
-						for (const tags of accepted) {
-							expect(validateResource([{ tags }], shape)).toBeUndefined();
-						}
-
-					});
-
-					it("rejects arrays outside bounds", async () => {
-
-						const shape = resource({
-							tags: cardinality(cardinalityArgs[0], cardinalityArgs[1])(string())
-						});
-
-						for (const tags of rejected) {
-
-							const trace = validateResource([{ tags }], shape) as Record<string, Trace>;
-							const inner = trace["[0]"] as Record<string, Trace>;
-
-							expect(inner).toHaveProperty("tags");
-
-							if ( errorKey ) {
-								expect(inner["tags"]).toHaveProperty(errorKey);
-							}
-
-						}
-
-					});
-
-				});
-
-			});
-
-			it("enforces inherited cardinality constraints", async () => {
-
-				const Base = resource({
-					name: required(string())
-				});
-
-				const Derived = resource({ extends: Base }, {
-					age: optional(integer())
-				});
-
-				expect(validateResource([{ name: "Alice" }], Derived)).toBeUndefined();
-				expect(validateResource([{}], Derived)).toHaveProperty(["[0]", "name"]);
-
-			});
-
-			it("enforces multiple parents cardinality constraints", async () => {
-
-				const Named = resource({
-					name: required(string())
-				});
-
-				const Aged = resource({
-					age: required(integer())
-				});
-
-				const Person = resource({ extends: [Named, Aged] }, {
-					email: optional(string())
-				});
-
-				expect(validateResource([{ name: "Alice", age: 30 }], Person)).toBeUndefined();
-				expect(validateResource([{ name: "Alice" }], Person)).toHaveProperty(["[0]", "age"]);
-				expect(validateResource([{ age: 30 }], Person)).toHaveProperty(["[0]", "name"]);
-
-			});
-
-			it("enforces inherited constraints on overridden properties", async () => {
-
-				const Base = resource({
-					name: required(string({ minLength: 3 }))
-				});
-
-				const Derived = resource({ extends: Base }, {
-					name: required(string({ pattern: "^[A-Z]" }))
-				});
-
-				// satisfies both parent (minLength: 3) and child (pattern: ^[A-Z])
-
-				expect(validateResource([{ name: "Alice" }], Derived)).toBeUndefined();
-
-				// violates parent's minLength: 3 even though it matches child's pattern
-
-				expect(validateResource([{ name: "A" }], Derived)).toHaveProperty(["[0]", "name"]);
-
-				// violates child's pattern even though it satisfies parent's minLength
-
-				expect(validateResource([{ name: "alice" }], Derived)).toHaveProperty(["[0]", "name"]);
-
-			});
-
-			it("prevents relaxing inherited constraints on overridden properties", async () => {
-
-				const Base = resource({
-					name: required(string({ minLength: 3, maxLength: 50 }))
-				});
-
-				// child tries to relax parent constraints — rejected at factory time
-
-				expect(() => resource({ extends: Base }, {
-					name: required(string({ minLength: 1, maxLength: 100 }))
-				})).toThrow(RangeError);
-
-			});
-
-			it("enforces grandparent constraints through diamond inheritance", async () => {
-
-				const GrandParent = resource({
-					name: required(string({ minLength: 3 }))
-				});
-
-				const Parent1 = resource({ extends: GrandParent }, {
-					name: required(string({ pattern: "^[A-Z]" }))
-				});
-
-				const Parent2 = resource({ extends: GrandParent }, {
-					name: required(string({ maxLength: 50 }))
-				});
-
-				const Child = resource({ extends: [Parent1, Parent2] }, {
-					name: required(string())
-				});
-
-				// satisfies grandparent (minLength: 3), last parent (maxLength: 50) and child
-
-				expect(validateResource([{ name: "Alice" }], Child)).toBeUndefined();
-
-				// violates grandparent's minLength: 3
-
-				expect(validateResource([{ name: "AB" }], Child)).toHaveProperty(["[0]", "name"]);
-
-				// violates last parent's maxLength: 50
-
-				expect(validateResource([{ name: "A".repeat(51) }], Child)).toHaveProperty(["[0]", "name"]);
-
-			});
-
-		});
-
-		describe("value constraints", () => {
-
-			describe.each([
-
-				{
-					type: "boolean",
-					field: "active",
-					range: required(boolean()),
-					valid: [{ active: true }, { active: false }],
-					invalid: { active: "true" }
-				},
-
-				{
-					type: "number",
-					field: "age",
-					range: required(integer()),
-					valid: [{ age: 42 }],
-					invalid: { age: "forty-two" }
-				},
-
-				{
-					type: "string",
-					field: "name",
-					range: required(string()),
-					valid: [{ name: "Alice" }],
-					invalid: { name: 42 }
-				},
-
-				{
-					type: "local",
-					field: "label",
-					range: required(localised()),
-					valid: [{ label: { "en": "Hello" } }],
-					invalid: { label: 42 }
-				},
-
-				{
-					type: "localised",
-					field: "labels",
-					range: repeatable(localised()),
-					valid: [{ labels: { en: ["Hello"] } }, { labels: "Hello" }],
-					invalid: { labels: 42 }
-				}
-
-			])("$type values", ({ field, range, valid, invalid }) => {
-
-				it("accepts valid value", async () => {
-
-					const shape = resource({ [field]: range });
-
-					for (const v of valid) {
-						expect(validateResource([v], shape)).toBeUndefined();
-					}
-
-				});
-
-				it("rejects invalid value", async () => {
-
-					const shape = resource({ [field]: range });
-
-					expect(validateResource([invalid], shape)).toHaveProperty(["[0]", field]);
-
-				});
-
-			});
-
-			describe("string values", () => {
-
-				it("validates array elements individually", async () => {
-
-					const shape = resource({
-						tags: repeatable(string({ minLength: 2 }))
-					});
-
-					expect(validateResource([{ tags: ["abc", "de", "fgh"] }], shape)).toBeUndefined();
-					expect(validateResource([{ tags: ["abc", "x", "fgh"] }], shape)).toHaveProperty(["[0]", "tags"]);
-
-				});
-
-			});
-
-			describe("resource values", () => {
-
-				it("accepts valid nested resource", async () => {
-
-					const Address = resource({
-						city: required(string())
-					});
-
-					const Person = resource({
-						address: required(Address)
-					});
-
-					expect(validateResource([{ address: { city: "Rome" } }], Person)).toBeUndefined();
-
-				});
-
-				it("rejects invalid nested resource", async () => {
-
-					const Address = resource({
-						city: required(string())
-					});
-
-					const Person = resource({
-						address: required(Address)
-					});
-
-					expect(validateResource([{ address: {} }], Person)).toHaveProperty(["[0]", "address"]);
-
-				});
-
-				it("rejects deeply nested validation failure", async () => {
-
-					const Street = resource({
-						name: required(string({ minLength: 1 }))
-					});
-
-					const Address = resource({
-						street: required(Street)
-					});
-
-					const Person = resource({
-						address: required(Address)
-					});
-
-					expect(validateResource([{
-						address: { street: { name: "" } }
-					}], Person)).toHaveProperty(["[0]", "address"]);
-
-				});
-
-			});
-
-			describe("union values", () => {
-
-				const textOrCount = resource({
-					value: required(union({
-						text: string(),
-						count: integer()
-					}))
-				});
-
-				const multiUnion = resource({
-					value: repeatable(union({
-						text: string(),
-						count: integer()
-					}))
-				});
-
-
-				it("accepts indexed container matching variant type", async () => {
-
-					expect(validateResource([{ value: { text: "hello" } }], textOrCount)).toBeUndefined();
-					expect(validateResource([{ value: { count: 42 } }], textOrCount)).toBeUndefined();
-
-				});
-
-				it("rejects bare scalar for union property", async () => {
-
-					expect(validateResource([{ value: "hello" }], textOrCount)).toHaveProperty(["[0]", "value"]);
-					expect(validateResource([{ value: 42 }], textOrCount)).toHaveProperty(["[0]", "value"]);
-					expect(validateResource([{ value: true }], textOrCount)).toHaveProperty(["[0]", "value"]);
-
-				});
-
-				it("accepts indexed record with variant arrays for repeatable union", async () => {
-
-					// multiUnion is repeatable (1..*): variant entries hold arrays
-					expect(validateResource([{ value: { count: [1, 2, 3] } }], multiUnion)).toBeUndefined();
-
-				});
-
-				it("rejects array for scalar union range", async () => {
-
-					// textOrCount has maxCount=1: array is rejected
-					expect(validateResource([{ value: ["a", "b"] }], textOrCount)).toHaveProperty(["[0]", "value"]);
-
-				});
-
-				it("rejects missing union property", async () => {
-
-					expect(validateResource([{}], textOrCount)).toHaveProperty(["[0]", "value"]);
-
-				});
-
-				it("accepts inherited union property", async () => {
-
-					const Derived = resource({ extends: textOrCount }, {
-						name: required(string())
-					});
-
-					expect(validateResource([{ value: { text: "hello" }, name: "Alice" }], Derived)).toBeUndefined();
-					expect(validateResource([{
-						value: { count: true },
-						name: "Alice"
-					}], Derived)).toHaveProperty(["[0]", "value"]);
-
-				});
-
-			});
-
-			describe("indexed union containers", () => {
-
-				const PostalAddress = resource({
-					street: required(string()),
-					city: required(string())
-				});
-
-				const textOrAddress = resource({
-					address: optional(union({
-						text: string(),
-						PostalAddress: reference(PostalAddress)
-					}))
-				});
-
-				const multiTextOrCount = resource({
-					value: repeatable(union({
-						text: string(),
-						count: integer()
-					}))
-				});
-
-
-				it("accepts indexed container with scalar variant", async () => {
-
-					expect(validateResource([{ address: { text: "123 Main St" } }], textOrAddress)).toBeUndefined();
-
-				});
-
-				it("rejects array variant value for scalar union", async () => {
-
-					expect(validateResource([{ address: { text: ["123 Main St"] } }], textOrAddress)).toBeDefined();
-
-				});
-
-				it("accepts indexed container with reference variant", async () => {
-
-					expect(validateResource([{
-						address: {
-							PostalAddress: {
-								street: "12 Harbour Street",
-								city: "Copenhagen"
-							}
-						}
-					}], textOrAddress)).toBeUndefined();
-
-				});
-
-				it("rejects indexed container with unknown variant key", async () => {
-
-					expect(validateResource([{
-						address: { unknown: "value" }
-					}], textOrAddress)).toHaveProperty(["[0]", "address"]);
-
-				});
-
-				it("rejects indexed container with invalid variant value", async () => {
-
-					expect(validateResource([{
-						address: { text: 42 }
-					}], textOrAddress)).toHaveProperty(["[0]", "address"]);
-
-				});
-
-				it("rejects indexed container with invalid reference variant value", async () => {
-
-					expect(validateResource([{
-						address: {
-							PostalAddress: {
-								street: "12 Harbour Street"
-								// missing required city
-							}
-						}
-					}], textOrAddress)).toHaveProperty(["[0]", "address"]);
-
-				});
-
-				it("accepts per-variant arrays for repeatable union", async () => {
-
-					expect(validateResource([{
-						value: { text: ["hello"], count: [42] }
-					}], multiTextOrCount)).toBeUndefined();
-
-				});
-
-				it("accepts mixed variant entries with different array lengths", async () => {
-
-					expect(validateResource([{
-						value: { text: ["hello", "world"], count: [42] }
-					}], multiTextOrCount)).toBeUndefined();
-
-				});
-
-				it("accepts single variant entry with array for repeatable union", async () => {
-
-					expect(validateResource([{
-						value: { text: ["hello", "world"] }
-					}], multiTextOrCount)).toBeUndefined();
-
-				});
-
-				it("rejects array of indexed containers for repeatable union", async () => {
-
-					expect(validateResource([{
-						value: [{ text: "hello" }, { count: 42 }]
-					}], multiTextOrCount)).toBeDefined();
-
-				});
-
-				it("rejects scalar variant values for repeatable union", async () => {
-
-					expect(validateResource([{
-						value: { text: "hello" }
-					}], multiTextOrCount)).toBeDefined();
-
-				});
-
-				it("accepts absent optional indexed union property", async () => {
-
-					expect(validateResource([{}], textOrAddress)).toBeUndefined();
-
-				});
-
-				describe("effective cardinality", () => {
-
-					it("accepts union values within cardinality bounds", async () => {
-
-						const bounded = resource({
-							value: cardinality(1, 3)(union({ text: string(), num: integer() }))
-						});
-
-						expect(validateResource([{
-							value: { text: ["a", "b"], num: [42] }
-						}], bounded)).toBeUndefined();
-
-					});
-
-					it("rejects union values below minCount", async () => {
-
-						const bounded = resource({
-							value: cardinality(2, 5)(union({ text: string(), num: integer() }))
-						});
-
-						expect(validateResource([{
-							value: { text: ["a"] }
-						}], bounded)).toHaveProperty(["[0]", "value"]);
-
-					});
-
-					it("rejects union values above maxCount", async () => {
-
-						const bounded = resource({
-							value: cardinality(1, 2)(union({ text: string(), num: integer() }))
-						});
-
-						expect(validateResource([{
-							value: { text: ["a", "b"], num: [42] }
-						}], bounded)).toHaveProperty(["[0]", "value"]);
-
-					});
-
-				});
-
-			});
-
-		});
-
-		describe("combined constraints", () => {
-
-			const validator: Validator = (r) => {
-				return (r as any).name.length <= 50 ? undefined : "name too long";
-			};
-
-			const shape = resource({
-				pattern: "/users/{id}",
-				validators: [validator]
-			}, {
-				id: id(),
-				name: required(string({ minLength: 1 })),
-				age: optional(integer({ minInclusive: 0, maxInclusive: 150 }))
-			});
-
-			it("accepts resource satisfying all constraints", async () => {
-
-				expect(validateResource([{
-					"id": "app:/users/123",
-					name: "Alice",
-					age: 30
-				}], shape)).toBeUndefined();
-
-			});
-
-			it("rejects resource failing pattern constraint", async () => {
-
-				const trace = validateResource([{
-					"id": "/products/123",
-					name: "Alice"
-				}], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
-
-				expect(inner).toHaveProperty("id");
-				expect(inner["id"]).toHaveProperty("{pattern}");
-
-			});
-
-			it("rejects resource failing property constraint", async () => {
-
-				expect(validateResource([{
-					"id": "app:/users/123",
-					name: ""
-				}], shape)).toHaveProperty(["<app:/users/123>", "name"]);
-
-			});
-
-			it("rejects resource failing custom validator", async () => {
-
-				expect(validateResource([{
-					"id": "app:/users/123",
-					name: "A".repeat(100)
-				}], shape)).toBeDefined();
-
-			});
-
-		});
-
-		describe("collection-level keying", () => {
-
-			const shape = resource({
-				id: id(),
-				name: required(string({ minLength: 1 }))
-			});
-
-			const shapeWithoutId = resource({
-				name: required(string({ minLength: 1 }))
-			});
-
-
-			it("wraps single resource trace under id key", async () => {
-
-				const trace = validateResource([{ "id": "app:/users/1", name: "" }], shape) as Record<string, Trace>;
-
-				expect(trace).toHaveProperty("<app:/users/1>");
-				expect(trace["<app:/users/1>"]).toHaveProperty("name");
-
-			});
-
-			it("keys violations by @id for multiple resources", async () => {
-
-				const trace = validateResource([
-					{ "id": "app:/users/1", name: "" },
-					{ "id": "app:/users/2", name: "" }
-				], shape) as Record<string, Trace>;
-
-				expect(trace).toHaveProperty("<app:/users/1>");
-				expect(trace).toHaveProperty("<app:/users/2>");
-
-				expect(trace["<app:/users/1>"]).toHaveProperty("name");
-				expect(trace["<app:/users/2>"]).toHaveProperty("name");
-
-			});
-
-			it("keys violations by blank node for multiple resources without id property", async () => {
-
-				const trace = validateResource([
-					{ name: "" },
-					{ name: "" }
-				], shapeWithoutId) as Record<string, Trace>;
-
-				expect(trace).toHaveProperty("[0]");
-				expect(trace).toHaveProperty("[1]");
-
-			});
-
-			it("uses blank node key for resources with missing @id value", async () => {
-
-				const trace = validateResource([
-					{ name: "" },
-					{ "id": "app:/users/2", name: "" }
-				], shape) as Record<string, Trace>;
-
-				expect(trace).toHaveProperty("[0]");
-				expect(trace).toHaveProperty("<app:/users/2>");
-
-			});
-
-			it("includes only invalid resources in trace", async () => {
-
-				const trace = validateResource([
-					{ "id": "app:/users/1", name: "Alice" },
-					{ "id": "app:/users/2", name: "" }
-				], shape) as Record<string, Trace>;
-
-				expect(trace).not.toHaveProperty("app:/users/1");
-				expect(trace).toHaveProperty("<app:/users/2>");
-
-			});
-
-			it("returns undefined when all resources are valid", async () => {
-
-				expect(validateResource([
-					{ "id": "app:/users/1", name: "Alice" },
-					{ "id": "app:/users/2", name: "Bob" }
-				], shape)).toBeUndefined();
-
-			});
-
-		});
-
-	});
-
-	describe("validateTemplate", () => {
-
-		describe("resource constraints", () => {
-
-			describe("binding resolution", () => {
-
-				it("accepts empty model on empty shape", async () => {
-
-					const shape = resource({});
-
-					expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts model with only defined properties", async () => {
-
-					const shape = resource({
-						name: required(string()),
-						age: optional(integer())
-					});
-
-					expect(validateTemplate([{ name: "Alice", age: 30 }], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts declared id property", async () => {
-
-					const shape = resource({
-						id: id(),
-						name: required(string())
-					});
-
-					expect(validateTemplate([{
-						"id": "app:/users/123",
-						name: "Alice"
-					}], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts properties from inherited shape", async () => {
-
-					const Base = resource({
-						id: required(integer())
-					});
-
-					const Derived = resource({ extends: Base }, {
-						name: required(string())
-					});
-
-					expect(validateTemplate([{ id: 1, name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts unknown binding on empty shape", async () => {
-
-					// name is shorthand for name=name → apply() returns undefined → lenient
-
-					const shape = resource({});
-
-					expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts unknown binding", async () => {
-
-					// extra=extra → apply() returns undefined → lenient
-
-					const shape = resource({
-						name: required(string())
-					});
-
-					expect(validateTemplate([{ name: "Alice", extra: "value" }], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts multiple unknown bindings", async () => {
-
-					const shape = resource({
-						name: required(string())
-					});
-
-					expect(validateTemplate([{
-						name: "Alice",
-						extra1: "a",
-						extra2: "b"
-					}], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts undeclared id binding", async () => {
-
-					// id=id → apply() returns undefined (id entry not declared) → lenient
-
-					const shape = resource({
-						name: required(string())
-					});
-
-					expect(validateTemplate([{
-						"id": "app:/users/123",
-						name: "Alice"
-					}], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts unknown binding alongside declared id", async () => {
-
-					// extra=extra → apply() returns undefined → lenient
-
-					const shape = resource({
-						id: id(),
-						name: required(string())
-					});
-
-					expect(validateTemplate([{
-						"id": "app:/users/123",
-						name: "Alice",
-						extra: "value"
-					}], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts unknown binding in derived shape", async () => {
-
-					const Base = resource({
-						id: required(integer())
-					});
-
-					const Derived = resource({ extends: Base }, {
-						name: required(string())
-					});
-
-					expect(validateTemplate([{
-						id: 1,
-						name: "Alice",
-						extra: "value"
-					}], Derived, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("rejects non-identifier key at top level", async () => {
-
-					const shape = resource({
-						name: required(string())
-					});
-
-					expect(validateTemplate([{
-						name: "Alice",
-						">=name": "A"
-					} as any], shape, { depth: 0 })).toBeDefined();
-
-				});
-
-				it("rejects probe key at top level", async () => {
-
-					const shape = resource({
-						name: required(string())
-					});
-
-					expect(validateTemplate([{
-						name: "Alice",
-						"^name": "asc"
-					} as any], shape, { depth: 0 })).toBeDefined();
-
-				});
-
-
-			});
-
-			describe("custom validators skipped", () => {
-
-				it("accepts failing custom validator", async () => {
-
-					const validator: Validator = () => "always fails";
-
-					const shape = resource({
-						validators: [validator]
-					}, {
-						name: required(string())
-					});
-
-					expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts failing inherited validator", async () => {
-
-					const validator: Validator = () => "always fails";
-
-					const Base = resource({ validators: [validator] }, {
-						age: required(integer())
-					});
-
-					const Derived = resource({ extends: Base }, {
-						name: required(string())
-					});
-
-					expect(validateTemplate([{ age: 15, name: "Bob" }], Derived, { depth: 0 })).toBeUndefined();
-
-				});
-
-			});
-
-			describe("trace structure", () => {
-
-				it("includes property path in nested traces", async () => {
-
-					const Address = resource({
-						city: required(string())
-					});
-
-					const shape = resource({
-						address: required(Address)
-					});
-
-					// array on scalar triggers shape mismatch in nested resource
-
-					const trace = validateTemplate([{ address: { city: ["Rome"] } as any }], shape, {});
-
-					expect(trace).toBeDefined();
-					expect(trace).toHaveProperty(["[0]", "address"]);
-
-				});
-
-			});
-
-		});
-
-		describe("id constraints", () => {
-
-			it("accepts string value", async () => {
-
-				const shape = resource({ id: id() });
-
-				expect(validateTemplate([{ "id": "some-id" }], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("accepts missing id", async () => {
-
-				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
-
-				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("rejects multiple values", async () => {
-
-				const shape = resource({ id: id() });
-
-				expect(validateTemplate([{ "id": ["/users/1", "/users/2"] } as any], shape, { depth: 0 })).toBeDefined();
-
-			});
-
-			it("skips pattern", async () => {
-
-				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
-
-				expect(validateTemplate([{ "id": "app:/invalid" }], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("skips in", async () => {
-
-				const shape = resource({ in: ["app:/users/alice"] }, { id: id() });
-
-				expect(validateTemplate([{ "id": "app:/users/charlie" }], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("skips hasValue", async () => {
-
-				const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
-
-				expect(validateTemplate([{ "id": "app:/users/guest" }], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-		});
-
-		describe("type constraints", () => {
-
-			it("accepts string value", async () => {
-
-				const shape = resource({ type: type() });
-
-				expect(validateTemplate([{ "type": "some-type" }], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("accepts missing type", async () => {
-
-				const shape = resource({ type: type() });
-
-				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("rejects multiple values", async () => {
-
-				const shape = resource({ type: type() });
-
-				expect(validateTemplate([{ "type": ["/types/A", "/types/B"] } as any], shape, { depth: 0 })).toBeDefined();
-
-			});
-
-		});
-
-		describe("property constraints", () => {
-
-			describe("missing properties accepted", () => {
-
-				it("accepts absent required property", async () => {
-
-					const shape = resource({
-						name: required(string())
-					});
-
-					expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts absent repeatable property", async () => {
-
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-			});
-
-			describe("shape enforced (scalar vs singleton tuple)", () => {
-
-				it.each([
-					["accepts scalar on scalar", "name", required(string()), { name: "Alice" }, true],
-					["accepts tuple on array", "tags", repeatable(string()), { tags: ["a"] }, true],
-					["rejects array on scalar", "name", required(string()), { name: ["Alice"] }, false],
-					["rejects scalar on array", "tags", repeatable(string()), { tags: "a" }, false]
-				] as const)("%s", async (_label, key, range, value, valid) => {
-
-					const shape = resource({ [key]: range });
-
-					if ( valid ) {
-						expect(validateTemplate([value], shape, { depth: 0 })).toBeUndefined();
-					} else {
-						expect(validateTemplate([value as any], shape, { depth: 0 })).toBeDefined();
-					}
-
-				});
-
-				describe("local shorthand on scalar cardinality", () => {
-
-					it("accepts local string shorthand on scalar property", async () => {
-
-						const shape = resource({ label: required(localised()) });
-
-						expect(validateTemplate([{ label: "hello" }], shape, { depth: 0 })).toBeUndefined();
-
-					});
-
-					it("accepts local object shorthand on scalar property", async () => {
-
-						const shape = resource({ label: required(localised()) });
-
-						expect(validateTemplate([{ label: { en: "hello" } }], shape, { depth: 0 })).toBeUndefined();
-
-					});
-
-				});
-
-				describe("localised shorthand on array cardinality", () => {
-
-					it("accepts localised singleton array shorthand on array property", async () => {
-
-						const shape = resource({ labels: repeatable(localised()) });
-
-						expect(validateTemplate([{ labels: ["hello"] }], shape, { depth: 0 })).toBeUndefined();
-
-					});
-
-					it("accepts localised object shorthand on array property", async () => {
-
-						const shape = resource({ labels: repeatable(localised()) });
-
-						expect(validateTemplate([{ labels: { en: ["hello"] } }], shape, { depth: 0 })).toBeUndefined();
-
-					});
-
-					it("rejects localised multi-element array with cardinality error on array property", async () => {
-
-						const shape = resource({ labels: multiple(localised()) });
-						const trace = validateTemplate([{ labels: ["alpha", "beta"] } as any], shape, { depth: 0 });
-
-						expect(trace).toBeDefined();
-						expect(JSON.stringify(trace)).not.toContain("expected scalar value");
-
-					});
-
-				});
-
-				describe("effective cardinality for local", () => {
-
-					it("accepts local string shorthand on required property", async () => {
-
-						const shape = resource({ label: required(localised()) });
-
-						expect(validateResource([{ label: "ToyMaster GmbH" }], shape)).toBeUndefined();
-
-					});
-
-					it("rejects empty local object on required property", async () => {
-
-						const shape = resource({ label: required(localised()) });
-
-						expect(validateResource([{ label: {} }], shape)).toHaveProperty(["[0]", "label"]);
-
-					});
-
-					it("accepts multi-tag local on required property", async () => {
-
-						const shape = resource({ label: required(localised()) });
-
-						expect(validateResource([{
-							label: {
-								en: "hello",
-								fr: "bonjour"
-							}
-						}], shape)).toBeUndefined();
-
-					});
-
-					it("rejects array-per-tag local on required property", async () => {
-
-						const shape = resource({ label: required(localised()) });
-
-						expect(validateResource([{
-							label: {
-								en: ["hello", "hi"]
-							}
-						}], shape)).toHaveProperty(["[0]", "label"]);
-
-					});
-
-				});
-
-				describe("effective cardinality for localised", () => {
-
-					it("accepts localised array shorthand on required property", async () => {
-
-						const shape = resource({ labels: repeatable(localised()) });
-
-						expect(validateResource([{ labels: ["hello"] }], shape)).toBeUndefined();
-
-					});
-
-					it("rejects empty localised object on required property", async () => {
-
-						const shape = resource({ labels: repeatable(localised()) });
-
-						expect(validateResource([{ labels: {} }], shape)).toHaveProperty(["[0]", "labels"]);
-
-					});
-
-					it("accepts multi-tag localised on required property", async () => {
-
-						const shape = resource({ labels: repeatable(localised()) });
-
-						expect(validateResource([{
-							labels: {
-								en: ["hello"],
-								fr: ["bonjour"]
-							}
-						}], shape)).toBeUndefined();
-
-					});
-
-					it("rejects empty-array tag on required property", async () => {
-
-						const shape = resource({ labels: repeatable(localised()) });
-
-						expect(validateResource([{
-							labels: {
-								en: []
-							}
-						}], shape)).toHaveProperty(["[0]", "labels"]);
-
-					});
-
-				});
-
-			});
-
-			describe("undefined template rejected", () => {
-
-				it.each([
-					["scalar", "name", required(string()), { name: undefined }],
-					["array", "tags", repeatable(string()), { tags: undefined }]
-				] as const)("rejects undefined template on %s property", async (_label, key, range, value) => {
-
-					const shape = resource({ [key]: range });
-
-					expect(validateTemplate([value as any], shape, { depth: 0 })).toBeDefined();
-
-				});
-
-			});
-
-			describe("tuple arity enforced", () => {
-
-				it("rejects empty tuple on array property", async () => {
-
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateTemplate([{ tags: [] }], shape, { depth: 0 })).toBeDefined();
-
-				});
-
-				it("rejects multi-element tuple on array property", async () => {
-
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateTemplate([{ tags: ["a", "b"] } as any], shape, { depth: 0 })).toBeDefined();
-
-				});
-
-				it("accepts singleton tuple on array property", async () => {
-
-					const shape = resource({
-						tags: repeatable(string())
-					});
-
-					expect(validateTemplate([{ tags: ["a"] }], shape, { depth: 0 })).toBeUndefined();
-
-				});
-
-			});
-
-			describe("inherited shape enforced", () => {
-
-				it("enforces shape on inherited scalar property", async () => {
-
-					const Base = resource({
-						name: required(string())
-					});
-
-					const Derived = resource({ extends: Base }, {
-						age: optional(integer())
-					});
-
-					expect(validateTemplate([{ name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
-					expect(validateTemplate([{ name: ["Alice"] } as any], Derived, { depth: 0 })).toBeDefined();
-
-				});
-
-				it("enforces shape on inherited properties from multiple parents", async () => {
-
-					const Named = resource({
-						name: required(string())
-					});
-
-					const Aged = resource({
-						age: required(integer())
-					});
-
-					const Person = resource({ extends: [Named, Aged] }, {
-						email: optional(string())
-					});
-
-					expect(validateTemplate([{}], Person, { depth: 0 })).toBeUndefined();
-					expect(validateTemplate([{ name: "Alice", age: 30 }], Person, { depth: 0 })).toBeUndefined();
-					expect(validateTemplate([{ name: ["Alice"] } as any], Person, { depth: 0 })).toBeDefined();
-
-				});
-
-			});
-
-			it("enforces shape on overridden inherited property", async () => {
-
-				const Base = resource({
-					name: required(string())
-				});
-
-				const Derived = resource({ extends: Base }, {
-					name: required(string({ minLength: 3 }))
-				});
-
-				// type shape still enforced on overridden property
-
-				expect(validateTemplate([{ name: "A" }], Derived, { depth: 0 })).toBeUndefined();
-				expect(validateTemplate([{ name: 42 }], Derived, { depth: 0 })).toBeDefined();
-
-			});
-
-		});
-
-		describe("value constraints", () => {
-
-			it("accepts value matching type", async () => {
-
-				const shape = resource({
-					name: required(string())
-				});
-
-				expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("rejects value with wrong type", async () => {
-
-				const shape = resource({
-					name: required(string())
-				});
-
-				expect(validateTemplate([{ name: 42 }], shape, { depth: 0 })).toBeDefined();
-
-			});
-
-			it("skips value constraints", async () => {
-
-				const shape = resource({
-					age: required(integer({ minInclusive: 0 }))
-				});
-
-				expect(validateTemplate([{ age: -5 }], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			describe("union values", () => {
-
-				const textOrCount = resource({
-					value: required(union({
-						text: string(),
-						count: integer()
-					}))
-				});
-
-				it("accepts value matching one variant type", async () => {
-
-					expect(validateTemplate([{ value: "hello" }], textOrCount, { depth: 0 })).toBeUndefined();
-					expect(validateTemplate([{ value: 42 }], textOrCount, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts missing union property", async () => {
-
-					expect(validateTemplate([{}], textOrCount, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("rejects value matching no variant type", async () => {
-
-					expect(validateTemplate([{ value: true }], textOrCount, { depth: 0 })).toBeDefined();
-
-				});
-
-				it("accepts inherited union property", async () => {
-
-					const Derived = resource({ extends: textOrCount }, {
-						name: required(string())
-					});
-
-					expect(validateTemplate([{ value: "hello" }], Derived, { depth: 0 })).toBeUndefined();
-					expect(validateTemplate([{ value: true }], Derived, { depth: 0 })).toBeDefined();
-
-				});
-
-			});
-
-			describe("union bindings", () => {
-
-				const Target = resource({
-					value: required(union({
-						text: string(),
-						count: integer()
-					}))
-				});
-
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				it("accepts alias binding matching one variant type", async () => {
-
-					expect(validateTemplate([{ items: [{ "alias=value": "hello" }] }], Wrapper, {})).toBeUndefined();
-					expect(validateTemplate([{ items: [{ "alias=value": 42 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("rejects alias binding matching no variant type", async () => {
-
-					expect(validateTemplate([{ items: [{ "alias=value": true }] }], Wrapper, {})).toBeDefined();
-
-				});
-
-			});
-
-		});
-
-		describe("reference properties", () => {
-
-			it("accepts IRI string for scalar reference", async () => {
-
-				const Target = resource({ id: id(), name: required(string()) });
-
-				const shape = resource({
-					supervisor: optional(reference(Target))
-				});
-
-				expect(validateTemplate([{ supervisor: "app:/users/1" }], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("accepts IRI strings for array reference", async () => {
-
-				const Target = resource({ id: id(), name: required(string()) });
-
-				const shape = resource({
-					members: multiple(reference(Target))
-				});
-
-				expect(validateTemplate([{ members: ["app:/users/1"] }], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("accepts nested model object for scalar reference", async () => {
-
-				const Target = resource({ id: id(), name: required(string()) });
-
-				const shape = resource({
-					supervisor: optional(reference(Target))
-				});
-
-				expect(validateTemplate([{ supervisor: { name: "Alice" } }], shape, {})).toBeUndefined();
-
-			});
-
-			it("accepts nested model objects for array reference", async () => {
-
-				const Target = resource({ id: id(), name: required(string()) });
-
-				const shape = resource({
-					members: multiple(reference(Target))
-				});
-
-				expect(validateTemplate([{ members: [{ name: "Alice" }] } as any], shape, {})).toBeUndefined();
-
-			});
-
-			it("rejects non-string non-object values for reference", async () => {
-
-				const Target = resource({ id: id(), name: required(string()) });
-
-				const shape = resource({
-					supervisor: optional(reference(Target))
-				});
-
-				expect(validateTemplate([{ supervisor: 42 }], shape, { depth: 0 })).toBeDefined();
-
-			});
-
-			describe("nested model recursion at multiple levels", () => {
-
-				const Department = resource({ id: id(), label: required(string()) });
-
-				const Employee = resource({
-					id: id(),
-					name: required(string()),
-					department: optional(reference(Department))
-				});
-
-				const shape = resource({
-					supervisor: optional(reference(Employee))
-				});
-
-				it("accepts valid 2-level expansion", async () => {
-
-					expect(validateTemplate([{
-						supervisor: { name: "Alice", department: { label: "Engineering" } }
-					}], shape, {})).toBeUndefined();
-
-				});
-
-				it("accepts unknown binding at level 1", async () => {
-
-					// extra=extra → apply() returns undefined → lenient
-
-					expect(validateTemplate([{
-						supervisor: { name: "Alice", extra: "bad" }
-					}], shape, {})).toBeUndefined();
-
-				});
-
-				it("accepts unknown binding at level 2", async () => {
-
-					// extra=extra → apply() returns undefined → lenient
-
-					expect(validateTemplate([{
-						supervisor: { name: "Alice", department: { label: "Engineering", extra: "bad" } }
-					}], shape, {})).toBeUndefined();
-
-				});
-
-			});
-
-			it("accepts missing reference property", async () => {
-
-				const Target = resource({ id: id(), name: required(string()) });
-
-				const shape = resource({
-					supervisor: optional(reference(Target))
-				});
-
-				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("accepts foreign property with IRI value", async () => {
-
-				const Target = resource({ id: id(), name: required(string()) });
-
-				const shape = resource({
-					children: multiple(reference(Target, { foreign: true }))
-				});
-
-				expect(validateTemplate([{ children: ["app:/items/1"] } as any], shape, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("accepts foreign property with nested model", async () => {
-
-				const Target = resource({ id: id(), name: required(string()) });
-
-				const shape = resource({
-					children: multiple(reference(Target, { foreign: true }))
-				});
-
-				expect(validateTemplate([{ children: [{ name: "Child" }] }], shape, {})).toBeUndefined();
-
-			});
-
-		});
-
-		describe("resource properties", () => {
-
-			it("rejects IRI reference for inline resource property", async () => {
-
-				const shape = resource({
-					child: optional(resource({ name: required(string()) }))
-				});
-
-				expect(validateTemplate([{ child: "app:/children/1" }], shape, { depth: 0 })).toBeDefined();
-
-			});
-
-			it("accepts nested model for inline resource property", async () => {
-
-				const shape = resource({
-					child: optional(resource({ name: required(string()) }))
-				});
-
-				expect(validateTemplate([{ child: { name: "Alice" } }], shape, {})).toBeUndefined();
-
-			});
-
-		});
-
-		describe("depth", () => {
-
-			it("rejects nested model when depth is 0", async () => {
-
-				const Inner = resource({ label: required(string()) });
-
-				const Outer = resource({
-					child: optional(reference(Inner))
-				});
-
-				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 0 })).toBeDefined();
-
-			});
-
-			it("accepts nested model when depth is omitted (defaults to null)", async () => {
-
-				const Inner = resource({ label: required(string()) });
-
-				const Outer = resource({
-					child: optional(reference(Inner))
-				});
-
-				expect(validateTemplate([{ child: { label: "x" } }], Outer, {})).toBeUndefined();
-
-			});
-
-			it("accepts nested model when depth is null (unlimited)", async () => {
-
-				const Inner = resource({ label: required(string()) });
-
-				const Outer = resource({
-					child: optional(reference(Inner))
-				});
-
-				expect(validateTemplate([{ child: { label: "x" } }], Outer, {})).toBeUndefined();
-
-			});
-
-			it("accepts IRI reference when depth is 0", async () => {
-
-				const Inner = resource({ id: id(), label: required(string()) });
-
-				const Outer = resource({
-					child: optional(reference(Inner))
-				});
-
-				expect(validateTemplate([{ child: "app:/items/1" }], Outer, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("accepts nested model via reference when depth is 1", async () => {
-
-				const Inner = resource({ label: required(string()) });
-
-				const Outer = resource({
-					child: optional(reference(Inner))
-				});
-
-				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 1 })).toBeUndefined();
-
-			});
-
-			it("rejects 2-level nesting via reference when depth is 1", async () => {
-
-				const Leaf = resource({ value: required(string()) });
-
-				const Middle = resource({
-					leaf: optional(reference(Leaf))
-				});
-
-				const Root = resource({
-					middle: optional(reference(Middle))
-				});
-
-				expect(validateTemplate([{
-					middle: { leaf: { value: "x" } }
-				}], Root, { depth: 1 })).toBeDefined();
-
-			});
-
-			it("accepts 2-level nesting via reference when depth is 2", async () => {
-
-				const Leaf = resource({ value: required(string()) });
-
-				const Middle = resource({
-					leaf: optional(reference(Leaf))
-				});
-
-				const Root = resource({
-					middle: optional(reference(Middle))
-				});
-
-				expect(validateTemplate([{
-					middle: { leaf: { value: "x" } }
-				}], Root, { depth: 2 })).toBeUndefined();
-
-			});
-
-			it("rejects nested embedded resource when depth is 0", async () => {
-
-				const Embedded = resource({ label: required(string()) });
-
-				const Outer = resource({
-					child: required(Embedded)
-				});
-
-				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 0 })).toBeDefined();
-
-			});
-
-			it("accepts nested embedded resource when depth is 1", async () => {
-
-				const Embedded = resource({ label: required(string()) });
-
-				const Outer = resource({
-					child: required(Embedded)
-				});
-
-				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 1 })).toBeUndefined();
-
-			});
-
-			it("rejects collection resource query when depth is 0", async () => {
-
-				const Target = resource({ name: required(string()) });
-
-				const Outer = resource({
-					items: multiple(reference(Target))
-				});
-
-				expect(validateTemplate([{ items: [{ name: "x" }] }], Outer, { depth: 0 })).toBeDefined();
-
-			});
-
-			it("accepts collection resource query when depth allows path", async () => {
-
-				const Target = resource({ name: required(string()) });
-
-				const Outer = resource({
-					items: multiple(reference(Target))
-				});
-
-				// depth 2 → depth 1 inside query → 1-step path ok
-				expect(validateTemplate([{ items: [{ name: "x" }] }], Outer, { depth: 2 })).toBeUndefined();
-
-			});
-
-			it("reports malformed query key under the offending key", async () => {
-
-				const Target = resource({ name: required(string()) });
-
-				const Outer = resource({
-					items: multiple(reference(Target))
-				});
-
-				const trace = validateTemplate([{ items: [{ "===invalid": "x" }] }], Outer, { depth: 1 });
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty(["[0]", "items", "===invalid"]);
-
-			});
-
-			it("accepts single-step path within depth budget", async () => {
-
-				const Target = resource({ name: required(string()), age: optional(integer()) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				// depth 2 → depth 1 inside query → 1-step path ok
-				expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, { depth: 2 })).toBeUndefined();
-
-			});
-
-			it("rejects single-step path when depth budget is exhausted", async () => {
-
-				const Target = resource({ name: required(string()), age: optional(integer()) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				// depth 1 → depth 0 inside query → 1-step path rejected
-				expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, { depth: 1 })).toBeDefined();
-
-			});
-
-			it("accepts two-step path within depth budget", async () => {
-
-				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
-				const Target = resource({ vendor: required(reference(Vendor)) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				// depth 3 → depth 2 inside query → 2-step path ok
-				expect(validateTemplate([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, { depth: 3 })).toBeUndefined();
-
-			});
-
-			it("rejects two-step path when depth budget is insufficient", async () => {
-
-				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
-				const Target = resource({ vendor: required(reference(Vendor)) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				// depth 2 → depth 1 inside query → 2-step path rejected
-				expect(validateTemplate([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, { depth: 2 })).toBeDefined();
-
-			});
-
-			it("accepts three-step path within depth budget", async () => {
-
-				const Category = resource({ label: required(string()) });
-				const Product = resource({ name: required(string()), category: required(reference(Category)) });
-				const Target = resource({ product: required(reference(Product)) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				// depth 4 → depth 3 inside query → 3-step path ok
-				expect(validateTemplate([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, { depth: 4 })).toBeUndefined();
-
-			});
-
-			it("rejects three-step path when depth budget is insufficient", async () => {
-
-				const Category = resource({ label: required(string()) });
-				const Product = resource({ name: required(string()), category: required(reference(Category)) });
-				const Target = resource({ product: required(reference(Product)) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				// depth 3 → depth 2 inside query → 3-step path rejected
-				expect(validateTemplate([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, { depth: 3 })).toBeDefined();
-
-			});
-
-			it("reduces path budget at nested levels", async () => {
-
-				const Inner = resource({ name: required(string()), tag: optional(string()) });
-				const Outer = resource({ items: multiple(reference(Inner)) });
-
-				// depth 2 → depth 1 inside query → 1-step path ok
-				expect(validateTemplate([{ items: [{ "^tag": "asc" }] }], Outer, { depth: 2 })).toBeUndefined();
-
-				// depth 3 → depth 2 inside query → 2-step path rejected
-				const Deep = resource({ label: required(string()) });
-				const Inner2 = resource({ ref: required(reference(Deep)), tag: optional(string()) });
-				const Outer2 = resource({ items: multiple(reference(Inner2)) });
-
-				expect(validateTemplate([{ items: [{ ">=ref.label": "x" }] }], Outer2, { depth: 2 })).toBeDefined();
-
-			});
-
-			it("enforces depth on projection paths", async () => {
-
-				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
-				const Target = resource({ vendor: required(reference(Vendor)) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				// projection path has 2 steps → rejected at depth 2 (depth 1 inside query)
-				expect(validateTemplate([{ items: [{ "rating=vendor.rating": 0 }] }], Wrapper, { depth: 2 })).toBeDefined();
-
-				// accepted at depth 3 (depth 2 inside query)
-				expect(validateTemplate([{ items: [{ "rating=vendor.rating": 0 }] }], Wrapper, { depth: 3 })).toBeUndefined();
-
-			});
-
-			it("enforces depth on keyword search paths", async () => {
-
-				const Vendor = resource({ name: required(string()) });
-				const Target = resource({ vendor: required(reference(Vendor)) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				// keyword path has 2 steps → rejected at depth 2 (depth 1 inside query)
-				expect(validateTemplate([{ items: [{ "~vendor.name": "test" }] }], Wrapper, { depth: 2 })).toBeDefined();
-
-				// accepted at depth 3 (depth 2 inside query)
-				expect(validateTemplate([{ items: [{ "~vendor.name": "test" }] }], Wrapper, { depth: 3 })).toBeUndefined();
-
-			});
-
-			it("enforces depth on option paths", async () => {
-
-				const Vendor = resource({ name: required(string()) });
-				const Target = resource({ vendor: required(reference(Vendor)) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				// option path has 2 steps → rejected at depth 2 (depth 1 inside query)
-				expect(validateTemplate([{ items: [{ "?vendor.name": ["a", "b"] }] }], Wrapper, { depth: 2 })).toBeDefined();
-
-				// accepted at depth 3 (depth 2 inside query)
-				expect(validateTemplate([{ items: [{ "?vendor.name": ["a", "b"] }] }], Wrapper, { depth: 3 })).toBeUndefined();
-
-			});
-
-			it("accepts paths without depth limit", async () => {
-
-				const Category = resource({ label: required(string()) });
-				const Product = resource({ category: required(reference(Category)) });
-				const Target = resource({ product: required(reference(Product)) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				expect(validateTemplate([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, {})).toBeUndefined();
-
-			});
-
-		});
-
-		describe("bindings", () => {
-
-			it("accepts plain identifier at top level", async () => {
-
-				const Target = resource({ name: required(string()), age: optional(integer()) });
-
-				expect(validateTemplate([{ name: "", age: 0 }], Target, { depth: 0 })).toBeUndefined();
-
-			});
-
-			it("accepts plain identifier referencing undefined property", async () => {
-
-				// apply() returns undefined for unknown property → lenient
-
-				const Target = resource({ name: required(string()) });
-
-				expect(validateTemplate([{ missing: "" }], Target, { depth: 0 })).toBeUndefined();
-
-			});
-
-		});
-
-		describe("restricted query features", () => {
-
-			const Target = resource({
-				name: required(string()),
-				age: optional(integer()),
-				status: required(string()),
-				tags: repeatable(string()),
-				released: required(year())
-			});
-
-			it.each([
-				["comparison filter", { ">=age": 18 }],
-				["text search filter", { "~name": "alice" }],
-				["disjunctive filter", { "?status": "active" }],
-				["conjunctive filter", { "!tags": "urgent" }],
-				["focus ordering", { "*status": ["active"] }],
-				["sort ordering", { "^name": "asc" }],
-				["pagination offset", { "@": 0 }],
-				["pagination limit", { "#": 10 }]
-			])("rejects %s at top level", async (_label, query) => {
-
-				expect(validateTemplate([query], Target, { depth: 0 })).toBeDefined();
-
-			});
-
-			it("rejects transform binding at top level", async () => {
-
-				expect(validateTemplate([{ "releaseYear=year:released": 0 }], Target, { depth: 0 })).toBeDefined();
-
-			});
-
-			it("rejects alias binding at top level", async () => {
-
-				expect(validateTemplate([{ "alias=name": "" }], Target, { depth: 0 })).toBeDefined();
-
-			});
-
-			it("rejects dotted path binding at top level", async () => {
-
-				const Shape = resource({ vendor: required(reference(resource({ rating: optional(integer()) }))) });
-
-				expect(validateTemplate([{ "vendor.rating": 0 }], Shape, {})).toBeDefined();
-
-			});
-
-			it("rejects filter constraint in scalar reference template", async () => {
-
-				const Wrapper = resource({ supervisor: optional(reference(Target)) });
-
-				expect(validateTemplate([{ supervisor: { ">=age": 18 } }], Wrapper, {})).toBeDefined();
-
-			});
-
-			it("rejects sort criterion in scalar reference template", async () => {
-
-				const Wrapper = resource({ supervisor: optional(reference(Target)) });
-
-				expect(validateTemplate([{ supervisor: { "^name": "asc" } }], Wrapper, {})).toBeDefined();
-
-			});
-
-			it("accepts filter constraint inside collection template", async () => {
-
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
-
-			});
-
-			it("accepts transform binding inside collection template", async () => {
-
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				expect(validateTemplate([{ items: [{ "releaseYear=year:released": 0 }] }], Wrapper, {})).toBeUndefined();
-
-			});
-
-			it("rejects filter through scalar reference inside collection template", async () => {
-
-				const Inner = resource({ name: required(string()), rating: optional(integer()) });
-				const Item = resource({ vendor: required(reference(Inner)) });
-				const Wrapper = resource({ items: multiple(reference(Item)) });
-
-				// nested scalar reference objects are templates — use dotted paths for cross-reference filtering
-
-				expect(validateTemplate([{ items: [{ vendor: { ">=rating": 3 } }] }], Wrapper, {})).toBeDefined();
-
-			});
-
-			it("accepts plain identifier in scalar reference inside collection template", async () => {
-
-				const Inner = resource({ name: required(string()), rating: optional(integer()) });
-				const Item = resource({ vendor: required(reference(Inner)) });
-				const Wrapper = resource({ items: multiple(reference(Item)) });
-
-				expect(validateTemplate([{ items: [{ vendor: { rating: 0 } }] }], Wrapper, {})).toBeUndefined();
-
-			});
-
-		});
-
-		describe("nested query criteria", () => {
-
-			describe("projection properties", () => {
-
-				it("accepts query with only projection properties", async () => {
-
-					const Target = resource({ id: id(), name: required(string()), age: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{
-						items: [{
-							name: "",
-							age: 0
-						}]
-					}], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts query with unknown projection binding", async () => {
-
-					// extra=extra → apply() returns undefined → lenient
-
-					const Target = resource({ id: id(), name: required(string()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{
-						items: [{
-							name: "",
-							extra: ""
-						}]
-					}], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("id projection", () => {
-
-				const Target = resource({ id: id(), name: required(string()), age: optional(integer()) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				it.each([
-					["single", { id: "app:/items/1" }],
-					["leading", { id: "app:/items/1", name: "", age: 0 }],
-					["inner", { name: "", id: "app:/items/1", age: 0 }],
-					["trailing", { name: "", age: 0, id: "app:/items/1" }]
-				])("accepts id as %s projection property", async (_position, query) => {
-
-					expect(validateTemplate([{ items: [query] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("type projection", () => {
-
-				const Target = resource({ type: type(), name: required(string()), age: optional(integer()) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				it.each([
-					["single", { type: "app:/types/Person" }],
-					["leading", { type: "app:/types/Person", name: "", age: 0 }],
-					["inner", { name: "", type: "app:/types/Person", age: 0 }],
-					["trailing", { name: "", age: 0, type: "app:/types/Person" }]
-				])("accepts type as %s projection property", async (_position, query) => {
-
-					expect(validateTemplate([{ items: [query] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("limit", () => {
-
-				const Target = resource({ name: required(string()) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				it("accepts # value equal to limit", async () => {
-					expect(validateTemplate([{ items: [{ "#": 100 }] }], Wrapper, { limit: 100 })).toBeUndefined();
-				});
-
-				it("accepts # value less than limit", async () => {
-					expect(validateTemplate([{ items: [{ "#": 50 }] }], Wrapper, { limit: 100 })).toBeUndefined();
-				});
-
-				it("rejects # value exceeding limit", async () => {
-					expect(validateTemplate([{ items: [{ "#": 101 }] }], Wrapper, { limit: 100 })).toBeDefined();
-				});
-
-				it("adds # with limit value when # is absent", async () => {
-
-					const result = validateTemplate([{ items: [{ name: "" }] }], Wrapper, { limit: 50 });
-
-					expect(result).toBeUndefined();
-
-				});
-
-				it("accepts # without limit option", async () => {
-					expect(validateTemplate([{ items: [{ "#": 1000 }] }], Wrapper, {})).toBeUndefined();
-				});
-
-				it("accepts zero # with limit", async () => {
-					expect(validateTemplate([{ items: [{ "#": 0 }] }], Wrapper, { limit: 100 })).toBeUndefined();
-				});
-
-			});
-
-			describe("filter criteria", () => {
-
-				it("accepts comparison filter on existing property", async () => {
-
-					const Target = resource({ name: required(string()), age: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts text search filter on string property", async () => {
-
-					const Target = resource({ name: required(string()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "~name": "alice" }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts disjunctive filter on existing property", async () => {
-
-					const Target = resource({ status: required(string()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "?status": "active" }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts conjunctive filter on existing property", async () => {
-
-					const Target = resource({ tags: repeatable(string()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "!tags": "urgent" }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts filter on undefined property", async () => {
-
-					// apply() returns undefined for unknown property → lenient
-
-					const Target = resource({ name: required(string()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("ordering criteria", () => {
-
-				it("accepts sort ordering on existing property", async () => {
-
-					const Target = resource({ name: required(string()), age: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{
-						items: [{
-							"^name": "asc",
-							"^age": "desc"
-						}]
-					}], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts focus ordering on existing property", async () => {
-
-					const Target = resource({ status: required(string()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "*status": ["active"] }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts ordering on undefined property", async () => {
-
-					// apply() returns undefined for unknown property → lenient
-
-					const Target = resource({ name: required(string()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "^missing": "asc" }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("pagination", () => {
-
-				const Target = resource({ name: required(string()) });
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-				it("accepts offset and limit", async () => {
-					expect(validateTemplate([{
-						items: [{
-							"@": 10,
-							"#": 25
-						}]
-					}], Wrapper, {})).toBeUndefined();
-				});
-
-				it("accepts zero offset", async () => {
-					expect(validateTemplate([{ items: [{ "@": 0 }] }], Wrapper, {})).toBeUndefined();
-				});
-
-				it("accepts zero limit", async () => {
-					expect(validateTemplate([{ items: [{ "#": 0 }] }], Wrapper, {})).toBeUndefined();
-				});
-
-				it("rejects negative offset", async () => {
-					expect(validateTemplate([{ items: [{ "@": -1 }] }], Wrapper, {})).toBeDefined();
-				});
-
-				it("rejects negative limit", async () => {
-					expect(validateTemplate([{ items: [{ "#": -1 }] }], Wrapper, {})).toBeDefined();
-				});
-
-				it("rejects fractional offset", async () => {
-					expect(validateTemplate([{ items: [{ "@": 1.5 }] }], Wrapper, {})).toBeDefined();
-				});
-
-				it("rejects fractional limit", async () => {
-					expect(validateTemplate([{ items: [{ "#": 2.5 }] }], Wrapper, {})).toBeDefined();
-				});
-
-				it("rejects string offset", async () => {
-					expect(validateTemplate([{ items: [{ "@": "10" }] }], Wrapper, {})).toBeDefined();
-				});
-
-				it("rejects string limit", async () => {
-					expect(validateTemplate([{ items: [{ "#": "25" }] }], Wrapper, {})).toBeDefined();
-				});
-
-				it("rejects boolean offset", async () => {
-					expect(validateTemplate([{ items: [{ "@": true }] }], Wrapper, {})).toBeDefined();
-				});
-
-				it("rejects null limit", async () => {
-					expect(validateTemplate([{ items: [{ "#": null }] }], Wrapper, {})).toBeDefined();
-				});
-
-			});
-
-			describe("mixed keys", () => {
-
-				it("accepts projection, filter, ordering, and pagination together", async () => {
-
-					const Target = resource({
-						name: required(string()),
-						age: optional(integer()),
-						status: required(string())
-					});
-
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{
-						items: [{
-							name: "",
-							">=age": 18,
-							"~name": "alice",
-							"^age": "asc",
-							"@": 0,
-							"#": 10
-						}]
-					}], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts unknown binding alongside valid query keys", async () => {
-
-					// `extra` is a binding (identity shorthand), apply() returns undefined → lenient
-
-					const Target = resource({ name: required(string()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{
-						items: [{
-							name: "",
-							extra: "",
-							"^name": "asc"
-						}]
-					}], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("nested model passthrough", () => {
-
-				it("accepts plain nested model in reference tuple", async () => {
-
-					const Member = resource({ name: required(string()) });
-					const Wrapper = resource({ members: multiple(reference(Member)) });
-
-					expect(validateTemplate([{ members: [{ name: "" }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts scalar reference with IRI string", async () => {
-
-					const Target = resource({ id: id(), name: required(string()) });
-					const Wrapper = resource({ supervisor: optional(reference(Target)) });
-
-					expect(validateTemplate([{ supervisor: "app:/users/1" }], Wrapper, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("preserves local model validation", async () => {
-
-					const Wrapper = resource({ label: required(localised()) });
-
-					expect(validateTemplate([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("preserves localised model validation", async () => {
-
-					const Wrapper = resource({ labels: repeatable(localised()) });
-
-					expect(validateTemplate([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts local shape in collections", async () => {
-
-					const Wrapper = resource({ label: multiple(localised()) });
-
-					expect(validateTemplate([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeUndefined();
-
-				});
-
-				it("accepts localised shape in collections", async () => {
-
-					const Wrapper = resource({ labels: multiple(localised()) });
-
-					expect(validateTemplate([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
-
-				});
-
-			});
-
-			describe("deep path criteria", () => {
-
-				it("accepts filter with single-segment path", async () => {
-
-					const Target = resource({ name: required(string()), age: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts filter through reference property", async () => {
-
-					const Vendor = resource({ name: required(string()), rating: optional(integer()) });
-					const Target = resource({ vendor: required(reference(Vendor)) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts ordering through reference property", async () => {
-
-					const Vendor = resource({ name: required(string()), rating: optional(integer()) });
-					const Target = resource({ vendor: required(reference(Vendor)) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "^vendor.rating": "asc" }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts three-segment path through nested references", async () => {
-
-					const Category = resource({ label: required(string()) });
-					const Product = resource({ name: required(string()), category: required(reference(Category)) });
-					const Target = resource({ product: required(reference(Product)) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "^product.category.label": "asc" }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts deep path with undefined nested property", async () => {
-
-					// apply() returns undefined for unknown nested property → lenient
-
-					const Vendor = resource({ name: required(string()) });
-					const Target = resource({ vendor: required(reference(Vendor)) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ ">=vendor.rating": 3 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts deep path through leaf property", async () => {
-
-					// apply() returns undefined for non-traversable leaf → lenient
-
-					const Target = resource({ name: required(string()), age: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ ">=name.deep": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("union path criteria", () => {
-
-				it("accepts filter through union variant reference", async () => {
-
-					const ItemShape = resource({ score: optional(integer()) });
-					const Target = resource({ item: required(union({ a: reference(ItemShape), b: string() })) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ ">=item.score": 5 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts deep path through union with missing property", async () => {
-
-					// apply() returns undefined when no union variant has the property → lenient
-
-					const ItemShape = resource({ score: optional(integer()) });
-					const Target = resource({ item: required(union({ a: reference(ItemShape), b: string() })) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ ">=item.missing": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("binding criteria", () => {
-
-				it("accepts binding with valid transform and projection type", async () => {
-
-					const Target = resource({ name: required(string()), released: optional(year()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "releaseYear=year:released": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("rejects binding with type mismatch in projection", async () => {
-
-					const Target = resource({ name: required(string()), released: optional(year()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "releaseYear=year:released": "" }] }], Wrapper, {})).toBeDefined();
-
-				});
-
-				it("accepts binding referencing undefined property", async () => {
-
-					// apply() returns undefined for unknown property → lenient
-
-					const Target = resource({ name: required(string()), released: optional(year()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "y=year:missing": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts chained aggregate transform", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts multi-step chained transform", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "avg=round:avg:price": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts count transform on empty path", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("rejects count transform with wrong projection type", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "total=count:": "" }] }], Wrapper, {})).toBeDefined();
-
-				});
-
-				it("accepts sum transform on empty path", async () => {
-
-					// sum requires numeric, empty path resolves to resource shape → apply() returns undefined → lenient
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "total=sum:": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts lower transform on empty path", async () => {
-
-					// lower requires string, empty path resolves to resource shape → apply() returns undefined →
-					// lenient
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=lower:": "" }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts aggregate binding producing resource model", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				describe("identity and aggregate bindings", () => {
-
-					const Target = resource({
-						name: required(string()),
-						age: optional(integer()),
-						active: optional(boolean()),
-						link: optional(reference(resource({ id: id(), label: required(string()) }))),
-						child: required(resource({ label: required(string()) }))
-					});
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					it("accepts identity binding on string property", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=name": "" }] }], Wrapper, {})).toBeUndefined();
-
-					});
-
-					it("accepts identity binding on integer property", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=age": 0 }] }], Wrapper, {})).toBeUndefined();
-
-					});
-
-					it("accepts identity binding on boolean property", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=active": true }] }], Wrapper, {})).toBeUndefined();
-
-					});
-
-					it("accepts identity binding on reference property with IRI", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=link": "app:/items/1" }] }], Wrapper, {})).toBeUndefined();
-
-					});
-
-					it("rejects identity binding on reference property with wrong type", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=link": 0 }] }], Wrapper, {})).toBeDefined();
-
-					});
-
-					it("accepts identity binding on embedded resource with model", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=child": { label: "" } }] }], Wrapper, {})).toBeUndefined();
-
-					});
-
-					it("rejects identity binding on embedded resource with invalid model", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=child": { label: 0 } }] }], Wrapper, {})).toBeDefined();
-
-					});
-
-					it("accepts identity binding on embedded resource with unknown binding", async () => {
-
-						// unknown=unknown → apply() returns undefined → lenient
-
-						expect(validateTemplate([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, {})).toBeUndefined();
-
-					});
-
-					it("rejects identity binding on embedded resource with non-object", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=child": 42 }] }], Wrapper, {})).toBeDefined();
-
-					});
-
-					it("accepts aggregate binding on embedded resource with model", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, {})).toBeUndefined();
-
-					});
-
-					it("rejects aggregate binding on embedded resource with invalid model", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=min:child": { label: 0 } }] }], Wrapper, {})).toBeDefined();
-
-					});
-
-					it("rejects aggregate binding on embedded resource with non-object", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=min:child": 42 }] }], Wrapper, {})).toBeDefined();
-
-					});
-
-					it("accepts identity binding on embedded resource with depth", async () => {
-
-
-						expect(validateTemplate([{ items: [{ "alias=child": { label: "x" } }] }], Wrapper, {})).toBeUndefined();
-
-					});
-
-					it("rejects operator key in scalar reference nested template", async () => {
-
-						// nested scalar reference objects are templates — operators require dotted paths
-
-						expect(validateTemplate([{
-							items: [{
-								"alias=link": {
-									label: "",
-									"^label": "asc"
-								}
-							}]
-						}], Wrapper, {})).toBeDefined();
-
-					});
-
-					it("accepts identity binding on reference property with unknown binding", async () => {
-
-						// unknown=unknown → apply() returns undefined → lenient
-
-						expect(validateTemplate([{ items: [{ "alias=link": { unknown: "" } }] }], Wrapper, {})).toBeUndefined();
-
-					});
-
-					it("rejects operator key in embedded resource nested template", async () => {
-
-						// nested embedded resource objects are templates — operators require dotted paths
-
-						expect(validateTemplate([{
-							items: [{
-								"alias=child": {
-									label: "",
-									"^label": "asc"
-								}
-							}]
-						}], Wrapper, {})).toBeDefined();
-
-					});
-
-					it("accepts identity binding on embedded resource with unknown binding", async () => {
-
-						// unknown=unknown → apply() returns undefined → lenient
-
-						expect(validateTemplate([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, {})).toBeUndefined();
-
-					});
-
-					it("rejects operator key in aggregate reference nested template", async () => {
-
-						// nested scalar reference objects are templates — operators require dotted paths
-
-						expect(validateTemplate([{
-							items: [{
-								"alias=min:link": {
-									label: "",
-									">=label": "a"
-								}
-							}]
-						}], Wrapper, {})).toBeDefined();
-
-					});
-
-					it("rejects operator key in aggregate resource nested template", async () => {
-
-						// nested embedded resource objects are templates — operators require dotted paths
-
-						expect(validateTemplate([{
-							items: [{
-								"alias=min:child": {
-									label: "",
-									">=label": "a"
-								}
-							}]
-						}], Wrapper, {})).toBeDefined();
-
-					});
-
-				});
-
-			});
-
-			describe("transform domain violations", () => {
-
-				// apply() returns undefined for all domain violations → lenient: no shape to validate against
-
-				it("accepts sum transform on string property", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "total=sum:name": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts abs transform on reference property", async () => {
-
-					const Target = resource({
-						name: required(string()),
-						price: optional(integer()),
-						link: optional(reference(resource({ id: id() })))
-					});
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "v=abs:link": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts year transform on number property", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "y=year:price": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts temporal transform on plain string property", async () => {
-
-					const Target = resource({ name: required(string()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "m=month:name": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts aggregate-after-aggregate pipe", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("localised shape transforms", () => {
-
-				it("accepts lower transform on local property", async () => {
-
-					// lower: accepts string, returns same → valid for localised shapes
-
-					const Target = resource({ label: required(localised()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=lower:label": { "en": "hello" } }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts upper transform on local property", async () => {
-
-					const Target = resource({ label: required(localised()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=upper:label": { "en": "HELLO" } }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts length transform on local property", async () => {
-
-					// length: accepts string, returns integer → not "same" → apply() returns undefined for localised →
-					// lenient
-
-					const Target = resource({ label: required(localised()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=length:label": 5 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts abs transform on local property", async () => {
-
-					// abs requires numeric, local is not numeric → apply() returns undefined → lenient
-
-					const Target = resource({ label: required(localised()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts lower transform on localised property", async () => {
-
-					const Target = resource({ labels: repeatable(localised()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=lower:labels": { "en": ["hello"] as const } }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("union partial domain match", () => {
-
-				it("accepts numeric transform on union with numeric variant", async () => {
-
-					// abs: numeric domain — integer variant survives, string variant filtered → Range(integer)
-
-					const Target = resource({
-						value: required(union({ num: integer(), text: string() }))
-					});
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=abs:value": 42 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("rejects numeric transform on union with numeric variant when template is wrong type", async () => {
-
-					// abs on union(integer, string) → Range(integer), but template is string → rejects
-
-					const Target = resource({
-						value: required(union({ num: integer(), text: string() }))
-					});
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=abs:value": "wrong" }] }], Wrapper, {})).toBeDefined();
-
-				});
-
-				it("accepts string transform on union with string variant", async () => {
-
-					// lower: string domain — string variant survives, integer variant filtered → Range(string)
-
-					const Target = resource({
-						value: required(union({ num: integer(), text: string() }))
-					});
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=lower:value": "" }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("accepts transform on union where no variant matches domain", async () => {
-
-					// year: temporal domain — neither boolean nor integer is temporal → apply() returns undefined →
-					// lenient
-
-					const Target = resource({
-						value: required(union({ flag: boolean(), count: integer() }))
-					});
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-			});
-
-			describe("plain option", () => {
-
-				it("accepts aggregate binding when plain is false", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {
-												plain: false
-					})).toBeUndefined();
-
-				});
-
-				it("accepts aggregate binding when plain is defaulted", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {})).toBeUndefined();
-
-				});
-
-				it("rejects aggregate binding when plain is true", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {
-												plain: true
-					})).toBeDefined();
-
-				});
-
-				it("rejects min aggregate when plain is true", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, {
-												plain: true
-					})).toBeDefined();
-
-				});
-
-				it("rejects max aggregate when plain is true", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "highest=max:price": 0 }] }], Wrapper, {
-												plain: true
-					})).toBeDefined();
-
-				});
-
-				it("rejects sum aggregate when plain is true", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "total=sum:price": 0 }] }], Wrapper, {
-												plain: true
-					})).toBeDefined();
-
-				});
-
-				it("rejects avg aggregate when plain is true", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "average=avg:price": 0 }] }], Wrapper, {
-												plain: true
-					})).toBeDefined();
-
-				});
-
-				it("rejects chained aggregate pipe when plain is true", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {
-												plain: true
-					})).toBeDefined();
-
-				});
-
-				it("accepts non-aggregate transform when plain is true", async () => {
-
-					const Target = resource({ name: required(string()), released: optional(year()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "y=year:released": 0 }] }], Wrapper, {
-												plain: true
-					})).toBeUndefined();
-
-				});
-
-				it("accepts scalar transform pipe when plain is true", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ "r=round:price": 0 }] }], Wrapper, {
-												plain: true
-					})).toBeUndefined();
-
-				});
-
-				it("accepts plain property when plain is true", async () => {
-
-					const Target = resource({ name: required(string()), price: optional(integer()) });
-					const Wrapper = resource({ items: multiple(reference(Target)) });
-
-					expect(validateTemplate([{ items: [{ name: "" }] }], Wrapper, {
-												plain: true
-					})).toBeUndefined();
-
-				});
-
-				it("rejects aggregate on flat model when plain is true", async () => {
-
-					const shape = resource({ name: required(string()), price: optional(integer()) });
-
-					expect(validateTemplate([{ "total=count:": 0 }], shape, { depth: 0, plain: true })).toBeDefined();
-
-				});
-
-				it("accepts plain property on flat model when plain is true", async () => {
-
-					const shape = resource({ name: required(string()), price: optional(integer()) });
-
-					expect(validateTemplate([{ name: "" }], shape, { depth: 0, plain: true })).toBeUndefined();
-
-				});
-
-			});
-
-			describe("operator semantics", () => {
-
-				// operator/type compatibility must be evaluated against the effective shape
-				// computed by apply(binding, shape), which accounts for transform pipelines
-
-				const Target = resource({
-					name: required(string()),
-					age: optional(integer()),
-					active: optional(boolean()),
-					label: required(localised()),
-					labels: repeatable(localised()),
-					link: optional(reference(resource({ id: id(), label: required(string()) })))
-				});
-				const Wrapper = resource({ items: multiple(reference(Target)) });
-
-
-				describe("text search operator (~)", () => {
-
-					it("accepts text search on string property", async () => {
-						expect(validateTemplate([{ items: [{ "~name": "alice" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts text search on local property", async () => {
-						expect(validateTemplate([{ items: [{ "~label": "hello" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts text search on localised property", async () => {
-						expect(validateTemplate([{ items: [{ "~labels": "hello" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("rejects text search on number property", async () => {
-						expect(validateTemplate([{ items: [{ "~age": "42" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects text search on boolean property", async () => {
-						expect(validateTemplate([{ items: [{ "~active": "true" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects text search on reference property", async () => {
-						expect(validateTemplate([{ items: [{ "~link": "test" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("accepts text search on undefined property", async () => {
-
-						// apply() returns undefined → lenient
-
-						expect(validateTemplate([{ items: [{ "~missing": "x" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("rejects number keywords on string property", async () => {
-						expect(validateTemplate([{ items: [{ "~name": 42 }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects boolean keywords on string property", async () => {
-						expect(validateTemplate([{ items: [{ "~name": true }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects null keywords on local property", async () => {
-						expect(validateTemplate([{ items: [{ "~label": null }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects array keywords on string property", async () => {
-						expect(validateTemplate([{ items: [{ "~name": ["a", "b"] }] }], Wrapper, {})).toBeDefined();
-					});
-
-				});
-
-				describe("union keyword validation", () => {
-
-					const UnionTarget = resource({
-						value: required(union({
-							text: string(),
-							count: integer()
-						}))
-					});
-					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
-
-					it("accepts text search matching string union variant", async () => {
-						expect(validateTemplate([{ items: [{ "~value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
-					});
-
-					it("rejects text search matching no textual union variant", async () => {
-
-						const NumericUnion = resource({
-							value: required(union({
-								count: integer(),
-								flag: boolean()
-							}))
-						});
-						const NumericWrapper = resource({ items: multiple(reference(NumericUnion)) });
-
-						expect(validateTemplate([{ items: [{ "~value": "hello" }] }], NumericWrapper, {})).toBeDefined();
-
-					});
-
-				});
-
-				describe("range operators (<, >, <=, >=)", () => {
-
-					it("accepts range operator on string property", async () => {
-						expect(validateTemplate([{ items: [{ ">=name": "alice" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts range operator on boolean property", async () => {
-						expect(validateTemplate([{ items: [{ ">=active": true }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("rejects range operator on local property", async () => {
-						expect(validateTemplate([{ items: [{ ">=label": "x" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects range operator on localised property", async () => {
-						expect(validateTemplate([{ items: [{ ">=labels": "x" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects range operator on reference property", async () => {
-						expect(validateTemplate([{ items: [{ ">=link": "x" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("accepts range operator on undefined property", async () => {
-
-						// apply() returns undefined → lenient
-
-						expect(validateTemplate([{ items: [{ ">=missing": 0 }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it.each([
-						["<", "<age"],
-						[">", ">age"],
-						["<=", "<=age"],
-						[">=", ">=age"]
-					])("accepts %s operator on number property", async (_op, key) => {
-						expect(validateTemplate([{ items: [{ [key]: 18 }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("rejects string limit on number property", async () => {
-						expect(validateTemplate([{ items: [{ ">=age": "alice" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects number limit on string property", async () => {
-						expect(validateTemplate([{ items: [{ ">=name": 42 }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects boolean limit on number property", async () => {
-						expect(validateTemplate([{ items: [{ ">=age": true }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects null limit on string property", async () => {
-						expect(validateTemplate([{ items: [{ ">=name": null }] }], Wrapper, {})).toBeDefined();
-					});
-
-				});
-
-				describe("union limit validation", () => {
-
-					const UnionTarget = resource({
-						value: required(union({
-							text: string(),
-							count: integer()
-						}))
-					});
-					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
-
-					it("accepts range limit matching first union variant", async () => {
-						expect(validateTemplate([{ items: [{ ">=value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
-					});
-
-					it("accepts range limit matching second union variant", async () => {
-						expect(validateTemplate([{ items: [{ ">=value": 42 }] }], UnionWrapper, {})).toBeUndefined();
-					});
-
-					it("rejects range limit matching no union variant", async () => {
-						expect(validateTemplate([{ items: [{ ">=value": true }] }], UnionWrapper, {})).toBeDefined();
-					});
-
-					it.each([
-						["<", "<value"],
-						[">", ">value"],
-						["<=", "<=value"],
-						[">=", ">=value"]
-					])("accepts %s operator on union property with matching variant", async (_op, key) => {
-						expect(validateTemplate([{ items: [{ [key]: 42 }] }], UnionWrapper, {})).toBeUndefined();
-					});
-
-				});
-
-				describe("disjunctive/conjunctive operators (?, !)", () => {
-
-					// single option values
-
-					it("accepts disjunctive filter on string property", async () => {
-						expect(validateTemplate([{ items: [{ "?name": "alice" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts disjunctive filter on number property", async () => {
-						expect(validateTemplate([{ items: [{ "?age": 18 }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts disjunctive filter on boolean property", async () => {
-						expect(validateTemplate([{ items: [{ "?active": true }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts conjunctive filter on string property", async () => {
-						expect(validateTemplate([{ items: [{ "!name": "alice" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts conjunctive filter on number property", async () => {
-						expect(validateTemplate([{ items: [{ "!age": 18 }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts conjunctive filter on boolean property", async () => {
-						expect(validateTemplate([{ items: [{ "!active": true }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts null option on any property", async () => {
-						expect(validateTemplate([{ items: [{ "?name": null }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts reference option on reference property", async () => {
-						expect(validateTemplate([{ items: [{ "?link": "app:/items/1" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					// array of options
-
-					it("accepts array of options on string property", async () => {
-						expect(validateTemplate([{ items: [{ "?name": ["alice", "bob"] }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts array of options on number property", async () => {
-						expect(validateTemplate([{ items: [{ "?age": [18, 25] }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts array with null option", async () => {
-						expect(validateTemplate([{ items: [{ "?name": ["alice", null] }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					// local/localised options
-
-					it("accepts local option on local property", async () => {
-						expect(validateTemplate([{ items: [{ "?label": { "en": "hello" } }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts string option on local property", async () => {
-						expect(validateTemplate([{ items: [{ "?label": "hello" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts localised option on localised property", async () => {
-						expect(validateTemplate([{ items: [{ "?labels": { "en": ["hello"] as const } }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					// type mismatch rejections
-
-					it("rejects string option on number property", async () => {
-						expect(validateTemplate([{ items: [{ "?age": "alice" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects number option on string property", async () => {
-						expect(validateTemplate([{ items: [{ "?name": 42 }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects boolean option on number property", async () => {
-						expect(validateTemplate([{ items: [{ "?age": true }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects array with mismatched option on number property", async () => {
-						expect(validateTemplate([{ items: [{ "?age": [18, "wrong"] }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects number option on local property", async () => {
-						expect(validateTemplate([{ items: [{ "?label": 42 }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects number option on localised property", async () => {
-						expect(validateTemplate([{ items: [{ "?labels": 42 }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects non-IRI string option on reference property", async () => {
-						expect(validateTemplate([{ items: [{ "?link": "not-an-iri" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects conjunctive string option on number property", async () => {
-						expect(validateTemplate([{ items: [{ "!age": "alice" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					// undefined property
-
-					it("accepts option on undefined property", async () => {
-
-						// apply() returns undefined → lenient
-
-						expect(validateTemplate([{ items: [{ "?missing": "x" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-				});
-
-				describe("focus operator (*)", () => {
-
-					it("accepts focus on string property", async () => {
-						expect(validateTemplate([{ items: [{ "*name": ["alice"] }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts focus on number property", async () => {
-						expect(validateTemplate([{ items: [{ "*age": [18] }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts focus on boolean property", async () => {
-						expect(validateTemplate([{ items: [{ "*active": [true] }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts focus with null option", async () => {
-						expect(validateTemplate([{ items: [{ "*name": [null, "alice"] }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts focus with reference option on reference property", async () => {
-						expect(validateTemplate([{ items: [{ "*link": "app:/items/1" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts focus with local option on local property", async () => {
-						expect(validateTemplate([{ items: [{ "*label": { "en": "hello" } }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("rejects focus with string option on number property", async () => {
-						expect(validateTemplate([{ items: [{ "*age": "alice" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects focus with number option on string property", async () => {
-						expect(validateTemplate([{ items: [{ "*name": 42 }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects focus with non-IRI string on reference property", async () => {
-						expect(validateTemplate([{ items: [{ "*link": "not-an-iri" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects focus with mismatched array element on number property", async () => {
-						expect(validateTemplate([{ items: [{ "*age": [18, "wrong"] }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("accepts focus on undefined property", async () => {
-						expect(validateTemplate([{ items: [{ "*missing": "x" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-				});
-
-				describe("union option validation", () => {
-
-					const UnionTarget = resource({
-						value: required(union({
-							text: string(),
-							count: integer()
-						})),
-						link: optional(reference(resource({ id: id() })))
-					});
-					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
-
-					// disjunctive filter
-
-					it("accepts disjunctive filter matching first union variant", async () => {
-						expect(validateTemplate([{ items: [{ "?value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
-					});
-
-					it("accepts disjunctive filter matching second union variant", async () => {
-						expect(validateTemplate([{ items: [{ "?value": 42 }] }], UnionWrapper, {})).toBeUndefined();
-					});
-
-					it("accepts null option on union property", async () => {
-						expect(validateTemplate([{ items: [{ "?value": null }] }], UnionWrapper, {})).toBeUndefined();
-					});
-
-					it("rejects option matching no union variant", async () => {
-						expect(validateTemplate([{ items: [{ "?value": true }] }], UnionWrapper, {})).toBeDefined();
-					});
-
-					// conjunctive filter
-
-					it("accepts conjunctive filter matching one union variant", async () => {
-						expect(validateTemplate([{ items: [{ "!value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
-					});
-
-					it("rejects conjunctive filter matching no union variant", async () => {
-						expect(validateTemplate([{ items: [{ "!value": true }] }], UnionWrapper, {})).toBeDefined();
-					});
-
-					// focus operator
-
-					it("accepts focus option matching one union variant", async () => {
-						expect(validateTemplate([{ items: [{ "*value": ["hello"] }] }], UnionWrapper, {})).toBeUndefined();
-						expect(validateTemplate([{ items: [{ "*value": [42] }] }], UnionWrapper, {})).toBeUndefined();
-					});
-
-					it("rejects focus option matching no union variant", async () => {
-						expect(validateTemplate([{ items: [{ "*value": [true] }] }], UnionWrapper, {})).toBeDefined();
-					});
-
-					// array of options
-
-					it("accepts array of options matching same union variant", async () => {
-						expect(validateTemplate([{ items: [{ "?value": ["hello", "world"] }] }], UnionWrapper, {})).toBeUndefined();
-					});
-
-					it("rejects array of options matching different union variants", async () => {
-						expect(validateTemplate([{ items: [{ "?value": ["hello", 42] }] }], UnionWrapper, {})).toBeDefined();
-					});
-
-					it("rejects array with option matching no union variant", async () => {
-						expect(validateTemplate([{ items: [{ "?value": ["hello", true] }] }], UnionWrapper, {})).toBeDefined();
-					});
-
-				});
-
-				describe("sort operator (^)", () => {
-
-					it("accepts 'asc' sort value", async () => {
-						expect(validateTemplate([{ items: [{ "^name": "asc" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts 'desc' sort value", async () => {
-						expect(validateTemplate([{ items: [{ "^name": "desc" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts positive number sort value", async () => {
-						expect(validateTemplate([{ items: [{ "^name": 1 }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts negative number sort value", async () => {
-						expect(validateTemplate([{ items: [{ "^name": -1 }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts zero sort value", async () => {
-						expect(validateTemplate([{ items: [{ "^name": 0 }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("rejects boolean sort value", async () => {
-						expect(validateTemplate([{ items: [{ "^name": true }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects null sort value", async () => {
-						expect(validateTemplate([{ items: [{ "^name": null }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("rejects arbitrary string sort value", async () => {
-						expect(validateTemplate([{ items: [{ "^name": "ascending" }] }], Wrapper, {})).toBeDefined();
-					});
-
-					it("accepts sort on number property", async () => {
-						expect(validateTemplate([{ items: [{ "^age": "asc" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-					it("accepts sort on undefined property", async () => {
-						expect(validateTemplate([{ items: [{ "^missing": "asc" }] }], Wrapper, {})).toBeUndefined();
-					});
-
-				});
-
-				describe("effective shape with transforms", () => {
-
-					it("accepts range operator on transform-derived number", async () => {
-
-						// year transform on year property → effective kind is "number"
-
-						const T = resource({ released: optional(year()) });
-						const W = resource({ items: multiple(reference(T)) });
-
-						expect(validateTemplate([{ items: [{ ">=year:released": 2020 }] }], W, {})).toBeUndefined();
-					});
-
-					it("rejects text search on transform-derived number", async () => {
-
-						// count transform → effective kind is "number"
-
-						const T = resource({ name: required(string()), price: optional(integer()) });
-						const W = resource({ items: multiple(reference(T)) });
-
-						expect(validateTemplate([{ items: [{ "~count:price": "x" }] }], W, {})).toBeDefined();
-					});
-
-					it("accepts text search on transform-preserving string", async () => {
-
-						// lower transform on string → effective kind is "string"
-
-						const T = resource({ name: required(string()) });
-						const W = resource({ items: multiple(reference(T)) });
-
-						expect(validateTemplate([{ items: [{ "~lower:name": "alice" }] }], W, {})).toBeUndefined();
-					});
-
-					it("accepts operator when transform makes apply() return undefined", async () => {
-
-						// sum on string property → apply() returns undefined → lenient
-
-						const T = resource({ name: required(string()) });
-						const W = resource({ items: multiple(reference(T)) });
-
-						expect(validateTemplate([{ items: [{ "~sum:name": "x" }] }], W, {})).toBeUndefined();
-					});
-
-				});
-
-			});
-
-		});
-
-		describe("collection-level keying", () => {
-
-			// nested model validation uses validateNested → validateModel which validates
-			// type guards (e.g., boolean instead of string) and cardinality, not value constraints
-
-			const Target = resource({
-				id: id(),
-				name: required(string())
-			});
-
-			const TargetWithoutId = resource({
-				name: required(string())
-			});
-
-
-			it("preserves flat trace for single nested model", async () => {
-
-				// single nested value: no per-resource wrapping
-
-				const shape = resource({
-					items: multiple(reference(Target))
-				});
-
-				const trace = validateTemplate([{ items: [{ name: 42 }] } as any], shape, {}) as Record<string, Trace>;
-
-				expect(trace).toHaveProperty(["[0]", "items"]);
-
-				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
-
-				expect(items).toHaveProperty("name");
-				expect(items).not.toHaveProperty("[0]");
-
-			});
-
-			it("keys violations by @id for single nested model", async () => {
-
-				const shape = resource({
-					items: multiple(reference(Target))
-				});
-
-				const trace = validateTemplate([{
-					items: [
-						{ "id": "app:/items/1", name: 42 }
-					]
-				} as any], shape, {}) as Record<string, Trace>;
-
-				expect(trace).toHaveProperty(["[0]", "items"]);
-
-				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
-
-				expect(items).toHaveProperty("name");
-
-			});
-
-			it("keys violations by blank node for single nested model without id property", async () => {
-
-				const shape = resource({
-					items: multiple(reference(TargetWithoutId))
-				});
-
-				const trace = validateTemplate([{
-					items: [
-						{ name: 42 }
-					]
-				} as any], shape, {}) as Record<string, Trace>;
-
-				expect(trace).toHaveProperty(["[0]", "items"]);
-
-				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
-
-				expect(items).toHaveProperty("name");
-
-			});
-
-			it("includes only invalid nested models in trace", async () => {
-
-				const shape = resource({
-					items: multiple(reference(Target))
-				});
-
-				const trace = validateTemplate([{
-					items: [
-						{ "id": "app:/items/2", name: 42 }
-					]
-				} as any], shape, {}) as Record<string, Trace>;
-
-				expect(trace).toHaveProperty(["[0]", "items"]);
-
-				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
-
-				expect(items).toHaveProperty("name");
-
-			});
-
-			it("returns undefined when all nested models are valid", async () => {
-
-				const shape = resource({
-					items: multiple(reference(Target))
-				});
-
-				expect(validateTemplate([{
-					items: [
-						{ "id": "app:/items/1", name: "Alice" }
-					] as any
-				}], shape, {})).toBeUndefined();
-
-			});
-
-		});
-
-	});
-
-
-	describe("mergeReference", () => {
-
-		describe("kind", () => {
-
-			it("preserves kind as 'reference'", async () => {
-
-				const merged = mergeReference(reference(resource({})), reference(resource({})));
-
-				expect(merged.kind).toBe("reference");
-
-			});
-
-		});
-
-		describe("model", () => {
-
-			it("merges shapes with equal models", async () => {
-
-				const merged = mergeReference(reference(resource({})), reference(resource({})));
-
-				expect(merged.model).toBe("app:/");
-
-			});
-
-		});
-
-		describe("foreign", () => {
-
-			it("preserves foreign from target", async () => {
-
-				const merged = mergeReference(reference(resource({}), { foreign: true }), reference(resource({}), { foreign: true }));
-
-				expect(merged.foreign).toBe(true);
-
-			});
-
-			it("preserves absent foreign from target", async () => {
-
-				const merged = mergeReference(reference(resource({})), reference(resource({})));
-
-				expect(merged.foreign).toBeUndefined();
-
-			});
-
-		});
-
-		describe("shape", () => {
-
-			it("inherits shape from source", async () => {
-
-				const target = resource({});
-				const source = resource({});
-
-				const merged = mergeReference(reference(target), reference(source));
-
-				expect(merged.shape).toBe(source);
-
-			});
-
-		});
-
-	});
 
 	describe("mergeResource", () => {
 
@@ -6260,11 +1378,11 @@ describe("operators", () => {
 			it("preserves name from target", async () => {
 
 				const merged = mergeResource(
-					resource({ name: "child" }, {}),
-					resource({ name: "parent" }, {})
+					resource({ name: { und: "child" } }, {}),
+					resource({ name: { und: "parent" } }, {})
 				);
 
-				expect(merged.name).toBe("child");
+				expect(merged.name).toEqual({ und: "child" });
 
 			});
 
@@ -6275,11 +1393,11 @@ describe("operators", () => {
 			it("preserves description from target", async () => {
 
 				const merged = mergeResource(
-					resource({ description: "child desc" }, {}),
-					resource({ description: "parent desc" }, {})
+					resource({ description: { und: "child desc" } }, {}),
+					resource({ description: { und: "parent desc" } }, {})
 				);
 
-				expect(merged.description).toBe("child desc");
+				expect(merged.description).toEqual({ und: "child desc" });
 
 			});
 
@@ -6815,9 +1933,7851 @@ describe("operators", () => {
 
 	});
 
+
+	describe("validateResource", () => {
+
+		describe("resource constraints", () => {
+
+			describe("closed shape", () => {
+
+				const named = resource({
+					name: required(string()),
+					age: optional(integer())
+				});
+
+
+				it("accepts empty resource with no properties", async () => {
+
+					expect(validateResource([{}], resource({}))).toBeUndefined();
+
+				});
+
+				it("accepts resource with subset of defined properties", async () => {
+
+					expect(validateResource([{ name: "Alice" }], named)).toBeUndefined();
+
+				});
+
+				it("accepts declared id property", async () => {
+
+					const shape = resource({
+						id: id(),
+						name: required(string())
+					});
+
+					expect(validateResource([{ "id": "app:/users/123", name: "Alice" }], shape)).toBeUndefined();
+
+				});
+
+				it("accepts declared type property", async () => {
+
+					const shape = resource({
+						type: type(),
+						name: required(string())
+					});
+
+					expect(validateResource([{
+						"type": "app:/types/Person",
+						name: "Alice"
+					}], shape)).toBeUndefined();
+
+				});
+
+				it("accepts properties from inherited shape", async () => {
+
+					const Base = resource({
+						code: required(integer())
+					});
+
+					const Derived = resource({ extends: Base }, {
+						name: required(string())
+					});
+
+					expect(validateResource([{ code: 1, name: "Alice" }], Derived)).toBeUndefined();
+
+				});
+
+				it("rejects unknown property", async () => {
+
+					const trace = validateResource([{ name: "Alice", extra: "value" }], named) as Record<string, Trace>;
+
+					expect(trace["[0]"]).toHaveProperty("extra");
+
+				});
+
+			});
+
+			describe("foreign references", () => {
+
+				const Target = resource({ id: id(), label: required(string()) });
+
+				const shape = resource({
+					name: required(string()),
+					children: multiple(reference(Target, { foreign: true }))
+				});
+
+
+				it("accepts resource without foreign property", async () => {
+
+					expect(validateResource([{ name: "Alice" }], shape)).toBeUndefined();
+
+				});
+
+				it("rejects foreign property with IRI value", async () => {
+
+					const trace = validateResource([{
+						name: "Alice",
+						children: ["app:/items/1"]
+					}], shape) as Record<string, Trace>;
+
+					expect(trace["[0]"]).toHaveProperty("children");
+
+				});
+
+				it("rejects foreign property with nested resource", async () => {
+
+					const trace = validateResource([{
+						name: "Alice",
+						children: [{ label: "Child" }]
+					}], shape) as Record<string, Trace>;
+
+					expect(trace["[0]"]).toHaveProperty("children");
+
+				});
+
+				it("accepts foreign property when undefined", async () => {
+
+					expect(validateResource([{ name: "Alice", children: undefined }], shape)).toBeUndefined();
+
+				});
+
+				it("accepts non-foreign reference property", async () => {
+
+					const owned = resource({
+						name: required(string()),
+						parent: optional(reference(Target))
+					});
+
+					expect(validateResource([{ name: "Alice", parent: "app:/items/1" }], owned)).toBeUndefined();
+
+				});
+
+
+				describe("unions", () => {
+
+					const Other = resource({ id: id(), code: required(integer()) });
+
+
+					it("rejects property when all union variants are foreign", async () => {
+
+						const all = resource({
+							name: required(string()),
+							links: required(union(
+								reference(Target, { foreign: true }),
+								reference(Other, { foreign: true })
+							))
+						});
+
+						const trace = validateResource([{
+							name: "Alice",
+							links: { label: "Child" }
+						}], all) as Record<string, Trace>;
+
+						expect(trace["[0]"]).toHaveProperty("links");
+
+					});
+
+					it("accepts property when at least one union variant is non-foreign", async () => {
+
+						const mixed = resource({
+							name: required(string()),
+							links: required(union(
+								reference(Target),
+								reference(Other, { foreign: true })
+							))
+						});
+
+						expect(validateResource([{
+							name: "Alice",
+							links: { label: "Parent" }
+						}], mixed)).toBeUndefined();
+
+					});
+
+					it("rejects foreign variant key in mixed union", async () => {
+
+						const mixed = resource({
+							name: required(string()),
+							links: required(union(
+								reference(Target),
+								reference(Other, { foreign: true })
+							))
+						});
+
+						const trace = validateResource([{
+							name: "Alice",
+							links: { code: 1 }
+						}], mixed) as Record<string, Trace>;
+
+						expect(trace["[0]"]).toHaveProperty("links");
+
+					});
+
+				});
+
+			});
+
+			describe("custom validators", () => {
+
+				const adultValidator: Validator = (r) => {
+					return (r as any).age >= 18 ? undefined : "must be adult";
+				};
+
+				const validated = resource({
+					validators: [adultValidator]
+				}, {
+					age: required(integer())
+				});
+
+
+				it("accepts resource passing custom validator", async () => {
+
+					expect(validateResource([{ age: 25 }], validated)).toBeUndefined();
+
+				});
+
+				it("rejects resource failing custom validator", async () => {
+
+					expect(validateResource([{ age: 15 }], validated)).toBeDefined();
+
+				});
+
+				it("runs all custom validators", async () => {
+
+					const v1: Validator = (r) => (r as any).a > 0 ? undefined : "a must be positive";
+					const v2: Validator = (r) => (r as any).b > 0 ? undefined : "b must be positive";
+
+					const shape = resource({
+						validators: [v1, v2]
+					}, {
+						a: required(integer()),
+						b: required(integer())
+					});
+
+					// both pass
+
+					expect(validateResource([{ a: 1, b: 1 }], shape)).toBeUndefined();
+
+					// first fails
+
+					expect(validateResource([{ a: -1, b: 1 }], shape)).toBeDefined();
+
+					// second fails
+
+					expect(validateResource([{ a: 1, b: -1 }], shape)).toBeDefined();
+
+				});
+
+				it("enforces inherited validators", async () => {
+
+					const validator: Validator = (r) => {
+						return (r as any).age >= 18 ? undefined : "must be adult";
+					};
+
+					const Base = resource({ validators: [validator] }, {
+						age: required(integer())
+					});
+
+					const Derived = resource({ extends: Base }, {
+						name: required(string())
+					});
+
+					expect(validateResource([{ age: 25, name: "Alice" }], Derived)).toBeUndefined();
+					expect(validateResource([{ age: 15, name: "Bob" }], Derived)).toBeDefined();
+
+				});
+
+			});
+
+			describe("trace structure", () => {
+
+				it("returns keyed trace for value-level violations", async () => {
+
+					const shape = resource({
+						age: required(integer({ minInclusive: 0 }))
+					});
+
+					const trace = validateResource([{ age: -5 }], shape) as Record<string, Trace>;
+
+					expect(trace["[0]"]).toHaveProperty("age");
+
+				});
+
+				it("includes property path in nested traces", async () => {
+
+					const Address = resource({
+						city: required(string({ minLength: 1 }))
+					});
+
+					const Person = resource({
+						address: required(Address)
+					});
+
+					const trace = validateResource([{ address: { city: "" } }], Person) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("address");
+
+					const address = inner["address"] as Record<string, Trace>;
+
+					expect(address).toHaveProperty(["[0]", "city"]);
+
+				});
+
+				it("includes both unknown and invalid property traces in dictionary", async () => {
+
+					const Address = resource({
+						city: required(string({ minLength: 1 }))
+					});
+
+					const shape = resource({
+						address: required(Address)
+					});
+
+					const trace = validateResource([{
+						address: { city: "" },
+						extra: "value"
+					}], shape) as Record<string, Trace>;
+
+					expect(trace["[0]"]).toHaveProperty("extra");
+					expect(trace["[0]"]).toHaveProperty("address");
+
+				});
+
+			});
+
+		});
+
+		describe("embedding constraints", () => {
+
+				it("accepts embedded resource without id or type", async () => {
+
+					const Nested = resource({
+						label: required(string())
+					});
+
+					const shape = resource({
+						child: optional(Nested)
+					});
+
+					expect(validateResource([{ child: { label: "x" } }], shape)).toBeUndefined();
+
+				});
+
+				it("accepts standalone reference with id", async () => {
+
+					const Target = resource({
+						rid: id(),
+						name: required(string())
+					});
+
+					const shape = resource({
+						link: required(reference(Target))
+					});
+
+					expect(validateResource([{ link: "app:/targets/1" }], shape)).toBeUndefined();
+
+				});
+
+				it("rejects embedded resource containing id entry", async () => {
+
+					const Nested = resource({
+						rid: id(),
+						label: required(string())
+					});
+
+					const shape = resource({
+						child: optional(Nested)
+					});
+
+					const trace = validateResource([{ child: { rid: "app:/x", label: "x" } }], shape);
+
+					expect(trace).toBeDefined();
+
+				});
+
+				it("rejects embedded resource containing type entry", async () => {
+
+					const Nested = resource({
+						rtype: type(),
+						label: required(string())
+					});
+
+					const shape = resource({
+						child: optional(Nested)
+					});
+
+					const trace = validateResource([{ child: { rtype: "app:/T", label: "x" } }], shape);
+
+					expect(trace).toBeDefined();
+
+				});
+
+				it("rejects embedded resources containing id and type entries", async () => {
+
+					const WithId = resource({
+						rid: id(),
+						label: required(string())
+					});
+
+					const WithType = resource({
+						rtype: type(),
+						label: required(string())
+					});
+
+					const shape = resource({
+						first: optional(WithId),
+						second: optional(WithType)
+					});
+
+					const trace = validateResource([{
+						first: { rid: "app:/x", label: "x" },
+						second: { rtype: "app:/T", label: "x" }
+					}], shape);
+
+					expect(trace).toBeDefined();
+
+				});
+
+				it("rejects embedded resource in union variant containing id entry", async () => {
+
+					const Nested = resource({
+						rid: id(),
+						label: required(string())
+					});
+
+					const Other = resource({
+						value: required(integer())
+					});
+
+					const shape = resource({
+						child: optional(union(Nested, Other))
+					});
+
+					const trace = validateResource([{ child: { rid: "app:/x", label: "x" } }], shape);
+
+					expect(trace).toBeDefined();
+
+				});
+
+			});
+
+			describe("id constraints", () => {
+
+			it("accepts single absolute IRI", async () => {
+
+				const shape = resource({ id: id() });
+
+				expect(validateResource([{ "id": "app:/users/123" }], shape)).toBeUndefined();
+
+			});
+
+			it("accepts missing id", async () => {
+
+				const shape = resource({ id: id() });
+
+				expect(validateResource([{}], shape)).toBeUndefined();
+
+			});
+
+			it("rejects non-IRI value", async () => {
+
+				const shape = resource({ id: id() });
+
+				const trace = validateResource([{ "id": "not an iri" }], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
+
+				expect(inner).toHaveProperty("id");
+				expect(inner["id"]).toHaveProperty("{kind}");
+
+			});
+
+			it("rejects multiple values", async () => {
+
+				const shape = resource({ id: id() });
+
+				const trace = validateResource([{ "id": ["/users/1", "/users/2"] }], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
+
+				expect(inner).toHaveProperty("id");
+				expect(inner["id"]).toHaveProperty("{kind}");
+
+			});
+
+			describe("pattern", () => {
+
+				it("accepts id matching pattern", async () => {
+
+					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+
+					expect(validateResource([{ "id": "app:/users/123" }], shape)).toBeUndefined();
+
+				});
+
+				it("accepts wildcard pattern", async () => {
+
+					const shape = resource({ pattern: "/users/*" }, { id: id() });
+
+					expect(validateResource([{ "id": "app:/users/123/profile" }], shape)).toBeUndefined();
+
+				});
+
+				it("rejects id not matching pattern", async () => {
+
+					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+
+					const trace = validateResource([{ "id": "/products/123" }], shape) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{pattern}");
+
+				});
+
+				it("accepts missing id", async () => {
+
+					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+
+					expect(validateResource([{}], shape)).toBeUndefined();
+
+				});
+
+			});
+
+			describe("in", () => {
+
+				it("accepts id in allowed enumeration", async () => {
+
+					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
+
+					expect(validateResource([{ "id": "app:/users/alice" }], shape)).toBeUndefined();
+
+				});
+
+				it("rejects id not in allowed enumeration", async () => {
+
+					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
+
+					const trace = validateResource([{ "id": "app:/users/charlie" }], shape) as Record<string, Trace>;
+					const inner = trace["<app:/users/charlie>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{in}");
+
+				});
+
+				it("accepts missing id", async () => {
+
+					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
+
+					expect(validateResource([{}], shape)).toBeUndefined();
+
+				});
+
+			});
+
+			describe("hasValue", () => {
+
+				it("accepts id matching required value", async () => {
+
+					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+
+					expect(validateResource([{ "id": "app:/users/admin" }], shape)).toBeUndefined();
+
+				});
+
+				it("rejects id not matching required value", async () => {
+
+					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+
+					const trace = validateResource([{ "id": "app:/users/guest" }], shape) as Record<string, Trace>;
+					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{hasValue}");
+
+				});
+
+				it("accepts missing id", async () => {
+
+					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+
+					expect(validateResource([{}], shape)).toBeUndefined();
+
+				});
+
+			});
+
+		});
+
+		describe("inherited class-level constraints", () => {
+
+			describe("pattern", () => {
+
+				it("enforces parent pattern on child", async () => {
+
+					const Parent = resource({ pattern: "/users/{id}" }, { id: id() });
+					const Child = resource({ extends: Parent }, { name: required(string()) });
+
+					expect(validateResource([{ "id": "app:/users/123", "name": "Alice" }], Child)).toBeUndefined();
+
+					const trace = validateResource([{
+						"id": "app:/products/123",
+						"name": "Alice"
+					}], Child) as Record<string, Trace>;
+					const inner = trace["<app:/products/123>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{pattern}");
+
+				});
+
+				it("enforces both parent and child patterns conjunctively", async () => {
+
+					const Parent = resource({ pattern: "/org/*" }, { id: id() });
+					const Child = resource({
+						extends: Parent,
+						pattern: "/org/users/{id}"
+					}, { name: required(string()) });
+
+					expect(validateResource([{ "id": "app:/org/users/123", "name": "Alice" }], Child)).toBeUndefined();
+
+					const trace = validateResource([{
+						"id": "app:/org/products/123",
+						"name": "Alice"
+					}], Child) as Record<string, Trace>;
+					const inner = trace["<app:/org/products/123>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+
+					// with multiple patterns, keys are indexed
+					const idTrace = inner["id"] as Record<string, Trace>;
+					expect(idTrace).toSatisfy((t: Record<string, unknown>) =>
+						Object.keys(t).some(k => k.startsWith("{pattern}"))
+					);
+
+				});
+
+			});
+
+			describe("in", () => {
+
+				it("enforces parent in constraint on child", async () => {
+
+					const Parent = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
+					const Child = resource({ extends: Parent }, { name: required(string()) });
+
+					expect(validateResource([{ "id": "app:/users/alice", "name": "Alice" }], Child)).toBeUndefined();
+
+					const trace = validateResource([{
+						"id": "app:/users/charlie",
+						"name": "Charlie"
+					}], Child) as Record<string, Trace>;
+					const inner = trace["<app:/users/charlie>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{in}");
+
+				});
+
+			});
+
+			describe("hasValue", () => {
+
+				it("enforces parent hasValue constraint on child", async () => {
+
+					const Parent = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+					const Child = resource({ extends: Parent }, { name: required(string()) });
+
+					expect(validateResource([{ "id": "app:/users/admin", "name": "Admin" }], Child)).toBeUndefined();
+
+					const trace = validateResource([{
+						"id": "app:/users/guest",
+						"name": "Guest"
+					}], Child) as Record<string, Trace>;
+					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toHaveProperty("{hasValue}");
+
+				});
+
+				it("enforces parent and child hasValue conjunctively", async () => {
+
+					const Parent = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+					const Child = resource({
+						extends: Parent,
+						hasValue: ["app:/users/root"]
+					}, { name: required(string()) });
+
+					// id "app:/users/guest" fails both parent and child hasValue
+
+					const trace = validateResource([
+						{ "id": "app:/users/guest", "name": "Guest" }
+					], Child) as Record<string, Trace>;
+					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("id");
+
+					// with multiple hasValue lists, keys are indexed
+					const idTrace = inner["id"] as Record<string, unknown>;
+					expect(idTrace).toSatisfy((t: Record<string, unknown>) =>
+						Object.keys(t).some(k => k.startsWith("{hasValue}"))
+					);
+
+				});
+
+			});
+
+		});
+
+		describe("type constraints", () => {
+
+			it("accepts single absolute IRI", async () => {
+
+				const shape = resource({ type: type() });
+
+				expect(validateResource([{ "type": "app:/types/Person" }], shape)).toBeUndefined();
+
+			});
+
+			it("accepts missing type", async () => {
+
+				const shape = resource({ type: type() });
+
+				expect(validateResource([{}], shape)).toBeUndefined();
+
+			});
+
+			it("rejects non-IRI value", async () => {
+
+				const shape = resource({ type: type() });
+
+				const trace = validateResource([{ "type": "not an iri" }], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
+
+				expect(inner).toHaveProperty("type");
+				expect(inner["type"]).toHaveProperty("{kind}");
+
+			});
+
+			it("rejects multiple values", async () => {
+
+				const shape = resource({ type: type() });
+
+				const trace = validateResource([{ "type": ["/types/A", "/types/B"] }], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
+
+				expect(inner).toHaveProperty("type");
+				expect(inner["type"]).toHaveProperty("{kind}");
+
+			});
+
+		});
+
+		describe("property constraints", () => {
+
+			describe("required property", () => {
+
+				const named = resource({
+					name: required(string())
+				});
+
+
+				it("accepts present required property", async () => {
+
+					expect(validateResource([{ name: "Alice" }], named)).toBeUndefined();
+
+				});
+
+				it("rejects missing required property", async () => {
+
+					const trace = validateResource([{}], named) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("name");
+					expect(inner["name"]).toHaveProperty("{minCount}");
+
+				});
+
+				it("rejects array value", async () => {
+
+					const trace = validateResource([{ name: ["Alice"] }], named) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("name");
+					expect(inner["name"]).toHaveProperty("{kind}");
+
+				});
+
+			});
+
+			describe("optional property", () => {
+
+				const aged = resource({
+					age: optional(integer())
+				});
+
+
+				it("accepts present optional property", async () => {
+
+					expect(validateResource([{ age: 30 }], aged)).toBeUndefined();
+
+				});
+
+				it("accepts missing optional property", async () => {
+
+					expect(validateResource([{}], aged)).toBeUndefined();
+
+				});
+
+				it("rejects array value", async () => {
+
+					const trace = validateResource([{ age: [30] }], aged) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("age");
+					expect(inner["age"]).toHaveProperty("{kind}");
+
+				});
+
+			});
+
+			describe("repeatable property", () => {
+
+				const tagged = resource({
+					tags: repeatable(string())
+				});
+
+
+				it("accepts array with single element", async () => {
+
+					expect(validateResource([{ tags: ["a"] }], tagged)).toBeUndefined();
+
+				});
+
+				it("accepts array with multiple elements", async () => {
+
+					expect(validateResource([{ tags: ["a", "b", "c"] }], tagged)).toBeUndefined();
+
+				});
+
+				it("rejects empty array", async () => {
+
+					const trace = validateResource([{ tags: [] }], tagged) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("tags");
+					expect(inner["tags"]).toHaveProperty("{minCount}");
+
+				});
+
+				it("rejects missing repeatable property", async () => {
+
+					const trace = validateResource([{}], tagged) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("tags");
+					expect(inner["tags"]).toHaveProperty("{minCount}");
+
+				});
+
+				it("rejects scalar value", async () => {
+
+					const trace = validateResource([{ tags: "a" }], tagged) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("tags");
+					expect(inner["tags"]).toHaveProperty("{kind}");
+
+				});
+
+			});
+
+			describe("multiple property", () => {
+
+				const aliased = resource({
+					aliases: multiple(string())
+				});
+
+
+				it("accepts array with single element", async () => {
+
+					expect(validateResource([{ aliases: ["x"] }], aliased)).toBeUndefined();
+
+				});
+
+				it("accepts array with multiple elements", async () => {
+
+					expect(validateResource([{ aliases: ["x", "y", "z"] }], aliased)).toBeUndefined();
+
+				});
+
+				it("accepts empty array", async () => {
+
+					expect(validateResource([{ aliases: [] }], aliased)).toBeUndefined();
+
+				});
+
+				it("accepts missing multiple property", async () => {
+
+					expect(validateResource([{}], aliased)).toBeUndefined();
+
+				});
+
+				it("rejects scalar value", async () => {
+
+					const trace = validateResource([{ aliases: "x" }], aliased) as Record<string, Trace>;
+					const inner = trace["[0]"] as Record<string, Trace>;
+
+					expect(inner).toHaveProperty("aliases");
+					expect(inner["aliases"]).toHaveProperty("{kind}");
+
+				});
+
+			});
+
+			describe("absence forms", () => {
+
+				// canonical absence forms per qest's Resource / Values / Text contract:
+				// `undefined`, `[]`, `{}` on Resource/Text slots, and language maps whose
+				// tag entries are all empty arrays
+
+				const Target = resource({ id: id() });
+
+
+				describe("undefined and empty array are absent on any slot", () => {
+
+					it.each([
+						["optional string", { name: optional(string()) }, "name"],
+						["optional integer", { age: optional(integer()) }, "age"],
+						["optional boolean", { flag: optional(boolean()) }, "flag"],
+						["optional reference", { parent: optional(reference(Target)) }, "parent"],
+						["optional localised", { label: optional(text()) }, "label"],
+						["multiple string", { aliases: multiple(string()) }, "aliases"]
+					] as const)("accepts undefined on %s", async (_label, props, key) => {
+
+						const shape = resource(props);
+
+						expect(validateResource([{ [key]: undefined }], shape)).toBeUndefined();
+
+					});
+
+					it.each([
+						["optional string", { name: optional(string()) }, "name"],
+						["optional integer", { age: optional(integer()) }, "age"],
+						["optional boolean", { flag: optional(boolean()) }, "flag"],
+						["optional reference", { parent: optional(reference(Target)) }, "parent"],
+						["optional localised", { label: optional(text()) }, "label"],
+						["multiple string", { aliases: multiple(string()) }, "aliases"]
+					] as const)("accepts empty array on %s", async (_label, props, key) => {
+
+						const shape = resource(props);
+
+						expect(validateResource([{ [key]: [] }], shape)).toBeUndefined();
+
+					});
+
+				});
+
+
+				describe("empty object — absent only on Resource-accepting slots", () => {
+
+					it("accepts `{}` on optional reference (empty nested Resource)", async () => {
+
+						const shape = resource({ parent: optional(reference(Target)) });
+
+						expect(validateResource([{ parent: {} }], shape)).toBeUndefined();
+
+					});
+
+					it("accepts `{}` on optional localised (empty language map)", async () => {
+
+						const shape = resource({ label: optional(text()) });
+
+						expect(validateResource([{ label: {} }], shape)).toBeUndefined();
+
+					});
+
+					it.each([
+						["optional string", { name: optional(string()) }, "name"],
+						["optional integer", { age: optional(integer()) }, "age"],
+						["optional boolean", { flag: optional(boolean()) }, "flag"],
+						["repeatable string", { tags: repeatable(string()) }, "tags"],
+						["multiple integer", { scores: multiple(integer()) }, "scores"]
+					] as const)("rejects `{}` on %s as type mismatch", async (_label, props, key) => {
+
+						const shape = resource(props);
+						const trace = validateResource([{ [key]: {} }], shape) as Record<string, Trace>;
+						const inner = trace["[0]"] as Record<string, Trace>;
+
+						expect(inner).toHaveProperty(key);
+						expect(inner[key]).toHaveProperty("{kind}");
+
+					});
+
+				});
+
+
+				describe("empty language maps on localised slots", () => {
+
+					const shape = resource({ label: optional(text()) });
+
+
+					it("accepts `{ und: [] }`", async () => {
+
+						expect(validateResource([{ label: { und: [] } }], shape)).toBeUndefined();
+
+					});
+
+					it("accepts map with all tag entries as empty arrays", async () => {
+
+						expect(validateResource([{ label: { en: [], fr: [] } }], shape)).toBeUndefined();
+
+					});
+
+					it("does not treat partially-empty language map as absent", async () => {
+
+						const required = resource({ label: repeatable(text()) });
+
+						// `fr` carries a value, so the map is not absent — normal validation runs
+						// and flags `en` against its per-tag minCount
+
+						expect(validateResource([{ label: { en: [], fr: ["bonjour"] } }], required)).toBeDefined();
+
+					});
+
+				});
+
+
+				describe("array element absence", () => {
+
+					// per qest resource.ts:272 — `{}` elements must be dropped from a `Values`
+					// array on slots that accept a nested Resource (`reference` / `resource`
+					// kinds, or unions containing such a variant); on pure-literal slots `{}`
+					// is not a nested Resource and remains a `{kind}` type mismatch
+
+					it("drops `{}` elements on repeatable reference slot", async () => {
+
+						const shape = resource({
+							parents: repeatable(reference(Target))
+						});
+
+						expect(validateResource([{
+							parents: ["app:/1", {}, "app:/2"]
+						}], shape)).toBeUndefined();
+
+					});
+
+					it("drops `{}` elements on repeatable union slot containing reference", async () => {
+
+						const WithName = resource({ name: required(string()) });
+						const shape = resource({
+							contacts: repeatable(union(string(), reference(WithName)))
+						});
+
+						expect(validateResource([{
+							contacts: ["a", {}, "b"]
+						}], shape)).toBeUndefined();
+
+					});
+
+					it("does not drop `{}` elements on repeatable literal slot", async () => {
+
+						const shape = resource({
+							tags: repeatable(string())
+						});
+
+						const trace = validateResource([{ tags: ["a", {}] }], shape) as Record<string, Trace>;
+						const inner = trace["[0]"] as Record<string, Trace>;
+
+						expect(inner).toHaveProperty("tags");
+						expect(inner["tags"]).toHaveProperty("{kind}");
+
+					});
+
+					it("enforces cardinality against filtered count", async () => {
+
+						const shape = resource({
+							parents: repeatable(reference(Target))
+						});
+
+						const trace = validateResource([{ parents: [{}, {}] }], shape) as Record<string, Trace>;
+						const inner = trace["[0]"] as Record<string, Trace>;
+
+						expect(inner).toHaveProperty("parents");
+						expect(inner["parents"]).toHaveProperty("{minCount}");
+
+					});
+
+				});
+
+			});
+
+			describe("custom cardinality", () => {
+
+				describe.each([
+
+					{
+						constraint: "minCount",
+						cardinalityArgs: [2, undefined] as const,
+						accepted: [["a", "b"], ["a", "b", "c"]],
+						rejected: [["a"]],
+						errorKey: "{minCount}"
+					},
+
+					{
+						constraint: "maxCount",
+						cardinalityArgs: [undefined, 3] as const,
+						accepted: [["a", "b", "c"], ["a"]],
+						rejected: [["a", "b", "c", "d"]],
+						errorKey: "{maxCount}"
+					},
+
+					{
+						constraint: "minCount and maxCount",
+						cardinalityArgs: [2, 4] as const,
+						accepted: [["a", "b"], ["a", "b", "c", "d"]],
+						rejected: [["a"], ["a", "b", "c", "d", "e"]],
+						errorKey: undefined
+					}
+
+				])("$constraint", ({ cardinalityArgs, accepted, rejected, errorKey }) => {
+
+					it("accepts arrays within bounds", async () => {
+
+						const shape = resource({
+							tags: cardinality(cardinalityArgs[0], cardinalityArgs[1])(string())
+						});
+
+						for (const tags of accepted) {
+							expect(validateResource([{ tags }], shape)).toBeUndefined();
+						}
+
+					});
+
+					it("rejects arrays outside bounds", async () => {
+
+						const shape = resource({
+							tags: cardinality(cardinalityArgs[0], cardinalityArgs[1])(string())
+						});
+
+						for (const tags of rejected) {
+
+							const trace = validateResource([{ tags }], shape) as Record<string, Trace>;
+							const inner = trace["[0]"] as Record<string, Trace>;
+
+							expect(inner).toHaveProperty("tags");
+
+							if ( errorKey ) {
+								expect(inner["tags"]).toHaveProperty(errorKey);
+							}
+
+						}
+
+					});
+
+				});
+
+			});
+
+			it("enforces inherited cardinality constraints", async () => {
+
+				const Base = resource({
+					name: required(string())
+				});
+
+				const Derived = resource({ extends: Base }, {
+					age: optional(integer())
+				});
+
+				expect(validateResource([{ name: "Alice" }], Derived)).toBeUndefined();
+				expect(validateResource([{}], Derived)).toHaveProperty(["[0]", "name"]);
+
+			});
+
+			it("enforces multiple parents cardinality constraints", async () => {
+
+				const Named = resource({
+					name: required(string())
+				});
+
+				const Aged = resource({
+					age: required(integer())
+				});
+
+				const Person = resource({ extends: [Named, Aged] }, {
+					email: optional(string())
+				});
+
+				expect(validateResource([{ name: "Alice", age: 30 }], Person)).toBeUndefined();
+				expect(validateResource([{ name: "Alice" }], Person)).toHaveProperty(["[0]", "age"]);
+				expect(validateResource([{ age: 30 }], Person)).toHaveProperty(["[0]", "name"]);
+
+			});
+
+			it("enforces inherited constraints on overridden properties", async () => {
+
+				const Base = resource({
+					name: required(string({ minLength: 3 }))
+				});
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string({ pattern: "^[A-Z]" }))
+				});
+
+				// satisfies both parent (minLength: 3) and child (pattern: ^[A-Z])
+
+				expect(validateResource([{ name: "Alice" }], Derived)).toBeUndefined();
+
+				// violates parent's minLength: 3 even though it matches child's pattern
+
+				expect(validateResource([{ name: "A" }], Derived)).toHaveProperty(["[0]", "name"]);
+
+				// violates child's pattern even though it satisfies parent's minLength
+
+				expect(validateResource([{ name: "alice" }], Derived)).toHaveProperty(["[0]", "name"]);
+
+			});
+
+			it("prevents relaxing inherited constraints on overridden properties", async () => {
+
+				const Base = resource({
+					name: required(string({ minLength: 3, maxLength: 50 }))
+				});
+
+				// child tries to relax parent constraints — rejected at factory time
+
+				expect(() => resource({ extends: Base }, {
+					name: required(string({ minLength: 1, maxLength: 100 }))
+				})).toThrow(RangeError);
+
+			});
+
+			it("enforces grandparent constraints through diamond inheritance", async () => {
+
+				const GrandParent = resource({
+					name: required(string({ minLength: 3 }))
+				});
+
+				const Parent1 = resource({ extends: GrandParent }, {
+					name: required(string({ pattern: "^[A-Z]" }))
+				});
+
+				const Parent2 = resource({ extends: GrandParent }, {
+					name: required(string({ maxLength: 50 }))
+				});
+
+				const Child = resource({ extends: [Parent1, Parent2] }, {
+					name: required(string())
+				});
+
+				// satisfies grandparent (minLength: 3), last parent (maxLength: 50) and child
+
+				expect(validateResource([{ name: "Alice" }], Child)).toBeUndefined();
+
+				// violates grandparent's minLength: 3
+
+				expect(validateResource([{ name: "AB" }], Child)).toHaveProperty(["[0]", "name"]);
+
+				// violates last parent's maxLength: 50
+
+				expect(validateResource([{ name: "A".repeat(51) }], Child)).toHaveProperty(["[0]", "name"]);
+
+			});
+
+		});
+
+		describe("value constraints", () => {
+
+			describe.each([
+
+				{
+					type: "boolean",
+					field: "active",
+					range: required(boolean()),
+					valid: [{ active: true }, { active: false }],
+					invalid: { active: "true" }
+				},
+
+				{
+					type: "number",
+					field: "age",
+					range: required(integer()),
+					valid: [{ age: 42 }],
+					invalid: { age: "forty-two" }
+				},
+
+				{
+					type: "string",
+					field: "name",
+					range: required(string()),
+					valid: [{ name: "Alice" }],
+					invalid: { name: 42 }
+				},
+
+				{
+					type: "local",
+					field: "label",
+					range: required(text()),
+					valid: [{ label: { "en": "Hello" } }],
+					invalid: { label: 42 }
+				},
+
+				{
+					type: "text",
+					field: "labels",
+					range: repeatable(text()),
+					valid: [{ labels: { en: ["Hello"] } }, { labels: { und: ["Hello"] } }],
+					invalid: { labels: 42 }
+				}
+
+			])("$type values", ({ field, range, valid, invalid }) => {
+
+				it("accepts valid value", async () => {
+
+					const shape = resource({ [field]: range });
+
+					for (const v of valid) {
+						expect(validateResource([v], shape)).toBeUndefined();
+					}
+
+				});
+
+				it("rejects invalid value", async () => {
+
+					const shape = resource({ [field]: range });
+
+					expect(validateResource([invalid], shape)).toHaveProperty(["[0]", field]);
+
+				});
+
+			});
+
+			describe("string values", () => {
+
+				it("validates array elements individually", async () => {
+
+					const shape = resource({
+						tags: repeatable(string({ minLength: 2 }))
+					});
+
+					expect(validateResource([{ tags: ["abc", "de", "fgh"] }], shape)).toBeUndefined();
+					expect(validateResource([{ tags: ["abc", "x", "fgh"] }], shape)).toHaveProperty(["[0]", "tags"]);
+
+				});
+
+			});
+
+			describe("resource values", () => {
+
+				it("accepts valid nested resource", async () => {
+
+					const Address = resource({
+						city: required(string())
+					});
+
+					const Person = resource({
+						address: required(Address)
+					});
+
+					expect(validateResource([{ address: { city: "Rome" } }], Person)).toBeUndefined();
+
+				});
+
+				it("rejects invalid nested resource", async () => {
+
+					const Address = resource({
+						city: required(string())
+					});
+
+					const Person = resource({
+						address: required(Address)
+					});
+
+					expect(validateResource([{ address: {} }], Person)).toHaveProperty(["[0]", "address"]);
+
+				});
+
+				it("rejects deeply nested validation failure", async () => {
+
+					const Street = resource({
+						name: required(string({ minLength: 1 }))
+					});
+
+					const Address = resource({
+						street: required(Street)
+					});
+
+					const Person = resource({
+						address: required(Address)
+					});
+
+					expect(validateResource([{
+						address: { street: { name: "" } }
+					}], Person)).toHaveProperty(["[0]", "address"]);
+
+				});
+
+			});
+
+			describe("union values", () => {
+
+				const textOrCount = resource({
+					value: required(union(string(), integer()))
+				});
+
+				const multiUnion = resource({
+					value: repeatable(union(string(), integer()))
+				});
+
+
+				it("accepts a value matching the first variant", async () => {
+
+					expect(validateResource([{ value: "hello" }], textOrCount)).toBeUndefined();
+
+				});
+
+				it("accepts a value matching the second variant", async () => {
+
+					expect(validateResource([{ value: 42 }], textOrCount)).toBeUndefined();
+
+				});
+
+				it("rejects a value matching no variant", async () => {
+
+					expect(validateResource([{ value: true }], textOrCount)).toHaveProperty(["[0]", "value"]);
+
+				});
+
+				it("accepts a heterogeneous array for repeatable union", async () => {
+
+					expect(validateResource([{ value: ["hello", 42, "world"] }], multiUnion)).toBeUndefined();
+
+				});
+
+				it("rejects an array element matching no variant", async () => {
+
+					expect(validateResource([{ value: ["hello", true, 42] }], multiUnion)).toBeDefined();
+
+				});
+
+				it("rejects array for scalar union range", async () => {
+
+					// textOrCount has maxCount=1: array is rejected
+					expect(validateResource([{ value: ["a", "b"] }], textOrCount)).toHaveProperty(["[0]", "value"]);
+
+				});
+
+				it("rejects missing required union property", async () => {
+
+					expect(validateResource([{}], textOrCount)).toHaveProperty(["[0]", "value"]);
+
+				});
+
+				it("accepts inherited union property", async () => {
+
+					const Derived = resource({ extends: textOrCount }, {
+						name: required(string())
+					});
+
+					expect(validateResource([{ value: "hello", name: "Alice" }], Derived)).toBeUndefined();
+					expect(validateResource([{
+						value: true,
+						name: "Alice"
+					}], Derived)).toHaveProperty(["[0]", "value"]);
+
+				});
+
+			});
+
+			describe("union with reference variants", () => {
+
+				const PostalAddress = resource({
+					street: required(string()),
+					city: required(string())
+				});
+
+				const textOrAddress = resource({
+					address: optional(union(
+						string(),
+						reference(PostalAddress)
+					))
+				});
+
+
+				it("accepts a string variant value", async () => {
+
+					expect(validateResource([{ address: "123 Main St" }], textOrAddress)).toBeUndefined();
+
+				});
+
+				it("accepts a reference variant value", async () => {
+
+					expect(validateResource([{
+						address: {
+							street: "12 Harbour Street",
+							city: "Copenhagen"
+						}
+					}], textOrAddress)).toBeUndefined();
+
+				});
+
+				it("rejects a value matching no variant", async () => {
+
+					expect(validateResource([{
+						address: 42
+					}], textOrAddress)).toHaveProperty(["[0]", "address"]);
+
+				});
+
+				it("rejects a reference variant value with an invalid embedded resource", async () => {
+
+					expect(validateResource([{
+						address: {
+							street: "12 Harbour Street"
+							// missing required city
+						}
+					}], textOrAddress)).toHaveProperty(["[0]", "address"]);
+
+				});
+
+				it("accepts an absent optional union property", async () => {
+
+					expect(validateResource([{}], textOrAddress)).toBeUndefined();
+
+				});
+
+				describe("effective cardinality", () => {
+
+					it("accepts union values within cardinality bounds", async () => {
+
+						const bounded = resource({
+							value: cardinality(1, 3)(union(string(), integer()))
+						});
+
+						expect(validateResource([{
+							value: ["a", "b", 42]
+						}], bounded)).toBeUndefined();
+
+					});
+
+					it("rejects union values below minCount", async () => {
+
+						const bounded = resource({
+							value: cardinality(2, 5)(union(string(), integer()))
+						});
+
+						expect(validateResource([{
+							value: ["a"]
+						}], bounded)).toHaveProperty(["[0]", "value"]);
+
+					});
+
+					it("rejects union values above maxCount", async () => {
+
+						const bounded = resource({
+							value: cardinality(1, 2)(union(string(), integer()))
+						});
+
+						expect(validateResource([{
+							value: ["a", "b", 42]
+						}], bounded)).toHaveProperty(["[0]", "value"]);
+
+					});
+
+				});
+
+			});
+
+		});
+
+		describe("combined constraints", () => {
+
+			const validator: Validator = (r) => {
+				return (r as any).name.length <= 50 ? undefined : "name too long";
+			};
+
+			const shape = resource({
+				pattern: "/users/{id}",
+				validators: [validator]
+			}, {
+				id: id(),
+				name: required(string({ minLength: 1 })),
+				age: optional(integer({ minInclusive: 0, maxInclusive: 150 }))
+			});
+
+			it("accepts resource satisfying all constraints", async () => {
+
+				expect(validateResource([{
+					"id": "app:/users/123",
+					name: "Alice",
+					age: 30
+				}], shape)).toBeUndefined();
+
+			});
+
+			it("rejects resource failing pattern constraint", async () => {
+
+				const trace = validateResource([{
+					"id": "/products/123",
+					name: "Alice"
+				}], shape) as Record<string, Trace>;
+				const inner = trace["[0]"] as Record<string, Trace>;
+
+				expect(inner).toHaveProperty("id");
+				expect(inner["id"]).toHaveProperty("{pattern}");
+
+			});
+
+			it("rejects resource failing property constraint", async () => {
+
+				expect(validateResource([{
+					"id": "app:/users/123",
+					name: ""
+				}], shape)).toHaveProperty(["<app:/users/123>", "name"]);
+
+			});
+
+			it("rejects resource failing custom validator", async () => {
+
+				expect(validateResource([{
+					"id": "app:/users/123",
+					name: "A".repeat(100)
+				}], shape)).toBeDefined();
+
+			});
+
+		});
+
+		describe("collection-level keying", () => {
+
+			const shape = resource({
+				id: id(),
+				name: required(string({ minLength: 1 }))
+			});
+
+			const shapeWithoutId = resource({
+				name: required(string({ minLength: 1 }))
+			});
+
+
+			it("wraps single resource trace under id key", async () => {
+
+				const trace = validateResource([{ "id": "app:/users/1", name: "" }], shape) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty("<app:/users/1>");
+				expect(trace["<app:/users/1>"]).toHaveProperty("name");
+
+			});
+
+			it("keys violations by @id for multiple resources", async () => {
+
+				const trace = validateResource([
+					{ "id": "app:/users/1", name: "" },
+					{ "id": "app:/users/2", name: "" }
+				], shape) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty("<app:/users/1>");
+				expect(trace).toHaveProperty("<app:/users/2>");
+
+				expect(trace["<app:/users/1>"]).toHaveProperty("name");
+				expect(trace["<app:/users/2>"]).toHaveProperty("name");
+
+			});
+
+			it("keys violations by blank node for multiple resources without id property", async () => {
+
+				const trace = validateResource([
+					{ name: "" },
+					{ name: "" }
+				], shapeWithoutId) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty("[0]");
+				expect(trace).toHaveProperty("[1]");
+
+			});
+
+			it("uses blank node key for resources with missing @id value", async () => {
+
+				const trace = validateResource([
+					{ name: "" },
+					{ "id": "app:/users/2", name: "" }
+				], shape) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty("[0]");
+				expect(trace).toHaveProperty("<app:/users/2>");
+
+			});
+
+			it("includes only invalid resources in trace", async () => {
+
+				const trace = validateResource([
+					{ "id": "app:/users/1", name: "Alice" },
+					{ "id": "app:/users/2", name: "" }
+				], shape) as Record<string, Trace>;
+
+				expect(trace).not.toHaveProperty("app:/users/1");
+				expect(trace).toHaveProperty("<app:/users/2>");
+
+			});
+
+			it("returns undefined when all resources are valid", async () => {
+
+				expect(validateResource([
+					{ "id": "app:/users/1", name: "Alice" },
+					{ "id": "app:/users/2", name: "Bob" }
+				], shape)).toBeUndefined();
+
+			});
+
+		});
+
+	});
+
+	describe("validateResult", () => {
+
+		describe("structural admissibility", () => {
+
+			it("accepts empty response under empty model", async () => {
+
+				expect(validateResult([{}], { shape: resource({}), model: {} })).toBeUndefined();
+
+			});
+
+			it("rejects non-object value", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				expect(validateResult(["not-a-resource"], { shape, model: { name: "" } })).toBeDefined();
+
+			});
+
+			it("rejects null value", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				expect(validateResult([null], { shape, model: { name: "" } })).toBeDefined();
+
+			});
+
+			it("rejects array in place of a resource", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				expect(validateResult([[{ name: "Alice" }]], { shape, model: { name: "" } })).toBeDefined();
+
+			});
+
+			it("rejects undefined value", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				expect(validateResult([undefined], { shape, model: { name: "" } })).toBeDefined();
+
+			});
+
+			it("reports a malformed model key without throwing", async () => {
+
+				// results come from untrusted sources, so a malformed projection key in the model must
+				// surface as a trace rather than crash the validator
+
+				const shape = resource({ name: required(string()) });
+
+				expect(() => validateResult([{ name: "Alice" }], { shape, model: { "1bad=name": "" } })).not.toThrow();
+				expect(validateResult([{ name: "Alice" }], { shape, model: { "1bad=name": "" } })).toBeDefined();
+
+			});
+
+			it("rejects primitive value", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				expect(validateResult([42], { shape, model: { name: "" } })).toBeDefined();
+
+			});
+
+		});
+
+		describe("client expectations", () => {
+
+			it("rejects response containing shape field absent from model", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					hidden: required(string())
+				});
+
+				const trace = validateResult([{ name: "Alice", hidden: "secret" }], {
+					shape,
+					model: { name: "" }
+				}) as Record<string, Trace>;
+
+				expect(trace["[0]"]).toHaveProperty("hidden");
+
+			});
+
+			it("rejects response containing multiple shape fields absent from model", async () => {
+
+				const shape = resource({
+					a: required(string()),
+					b: required(string()),
+					c: required(string())
+				});
+
+				const trace = validateResult([{ a: "x", b: "y", c: "z" }], {
+					shape,
+					model: { a: "" }
+				}) as Record<string, Trace>;
+
+				expect(trace["[0]"]).toHaveProperty("b");
+				expect(trace["[0]"]).toHaveProperty("c");
+
+			});
+
+			it("rejects nested response containing reference field not in nested model", async () => {
+
+				const Inner = resource({
+					id: id(),
+					label: required(string()),
+					hidden: required(string())
+				});
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				const trace = validateResult([{ child: { label: "x", hidden: "secret" } }], {
+					shape,
+					model: { child: { label: "" } }
+				}) as Record<string, Trace>;
+
+				expect(trace["[0]"]).toBeDefined();
+
+			});
+
+			it("rejects projected id absent from model but present in response", async () => {
+
+				const shape = resource({
+					id: id(),
+					name: required(string())
+				});
+
+				const trace = validateResult([{ id: "app:/users/1", name: "Alice" }], {
+					shape,
+					model: { name: "" }
+				}) as Record<string, Trace>;
+
+				expect(trace["<app:/users/1>"]).toHaveProperty("id");
+
+			});
+
+			it("accepts response containing only keys named in model", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					hidden: required(string())
+				});
+
+				expect(validateResult([{ name: "Alice" }], {
+					shape,
+					model: { name: "" }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects response with property not declared in shape", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const trace = validateResult([{ name: "Alice", stray: "x" }], {
+					shape,
+					model: { name: "", stray: "" }
+				}) as Record<string, Trace>;
+
+				expect(trace["[0]"]).toHaveProperty("stray");
+
+			});
+
+			it("rejects every field when model is empty", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					price: required(integer())
+				});
+
+				const trace = validateResult([{ name: "Alice", price: 42 }], {
+					shape,
+					model: {}
+				}) as Record<string, Trace>;
+
+				expect(trace["[0]"]).toHaveProperty("name");
+				expect(trace["[0]"]).toHaveProperty("price");
+
+			});
+
+			it("rejects inherited parent field absent from model", async () => {
+
+				const Base = resource({
+					code: required(integer())
+				});
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string())
+				});
+
+				// model projects only `name`; `code` is inherited from Base but not requested — reject
+				const trace = validateResult([{ code: 1, name: "Alice" }], {
+					shape: Derived,
+					model: { name: "" }
+				}) as Record<string, Trace>;
+
+				expect(trace["[0]"]).toHaveProperty("code");
+
+			});
+
+		});
+
+		describe("partial resources", () => {
+
+			it("accepts response omitting shape-required field absent from model", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					price: required(integer())
+				});
+
+				expect(validateResult([{ price: 42 }], { shape, model: { price: 0 } })).toBeUndefined();
+
+			});
+
+			it("accepts response omitting multiple shape-required fields absent from model", async () => {
+
+				const shape = resource({
+					a: required(string()),
+					b: required(string()),
+					c: required(integer())
+				});
+
+				expect(validateResult([{ c: 1 }], { shape, model: { c: 0 } })).toBeUndefined();
+
+			});
+
+			it("accepts response with projected optional field absent", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					note: optional(string())
+				});
+
+				expect(validateResult([{ name: "Alice" }], {
+					shape,
+					model: { name: "", note: "" }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects response missing a projected required field", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					price: required(integer())
+				});
+
+				expect(validateResult([{ name: "Widget" }], {
+					shape,
+					model: { name: "", price: 0 }
+				})).toBeDefined();
+
+			});
+
+			it("rejects response with empty array for projected repeatable field", async () => {
+
+				const shape = resource({
+					tags: repeatable(string())
+				});
+
+				expect(validateResult([{ tags: [] }], { shape, model: { tags: [""] } })).toBeDefined();
+
+			});
+
+		});
+
+		describe("projected fields", () => {
+
+			it("rejects wrong type for projected scalar field", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					price: required(integer())
+				});
+
+				expect(validateResult([{ name: "Widget", price: "NaN" }], {
+					shape,
+					model: { name: "", price: 0 }
+				})).toBeDefined();
+
+			});
+
+			it("rejects projected field violating a value constraint", async () => {
+
+				const shape = resource({
+					name: required(string({ minLength: 2 }))
+				});
+
+				expect(validateResult([{ name: "x" }], { shape, model: { name: "" } })).toBeDefined();
+
+			});
+
+			it("accepts projected field satisfying a value constraint", async () => {
+
+				const shape = resource({
+					name: required(string({ minLength: 2 }))
+				});
+
+				expect(validateResult([{ name: "abc" }], { shape, model: { name: "" } })).toBeUndefined();
+
+			});
+
+			it("rejects array value for a projected scalar field", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				expect(validateResult([{ name: ["one", "two"] }], {
+					shape,
+					model: { name: "" }
+				})).toBeDefined();
+
+			});
+
+			it("accepts multi-value response for a projected repeatable field", async () => {
+
+				const shape = resource({
+					tags: repeatable(string())
+				});
+
+				expect(validateResult([{ tags: ["a", "b", "c"] }], {
+					shape,
+					model: { tags: [""] }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects projected field violating a pattern constraint", async () => {
+
+				const shape = resource({
+					code: required(string({ pattern: "^[A-Z]{3}$" }))
+				});
+
+				expect(validateResult([{ code: "ab" }], { shape, model: { code: "" } })).toBeDefined();
+
+			});
+
+			it("accepts projected localised field with language-tagged map", async () => {
+
+				const shape = resource({
+					label: required(text())
+				});
+
+				expect(validateResult([{ label: { en: "hello" } }], {
+					shape,
+					model: { label: { en: "" } }
+				})).toBeUndefined();
+
+			});
+
+			describe("coalesced localised slots", () => {
+
+				// a plain-string model entry over a single-string-per-tag localised slot requests the
+				// coalesced label: the response carries the one rendered string; length bounds apply
+				// to it, languageIn does not (coalescing discards the winning tag)
+
+				it("accepts string response on coalesced localised slot", async () => {
+
+					const shape = resource({ label: required(text()) });
+
+					expect(validateResult([{ label: "Widget" }], { shape, model: { label: "" } })).toBeUndefined();
+
+				});
+
+				it("accepts string response on coalesced projection binding", async () => {
+
+					const shape = resource({ label: required(text()) });
+
+					expect(validateResult([{ alias: "Widget" }], { shape, model: { "alias=label": "" } })).toBeUndefined();
+
+				});
+
+				it("rejects tag-map response on coalesced localised slot", async () => {
+
+					const shape = resource({ label: required(text()) });
+
+					expect(validateResult([{ label: { en: "Widget" } }], { shape, model: { label: "" } })).toBeDefined();
+
+				});
+
+				it("rejects coalesced response shorter than shape's minLength", async () => {
+
+					const shape = resource({ label: required(text({ minLength: 3 })) });
+
+					expect(validateResult([{ label: "ab" }], { shape, model: { label: "" } })).toEqual({
+						"[0]": { label: { "{minLength}": "expected string length >= <3>" } }
+					});
+
+				});
+
+				it("rejects coalesced response longer than shape's maxLength", async () => {
+
+					const shape = resource({ label: required(text({ maxLength: 3 })) });
+
+					expect(validateResult([{ label: "abcd" }], { shape, model: { label: "" } })).toBeDefined();
+
+				});
+
+				it("skips languageIn on coalesced response", async () => {
+
+					const shape = resource({ label: required(text({ languageIn: ["en"] })) });
+
+					expect(validateResult([{ label: "Widget" }], { shape, model: { label: "" } })).toBeUndefined();
+
+				});
+
+				it("treats absent value as missing on required coalesced slot", async () => {
+
+					const shape = resource({ label: required(text()) });
+
+					expect(validateResult([{}], { shape, model: { label: "" } })).toBeDefined();
+
+				});
+
+				it("accepts absent value on optional coalesced slot", async () => {
+
+					const shape = resource({ label: optional(text()) });
+
+					expect(validateResult([{}], { shape, model: { label: "" } })).toBeUndefined();
+
+				});
+
+			});
+
+			describe("coalesced array localised slots", () => {
+
+				// a `[""]` model entry over an array-per-tag localised slot requests the coalesced array
+				// label: the response carries the winning tag's value set as a string array; length bounds
+				// apply per element, languageIn does not (coalescing discards the winning tag)
+
+				it("accepts string-array response on coalesced array localised slot", async () => {
+
+					const shape = resource({ keywords: repeatable(text()) });
+
+					expect(validateResult([{ keywords: ["alpha", "beta"] }], { shape, model: { keywords: [""] } })).toBeUndefined();
+
+				});
+
+				it("rejects tag-map response on coalesced array localised slot", async () => {
+
+					const shape = resource({ keywords: repeatable(text()) });
+
+					expect(validateResult([{ keywords: { en: ["alpha"] } }], { shape, model: { keywords: [""] } })).toBeDefined();
+
+				});
+
+				it("rejects scalar string response on coalesced array localised slot", async () => {
+
+					const shape = resource({ keywords: repeatable(text()) });
+
+					expect(validateResult([{ keywords: "alpha" }], { shape, model: { keywords: [""] } })).toBeDefined();
+
+				});
+
+				it("rejects coalesced array element shorter than shape's minLength", async () => {
+
+					const shape = resource({ keywords: repeatable(text({ minLength: 3 })) });
+
+					expect(validateResult([{ keywords: ["ab"] }], { shape, model: { keywords: [""] } })).toBeDefined();
+
+				});
+
+				it("skips languageIn on coalesced array response", async () => {
+
+					const shape = resource({ keywords: repeatable(text({ languageIn: ["en"] })) });
+
+					expect(validateResult([{ keywords: ["alpha", "beta"] }], { shape, model: { keywords: [""] } })).toBeUndefined();
+
+				});
+
+			});
+
+		});
+
+		describe("expanded nested references", () => {
+
+			const Inner = resource({
+				id: id(),
+				label: required(string()),
+				hidden: required(string())
+			});
+
+			it("accepts bare IRI for reference slot", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				expect(validateResult([{ child: "app:/inner/1" }], {
+					shape,
+					model: { child: "" }
+				})).toBeUndefined();
+
+			});
+
+			it("accepts expanded nested resource for reference slot", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				expect(validateResult([{ child: { id: "app:/inner/1", label: "x" } }], {
+					shape,
+					model: { child: { id: "", label: "" } }
+				})).toBeUndefined();
+
+			});
+
+			it("narrows nested validation to the nested projection in model", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				// nested model omits `hidden` (required in Inner); value also omits it
+				expect(validateResult([{ child: { label: "x" } }], {
+					shape,
+					model: { child: { label: "" } }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects expanded nested resource violating a projected nested field", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				expect(validateResult([{ child: { label: 42 } }], {
+					shape,
+					model: { child: { label: "" } }
+				})).toBeDefined();
+
+			});
+
+			it("rejects expanded nested resource missing a projected required field", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				expect(validateResult([{ child: {} }], {
+					shape,
+					model: { child: { label: "" } }
+				})).toBeDefined();
+
+			});
+
+			it("rejects expanded nested resource with property not declared in nested shape", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				expect(validateResult([{ child: { label: "x", stray: true } }], {
+					shape,
+					model: { child: { label: "", stray: "" } }
+				})).toBeDefined();
+
+			});
+
+			it("rejects expanded nested resource with shape field absent from nested model", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				expect(validateResult([{ child: { label: "x", hidden: "secret" } }], {
+					shape,
+					model: { child: { label: "" } }
+				})).toBeDefined();
+
+			});
+
+			it("accepts repeatable reference with mixed IRI and expanded resource", async () => {
+
+				const shape = resource({
+					items: repeatable(reference(Inner))
+				});
+
+				expect(validateResult([{ items: ["app:/inner/1", { label: "x" }] }], {
+					shape,
+					model: { items: [{ label: "" }] }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects invalid IRI string for reference slot", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				expect(validateResult([{ child: "not an iri" }], {
+					shape,
+					model: { child: "" }
+				})).toBeDefined();
+
+			});
+
+			it("recurses through multiple levels of nested references", async () => {
+
+				const Leaf = resource({
+					id: id(),
+					label: required(string())
+				});
+
+				const Mid = resource({
+					id: id(),
+					leaf: required(reference(Leaf))
+				});
+
+				const shape = resource({
+					mid: required(reference(Mid))
+				});
+
+				expect(validateResult([{ mid: { leaf: { label: "x" } } }], {
+					shape,
+					model: { mid: { leaf: { label: "" } } }
+				})).toBeUndefined();
+
+			});
+
+			it("accepts optional reference slot absent from response", async () => {
+
+				const shape = resource({
+					child: optional(reference(Inner))
+				});
+
+				expect(validateResult([{}], {
+					shape,
+					model: { child: { label: "" } }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects null in required reference slot", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				expect(validateResult([{ child: null }], {
+					shape,
+					model: { child: "" }
+				})).toBeDefined();
+
+			});
+
+		});
+
+		describe("id and type", () => {
+
+			it("accepts projected id", async () => {
+
+				const shape = resource({
+					id: id(),
+					name: required(string())
+				});
+
+				expect(validateResult([{ id: "app:/users/1", name: "Alice" }], {
+					shape,
+					model: { id: "", name: "" }
+				})).toBeUndefined();
+
+			});
+
+			it("accepts projected type", async () => {
+
+				const shape = resource({
+					type: type(),
+					name: required(string())
+				});
+
+				expect(validateResult([{ type: "app:/types/Person", name: "Alice" }], {
+					shape,
+					model: { type: "", name: "" }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects invalid IRI for projected id", async () => {
+
+				const shape = resource({
+					id: id(),
+					name: required(string())
+				});
+
+				expect(validateResult([{ id: "not-an-iri", name: "Alice" }], {
+					shape,
+					model: { id: "", name: "" }
+				})).toBeDefined();
+
+			});
+
+			it("rejects non-IRI for projected type", async () => {
+
+				const shape = resource({
+					type: type(),
+					name: required(string())
+				});
+
+				expect(validateResult([{ type: 42, name: "Alice" }], {
+					shape,
+					model: { type: "", name: "" }
+				})).toBeDefined();
+
+			});
+
+			it("rejects projected id violating pattern constraint", async () => {
+
+				const shape = resource({ pattern: "/users/*" }, {
+					id: id(),
+					name: required(string())
+				});
+
+				expect(validateResult([{ id: "app:/products/1", name: "Alice" }], {
+					shape,
+					model: { id: "", name: "" }
+				})).toBeDefined();
+
+			});
+
+			it("rejects projected id not in allowed set", async () => {
+
+				const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, {
+					id: id(),
+					name: required(string())
+				});
+
+				expect(validateResult([{ id: "app:/users/99", name: "Alice" }], {
+					shape,
+					model: { id: "", name: "" }
+				})).toBeDefined();
+
+			});
+
+		});
+
+		describe("entry", () => {
+
+			it("accepts response when id matches entry", async () => {
+
+				const shape = resource({
+					id: id(),
+					name: required(string())
+				});
+
+				expect(validateResult([{ id: "app:/users/1", name: "Alice" }], {
+					shape,
+					model: { id: "", name: "" },
+					entry: "app:/users/1"
+				})).toBeUndefined();
+
+			});
+
+			it("rejects response when id does not match entry", async () => {
+
+				const shape = resource({
+					id: id(),
+					name: required(string())
+				});
+
+				expect(validateResult([{ id: "app:/users/2", name: "Alice" }], {
+					shape,
+					model: { id: "", name: "" },
+					entry: "app:/users/1"
+				})).toBeDefined();
+
+			});
+
+			it("ignores entry when id not in response", async () => {
+
+				const shape = resource({
+					id: id(),
+					name: required(string())
+				});
+
+				expect(validateResult([{ name: "Alice" }], {
+					shape,
+					model: { name: "" },
+					entry: "app:/users/1"
+				})).toBeUndefined();
+
+			});
+
+		});
+
+		describe("foreign references", () => {
+
+			const Target = resource({ id: id(), label: required(string()) });
+
+			it("accepts response without foreign property when not projected", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					children: multiple(reference(Target, { foreign: true }))
+				});
+
+				expect(validateResult([{ name: "Alice" }], {
+					shape,
+					model: { name: "" }
+				})).toBeUndefined();
+
+			});
+
+			it("accepts projected foreign reference property in response", async () => {
+
+				// responses describe retrieval results; foreign references are queryable through the
+				// inverse relationship and may legitimately appear when explicitly projected
+
+				const shape = resource({
+					name: required(string()),
+					children: multiple(reference(Target, { foreign: true }))
+				});
+
+				expect(validateResult([{ name: "Alice", children: ["app:/items/1"] }], {
+					shape,
+					model: { name: "", children: [""] }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects foreign reference property not projected but present in response", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					children: multiple(reference(Target, { foreign: true }))
+				});
+
+				expect(validateResult([{ name: "Alice", children: ["app:/items/1"] }], {
+					shape,
+					model: { name: "" }
+				})).toBeDefined();
+
+			});
+
+		});
+
+		describe("unions", () => {
+
+			const Book = resource({ type: type(), title: required(string()) });
+			const Song = resource({ type: type(), duration: required(integer()) });
+
+			it("accepts projection matching one union variant", async () => {
+
+				const shape = resource({
+					item: required(union(Book, Song))
+				});
+
+				expect(validateResult([{ item: { title: "Dune" } }], {
+					shape,
+					model: { item: { title: "" } }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects projection matching no union variant", async () => {
+
+				const shape = resource({
+					item: required(union(Book, Song))
+				});
+
+				// nested value has neither a title (Book) nor a duration (Song)
+				expect(validateResult([{ item: { stray: "x" } }], {
+					shape,
+					model: { item: { stray: "" } }
+				})).toBeDefined();
+
+			});
+
+			describe("template forms", () => {
+
+				// a union value reaches result validation in one of two model forms: a `Union`
+				// (canonical-index keys mapping to per-branch placeholders) or a plain placeholder.
+				// validateProjectionUnion unwraps each before recursing per variant, since index keys
+				// are not valid Probe identifiers and would crash decodeProbe in validateResult. The
+				// legacy empty-string default form is obsolete: `""` is not a valid union index.
+
+				const Address = resource({
+					street: required(string()),
+					city: required(string())
+				});
+
+				const optionalUnion = resource({
+					contact: optional(union(string(), Address))
+				});
+
+				const multiUnion = resource({
+					contacts: multiple(union(string(), Address))
+				});
+
+				it("accepts union form selecting the resource variant", async () => {
+
+					expect(validateResult([{ contact: { street: "Main St", city: "Springfield" } }], {
+						shape: optionalUnion,
+						model: { contact: { "1": { street: "", city: "" } } }
+					})).toBeUndefined();
+
+				});
+
+				it("accepts union form selecting the primitive variant", async () => {
+
+					expect(validateResult([{ contact: "literal" }], {
+						shape: optionalUnion,
+						model: { contact: { "0": "" } }
+					})).toBeUndefined();
+
+				});
+
+				it("accepts union form covering all variants", async () => {
+
+					expect(validateResult([{ contact: { street: "Main St", city: "Springfield" } }], {
+						shape: optionalUnion,
+						model: { contact: { "0": "", "1": { street: "", city: "" } } }
+					})).toBeUndefined();
+
+				});
+
+				it("rejects the obsolete empty-string default form", async () => {
+
+					// `""` is not a valid union index
+
+					expect(validateResult([{ contact: { street: "Main St", city: "Springfield" } }], {
+						shape: optionalUnion,
+						model: { contact: { "": { street: "", city: "" } } }
+					})).toBeDefined();
+
+				});
+
+				it("rejects an out-of-range variant index", async () => {
+
+					expect(validateResult([{ contact: "literal" }], {
+						shape: optionalUnion,
+						model: { contact: { "5": "" } }
+					})).toBeDefined();
+
+				});
+
+				it("rejects a non-canonical variant index", async () => {
+
+					expect(validateResult([{ contact: "literal" }], {
+						shape: optionalUnion,
+						model: { contact: { "01": "" } }
+					})).toBeDefined();
+
+				});
+
+				it("accepts auto-generated union-form model for primitive union", async () => {
+
+					// resource(...).model auto-generates the union form for any union range —
+					// `{ value: { "0": "", "1": 1 } }` for `union(string(), integer())`. The
+					// validator MUST accept its own auto-generated models without crashing
+					// decodeProbe on the bare-integer keys.
+
+					const auto = resource({
+						value: required(union(string(), integer()))
+					});
+
+					expect(validateResult([{ value: "literal" }], {
+						shape: auto,
+						model: auto.model
+					})).toBeUndefined();
+
+				});
+
+				it("accepts singleton-tuple union form for multi-valued union", async () => {
+
+					expect(validateResult([{ contacts: ["a@b.com", { street: "Main", city: "X" }] }], {
+						shape: multiUnion,
+						model: { contacts: [{ "0": "", "1": { street: "", city: "" } }] }
+					})).toBeUndefined();
+
+				});
+
+				it("rejects union form with placeholder mismatching its variant", async () => {
+
+					// union form `"1": { street: "", city: "" }` selects the Address variant;
+					// a primitive value MUST NOT satisfy that variant
+					expect(validateResult([{ contact: "literal" }], {
+						shape: optionalUnion,
+						model: { contact: { "1": { street: "", city: "" } } }
+					})).toBeDefined();
+
+				});
+
+			});
+
+		});
+
+		describe("inheritance", () => {
+
+			it("validates properties inherited from parent shape", async () => {
+
+				const Base = resource({
+					code: required(integer())
+				});
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string())
+				});
+
+				expect(validateResult([{ code: 1, name: "Alice" }], {
+					shape: Derived,
+					model: { code: 0, name: "" }
+				})).toBeUndefined();
+
+			});
+
+			it("applies partial projection to inherited properties", async () => {
+
+				const Base = resource({
+					code: required(integer()),
+					secret: required(string())
+				});
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string())
+				});
+
+				expect(validateResult([{ name: "Alice" }], {
+					shape: Derived,
+					model: { name: "" }
+				})).toBeUndefined();
+
+			});
+
+			it("narrows a union slot to a single variant and validates against it", async () => {
+
+				const Base = resource({
+					contact: required(union(string(), integer()))
+				});
+
+				const Derived = resource({ extends: Base }, {
+					contact: required(string({ minLength: 3 }))
+				});
+
+				expect(Derived.model).toEqual({ contact: "" });
+
+				expect(validateResult([{ contact: "abc" }], {
+					shape: Derived,
+					model: { contact: "" }
+				})).toBeUndefined();
+
+				expect(validateResult([{ contact: 42 }], {
+					shape: Derived,
+					model: { contact: "" }
+				})).toBeDefined();
+
+				expect(validateResult([{ contact: "ab" }], {
+					shape: Derived,
+					model: { contact: "" }
+				})).toBeDefined();
+
+			});
+
+			it("subsets a union slot and validates against surviving variants", async () => {
+
+				const Base = resource({
+					value: required(union(string(), integer(), boolean()))
+				});
+
+				const Derived = resource({ extends: Base }, {
+					value: required(union(string(), integer()))
+				});
+
+				expect(Derived.model).toEqual({ value: { "0": "", "1": 1 } });
+
+				expect(validateResult([{ value: "abc" }], {
+					shape: Derived,
+					model: { value: { "0": "", "1": 1 } }
+				})).toBeUndefined();
+
+				expect(validateResult([{ value: 42 }], {
+					shape: Derived,
+					model: { value: { "0": "", "1": 1 } }
+				})).toBeUndefined();
+
+				expect(validateResult([{ value: true }], {
+					shape: Derived,
+					model: { value: { "0": "", "1": 1 } }
+				})).toBeDefined();
+
+			});
+
+		});
+
+		describe("collection keying", () => {
+
+			const shape = resource({
+				id: id(),
+				name: required(string())
+			});
+
+			it("keys traces by resource id when present", async () => {
+
+				const trace = validateResult([{ id: "app:/users/1", name: 42 }], {
+					shape,
+					model: { id: "", name: "" }
+				}) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty("<app:/users/1>");
+
+			});
+
+			it("keys traces by index when id absent", async () => {
+
+				const trace = validateResult([{ name: 42 }], {
+					shape,
+					model: { name: "" }
+				}) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty("[0]");
+
+			});
+
+			it("returns undefined when all responses are valid", async () => {
+
+				expect(validateResult([
+					{ id: "app:/users/1", name: "Alice" },
+					{ id: "app:/users/2", name: "Bob" }
+				], { shape, model: { id: "", name: "" } })).toBeUndefined();
+
+			});
+
+			it("traces only invalid responses in a mixed collection", async () => {
+
+				const trace = validateResult([
+					{ id: "app:/users/1", name: "Alice" },
+					{ id: "app:/users/2", name: 42 }
+				], { shape, model: { id: "", name: "" } }) as Record<string, Trace>;
+
+				expect(trace).not.toHaveProperty("<app:/users/1>");
+				expect(trace).toHaveProperty("<app:/users/2>");
+
+			});
+
+		});
+
+		describe("custom validators", () => {
+
+			it("runs custom validators on projected responses", async () => {
+
+				const adult: Validator = value =>
+					(value as Record<string, unknown>).age !== undefined
+					&& (value as { age: number }).age < 18
+						? "under-age"
+						: undefined;
+
+				const shape = resource(
+					{ validators: [adult] },
+					{ age: required(integer()) }
+				);
+
+				expect(validateResult([{ age: 25 }], { shape, model: { age: 0 } })).toBeUndefined();
+				expect(validateResult([{ age: 15 }], { shape, model: { age: 0 } })).toBeDefined();
+
+			});
+
+			it("keys validator trace by validator name", async () => {
+
+				function adult(value: unknown): undefined | Trace {
+					return (value as { age: number }).age < 18 ? "under-age" : undefined;
+				}
+
+				const shape = resource(
+					{ validators: [adult] },
+					{ age: required(integer()) }
+				);
+
+				const trace = validateResult([{ age: 15 }], {
+					shape,
+					model: { age: 0 }
+				}) as Record<string, Trace>;
+
+				expect(trace["[0]"]).toHaveProperty("{adult}");
+
+			});
+
+		});
+
+		describe("aliased bindings", () => {
+
+			it("validates aliased binding against the resolved shape property", async () => {
+
+				const shape = resource({
+					name: required(string({ minLength: 2 }))
+				});
+
+				// model alias `n` resolves to `name`; value key must match the alias
+				expect(validateResult([{ n: "Alice" }], {
+					shape,
+					model: { "n=name": "" }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects aliased binding when value violates the resolved shape", async () => {
+
+				const shape = resource({
+					name: required(string({ minLength: 2 }))
+				});
+
+				expect(validateResult([{ n: "x" }], {
+					shape,
+					model: { "n=name": "" }
+				})).toBeDefined();
+
+			});
+
+			it("accepts aliased binding with multi-transform pipe over multi-step path", async () => {
+
+				// `nameLen=abs:length:vendor.name` — the alias `nameLen` is fresh (no slot in
+				// the shape), the path traverses through a reference, and the pipe composes
+				// two transforms whose composite output type is integer. validateProjection
+				// MUST resolve the binding via the path (not the alias target) and derive the
+				// projected range from the pipe's output type.
+
+				const Vendor = resource({ name: required(string()) });
+
+				const shape = resource({
+					vendor: required(reference(Vendor))
+				});
+
+				expect(validateResult([{ nameLen: 7 }], {
+					shape,
+					model: { "nameLen=abs:length:vendor.name": 0 }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects aliased multi-transform binding when value violates pipe output type", async () => {
+
+				// the projected range from `length` is integer; a string response MUST be
+				// rejected by the resolved range, not by a fallback "undefined property path"
+				// branch that would mask the type mismatch.
+
+				const Vendor = resource({ name: required(string()) });
+
+				const shape = resource({
+					vendor: required(reference(Vendor))
+				});
+
+				expect(validateResult([{ nameLen: "not-a-number" }], {
+					shape,
+					model: { "nameLen=abs:length:vendor.name": 0 }
+				})).toBeDefined();
+
+			});
+
+		});
+
+		describe("selection bindings", () => {
+
+			it("ignores query selection bindings in model", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				// `<name` and `#` are query filters/pagination; they do not map to response keys
+				expect(validateResult([{ name: "Alice" }], {
+					shape,
+					model: { name: "", "<name": "zzz", "#": 10 }
+				})).toBeUndefined();
+
+			});
+
+		});
+
+		describe("model as authoritative contract", () => {
+
+			// the projection-aware validator treats the model template as the authoritative
+			// contract for what to validate; the shape supplies leaf details and constraints
+			// but does not override what the model narrows away
+
+			it("accepts response omitting slot elided via empty-template model", async () => {
+
+				// empty-template elision: `vendor: {}` in the model requests no projection of
+				// `vendor`; the shape's `required` constraint on the source slot must not be
+				// re-applied to the absent response key
+
+				const Vendor = resource({ name: required(string()) });
+
+				const shape = resource({
+					price: required(integer()),
+					vendor: required(reference(Vendor))
+				});
+
+				expect(validateResult([{ price: 42 }], {
+					shape,
+					model: { price: 0, vendor: {} }
+				})).toBeUndefined();
+
+			});
+
+			it("validates transform output against model-narrowed shape, not source constraints", async () => {
+
+				// a binding with a transform (`lowerSku=lower:sku`) produces a projected field
+				// whose shape is narrowed by the model to bare `string`; the source `sku`
+				// field's `pattern` constraint must not be carried through the transform onto
+				// the projected output
+
+				const shape = resource({
+					sku: required(string({ pattern: /^[A-Z0-9-]+$/ }))
+				});
+
+				expect(validateResult([{ lowerSku: "abc-123" }], {
+					shape,
+					model: { "lowerSku=lower:sku": "" }
+				})).toBeUndefined();
+
+			});
+
+			it("accepts array-of-tag-maps response for multi-localised when model narrows tag", async () => {
+
+				// the model's per-element tag projection (`[{en: ""}]`) authoritatively narrows
+				// the localised contract to `en`; the validator must not normalise the array of
+				// tag-maps to a canonical `und` form and then reject its object elements
+
+				const shape = resource({
+					keywords: multiple(text())
+				});
+
+				expect(validateResult([{ keywords: [{ en: "foo" }, { en: "bar" }] }], {
+					shape,
+					model: { keywords: [{ en: "" }] }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects projected localised tag value shorter than shape's minLength", async () => {
+
+				// the localised shape's `minLength` constraint applies to each projected tag
+				// value at runtime, not only to canonical-form responses
+
+				const shape = resource({
+					keywords: multiple(text({ minLength: 3 }))
+				});
+
+				expect(validateResult([{ keywords: [{ en: "ab" }] }], {
+					shape,
+					model: { keywords: [{ en: "" }] }
+				})).toBeDefined();
+
+			});
+
+			it("rejects projected localised tag value longer than shape's maxLength", async () => {
+
+				// the localised shape's `maxLength` constraint applies to each projected tag
+				// value at runtime, not only to canonical-form responses
+
+				const shape = resource({
+					keywords: multiple(text({ maxLength: 3 }))
+				});
+
+				expect(validateResult([{ keywords: [{ en: "abcd" }] }], {
+					shape,
+					model: { keywords: [{ en: "" }] }
+				})).toBeDefined();
+
+			});
+
+			it("rejects projected localised tag outside shape's languageIn range", async () => {
+
+				// the localised shape's `languageIn` constraint applies to each projected tag
+				// key at runtime, matching the behaviour of canonical-form validation
+
+				const shape = resource({
+					keywords: multiple(text({ languageIn: ["en"] }))
+				});
+
+				expect(validateResult([{ keywords: [{ fr: "foo" }] }], {
+					shape,
+					model: { keywords: [{ fr: "" }] }
+				})).toBeDefined();
+
+			});
+
+			it("accepts per-element tag-map array for wildcard tag-range projection", async () => {
+
+				// `multiple(text())` auto-generates the wildcard model `{ "*": [""] }`,
+				// requesting per-tag map-array form. The validator MUST recognise the wildcard
+				// as a per-element tag-map projection and accept the array-of-tag-maps response
+				// instead of falling back to the canonical und-keyed shape.
+
+				const shape = resource({
+					keywords: multiple(text())
+				});
+
+				expect(validateResult([{ keywords: [{ en: "foo" }, { en: "bar" }] }], {
+					shape,
+					model: shape.model
+				})).toBeUndefined();
+
+			});
+
+			it("treats empty map response as absence on optional projected localised", async () => {
+
+				// an absent optional localised slot returns `{}` from the adapter; per the
+				// absence-semantics axis, `{}` MUST be treated as elision rather than triggering
+				// missing-tag checks against the projected tag set.
+
+				const shape = resource({
+					description: optional(text({ en: "" }))
+				});
+
+				expect(validateResult([{ description: {} }], {
+					shape,
+					model: { description: { en: "" } }
+				})).toBeUndefined();
+
+			});
+
+			it("treats empty array response as absence on multi-valued projected localised", async () => {
+
+				// the absence contract extends to the multi-valued form: an empty array is
+				// equivalent to omission and MUST NOT trigger element-presence checks.
+
+				const shape = resource({
+					keywords: multiple(text({ en: "" }))
+				});
+
+				expect(validateResult([{ keywords: [] }], {
+					shape,
+					model: { keywords: [{ en: "" }] }
+				})).toBeUndefined();
+
+			});
+
+		});
+
+		describe("shape constraint coverage", () => {
+
+			// every value-level shape constraint MUST be enforced by validateResult against
+			// retrieval results; these tests close coverage gaps where the constraint was only
+			// exercised by validateResource / validateTemplate but not by validateResult
+
+			it("rejects number below minInclusive", async () => {
+
+				const shape = resource({
+					age: required(integer({ minInclusive: 0 }))
+				});
+
+				expect(validateResult([{ age: -1 }], { shape, model: { age: 0 } })).toBeDefined();
+
+			});
+
+			it("rejects number above maxInclusive", async () => {
+
+				const shape = resource({
+					age: required(integer({ maxInclusive: 150 }))
+				});
+
+				expect(validateResult([{ age: 151 }], { shape, model: { age: 0 } })).toBeDefined();
+
+			});
+
+			it("rejects number at minExclusive boundary", async () => {
+
+				const shape = resource({
+					score: required(integer({ minExclusive: 0 }))
+				});
+
+				expect(validateResult([{ score: 0 }], { shape, model: { score: 0 } })).toBeDefined();
+
+			});
+
+			it("rejects number at maxExclusive boundary", async () => {
+
+				const shape = resource({
+					score: required(integer({ maxExclusive: 100 }))
+				});
+
+				expect(validateResult([{ score: 100 }], { shape, model: { score: 0 } })).toBeDefined();
+
+			});
+
+			it("rejects number outside in-set", async () => {
+
+				const shape = resource({
+					rating: required(integer({ in: [1, 2, 3] }))
+				});
+
+				expect(validateResult([{ rating: 5 }], { shape, model: { rating: 0 } })).toBeDefined();
+
+			});
+
+			it("rejects response missing number required by hasValue", async () => {
+
+				const shape = resource({
+					codes: repeatable(integer({ hasValue: [42] }))
+				});
+
+				expect(validateResult([{ codes: [1, 2] }], { shape, model: { codes: [0] } })).toBeDefined();
+
+			});
+
+			it("rejects response missing string required by hasValue", async () => {
+
+				const shape = resource({
+					tags: repeatable(string({ hasValue: ["required"] }))
+				});
+
+				expect(validateResult([{ tags: ["a", "b"] }], { shape, model: { tags: [""] } })).toBeDefined();
+
+			});
+
+			it("rejects array exceeding maxCount", async () => {
+
+				const shape = resource({
+					tags: cardinality(undefined, 2)(string())
+				});
+
+				expect(validateResult([{ tags: ["a", "b", "c"] }], { shape, model: { tags: [""] } })).toBeDefined();
+
+			});
+
+		});
+
+	});
+
+	describe("validateTemplate", () => {
+
+		describe("resource constraints", () => {
+
+			describe("binding resolution", () => {
+
+				it("accepts empty model on empty shape", async () => {
+
+					const shape = resource({});
+
+					expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("accepts model with only defined properties", async () => {
+
+					const shape = resource({
+						name: required(string()),
+						age: optional(integer())
+					});
+
+					expect(validateTemplate([{ name: "Alice", age: 30 }], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("accepts declared id property", async () => {
+
+					const shape = resource({
+						id: id(),
+						name: required(string())
+					});
+
+					expect(validateTemplate([{
+						"id": "app:/users/123",
+						name: "Alice"
+					}], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("accepts properties from inherited shape", async () => {
+
+					const Base = resource({
+						id: required(integer())
+					});
+
+					const Derived = resource({ extends: Base }, {
+						name: required(string())
+					});
+
+					expect(validateTemplate([{ id: 1, name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("rejects unknown binding on empty shape", async () => {
+
+					// name is shorthand for name=name → apply() returns "undefined property path"
+
+					const shape = resource({});
+
+					expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toEqual({
+						"[0]": { "name": "undefined property path" }
+					});
+
+				});
+
+				it("rejects unknown binding", async () => {
+
+					// extra=extra → apply() returns "undefined property path"
+
+					const shape = resource({
+						name: required(string())
+					});
+
+					expect(validateTemplate([{ name: "Alice", extra: "value" }], shape, { depth: 0 })).toEqual({
+						"[0]": { "extra": "undefined property path" }
+					});
+
+				});
+
+				it("rejects multiple unknown bindings", async () => {
+
+					const shape = resource({
+						name: required(string())
+					});
+
+					expect(validateTemplate([{
+						name: "Alice",
+						extra1: "a",
+						extra2: "b"
+					}], shape, { depth: 0 })).toEqual({
+						"[0]": {
+							"extra1": "undefined property path",
+							"extra2": "undefined property path"
+						}
+					});
+
+				});
+
+				it("rejects undeclared id binding", async () => {
+
+					// id=id → apply() returns "undefined property path" (id entry not declared)
+
+					const shape = resource({
+						name: required(string())
+					});
+
+					expect(validateTemplate([{
+						"id": "app:/users/123",
+						name: "Alice"
+					}], shape, { depth: 0 })).toEqual({
+						"[0]": { "id": "undefined property path" }
+					});
+
+				});
+
+				it("rejects unknown binding alongside declared id", async () => {
+
+					// extra=extra → apply() returns "undefined property path"
+
+					const shape = resource({
+						id: id(),
+						name: required(string())
+					});
+
+					expect(validateTemplate([{
+						"id": "app:/users/123",
+						name: "Alice",
+						extra: "value"
+					}], shape, { depth: 0 })).toEqual({
+						"<app:/users/123>": { "extra": "undefined property path" }
+					});
+
+				});
+
+				it("rejects unknown binding in derived shape", async () => {
+
+					const Base = resource({
+						id: required(integer())
+					});
+
+					const Derived = resource({ extends: Base }, {
+						name: required(string())
+					});
+
+					expect(validateTemplate([{
+						id: 1,
+						name: "Alice",
+						extra: "value"
+					}], Derived, { depth: 0 })).toEqual({
+						"[0]": { "extra": "undefined property path" }
+					});
+
+				});
+
+				it("rejects non-identifier key at top level", async () => {
+
+					const shape = resource({
+						name: required(string())
+					});
+
+					expect(validateTemplate([{
+						name: "Alice",
+						">=name": "A"
+					} as any], shape, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("rejects probe key at top level", async () => {
+
+					const shape = resource({
+						name: required(string())
+					});
+
+					expect(validateTemplate([{
+						name: "Alice",
+						"^name": "asc"
+					} as any], shape, { depth: 0 })).toBeDefined();
+
+				});
+
+
+			});
+
+			describe("custom validators skipped", () => {
+
+				it("accepts failing custom validator", async () => {
+
+					const validator: Validator = () => "always fails";
+
+					const shape = resource({
+						validators: [validator]
+					}, {
+						name: required(string())
+					});
+
+					expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("accepts failing inherited validator", async () => {
+
+					const validator: Validator = () => "always fails";
+
+					const Base = resource({ validators: [validator] }, {
+						age: required(integer())
+					});
+
+					const Derived = resource({ extends: Base }, {
+						name: required(string())
+					});
+
+					expect(validateTemplate([{ age: 15, name: "Bob" }], Derived, { depth: 0 })).toBeUndefined();
+
+				});
+
+			});
+
+			describe("trace structure", () => {
+
+				it("includes property path in nested traces", async () => {
+
+					const Address = resource({
+						city: required(string())
+					});
+
+					const shape = resource({
+						address: required(Address)
+					});
+
+					// array on scalar triggers shape mismatch in nested resource
+
+					const trace = validateTemplate([{ address: { city: ["Rome"] } as any }], shape, {});
+
+					expect(trace).toHaveProperty(["[0]", "address"]);
+
+				});
+
+			});
+
+		});
+
+		describe("id constraints", () => {
+
+			it("accepts string value", async () => {
+
+				const shape = resource({ id: id() });
+
+				expect(validateTemplate([{ "id": "some-id" }], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("accepts missing id", async () => {
+
+				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+
+				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("rejects multiple values", async () => {
+
+				const shape = resource({ id: id() });
+
+				expect(validateTemplate([{ "id": ["/users/1", "/users/2"] } as any], shape, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("skips pattern", async () => {
+
+				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+
+				expect(validateTemplate([{ "id": "app:/invalid" }], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("skips in", async () => {
+
+				const shape = resource({ in: ["app:/users/alice"] }, { id: id() });
+
+				expect(validateTemplate([{ "id": "app:/users/charlie" }], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("skips hasValue", async () => {
+
+				const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+
+				expect(validateTemplate([{ "id": "app:/users/guest" }], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+		});
+
+		describe("type constraints", () => {
+
+			it("accepts string value", async () => {
+
+				const shape = resource({ type: type() });
+
+				expect(validateTemplate([{ "type": "some-type" }], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("accepts missing type", async () => {
+
+				const shape = resource({ type: type() });
+
+				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("rejects multiple values", async () => {
+
+				const shape = resource({ type: type() });
+
+				expect(validateTemplate([{ "type": ["/types/A", "/types/B"] } as any], shape, { depth: 0 })).toBeDefined();
+
+			});
+
+		});
+
+		describe("property constraints", () => {
+
+			describe("missing properties accepted", () => {
+
+				it("accepts absent required property", async () => {
+
+					const shape = resource({
+						name: required(string())
+					});
+
+					expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("accepts absent repeatable property", async () => {
+
+					const shape = resource({
+						tags: repeatable(string())
+					});
+
+					expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+			});
+
+			describe("shape enforced (scalar vs array)", () => {
+
+				it.each([
+					["accepts scalar on scalar", "name", required(string()), { name: "Alice" }, true],
+					["accepts array on array", "tags", repeatable(string()), { tags: ["a"] }, true],
+					["rejects array on scalar", "name", required(string()), { name: ["Alice"] }, false],
+					["rejects scalar on array", "tags", repeatable(string()), { tags: "a" }, false]
+				] as const)("%s", async (_label, key, range, value, valid) => {
+
+					const shape = resource({ [key]: range });
+
+					if ( valid ) {
+						expect(validateTemplate([value], shape, { depth: 0 })).toBeUndefined();
+					} else {
+						expect(validateTemplate([value as any], shape, { depth: 0 })).toBeDefined();
+					}
+
+				});
+
+				describe("local tag map on scalar cardinality", () => {
+
+					it("accepts bare string template on scalar localised property (coalesced placeholder)", async () => {
+
+						const shape = resource({ label: required(text()) });
+
+						expect(validateTemplate([{ label: "hello" }], shape, { depth: 0 })).toBeUndefined();
+
+					});
+
+					it("accepts tag-range map on scalar property", async () => {
+
+						const shape = resource({ label: required(text()) });
+
+						expect(validateTemplate([{ label: { en: "hello" } }], shape, { depth: 0 })).toBeUndefined();
+
+					});
+
+					it("rejects array-valued tag map on scalar localised property", async () => {
+
+						// single-string-per-tag pins the structural map to the single-string arm
+
+						const shape = resource({ label: required(text()) });
+
+						expect(validateTemplate([{ label: { en: ["hello"] } }], shape, { depth: 0 })).toBeDefined();
+
+					});
+
+				});
+
+				describe("localised tag map on array cardinality", () => {
+
+					it("accepts bare singleton array template on array localised property (coalesced array placeholder)", async () => {
+
+						// `[""]` is the array-per-tag coalesced placeholder, the counterpart of the bare
+						// string on a single-string-per-tag slot (qest §5.3)
+
+						const shape = resource({ labels: repeatable(text()) });
+
+						expect(validateTemplate([{ labels: ["hello"] }], shape, { depth: 0 })).toBeUndefined();
+
+					});
+
+					it("accepts tag-range map with array values on array property", async () => {
+
+						const shape = resource({ labels: repeatable(text()) });
+
+						expect(validateTemplate([{ labels: { en: ["hello"] } }], shape, { depth: 0 })).toBeUndefined();
+
+					});
+
+					it("rejects single-string tag map on array localised property", async () => {
+
+						// array-per-tag pins the structural map to the singleton-tuple arm
+
+						const shape = resource({ labels: repeatable(text()) });
+
+						expect(validateTemplate([{ labels: { en: "hello" } }], shape, { depth: 0 })).toBeDefined();
+
+					});
+
+					it("rejects bare multi-element array template on array property", async () => {
+
+						const shape = resource({ labels: multiple(text()) });
+
+						expect(validateTemplate([{ labels: ["alpha", "beta"] }], shape, { depth: 0 })).toBeDefined();
+
+					});
+
+				});
+
+				describe("localised selection keys rejected", () => {
+
+					// localised properties carry no inline Selection — filtering or ordering by a
+					// localised value attaches at the enclosing collection's Selection through an
+					// Expression, never inside the tag-range map — so an operator-prefixed key is an
+					// invalid tag range
+
+					const shape = resource({ labels: multiple(text()) });
+
+					it("reports a selection key as an invalid tag range", async () => {
+
+						expect(validateTemplate([{ labels: { en: ["hi"], ">=length:": 5 } }], shape, {})).toEqual({
+							"[0]": { "labels": { ">=length:": "invalid tag range" } }
+						});
+
+					});
+
+					it.each([
+						["keyword search", { en: ["hi"], "~": "foo" }],
+						["focus ordering", { en: ["hi"], "+": ["x"] }],
+						["sort ordering", { en: ["hi"], "^": "asc" }],
+						["pagination offset", { en: ["hi"], "@": 0 }],
+						["pagination limit", { en: ["hi"], "#": 10 }]
+					])("rejects %s selection key on a localised property", async (_label, value) => {
+
+						expect(validateTemplate([{ labels: value }], shape, {})).toBeDefined();
+
+					});
+
+					it("rejects a selection-only localised template", async () => {
+
+						expect(validateTemplate([{ labels: { "#": 10 } }], shape, {})).toBeDefined();
+
+					});
+
+				});
+
+				describe("effective cardinality for local", () => {
+
+					it("rejects bare string on required local property", async () => {
+
+						const shape = resource({ label: required(text()) });
+
+						expect(validateResource([{ label: "ToyMaster GmbH" }], shape)).toHaveProperty(["[0]", "label"]);
+
+					});
+
+					it("rejects empty local object on required property", async () => {
+
+						const shape = resource({ label: required(text()) });
+
+						expect(validateResource([{ label: {} }], shape)).toHaveProperty(["[0]", "label"]);
+
+					});
+
+					it("accepts multi-tag local on required property", async () => {
+
+						const shape = resource({ label: required(text()) });
+
+						expect(validateResource([{
+							label: {
+								en: "hello",
+								fr: "bonjour"
+							}
+						}], shape)).toBeUndefined();
+
+					});
+
+					it("rejects array-per-tag local on required property", async () => {
+
+						const shape = resource({ label: required(text()) });
+
+						expect(validateResource([{
+							label: {
+								en: ["hello", "hi"]
+							}
+						}], shape)).toHaveProperty(["[0]", "label"]);
+
+					});
+
+				});
+
+				describe("effective cardinality for localised", () => {
+
+					it("rejects bare string array on required localised property", async () => {
+
+						const shape = resource({ labels: repeatable(text()) });
+
+						expect(validateResource([{ labels: ["hello"] }], shape)).toHaveProperty(["[0]", "labels"]);
+
+					});
+
+					it("rejects empty localised object on required property", async () => {
+
+						const shape = resource({ labels: repeatable(text()) });
+
+						expect(validateResource([{ labels: {} }], shape)).toHaveProperty(["[0]", "labels"]);
+
+					});
+
+					it("accepts multi-tag localised on required property", async () => {
+
+						const shape = resource({ labels: repeatable(text()) });
+
+						expect(validateResource([{
+							labels: {
+								en: ["hello"],
+								fr: ["bonjour"]
+							}
+						}], shape)).toBeUndefined();
+
+					});
+
+					it("rejects empty-array tag on required property", async () => {
+
+						const shape = resource({ labels: repeatable(text()) });
+
+						expect(validateResource([{
+							labels: {
+								en: []
+							}
+						}], shape)).toHaveProperty(["[0]", "labels"]);
+
+					});
+
+				});
+
+			});
+
+			describe("undefined template accepted", () => {
+
+				// per qest: `Template = { [Identifier]: undefined | Placeholders }` — undefined
+				// marks an optional slot that exists in the schema but may be absent at runtime
+
+				it.each([
+					["scalar", "name", required(string()), { name: undefined }],
+					["array", "tags", repeatable(string()), { tags: undefined }]
+				] as const)("accepts undefined template on %s property", async (_label, key, range, value) => {
+
+					const shape = resource({ [key]: range });
+
+					expect(validateTemplate([value as any], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+			});
+
+			describe("placeholder tuple arity", () => {
+
+				it("rejects empty array on string array property", async () => {
+
+					const shape = resource({
+						tags: repeatable(string())
+					});
+
+					expect(validateTemplate([{ tags: [] }], shape, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("accepts singleton array on string array property", async () => {
+
+					const shape = resource({
+						tags: repeatable(string())
+					});
+
+					expect(validateTemplate([{ tags: ["a"] }], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("rejects multi-element array on string array property", async () => {
+
+					const shape = resource({
+						tags: repeatable(string())
+					});
+
+					expect(validateTemplate([{ tags: ["a", "b"] }], shape, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("accepts singleton array on number array property", async () => {
+
+					const shape = resource({
+						scores: repeatable(integer())
+					});
+
+					expect(validateTemplate([{ scores: [0] }], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("rejects multi-element array on number array property", async () => {
+
+					const shape = resource({
+						scores: repeatable(integer())
+					});
+
+					expect(validateTemplate([{ scores: [1, 2] }], shape, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("accepts singleton array on boolean array property", async () => {
+
+					const shape = resource({
+						flags: repeatable(boolean())
+					});
+
+					expect(validateTemplate([{ flags: [true] }], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("rejects empty array on boolean array property", async () => {
+
+					const shape = resource({
+						flags: repeatable(boolean())
+					});
+
+					expect(validateTemplate([{ flags: [] }], shape, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("rejects multi-element array on boolean array property", async () => {
+
+					const shape = resource({
+						flags: repeatable(boolean())
+					});
+
+					expect(validateTemplate([{ flags: [true, false] }], shape, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("rejects non-boolean element on boolean array property", async () => {
+
+					const shape = resource({
+						flags: repeatable(boolean())
+					});
+
+					expect(validateTemplate([{ flags: ["true"] } as any], shape, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("accepts singleton IRI array on reference array property", async () => {
+
+					const Target = resource({ id: id(), name: required(string()) });
+					const shape = resource({ members: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ members: ["app:/users/1"] }], shape, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("rejects multi-element IRI array on reference array property", async () => {
+
+					const Target = resource({ id: id(), name: required(string()) });
+					const shape = resource({ members: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ members: ["app:/users/1", "app:/users/2"] }], shape, { depth: 0 })).toBeDefined();
+
+				});
+
+			});
+
+			describe("inherited shape enforced", () => {
+
+				it("enforces shape on inherited scalar property", async () => {
+
+					const Base = resource({
+						name: required(string())
+					});
+
+					const Derived = resource({ extends: Base }, {
+						age: optional(integer())
+					});
+
+					expect(validateTemplate([{ name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ name: ["Alice"] } as any], Derived, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("enforces shape on inherited properties from multiple parents", async () => {
+
+					const Named = resource({
+						name: required(string())
+					});
+
+					const Aged = resource({
+						age: required(integer())
+					});
+
+					const Person = resource({ extends: [Named, Aged] }, {
+						email: optional(string())
+					});
+
+					expect(validateTemplate([{}], Person, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ name: "Alice", age: 30 }], Person, { depth: 0 })).toBeUndefined();
+					expect(validateTemplate([{ name: ["Alice"] } as any], Person, { depth: 0 })).toBeDefined();
+
+				});
+
+			});
+
+			it("enforces shape on overridden inherited property", async () => {
+
+				const Base = resource({
+					name: required(string())
+				});
+
+				const Derived = resource({ extends: Base }, {
+					name: required(string({ minLength: 3 }))
+				});
+
+				// type shape still enforced on overridden property
+
+				expect(validateTemplate([{ name: "A" }], Derived, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ name: 42 }], Derived, { depth: 0 })).toBeDefined();
+
+			});
+
+		});
+
+		describe("value constraints", () => {
+
+			it("accepts value matching type", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("rejects value with wrong type", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				expect(validateTemplate([{ name: 42 }], shape, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("skips value constraints", async () => {
+
+				const shape = resource({
+					age: required(integer({ minInclusive: 0 }))
+				});
+
+				expect(validateTemplate([{ age: -5 }], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			describe("union values", () => {
+
+				const textOrCount = resource({
+					value: required(union(string(), integer()))
+				});
+
+				it("rejects plain placeholder over union", async () => {
+
+					// a union-typed property is addressable only through the indexed form; a plain
+					// placeholder, whichever variant it may resemble, is rejected
+
+					expect(validateTemplate([{ value: "hello" }], textOrCount, { depth: 0 })).toBeDefined();
+					expect(validateTemplate([{ value: 42 }], textOrCount, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("accepts indexed form over union", async () => {
+
+					expect(validateTemplate([{ value: { "0": "hello", "1": 42 } }], textOrCount, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("accepts missing union property", async () => {
+
+					expect(validateTemplate([{}], textOrCount, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("rejects plain placeholder matching no variant type", async () => {
+
+					expect(validateTemplate([{ value: true }], textOrCount, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("rejects plain placeholder over inherited union", async () => {
+
+					const Derived = resource({ extends: textOrCount }, {
+						name: required(string())
+					});
+
+					expect(validateTemplate([{ value: "hello" }], Derived, { depth: 0 })).toBeDefined();
+					expect(validateTemplate([{ value: true }], Derived, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("accepts indexed form over inherited union", async () => {
+
+					const Derived = resource({ extends: textOrCount }, {
+						name: required(string())
+					});
+
+					expect(validateTemplate([{ value: { "0": "hello" } }], Derived, { depth: 0 })).toBeUndefined();
+
+				});
+
+			});
+
+			describe("union bindings", () => {
+
+				const Target = resource({
+					value: required(union(string(), integer()))
+				});
+
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				it("rejects plain placeholder binding over union", async () => {
+
+					// a union-typed binding takes the indexed form, one placeholder per branch; a plain
+					// placeholder is rejected
+
+					expect(validateTemplate([{ items: [{ "alias=value": "hello" }] }], Wrapper, {})).toBeDefined();
+					expect(validateTemplate([{ items: [{ "alias=value": 42 }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts indexed form binding over union", async () => {
+
+					expect(validateTemplate([{ items: [{ "alias=value": { "0": "hello", "1": 42 } }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects indexed form binding mismatching no variant type", async () => {
+
+					expect(validateTemplate([{ items: [{ "alias=value": { "0": true } }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+			});
+
+			describe("union forms", () => {
+
+				const textOrCount = resource({
+					value: required(union(string(), integer()))
+				});
+
+
+				describe("plain form rejected", () => {
+
+					const Target = resource({ name: required(string()) });
+
+					const refOrText = resource({
+						link: required(union(reference(Target), string()))
+					});
+
+					it("rejects nested template object as plain union form", async () => {
+
+						// a union-typed property is addressable only through the indexed form; a nested
+						// template resembling the reference variant is still a plain placeholder
+
+						expect(validateTemplate([{ link: { name: "Alice" } }], refOrText, {})).toBeDefined();
+
+					});
+
+					it("rejects IRI string as plain union form for reference variant", async () => {
+
+						expect(validateTemplate([{ link: "app:/items/1" }], refOrText, { depth: 0 })).toBeDefined();
+
+					});
+
+					it("accepts indexed form selecting the reference variant", async () => {
+
+						expect(validateTemplate([{ link: { "0": { name: "Alice" } } }], refOrText, {})).toBeUndefined();
+
+					});
+
+				});
+
+
+				describe("default form rejected", () => {
+
+					// the default form `{ "": Scalar }` is not a Placeholders arm — it is the Query
+					// scalar-collection branch (`[{ "": Scalar } & Selection]`), so a cardinality-1
+					// union slot rejects it
+
+					it("rejects default form regardless of variant match", async () => {
+
+						expect(validateTemplate([{ value: { "": "hello" } }], textOrCount, { depth: 0 })).toBeDefined();
+						expect(validateTemplate([{ value: { "": 42 } }], textOrCount, { depth: 0 })).toBeDefined();
+						expect(validateTemplate([{ value: { "": true } }], textOrCount, { depth: 0 })).toBeDefined();
+
+					});
+
+					it("accepts empty union template", async () => {
+
+						expect(validateTemplate([{ value: {} }], textOrCount, { depth: 0 })).toBeUndefined();
+
+					});
+
+				});
+
+
+				describe("union form", () => {
+
+					it("accepts union form with valid variant placeholders", async () => {
+
+						expect(validateTemplate([{ value: { "0": "hello", "1": 42 } }], textOrCount, { depth: 0 })).toBeUndefined();
+
+					});
+
+					it("accepts union form with subset of variants", async () => {
+
+						expect(validateTemplate([{ value: { "0": "hello" } }], textOrCount, { depth: 0 })).toBeUndefined();
+						expect(validateTemplate([{ value: { "1": 42 } }], textOrCount, { depth: 0 })).toBeUndefined();
+
+					});
+
+					it("rejects union form with out-of-range key", async () => {
+
+						expect(validateTemplate([{ value: { "2": "hello" } }], textOrCount, { depth: 0 })).toBeDefined();
+						expect(validateTemplate([{ value: { "99": "hello" } }], textOrCount, { depth: 0 })).toBeDefined();
+
+					});
+
+					it("rejects union form with non-canonical integer key", async () => {
+
+						expect(validateTemplate([{ value: { "01": "hello" } }], textOrCount, { depth: 0 })).toBeDefined();
+						expect(validateTemplate([{ value: { "3.14": "hello" } }], textOrCount, { depth: 0 })).toBeDefined();
+						expect(validateTemplate([{ value: { "-1": "hello" } }], textOrCount, { depth: 0 })).toBeDefined();
+						expect(validateTemplate([{ value: { "1e2": "hello" } }], textOrCount, { depth: 0 })).toBeDefined();
+
+					});
+
+					it("rejects union form with placeholder mismatching its variant", async () => {
+
+						expect(validateTemplate([{ value: { "0": 42 } }], textOrCount, { depth: 0 })).toBeDefined();
+						expect(validateTemplate([{ value: { "1": "hello" } }], textOrCount, { depth: 0 })).toBeDefined();
+
+					});
+
+					it("rejects union form with mixed key spaces", async () => {
+
+						expect(validateTemplate([{ value: { "": "hello", "0": "hello" } as any }], textOrCount, { depth: 0 })).toBeDefined();
+
+					});
+
+					it("accepts empty union template", async () => {
+
+						expect(validateTemplate([{ value: {} }], textOrCount, { depth: 0 })).toBeUndefined();
+
+					});
+
+				});
+
+
+				describe("tuple form rejected on scalar union", () => {
+
+					// scalar (required/optional) union slots have cardinality 1; the singleton-tuple
+					// wrap is the Query carrier for collection-valued placeholders and has no role on
+					// a scalar slot — closes the asymmetry with non-union scalar slots, which already
+					// reject tuple form
+
+					it("rejects tuple-wrapped default form on required union", async () => {
+
+						expect(validateTemplate([{ value: [{ "": "hello" }] as any }], textOrCount, {})).toBeDefined();
+
+					});
+
+					it("rejects tuple-wrapped union form on required union", async () => {
+
+						expect(validateTemplate([{ value: [{ "0": "hello" }] as any }], textOrCount, {})).toBeDefined();
+
+					});
+
+					it("rejects tuple-wrapped plain scalar on required union", async () => {
+
+						expect(validateTemplate([{ value: ["hello"] as any }], textOrCount, {})).toBeDefined();
+
+					});
+
+					it("rejects selection-only tuple on required union", async () => {
+
+						// previously admitted via the Query carve-out; Selection has no meaningful
+						// effect on a cardinality-1 slot
+
+						expect(validateTemplate([{ value: [{ "#": 10 }] as any }], textOrCount, {})).toBeDefined();
+
+					});
+
+					it("rejects tuple-wrapped union form on optional union", async () => {
+
+						const maybeTextOrCount = resource({
+							value: optional(union(string(), integer()))
+						});
+
+						expect(validateTemplate([{ value: [{ "0": "hello" }] as any }], maybeTextOrCount, {})).toBeDefined();
+
+					});
+
+				});
+
+
+				describe("multi-valued union forms", () => {
+
+					const multiTextOrCount = resource({
+						values: multiple(union(string(), integer()))
+					});
+
+					it("accepts partial union form in one-element tuple", async () => {
+
+						expect(validateTemplate([{ values: [{ "0": "hello" }] }], multiTextOrCount, {})).toBeUndefined();
+
+					});
+
+					it("accepts union form in one-element tuple", async () => {
+
+						expect(validateTemplate([{ values: [{ "0": "hello", "1": 42 }] }], multiTextOrCount, {})).toBeUndefined();
+
+					});
+
+					it("accepts empty union template in singleton tuple", async () => {
+
+						expect(validateTemplate([{ values: [{}] }], multiTextOrCount, {})).toBeUndefined();
+
+					});
+
+					it("rejects default form wrapping a nested template", async () => {
+
+						// the default form's `""` carries a Scalar, never a nested template; a resource
+						// variant is reached through the union form or a plain template tuple instead
+
+						const Address = resource({ street: required(string()), city: required(string()) });
+						const multiContact = resource({ contacts: multiple(union(string(), Address)) });
+
+						expect(validateTemplate([{ contacts: [{ "": { street: "", city: "" } }] }],
+							multiContact, {})).toBeDefined();
+
+					});
+
+					describe("selection keys", () => {
+
+						// per qest's `Placeholders`, object-shaped variants reach multi-cardinality
+						// through `[Union & Selection]` — the singleton tuple wrapper intersects
+						// with `Selection`, so filtering/ordering/pagination keys may attach to
+						// the wrapped object alongside indexed/default/plain union form keys
+
+						it("accepts pagination alongside union form", async () => {
+
+							expect(validateTemplate([{ values: [{ "0": "hello" }, { "#": 10 }] }],
+								multiTextOrCount, {})).toBeUndefined();
+
+						});
+
+						it("accepts pagination alongside empty union element", async () => {
+
+							expect(validateTemplate([{ values: [{}, { "#": 10 }] }],
+								multiTextOrCount, {})).toBeUndefined();
+
+						});
+
+						it("accepts selection-only collection tuple", async () => {
+
+							// an empty union element paired with a Selection narrows the collection
+							// without constraining any variant
+
+							expect(validateTemplate([{ values: [{}, { "#": 10 }] }],
+								multiTextOrCount, {})).toBeUndefined();
+
+						});
+
+						it("accepts comparison filter alongside union form", async () => {
+
+							expect(validateTemplate([{ values: [{ "0": "hello" }, { ">=count:": 3 }] }],
+								multiTextOrCount, {})).toBeUndefined();
+
+						});
+
+						it.each([
+							["keyword search", { "~": "foo" }],
+							["focus ordering", { "+": ["x"] }],
+							["sort ordering", { "^": "asc" }],
+							["pagination offset", { "@": 0 }]
+						])("accepts %s selection key on [element, selection] tuple", async (_label, selection) => {
+
+							expect(validateTemplate([{ values: [{ "0": "hello" }, selection] }], multiTextOrCount, {})).toBeUndefined();
+
+						});
+
+						it("rejects less-than selection key on undefined property in [element, selection] tuple", async () => {
+
+							expect(validateTemplate([{ values: [{ "0": "hello" }, { "<x": 5 }] }], multiTextOrCount, {})).toEqual({
+								"[0]": { "values": { "<x": "undefined property path" } }
+							});
+
+						});
+
+						describe("selection value semantics", () => {
+
+							// `validateSelectionEntry` on projection-like templates validates the
+							// per-operator value domain; [Union & Selection] slots must enforce the
+							// same semantics rather than silently accepting any value
+
+							it("rejects non-asc/desc/number sort value", async () => {
+
+								expect(validateTemplate([{ values: [{ "0": "hello" }, { "^": true }] }],
+									multiTextOrCount, {})).toBeDefined();
+
+							});
+
+							it("rejects negative pagination offset", async () => {
+
+								expect(validateTemplate([{ values: [{ "0": "hello" }, { "@": -3 }] }],
+									multiTextOrCount, {})).toBeDefined();
+
+							});
+
+							it("rejects non-integer pagination limit", async () => {
+
+								expect(validateTemplate([{ values: [{ "0": "hello" }, { "#": 3.5 }] }],
+									multiTextOrCount, {})).toBeDefined();
+
+							});
+
+							it("rejects pagination limit exceeding option", async () => {
+
+								expect(validateTemplate([{ values: [{ "0": "hello" }, { "#": 101 }] }],
+									multiTextOrCount, { limit: 100 })).toBeDefined();
+
+							});
+
+							// union shape resolves through `apply`: shape-dependent operators validate
+							// against each variant and accept when at least one matches
+
+							it("accepts filter operand matching a union variant", async () => {
+
+								// 5 matches the integer variant of union(string, integer)
+
+								expect(validateTemplate([{ values: [{}, { "<": 5 }] }],
+									multiTextOrCount, {})).toBeUndefined();
+
+							});
+
+							it("rejects filter operand matching no union variant", async () => {
+
+								// boolean operand satisfies neither string nor integer variant
+
+								expect(validateTemplate([{ values: [{}, { "<": true }] }],
+									multiTextOrCount, {})).toBeDefined();
+
+							});
+
+							it("rejects keyword operand matching no union variant", async () => {
+
+								// number operand falls outside keyword's string domain on every variant
+
+								expect(validateTemplate([{ values: [{}, { "~": 42 }] }],
+									multiTextOrCount, {})).toBeDefined();
+
+							});
+
+						});
+
+						describe("malformed selection keys", () => {
+
+							// selection probes on [Union & Selection] reuse the same well-formedness
+							// gates enforced on projection-bound probes: depth budget, aggregate
+							// rejection under `plain`, and decodeProbe syntax validation
+
+							it("accepts selection probe within depth budget", async () => {
+
+								expect(validateTemplate([{ values: [{ "0": "hello" }, { "^": "asc" }] }],
+									multiTextOrCount, { depth: 1 })).toBeUndefined();
+
+							});
+
+							it("rejects selection probe exceeding depth budget", async () => {
+
+								expect(validateTemplate([{ values: [{ "0": "hello" }, { ">=x": 5 }] }],
+									multiTextOrCount, { depth: 0 })).toBeDefined();
+
+							});
+
+							it("accepts aggregate selection pipe when plain is false", async () => {
+
+								expect(validateTemplate([{ values: [{ "0": "hello" }, { ">=count:": 3 }] }],
+									multiTextOrCount, { plain: false })).toBeUndefined();
+
+							});
+
+							it("rejects aggregate selection pipe when plain is true", async () => {
+
+								expect(validateTemplate([{ values: [{ "0": "hello" }, { ">=count:": 3 }] }],
+									multiTextOrCount, { plain: true })).toBeDefined();
+
+							});
+
+							it("rejects selection probe with unknown transform", async () => {
+
+								// unknown transform name in the pipe is rejected by decodeProbe
+
+								expect(validateTemplate([{ values: [{ "0": "hello" }, { ">=bogus:": 3 }] }],
+									multiTextOrCount, {})).toBeDefined();
+
+							});
+
+						});
+
+					});
+
+				});
+
+			});
+
+		});
+
+		describe("multi-valued primitive forms", () => {
+
+			// Multi-valued primitive shapes (`multiple(string())`, `multiple(integer())`,
+			// `multiple(boolean())`) reach multi-cardinality through a `[element, selection?]`
+			// tuple whose element is a bare primitive placeholder and whose optional second slot
+			// carries Selection operators. The `multiple(shape, selection)` factory at value.ts
+			// itself emits this form when a selection is supplied for a primitive shape, so the
+			// validator must accept what the factory produces.
+
+			const tags = resource({ tags: multiple(string()) });
+			const sizes = resource({ sizes: multiple(integer()) });
+			const flags = resource({ flags: multiple(boolean()) });
+
+			it("accepts bare singleton tuple on string collection", async () => {
+				expect(validateTemplate([{ tags: ["hello"] }], tags, {})).toBeUndefined();
+			});
+
+			it("accepts bare placeholder on string collection", async () => {
+				expect(validateTemplate([{ tags: ["hello"] }], tags, {})).toBeUndefined();
+			});
+
+			it("accepts bare placeholder on number collection", async () => {
+				expect(validateTemplate([{ sizes: [42] }], sizes, {})).toBeUndefined();
+			});
+
+			it("accepts bare placeholder on boolean collection", async () => {
+				expect(validateTemplate([{ flags: [false] }], flags, {})).toBeUndefined();
+			});
+
+			it("rejects bare placeholder of wrong type", async () => {
+				expect(validateTemplate([{ tags: [42] }], tags, {})).toBeDefined();
+				expect(validateTemplate([{ sizes: ["not-a-number"] }], sizes, {})).toBeDefined();
+				expect(validateTemplate([{ flags: ["true"] }], flags, {})).toBeDefined();
+			});
+
+			describe("selection keys", () => {
+
+				// primitive-variant retrieval reaches multi-cardinality through a
+				// `[element, selection?]` tuple whose element is a bare primitive placeholder;
+				// filtering/ordering/pagination keys attach to the optional second slot
+
+				it("accepts pagination alongside placeholder element", async () => {
+					expect(validateTemplate([{ tags: ["hello", { "#": 10 }] }], tags, {})).toBeUndefined();
+				});
+
+				it("accepts selection-only collection tuple", async () => {
+					// a bare placeholder element paired with a Selection narrows the collection
+					expect(validateTemplate([{ tags: ["", { "#": 10 }] }], tags, {})).toBeUndefined();
+				});
+
+				it("accepts comparison filter alongside placeholder element", async () => {
+					expect(validateTemplate([{ tags: ["hello", { "<=length:": 5 }] }], tags, {})).toBeUndefined();
+				});
+
+				it.each([
+					["keyword search", { "~": "foo" }],
+					["focus ordering", { "+": ["x"] }],
+					["sort ordering", { "^": "asc" }],
+					["pagination offset", { "@": 0 }]
+				])("accepts %s selection key on [element, selection] tuple", async (_label, selection) => {
+					expect(validateTemplate([{ tags: ["hello", selection] }], tags, {})).toBeUndefined();
+				});
+
+				it("rejects less-than selection key on undefined property in [element, selection] tuple", async () => {
+					expect(validateTemplate([{ tags: ["hello", { "<x": "z" }] }], tags, {})).toEqual({
+						"[0]": { "tags": { "<x": "undefined property path" } }
+					});
+				});
+
+				it("rejects non-selector identifier key in selection slot", async () => {
+					// primitive collections have no projection — second-slot keys must be selectors
+					expect(validateTemplate([{ tags: ["hello", { "name": "Alice" }] }], tags, {})).toBeDefined();
+				});
+
+				describe("selection value semantics", () => {
+
+					it("rejects non-asc/desc/number sort value", async () => {
+						expect(validateTemplate([{ tags: ["hello", { "^": true }] }], tags, {})).toBeDefined();
+					});
+
+					it("rejects negative pagination offset", async () => {
+						expect(validateTemplate([{ tags: ["hello", { "@": -3 }] }], tags, {})).toBeDefined();
+					});
+
+					it("rejects pagination limit exceeding option", async () => {
+						expect(validateTemplate([{ tags: ["hello", { "#": 101 }] }], tags, { limit: 100 })).toBeDefined();
+					});
+
+				});
+
+				describe("malformed selection keys", () => {
+
+					it("rejects selection probe with unknown transform", async () => {
+						expect(validateTemplate([{ tags: ["hello", { ">=bogus:": 3 }] }], tags, {})).toBeDefined();
+					});
+
+					it("rejects aggregate selection pipe when plain is true", async () => {
+						expect(validateTemplate([{ tags: ["hello", { ">=count:": 3 }] }], tags, { plain: true })).toBeDefined();
+					});
+
+				});
+
+			});
+
+		});
+
+		describe("reference properties", () => {
+
+			it("accepts IRI string for scalar reference", async () => {
+
+				const Target = resource({ id: id(), name: required(string()) });
+
+				const shape = resource({
+					supervisor: optional(reference(Target))
+				});
+
+				expect(validateTemplate([{ supervisor: "app:/users/1" }], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("accepts IRI strings for array reference", async () => {
+
+				const Target = resource({ id: id(), name: required(string()) });
+
+				const shape = resource({
+					members: multiple(reference(Target))
+				});
+
+				expect(validateTemplate([{ members: ["app:/users/1"] }], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("accepts relative IRI references as reference placeholders", async () => {
+
+				// a reference placeholder matches the IRI-reference production: the empty string and
+				// the root-relative form are accepted alongside relative and absolute references,
+				// since decoding never resolves a placeholder
+
+				const Target = resource({ id: id(), name: required(string()) });
+
+				const shape = resource({
+					supervisor: optional(reference(Target)),
+					members: multiple(reference(Target))
+				});
+
+				expect(validateTemplate([{ supervisor: "" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ supervisor: "/users/1" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ supervisor: "../users/1" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ members: [""] }], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("rejects malformed strings as reference placeholders", async () => {
+
+				const Target = resource({ id: id(), name: required(string()) });
+
+				const shape = resource({
+					supervisor: optional(reference(Target))
+				});
+
+				expect(validateTemplate([{ supervisor: "not a reference" }], shape, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("accepts nested model object for scalar reference", async () => {
+
+				const Target = resource({ id: id(), name: required(string()) });
+
+				const shape = resource({
+					supervisor: optional(reference(Target))
+				});
+
+				expect(validateTemplate([{ supervisor: { name: "Alice" } }], shape, {})).toBeUndefined();
+
+			});
+
+			it("accepts nested model objects for array reference", async () => {
+
+				const Target = resource({ id: id(), name: required(string()) });
+
+				const shape = resource({
+					members: multiple(reference(Target))
+				});
+
+				expect(validateTemplate([{ members: [{ name: "Alice" }] } as any], shape, {})).toBeUndefined();
+
+			});
+
+			it("rejects non-string non-object values for reference", async () => {
+
+				const Target = resource({ id: id(), name: required(string()) });
+
+				const shape = resource({
+					supervisor: optional(reference(Target))
+				});
+
+				expect(validateTemplate([{ supervisor: 42 }], shape, { depth: 0 })).toBeDefined();
+
+			});
+
+			describe("nested model recursion at multiple levels", () => {
+
+				const Department = resource({ id: id(), label: required(string()) });
+
+				const Employee = resource({
+					id: id(),
+					name: required(string()),
+					department: optional(reference(Department))
+				});
+
+				const shape = resource({
+					supervisor: optional(reference(Employee))
+				});
+
+				it("accepts valid 2-level expansion", async () => {
+
+					expect(validateTemplate([{
+						supervisor: { name: "Alice", department: { label: "Engineering" } }
+					}], shape, {})).toBeUndefined();
+
+				});
+
+				it("rejects unknown binding at level 1", async () => {
+
+					// extra=extra → apply() returns "undefined property path"
+
+					expect(validateTemplate([{
+						supervisor: { name: "Alice", extra: "bad" }
+					}], shape, {})).toEqual({
+						"[0]": { "supervisor": { "extra": "undefined property path" } }
+					});
+
+				});
+
+				it("rejects unknown binding at level 2", async () => {
+
+					// extra=extra → apply() returns "undefined property path"
+
+					expect(validateTemplate([{
+						supervisor: { name: "Alice", department: { label: "Engineering", extra: "bad" } }
+					}], shape, {})).toEqual({
+						"[0]": { "supervisor": { "department": { "extra": "undefined property path" } } }
+					});
+
+				});
+
+			});
+
+			it("accepts missing reference property", async () => {
+
+				const Target = resource({ id: id(), name: required(string()) });
+
+				const shape = resource({
+					supervisor: optional(reference(Target))
+				});
+
+				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("accepts foreign property with IRI value", async () => {
+
+				const Target = resource({ id: id(), name: required(string()) });
+
+				const shape = resource({
+					children: multiple(reference(Target, { foreign: true }))
+				});
+
+				expect(validateTemplate([{ children: ["app:/items/1"] } as any], shape, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("accepts foreign property with nested model", async () => {
+
+				const Target = resource({ id: id(), name: required(string()) });
+
+				const shape = resource({
+					children: multiple(reference(Target, { foreign: true }))
+				});
+
+				expect(validateTemplate([{ children: [{ name: "Child" }] }], shape, {})).toBeUndefined();
+
+			});
+
+		});
+
+		describe("resource properties", () => {
+
+			it("rejects IRI reference for inline resource property", async () => {
+
+				const shape = resource({
+					child: optional(resource({ name: required(string()) }))
+				});
+
+				expect(validateTemplate([{ child: "app:/children/1" }], shape, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("accepts nested model for inline resource property", async () => {
+
+				const shape = resource({
+					child: optional(resource({ name: required(string()) }))
+				});
+
+				expect(validateTemplate([{ child: { name: "Alice" } }], shape, {})).toBeUndefined();
+
+			});
+
+		});
+
+		describe("depth", () => {
+
+			it("rejects nested model when depth is 0", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const Outer = resource({
+					child: optional(reference(Inner))
+				});
+
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("accepts nested model when depth is omitted (defaults to null)", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const Outer = resource({
+					child: optional(reference(Inner))
+				});
+
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, {})).toBeUndefined();
+
+			});
+
+			it("accepts nested model when depth is null (unlimited)", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const Outer = resource({
+					child: optional(reference(Inner))
+				});
+
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, {})).toBeUndefined();
+
+			});
+
+			it("accepts IRI reference when depth is 0", async () => {
+
+				const Inner = resource({ id: id(), label: required(string()) });
+
+				const Outer = resource({
+					child: optional(reference(Inner))
+				});
+
+				expect(validateTemplate([{ child: "app:/items/1" }], Outer, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("accepts nested model via reference when depth is 1", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const Outer = resource({
+					child: optional(reference(Inner))
+				});
+
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 1 })).toBeUndefined();
+
+			});
+
+			it("rejects 2-level nesting via reference when depth is 1", async () => {
+
+				const Leaf = resource({ value: required(string()) });
+
+				const Middle = resource({
+					leaf: optional(reference(Leaf))
+				});
+
+				const Root = resource({
+					middle: optional(reference(Middle))
+				});
+
+				expect(validateTemplate([{
+					middle: { leaf: { value: "x" } }
+				}], Root, { depth: 1 })).toBeDefined();
+
+			});
+
+			it("accepts 2-level nesting via reference when depth is 2", async () => {
+
+				const Leaf = resource({ value: required(string()) });
+
+				const Middle = resource({
+					leaf: optional(reference(Leaf))
+				});
+
+				const Root = resource({
+					middle: optional(reference(Middle))
+				});
+
+				expect(validateTemplate([{
+					middle: { leaf: { value: "x" } }
+				}], Root, { depth: 2 })).toBeUndefined();
+
+			});
+
+			it("rejects nested embedded resource when depth is 0", async () => {
+
+				const Embedded = resource({ label: required(string()) });
+
+				const Outer = resource({
+					child: required(Embedded)
+				});
+
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("accepts nested embedded resource when depth is 1", async () => {
+
+				const Embedded = resource({ label: required(string()) });
+
+				const Outer = resource({
+					child: required(Embedded)
+				});
+
+				expect(validateTemplate([{ child: { label: "x" } }], Outer, { depth: 1 })).toBeUndefined();
+
+			});
+
+			it("rejects collection resource query when depth is 0", async () => {
+
+				const Target = resource({ name: required(string()) });
+
+				const Outer = resource({
+					items: multiple(reference(Target))
+				});
+
+				expect(validateTemplate([{ items: [{ name: "x" }] }], Outer, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("accepts collection resource query when depth allows path", async () => {
+
+				const Target = resource({ name: required(string()) });
+
+				const Outer = resource({
+					items: multiple(reference(Target))
+				});
+
+				// depth 2 → depth 1 inside query → 1-step path ok
+				expect(validateTemplate([{ items: [{ name: "x" }] }], Outer, { depth: 2 })).toBeUndefined();
+
+			});
+
+			it("accepts IRI strings in collection reference at depth 0", async () => {
+
+				const Target = resource({ id: id(), name: required(string()) });
+				const Outer = resource({ items: multiple(reference(Target)) });
+
+				expect(validateTemplate([{ items: ["app:/items/1"] }], Outer, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("accepts collection reference template at depth 1", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const Outer = resource({ items: multiple(reference(Target)) });
+
+				expect(validateTemplate([{ items: [{ name: "x" }] }], Outer, { depth: 1 })).toBeUndefined();
+
+			});
+
+			it("rejects collection embedded resource template at depth 0", async () => {
+
+				const Embedded = resource({ label: required(string()) });
+				const Outer = resource({ items: multiple(Embedded) });
+
+				expect(validateTemplate([{ items: [{ label: "x" }] }], Outer, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("accepts collection embedded resource template at depth 1", async () => {
+
+				const Embedded = resource({ label: required(string()) });
+				const Outer = resource({ items: multiple(Embedded) });
+
+				expect(validateTemplate([{ items: [{ label: "x" }] }], Outer, { depth: 1 })).toBeUndefined();
+
+			});
+
+			it("reports malformed query key under the offending key", async () => {
+
+				const Target = resource({ name: required(string()) });
+
+				const Outer = resource({
+					items: multiple(reference(Target))
+				});
+
+				const trace = validateTemplate([{ items: [{ "===invalid": "x" }] }], Outer, { depth: 1 });
+
+				expect(trace).toHaveProperty(["[0]", "items", "===invalid"]);
+
+			});
+
+			it("reports malformed selection probe in projection tuple under the offending key", async () => {
+
+				// parity with Locale and [Union & Selection] — malformed probes routed through
+				// `validateSelectionEntry` must surface under the offending key
+
+				const Target = resource({ name: required(string()) });
+
+				const Outer = resource({
+					items: multiple(reference(Target))
+				});
+
+				const trace = validateTemplate([{ items: [{ name: "", "<x:": 5 }] }], Outer, {});
+
+				expect(trace).toHaveProperty(["[0]", "items", "<x:"]);
+
+			});
+
+			it("accepts single-step path within depth budget", async () => {
+
+				const Target = resource({ name: required(string()), age: optional(integer()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 2 → depth 1 inside query → 1-step path ok
+				expect(validateTemplate([{ items: [{}, { ">=age": 18 }] }], Wrapper, { depth: 2 })).toBeUndefined();
+
+			});
+
+			it("rejects single-step path when depth budget is exhausted", async () => {
+
+				const Target = resource({ name: required(string()), age: optional(integer()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 1 → depth 0 inside query → 1-step path rejected
+				expect(validateTemplate([{ items: [{}, { ">=age": 18 }] }], Wrapper, { depth: 1 })).toBeDefined();
+
+			});
+
+			it("accepts two-step path within depth budget", async () => {
+
+				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
+				const Target = resource({ vendor: required(reference(Vendor)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 3 → depth 2 inside query → 2-step path ok
+				expect(validateTemplate([{ items: [{}, { ">=vendor.rating": 3 }] }], Wrapper, { depth: 3 })).toBeUndefined();
+
+			});
+
+			it("rejects two-step path when depth budget is insufficient", async () => {
+
+				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
+				const Target = resource({ vendor: required(reference(Vendor)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 2 → depth 1 inside query → 2-step path rejected
+				expect(validateTemplate([{ items: [{}, { ">=vendor.rating": 3 }] }], Wrapper, { depth: 2 })).toBeDefined();
+
+			});
+
+			it("accepts three-step path within depth budget", async () => {
+
+				const Category = resource({ label: required(string()) });
+				const Product = resource({ name: required(string()), category: required(reference(Category)) });
+				const Target = resource({ product: required(reference(Product)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 4 → depth 3 inside query → 3-step path ok
+				expect(validateTemplate([{ items: [{}, { "^product.category.label": "asc" }] }], Wrapper, { depth: 4 })).toBeUndefined();
+
+			});
+
+			it("rejects three-step path when depth budget is insufficient", async () => {
+
+				const Category = resource({ label: required(string()) });
+				const Product = resource({ name: required(string()), category: required(reference(Category)) });
+				const Target = resource({ product: required(reference(Product)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// depth 3 → depth 2 inside query → 3-step path rejected
+				expect(validateTemplate([{ items: [{}, { "^product.category.label": "asc" }] }], Wrapper, { depth: 3 })).toBeDefined();
+
+			});
+
+			it("reduces path budget at nested levels", async () => {
+
+				const Inner = resource({ name: required(string()), tag: optional(string()) });
+				const Outer = resource({ items: multiple(reference(Inner)) });
+
+				// depth 2 → depth 1 inside query → 1-step path ok
+				expect(validateTemplate([{ items: [{}, { "^tag": "asc" }] }], Outer, { depth: 2 })).toBeUndefined();
+
+				// depth 3 → depth 2 inside query → 2-step path rejected
+				const Deep = resource({ label: required(string()) });
+				const Inner2 = resource({ ref: required(reference(Deep)), tag: optional(string()) });
+				const Outer2 = resource({ items: multiple(reference(Inner2)) });
+
+				expect(validateTemplate([{ items: [{}, { ">=ref.label": "x" }] }], Outer2, { depth: 2 })).toBeDefined();
+
+			});
+
+			it("enforces depth on projection paths", async () => {
+
+				const Vendor = resource({ name: required(string()), rating: optional(integer()) });
+				const Target = resource({ vendor: required(reference(Vendor)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// projection path has 2 steps → rejected at depth 2 (depth 1 inside query)
+				expect(validateTemplate([{ items: [{ "rating=vendor.rating": 0 }] }], Wrapper, { depth: 2 })).toBeDefined();
+
+				// accepted at depth 3 (depth 2 inside query)
+				expect(validateTemplate([{ items: [{ "rating=vendor.rating": 0 }] }], Wrapper, { depth: 3 })).toBeUndefined();
+
+			});
+
+			it("enforces depth on keyword search paths", async () => {
+
+				const Vendor = resource({ name: required(string()) });
+				const Target = resource({ vendor: required(reference(Vendor)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// keyword path has 2 steps → rejected at depth 2 (depth 1 inside query)
+				expect(validateTemplate([{ items: [{}, { "~vendor.name": "test" }] }], Wrapper, { depth: 2 })).toBeDefined();
+
+				// accepted at depth 3 (depth 2 inside query)
+				expect(validateTemplate([{ items: [{}, { "~vendor.name": "test" }] }], Wrapper, { depth: 3 })).toBeUndefined();
+
+			});
+
+			it("enforces depth on option paths", async () => {
+
+				const Vendor = resource({ name: required(string()) });
+				const Target = resource({ vendor: required(reference(Vendor)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				// option path has 2 steps → rejected at depth 2 (depth 1 inside query)
+				expect(validateTemplate([{ items: [{}, { "?vendor.name": ["a", "b"] }] }], Wrapper, { depth: 2 })).toBeDefined();
+
+				// accepted at depth 3 (depth 2 inside query)
+				expect(validateTemplate([{ items: [{}, { "?vendor.name": ["a", "b"] }] }], Wrapper, { depth: 3 })).toBeUndefined();
+
+			});
+
+			it("accepts paths without depth limit", async () => {
+
+				const Category = resource({ label: required(string()) });
+				const Product = resource({ category: required(reference(Category)) });
+				const Target = resource({ product: required(reference(Product)) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				expect(validateTemplate([{ items: [{}, { "^product.category.label": "asc" }] }], Wrapper, {})).toBeUndefined();
+
+			});
+
+		});
+
+		describe("bindings", () => {
+
+			it("accepts plain identifier at top level", async () => {
+
+				const Target = resource({ name: required(string()), age: optional(integer()) });
+
+				expect(validateTemplate([{ name: "", age: 0 }], Target, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("rejects plain identifier referencing undefined property", async () => {
+
+				// apply() returns "undefined property path" for unknown property
+
+				const Target = resource({ name: required(string()) });
+
+				expect(validateTemplate([{ missing: "" }], Target, { depth: 0 })).toEqual({
+					"[0]": { "missing": "undefined property path" }
+				});
+
+			});
+
+		});
+
+		describe("restricted query features", () => {
+
+			const Target = resource({
+				name: required(string()),
+				age: optional(integer()),
+				status: required(string()),
+				tags: repeatable(string()),
+				released: required(date())
+			});
+
+			it.each([
+				["comparison filter", { ">=age": 18 }],
+				["text search filter", { "~name": "alice" }],
+				["disjunctive filter", { "?status": "active" }],
+				["conjunctive filter", { "!tags": "urgent" }],
+				["focus ordering", { "+status": ["active"] }],
+				["sort ordering", { "^name": "asc" }],
+				["pagination offset", { "@": 0 }],
+				["pagination limit", { "#": 10 }]
+			])("rejects %s at top level", async (_label, query) => {
+
+				expect(validateTemplate([query], Target, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("rejects transform binding at top level", async () => {
+
+				expect(validateTemplate([{ "releaseYear=year:released": 0 }], Target, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("rejects alias binding at top level", async () => {
+
+				expect(validateTemplate([{ "alias=name": "" }], Target, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("rejects dotted path binding at top level", async () => {
+
+				const Shape = resource({ vendor: required(reference(resource({ rating: optional(integer()) }))) });
+
+				expect(validateTemplate([{ "vendor.rating": 0 }], Shape, {})).toBeDefined();
+
+			});
+
+			it("rejects filter constraint in scalar reference template", async () => {
+
+				const Wrapper = resource({ supervisor: optional(reference(Target)) });
+
+				expect(validateTemplate([{ supervisor: { ">=age": 18 } }], Wrapper, {})).toBeDefined();
+
+			});
+
+			it("rejects sort criterion in scalar reference template", async () => {
+
+				const Wrapper = resource({ supervisor: optional(reference(Target)) });
+
+				expect(validateTemplate([{ supervisor: { "^name": "asc" } }], Wrapper, {})).toBeDefined();
+
+			});
+
+			it("accepts filter constraint inside collection template", async () => {
+
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				expect(validateTemplate([{ items: [{}, { ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
+
+			});
+
+			it("accepts transform binding inside collection template", async () => {
+
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				expect(validateTemplate([{ items: [{ "releaseYear=year:released": 0 }] }], Wrapper, {})).toBeUndefined();
+
+			});
+
+			it("rejects filter through scalar reference inside collection template", async () => {
+
+				const Inner = resource({ name: required(string()), rating: optional(integer()) });
+				const Item = resource({ vendor: required(reference(Inner)) });
+				const Wrapper = resource({ items: multiple(reference(Item)) });
+
+				// nested scalar reference objects are templates — use dotted paths for cross-reference filtering
+
+				expect(validateTemplate([{ items: [{ vendor: { ">=rating": 3 } }] }], Wrapper, {})).toBeDefined();
+
+			});
+
+			it("accepts plain identifier in scalar reference inside collection template", async () => {
+
+				const Inner = resource({ name: required(string()), rating: optional(integer()) });
+				const Item = resource({ vendor: required(reference(Inner)) });
+				const Wrapper = resource({ items: multiple(reference(Item)) });
+
+				expect(validateTemplate([{ items: [{ vendor: { rating: 0 } }] }], Wrapper, {})).toBeUndefined();
+
+			});
+
+		});
+
+		describe("nested query criteria", () => {
+
+			describe("projection properties", () => {
+
+				it("accepts query with only projection properties", async () => {
+
+					const Target = resource({ id: id(), name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{
+							name: "",
+							age: 0
+						}]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects query with unknown projection binding", async () => {
+
+					// extra=extra → apply() returns "undefined property path"
+
+					const Target = resource({ id: id(), name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{
+							name: "",
+							extra: ""
+						}]
+					}], Wrapper, {})).toEqual({
+						"[0]": { "items": { "extra": "undefined property path" } }
+					});
+
+				});
+
+			});
+
+			describe("id projection", () => {
+
+				const Target = resource({ id: id(), name: required(string()), age: optional(integer()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				it.each([
+					["single", { id: "app:/items/1" }],
+					["leading", { id: "app:/items/1", name: "", age: 0 }],
+					["inner", { name: "", id: "app:/items/1", age: 0 }],
+					["trailing", { name: "", age: 0, id: "app:/items/1" }]
+				])("accepts id as %s projection property", async (_position, query) => {
+
+					expect(validateTemplate([{ items: [query] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+			});
+
+			describe("type projection", () => {
+
+				const Target = resource({ type: type(), name: required(string()), age: optional(integer()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				it.each([
+					["single", { type: "app:/types/Person" }],
+					["leading", { type: "app:/types/Person", name: "", age: 0 }],
+					["inner", { name: "", type: "app:/types/Person", age: 0 }],
+					["trailing", { name: "", age: 0, type: "app:/types/Person" }]
+				])("accepts type as %s projection property", async (_position, query) => {
+
+					expect(validateTemplate([{ items: [query] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+			});
+
+			describe("limit", () => {
+
+				const Target = resource({ name: required(string()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				it("accepts # value equal to limit", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": 100 }] }], Wrapper, { limit: 100 })).toBeUndefined();
+				});
+
+				it("accepts # value less than limit", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": 50 }] }], Wrapper, { limit: 100 })).toBeUndefined();
+				});
+
+				it("rejects # value exceeding limit", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": 101 }] }], Wrapper, { limit: 100 })).toBeDefined();
+				});
+
+				it("rejects zero # as unbounded under a limit", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": 0 }] }], Wrapper, { limit: 100 })).toBeDefined();
+				});
+
+				it("accepts any non-negative # without a limit (spec-lenient)", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": 0 }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{}, { "#": 1000000 }] }], Wrapper, {})).toBeUndefined();
+				});
+
+				it("treats a limit of 0 as unbounded (accepts any #)", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": 0 }] }], Wrapper, { limit: 0 })).toBeUndefined();
+					expect(validateTemplate([{ items: [{}, { "#": 1000000 }] }], Wrapper, { limit: 0 })).toBeUndefined();
+				});
+
+				it("accepts a template without # under a limit", async () => {
+					expect(validateTemplate([{ items: [{ name: "" }] }], Wrapper, { limit: 50 })).toBeUndefined();
+				});
+
+			});
+
+			describe("filter criteria", () => {
+
+				it("accepts comparison filter on existing property", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts text search filter on string property", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "~name": "alice" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts disjunctive filter on existing property", async () => {
+
+					const Target = resource({ status: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "?status": "active" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts conjunctive filter on existing property", async () => {
+
+					const Target = resource({ tags: repeatable(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "!tags": "urgent" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects filter on undefined property", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { ">=age": 18 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { ">=age": "undefined property path" } }
+					});
+
+				});
+
+			});
+
+			describe("ordering criteria", () => {
+
+				it("accepts sort ordering on existing property", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{}, {
+							"^name": "asc",
+							"^age": "desc"
+						}]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts integer sort precedence", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "^name": 2 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects non-integer sort precedence", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "^name": 1.5 }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts focus ordering on existing property", async () => {
+
+					const Target = resource({ status: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "+status": ["active"] }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects ordering on undefined property", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "^missing": "asc" }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "^missing": "undefined property path" } }
+					});
+
+				});
+
+				// `^` requires a single-valued sort key: a bare sort over a multi-valued
+				// property is invalid and must be reduced explicitly through a `min`/`max`
+				// aggregate; a single-valued localised property coalesces and sorts directly
+
+				it("rejects bare sort on multi-valued property", async () => {
+
+					const Target = resource({ tags: repeatable(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "^tags": "asc" }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts bare sort on single-valued localised property", async () => {
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "^label": "asc" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects bare sort on multi-valued localised property", async () => {
+
+					const Target = resource({ labels: repeatable(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "^labels": "asc" }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts scalar-transformed sort on coalesced localised property", async () => {
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					// `lower` is coalesced access: the single-string-per-tag property contributes its
+					// coalesced string, so the key sorts by the lowered label
+
+					expect(validateTemplate([{ items: [{}, { "^lower:label": "asc" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects malformed order on scalar-transformed coalesced localised sort key", async () => {
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					// the coalesced key is a real string sort key, so the order operand is checked
+					// rather than vacuously accepted
+
+					expect(validateTemplate([{ items: [{}, { "^lower:label": 1.5 }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts aggregate sort on coalesced localised property", async () => {
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "^min:label": "asc" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts aggregate sort on multi-valued property", async () => {
+
+					const Target = resource({ tags: repeatable(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					// `max` collapses the multi-valued property to a single-valued sort key
+
+					expect(validateTemplate([{ items: [{}, { "^max:tags": "asc" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts count aggregate sort on multi-valued property", async () => {
+
+					const Target = resource({ tags: repeatable(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "^count:tags": "asc" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+			});
+
+			describe("grouped-semantics ordering", () => {
+
+				// under grouping (any aggregate in the projection or selection), a non-aggregate sort key
+				// must reference an existing grouping key (a non-aggregate projection binding)
+
+				const Target = resource({ name: required(string()), category: optional(string()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				it("rejects a non-aggregate sort key with no grouping key under grouping", async () => {
+					expect(validateTemplate([{ items: [{ "c=count:": 0 }, { "^name": "asc" }] }], Wrapper, {})).toBeDefined();
+				});
+
+				it("rejects a non-aggregate sort key not among the grouping keys", async () => {
+					expect(validateTemplate([{
+						items: [{ "category": "", "c=count:": 0 }, { "^name": "asc" }]
+					}], Wrapper, {})).toBeDefined();
+				});
+
+				it("accepts a non-aggregate sort key matching a grouping key", async () => {
+					expect(validateTemplate([{
+						items: [{ "category": "", "c=count:": 0 }, { "^category": "asc" }]
+					}], Wrapper, {})).toBeUndefined();
+				});
+
+				it("accepts an aggregate sort key under grouping", async () => {
+					expect(validateTemplate([{
+						items: [{ "category": "", "c=count:": 0 }, { "^count:": "desc" }]
+					}], Wrapper, {})).toBeUndefined();
+				});
+
+				it("accepts a non-aggregate sort key when the query is not grouped", async () => {
+					expect(validateTemplate([{ items: [{ "name": "" }, { "^name": "asc" }] }], Wrapper, {})).toBeUndefined();
+				});
+
+			});
+
+			describe("pagination", () => {
+
+				const Target = resource({ name: required(string()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				it("accepts offset and limit", async () => {
+					expect(validateTemplate([{
+						items: [{}, {
+							"@": 10,
+							"#": 25
+						}]
+					}], Wrapper, {})).toBeUndefined();
+				});
+
+				it("accepts zero offset", async () => {
+					expect(validateTemplate([{ items: [{}, { "@": 0 }] }], Wrapper, {})).toBeUndefined();
+				});
+
+				it("accepts zero limit", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": 0 }] }], Wrapper, {})).toBeUndefined();
+				});
+
+				it("rejects negative offset", async () => {
+					expect(validateTemplate([{ items: [{}, { "@": -1 }] }], Wrapper, {})).toBeDefined();
+				});
+
+				it("rejects negative limit", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": -1 }] }], Wrapper, {})).toBeDefined();
+				});
+
+				it("rejects fractional offset", async () => {
+					expect(validateTemplate([{ items: [{}, { "@": 1.5 }] }], Wrapper, {})).toBeDefined();
+				});
+
+				it("rejects fractional limit", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": 2.5 }] }], Wrapper, {})).toBeDefined();
+				});
+
+				it("rejects string offset", async () => {
+					expect(validateTemplate([{ items: [{}, { "@": "10" }] }], Wrapper, {})).toBeDefined();
+				});
+
+				it("rejects string limit", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": "25" }] }], Wrapper, {})).toBeDefined();
+				});
+
+				it("rejects boolean offset", async () => {
+					expect(validateTemplate([{ items: [{}, { "@": true }] }], Wrapper, {})).toBeDefined();
+				});
+
+				it("rejects null limit", async () => {
+					expect(validateTemplate([{ items: [{}, { "#": null }] }], Wrapper, {})).toBeDefined();
+				});
+
+			});
+
+			describe("language scope", () => {
+
+				const Target = resource({ name: required(string()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+				it("rejects a locale-tag array on the repurposed @ offset operator", async () => {
+					// @ now carries the pagination offset (an integer); the dropped language-scope
+					// array-of-tags form is no longer a valid operand
+					expect(validateTemplate([{ items: [{}, { "@": ["en"] }] }], Wrapper, {})).toBeDefined();
+				});
+
+			});
+
+			describe("mixed keys", () => {
+
+				it("accepts projection element paired with filter, ordering, and pagination selection", async () => {
+
+					const Target = resource({
+						name: required(string()),
+						age: optional(integer()),
+						status: required(string())
+					});
+
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{
+							name: ""
+						}, {
+							">=age": 18,
+							"~name": "alice",
+							"^age": "asc",
+							"@": 0,
+							"#": 10
+						}]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects unknown binding alongside valid query keys in singleton tuple", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [
+							{ name: "", extra: "" },
+							{ "^name": "asc" }
+						]
+					}], Wrapper, {})).toEqual({
+						"[0]": { "items": { "extra": "undefined property path" } }
+					});
+
+				});
+
+			});
+
+			describe("singleton tuple enforcement", () => {
+
+				it("accepts projection element with selection in second slot", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ name: "" }, { ">=age": 18 }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects selection operator key in the element slot", async () => {
+
+					// selection operators belong in the tuple's second slot; an operator-keyed object
+					// is neither a valid Template nor a valid Projection element
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ name: "", ">=age": 18 }]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("rejects three-element collection placeholder tuple", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [
+							{ name: "" },
+							{ ">=age": 18 },
+							{ "#": 10 }
+						]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("rejects three-element tuple even when entries are individually valid", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [
+							{ name: "" },
+							{ "#": 10 },
+							{ "#": 20 }
+						]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("rejects empty collection placeholder tuple", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: []
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts selection-only singleton tuple", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{}, { ">=age": 18 }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts projection-only singleton tuple", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ name: "" }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts projection binding in singleton tuple", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=name": "" }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts undefined projection binding for conditionally elided slot", async () => {
+
+					// per qest: `Projection = { [Binding]: undefined | Union }` — undefined marks
+					// an optional binding elided at construction time (for example, conditionally
+					// included aggregates)
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=name": undefined }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects array-valued projection binding to multi-valued property", async () => {
+
+					// qest's Projection arm admits only Placeholder (Literal | Reference | Template),
+					// excluding singleton-tuple collection placeholders
+
+					const Target = resource({ tags: repeatable(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=tags": ["a"] }]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts LocaleString projection binding on scalar localised property", async () => {
+
+					// single-string-per-tag's structural map carries single strings per tag (qest §5.3)
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=label": { en: "" } }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts coalesced bare string projection binding on scalar localised property", async () => {
+
+					// a single-valued localised binding coalesces, so a bare string stands in for its
+					// negotiated value (the Section 5.3 scalar placeholder)
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=label": "" }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects bare string projection binding on multi-valued localised property", async () => {
+
+					// an array-per-tag binding coalesces through the `[""]` coalesced array placeholder, so a
+					// bare string (the single-string-per-tag form) is the wrong shape for its cardinality
+
+					const Target = resource({ keywords: multiple(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=keywords": "" }]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts coalesced array placeholder projection binding on multi-valued localised property", async () => {
+
+					// `[""]` is the array-per-tag coalesced placeholder: a single-element string array fanning
+					// out per value, distinct from the generic collection placeholder a non-text array rejects
+
+					const Target = resource({ keywords: multiple(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=keywords": [""] }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects coalesced array placeholder projection binding on single-valued localised property", async () => {
+
+					// `[""]` is the array-per-tag form; over a single-string-per-tag property the bare string
+					// `""` is the matching coalesced placeholder, so the array shape is rejected
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=label": [""] }]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("rejects LocaleString projection binding on multi-valued localised property", async () => {
+
+					// per qest §5.3, the structural map's per-tag value is typed to the property's per-tag
+					// cardinality: a single string over an array-per-tag property is a mismatch (the row-level
+					// "one cell, no fan-out" rule is a separate axis from the per-tag value shape)
+
+					const Target = resource({ keywords: multiple(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=keywords": { en: "" } }]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts LocaleStrings projection binding on multi-valued localised property", async () => {
+
+					// array-per-tag's structural map carries single-element string arrays per tag (qest §5.3)
+
+					const Target = resource({ keywords: multiple(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=keywords": { en: ["x"] } }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects LocaleStrings projection binding on scalar localised property", async () => {
+
+					// single-string-per-tag's structural map carries single strings per tag, so a
+					// singleton-tuple value is a per-tag cardinality mismatch (qest §5.3)
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=label": { en: ["x"] } }]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("rejects mixed-shape Locale projection binding", async () => {
+
+					// array-per-tag pins every tag value to a singleton tuple (qest §5.3), so the
+					// single-string `en` entry is a per-tag cardinality mismatch
+
+					const Target = resource({ keywords: multiple(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=keywords": { en: "x", fr: ["y"] } }]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("rejects collection-placeholder value on projection binding to multi-valued reference", async () => {
+
+					// qest's Projection arm excludes singleton-tuple collection placeholders
+
+					const Member = resource({ name: required(string()) });
+					const Target = resource({ members: multiple(reference(Member)) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=members": [{ name: "" }] }]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("rejects mixing template singleton-tuple value with projection binding key", async () => {
+
+					// The whole entry must satisfy isTemplateSelection or isProjectionSelection as a unit:
+					// - isTemplateSelection rejects the binding key `alias=foo` (not an identifier)
+					// - isProjectionSelection rejects the singleton-tuple value of `members` (Projection
+					//   excludes singleton-tuple collection placeholders)
+					// Therefore neither qest arm accepts the entry.
+
+					const Member = resource({ name: required(string()) });
+					const Target = resource({
+						members: multiple(reference(Member)),
+						foo: required(string())
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{
+							members: [{ name: "" }],
+							"alias=foo": ""
+						}]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts projection binding element with selection in second slot", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ "alias=name": "" }, { ">=age": 18 }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts mixed identifier and binding entries in singleton tuple", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{ name: "", "alias=age": 0 }]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects duplicate projection identifier across plain and computed bindings", async () => {
+
+					// `name` (plain identifier) and `name=other` (computed binding) collide on the
+					// projection identifier `name`; per qest's Projection contract bindings must be
+					// unique within an entry
+
+					const Target = resource({
+						name: required(string()),
+						other: required(string())
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{
+							"name": "",
+							"name=other": ""
+						}]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("rejects duplicate projection identifier across two computed bindings", async () => {
+
+					const Target = resource({
+						name: required(string()),
+						age: optional(integer())
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{
+							"alias=name": "",
+							"alias=age": 0
+						}]
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts distinct projection identifiers", async () => {
+
+					const Target = resource({
+						name: required(string()),
+						age: optional(integer())
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: [{
+							"first=name": "",
+							"second=age": 0
+						}]
+					}], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects non-object element in collection placeholder tuple", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{
+						items: ["not an object"] as any
+					}], Wrapper, {})).toBeDefined();
+
+				});
+
+			});
+
+			describe("nested model passthrough", () => {
+
+				it("accepts plain nested model in reference tuple", async () => {
+
+					const Member = resource({ name: required(string()) });
+					const Wrapper = resource({ members: multiple(reference(Member)) });
+
+					expect(validateTemplate([{ members: [{ name: "" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts scalar reference with IRI string", async () => {
+
+					const Target = resource({ id: id(), name: required(string()) });
+					const Wrapper = resource({ supervisor: optional(reference(Target)) });
+
+					expect(validateTemplate([{ supervisor: "app:/users/1" }], Wrapper, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("preserves local model validation", async () => {
+
+					const Wrapper = resource({ label: required(text()) });
+
+					expect(validateTemplate([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("preserves localised model validation", async () => {
+
+					const Wrapper = resource({ labels: repeatable(text()) });
+
+					expect(validateTemplate([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
+
+				});
+
+				it("rejects single-string map on multi-valued localised in collections", async () => {
+
+					// array-per-tag pins the structural map to the singleton-tuple arm
+
+					const Wrapper = resource({ label: multiple(text()) });
+
+					expect(validateTemplate([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeDefined();
+
+				});
+
+				it("accepts localised shape in collections", async () => {
+
+					const Wrapper = resource({ labels: multiple(text()) });
+
+					expect(validateTemplate([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
+
+				});
+
+			});
+
+			describe("deep path criteria", () => {
+
+				it("accepts filter with single-segment path", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { ">=age": 18 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts filter through reference property", async () => {
+
+					const Vendor = resource({ name: required(string()), rating: optional(integer()) });
+					const Target = resource({ vendor: required(reference(Vendor)) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { ">=vendor.rating": 3 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts ordering through reference property", async () => {
+
+					const Vendor = resource({ name: required(string()), rating: optional(integer()) });
+					const Target = resource({ vendor: required(reference(Vendor)) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "^vendor.rating": "asc" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts three-segment path through nested references", async () => {
+
+					const Category = resource({ label: required(string()) });
+					const Product = resource({ name: required(string()), category: required(reference(Category)) });
+					const Target = resource({ product: required(reference(Product)) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { "^product.category.label": "asc" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects deep path with undefined nested property", async () => {
+
+					const Vendor = resource({ name: required(string()) });
+					const Target = resource({ vendor: required(reference(Vendor)) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { ">=vendor.rating": 3 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { ">=vendor.rating": "undefined property path" } }
+					});
+
+				});
+
+				it("rejects deep path through leaf property", async () => {
+
+					const Target = resource({ name: required(string()), age: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { ">=name.deep": 0 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { ">=name.deep": "undefined property path" } }
+					});
+
+				});
+
+			});
+
+			describe("union path criteria", () => {
+
+				it("accepts filter through union variant reference", async () => {
+
+					const ItemShape = resource({ score: optional(integer()) });
+					const Target = resource({ item: required(union(reference(ItemShape), string())) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { ">=item.score": 5 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects deep path through union with missing property", async () => {
+
+					const ItemShape = resource({ score: optional(integer()) });
+					const Target = resource({ item: required(union(reference(ItemShape), string())) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{}, { ">=item.missing": 0 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { ">=item.missing": "undefined property path" } }
+					});
+
+				});
+
+				it("accepts selection-only tuple with path-bearing filter over a UnionShape collection", async () => {
+
+					// the collection range is itself a union; validateSelectionEntry resolves the
+					// probe path through apply's UnionShape entry point (commit 6af1c8f) rather
+					// than through a single variant shape
+
+					const Scored = resource({ name: required(string()), score: required(integer()) });
+					const Labeled = resource({ label: required(string()) });
+					const Wrapper = resource({ items: multiple(union(reference(Scored), reference(Labeled))) });
+
+					expect(validateTemplate([{ items: [{}, { ">=score": 5 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects bare sort across union branches when any branch is multi-valued", async () => {
+
+					// cardinality is a property of the enclosing slot, not of a single branch: the
+					// `tag` property is multi-valued in the `repeatable` branch, so its cross-branch
+					// envelope is multi-valued and a bare `^` — which requires a single-valued key —
+					// is rejected regardless of the single-valued sibling branch
+
+					const Many = resource({ tag: repeatable(string()) });
+					const One = resource({ tag: required(string()) });
+					const Wrapper = resource({ items: multiple(union(reference(Many), reference(One))) });
+
+					expect(validateTemplate([{ items: [{}, { "^tag": "asc" }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts bare sort across union branches when every branch is single-valued", async () => {
+
+					// the `tag` property is single-valued in every branch, so its cross-branch
+					// envelope is single-valued and a bare `^` is accepted
+
+					const First = resource({ tag: required(string()) });
+					const Second = resource({ tag: optional(string()) });
+					const Wrapper = resource({ items: multiple(union(reference(First), reference(Second))) });
+
+					expect(validateTemplate([{ items: [{}, { "^tag": "asc" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+			});
+
+			describe("binding criteria", () => {
+
+				it("accepts binding with valid transform and projection type", async () => {
+
+					const Target = resource({ name: required(string()), released: optional(date()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "releaseYear=year:released": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects binding with type mismatch in projection", async () => {
+
+					const Target = resource({ name: required(string()), released: optional(date()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "releaseYear=year:released": "" }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("rejects binding referencing undefined property", async () => {
+
+					const Target = resource({ name: required(string()), released: optional(date()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "y=year:missing": 0 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "y=year:missing": "undefined property path" } }
+					});
+
+				});
+
+				it("accepts chained aggregate transform", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts multi-step chained transform", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "avg=round:avg:price": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts count transform on empty path", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects count transform with wrong projection type", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "total=count:": "" }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts sum transform on empty path yielding zero (resource outside the processing space)", async () => {
+
+					// the empty path resolves to the resource shape, which is not in the processing space →
+					// the transform drops it; the total aggregate `sum` still yields its empty-set 0
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "total=sum:": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts lower transform on empty path as undefined (resource outside the processing space)", async () => {
+
+					// the empty path resolves to the resource shape, which is not in the processing space →
+					// the transform drops it to undefined, leaving a vacuously valid binding
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=lower:": "" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts aggregate binding over an empty path as undefined (resource outside the processing space)", async () => {
+
+					// min over an empty path resolves to the resource shape, which is not in the processing
+					// space → the transform drops it to undefined, leaving a vacuously valid binding
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				describe("identity and aggregate bindings", () => {
+
+					const Target = resource({
+						name: required(string()),
+						age: optional(integer()),
+						active: optional(boolean()),
+						link: optional(reference(resource({ id: id(), label: required(string()) }))),
+						child: required(resource({ label: required(string()) }))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					it("accepts identity binding on string property", async () => {
+
+
+						expect(validateTemplate([{ items: [{ "alias=name": "" }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+					it("accepts identity binding on integer property", async () => {
+
+
+						expect(validateTemplate([{ items: [{ "alias=age": 0 }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+					it("accepts identity binding on boolean property", async () => {
+
+
+						expect(validateTemplate([{ items: [{ "alias=active": true }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+					it("accepts identity binding on reference property with IRI", async () => {
+
+
+						expect(validateTemplate([{ items: [{ "alias=link": "app:/items/1" }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+					it("rejects identity binding on reference property with wrong type", async () => {
+
+
+						expect(validateTemplate([{ items: [{ "alias=link": 0 }] }], Wrapper, {})).toBeDefined();
+
+					});
+
+					it("accepts identity binding on embedded resource with model", async () => {
+
+
+						expect(validateTemplate([{ items: [{ "alias=child": { label: "" } }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+					it("rejects identity binding on embedded resource with invalid model", async () => {
+
+
+						expect(validateTemplate([{ items: [{ "alias=child": { label: 0 } }] }], Wrapper, {})).toBeDefined();
+
+					});
+
+					it("rejects identity binding on embedded resource with unknown binding", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, {})).toEqual({
+							"[0]": { "items": { "alias=child": { "unknown": "undefined property path" } } }
+						});
+
+					});
+
+					it("rejects identity binding on embedded resource with non-object", async () => {
+
+
+						expect(validateTemplate([{ items: [{ "alias=child": 42 }] }], Wrapper, {})).toBeDefined();
+
+					});
+
+					it("accepts aggregate binding on embedded resource as undefined (resource outside the processing space)", async () => {
+
+						// min over a reference/resource child drops to undefined → vacuously valid, so the
+						// projected model is immaterial
+
+						expect(validateTemplate([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+					it("accepts identity binding on embedded resource with depth", async () => {
+
+
+						expect(validateTemplate([{ items: [{ "alias=child": { label: "x" } }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+					it("rejects operator key in scalar reference nested template", async () => {
+
+						// nested scalar reference objects are templates — operators require dotted paths
+
+						expect(validateTemplate([{
+							items: [{
+								"alias=link": {
+									label: "",
+									"^label": "asc"
+								}
+							}]
+						}], Wrapper, {})).toBeDefined();
+
+					});
+
+					it("rejects identity binding on reference property with unknown binding", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=link": { unknown: "" } }] }], Wrapper, {})).toEqual({
+							"[0]": { "items": { "alias=link": { "unknown": "undefined property path" } } }
+						});
+
+					});
+
+					it("rejects operator key in embedded resource nested template", async () => {
+
+						// nested embedded resource objects are templates — operators require dotted paths
+
+						expect(validateTemplate([{
+							items: [{
+								"alias=child": {
+									label: "",
+									"^label": "asc"
+								}
+							}]
+						}], Wrapper, {})).toBeDefined();
+
+					});
+
+					it("rejects identity binding on embedded resource with unknown binding", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, {})).toEqual({
+							"[0]": { "items": { "alias=child": { "unknown": "undefined property path" } } }
+						});
+
+					});
+
+					it("accepts aggregate reference binding as undefined, leaving its nested template unchecked", async () => {
+
+						// min over a reference drops to undefined → vacuously valid, so the nested template
+						// (and any operator key within it) is never reached
+
+						expect(validateTemplate([{
+							items: [{
+								"alias=min:link": {
+									label: "",
+									">=label": "a"
+								}
+							}]
+						}], Wrapper, {})).toBeUndefined();
+
+					});
+
+					it("accepts aggregate resource binding as undefined, leaving its nested template unchecked", async () => {
+
+						expect(validateTemplate([{
+							items: [{
+								"alias=min:child": {
+									label: "",
+									">=label": "a"
+								}
+							}]
+						}], Wrapper, {})).toBeUndefined();
+
+					});
+
+				});
+
+			});
+
+			describe("transform domain violations", () => {
+
+				// a transform applied outside its domain is never an error: apply() resolves it to the null
+				// sentinel (or, for a total aggregate, its empty-set 0), so the binding is vacuously valid.
+				// This holds equally for values outside the processing space (reference, resource, localised map)
+
+				it("accepts sum transform on string property (out of domain, vacuously valid)", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "total=sum:name": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts abs transform on reference property (out of processing space, vacuously valid)", async () => {
+
+					const Target = resource({
+						name: required(string()),
+						price: optional(integer()),
+						link: optional(reference(resource({ id: id() })))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "v=abs:link": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts year transform on number property (out of domain, vacuously valid)", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "y=year:price": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts temporal transform on plain string property (out of domain, vacuously valid)", async () => {
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "m=month:name": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects aggregate-after-aggregate pipe", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "x=sum:count:price": "expected template identifier or projection binding" } }
+					});
+
+				});
+
+				it.each([
+					["leading digit", "1bad=name"],
+					["hyphen", "bad-name=name"],
+					["whitespace", "bad name=name"]
+				])("rejects projection binding with invalid result name (%s)", async (_label, key) => {
+
+					// the binding result name (left of `=`) must be a valid identifier; only the RHS
+					// expression is well-formed here, isolating the result-name check
+
+					const Target = resource({ name: required(string()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ [key]: 0 }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+			});
+
+			describe("localised shape transforms", () => {
+
+				// a transform pipe is coalesced access: a localised property contributes the winning
+				// tag's value(s) as an ordinary xsd:string of its per-tag cardinality, so string-domain
+				// transforms apply under ordinary string semantics; an out-of-domain transform drops it to
+				// undefined (vacuously valid). After a transform the range is a plain string, not a Locale,
+				// so a transform-derived array-per-tag binding takes the ordinary string placeholder
+
+				it("accepts string placeholder for lower transform on coalesced localised property", async () => {
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=lower:label": "" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects locale placeholder for lower transform on coalesced localised property", async () => {
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=lower:label": { "en": "hello" } }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts string placeholder for upper transform on coalesced localised property", async () => {
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=upper:label": "" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts number placeholder for length transform on coalesced localised property", async () => {
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=length:label": 5 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects string placeholder for length transform on coalesced localised property", async () => {
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=length:label": "x" }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts abs transform on coalesced localised property (out of domain, vacuously valid)", async () => {
+
+					const Target = resource({ label: required(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts string placeholder for lower transform on array-per-tag localised property", async () => {
+
+					// array-per-tag coalesces to a multi-valued string; a transform-derived string range
+					// takes the ordinary bare placeholder, fanning out per value
+
+					const Target = resource({ labels: repeatable(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=lower:labels": "" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects locale placeholder for lower transform on array-per-tag localised property", async () => {
+
+					// after the transform the range is a plain string, not a Locale, so the tag-map form is rejected
+
+					const Target = resource({ labels: repeatable(text()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=lower:labels": { "en": "hello" } }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+			});
+
+			describe("union partial domain match", () => {
+
+				it("accepts numeric transform on union with numeric variant", async () => {
+
+					// abs: numeric domain — integer variant survives, string variant filtered → Range(integer)
+
+					const Target = resource({
+						value: required(union(integer(), string()))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=abs:value": 42 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects numeric transform on union with numeric variant when template is wrong type", async () => {
+
+					// abs on union(integer, string) → Range(integer), but template is string → rejects
+
+					const Target = resource({
+						value: required(union(integer(), string()))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=abs:value": "wrong" }] }], Wrapper, {})).toBeDefined();
+
+				});
+
+				it("accepts string transform on union with string variant", async () => {
+
+					// lower: string domain — string variant survives, integer variant filtered → Range(string)
+
+					const Target = resource({
+						value: required(union(integer(), string()))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=lower:value": "" }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("accepts transform on union where no variant matches domain (vacuously valid)", async () => {
+
+					// year: temporal domain — neither boolean nor integer is temporal → every variant
+					// out of domain → null sentinel → the binding is vacuously valid
+
+					const Target = resource({
+						value: required(union(boolean(), integer()))
+					});
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+			});
+
+			describe("projection union forms", () => {
+
+				const Target = resource({
+					value: required(union(string(), integer()))
+				});
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+
+				describe("default form rejected", () => {
+
+					// a projection cell admits only Placeholder | Union | Locale; the default form
+					// `{ "": Scalar }` is none of these (it is the Query scalar-collection branch)
+
+					it("rejects default form projection regardless of variant match", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=value": { "": "hello" } }] }], Wrapper, {})).toBeDefined();
+						expect(validateTemplate([{ items: [{ "alias=value": { "": 42 } }] }], Wrapper, {})).toBeDefined();
+						expect(validateTemplate([{ items: [{ "alias=value": { "": true } }] }], Wrapper, {})).toBeDefined();
+
+					});
+
+					it("accepts empty union template projection", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=value": {} }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+				});
+
+
+				describe("union form", () => {
+
+					it("accepts union form projection with valid variant placeholders", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=value": { "0": "hello", "1": 42 } }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+					it("accepts union form projection with subset of variants", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=value": { "0": "hello" } }] }], Wrapper, {})).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=value": { "1": 42 } }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+					it("rejects union form projection with out-of-range key", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=value": { "2": "hello" } }] }], Wrapper, {})).toBeDefined();
+
+					});
+
+					it("rejects union form projection with non-canonical integer key", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=value": { "01": "hello" } }] }], Wrapper, {})).toBeDefined();
+
+					});
+
+					it("rejects union form projection with placeholder mismatching its variant", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=value": { "0": 42 } }] }], Wrapper, {})).toBeDefined();
+						expect(validateTemplate([{ items: [{ "alias=value": { "1": "hello" } }] }], Wrapper, {})).toBeDefined();
+
+					});
+
+					it("accepts empty union template projection", async () => {
+
+						expect(validateTemplate([{ items: [{ "alias=value": {} }] }], Wrapper, {})).toBeUndefined();
+
+					});
+
+				});
+
+			});
+
+			describe("plain option", () => {
+
+				it("accepts aggregate binding when plain is false", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {
+						plain: false
+					})).toBeUndefined();
+
+				});
+
+				it("accepts aggregate binding when plain is defaulted", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {})).toBeUndefined();
+
+				});
+
+				it("rejects aggregate binding when plain is true", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "total=count:": 0 }] }], Wrapper, {
+						plain: true
+					})).toBeDefined();
+
+				});
+
+				it("rejects min aggregate when plain is true", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "lowest=min:price": 0 }] }], Wrapper, {
+						plain: true
+					})).toBeDefined();
+
+				});
+
+				it("rejects max aggregate when plain is true", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "highest=max:price": 0 }] }], Wrapper, {
+						plain: true
+					})).toBeDefined();
+
+				});
+
+				it("rejects sum aggregate when plain is true", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "total=sum:price": 0 }] }], Wrapper, {
+						plain: true
+					})).toBeDefined();
+
+				});
+
+				it("rejects avg aggregate when plain is true", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "average=avg:price": 0 }] }], Wrapper, {
+						plain: true
+					})).toBeDefined();
+
+				});
+
+				it("rejects chained aggregate pipe when plain is true", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {
+						plain: true
+					})).toBeDefined();
+
+				});
+
+				it("accepts non-aggregate transform when plain is true", async () => {
+
+					const Target = resource({ name: required(string()), released: optional(date()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "y=year:released": 0 }] }], Wrapper, {
+						plain: true
+					})).toBeUndefined();
+
+				});
+
+				it("accepts scalar transform pipe when plain is true", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ "r=round:price": 0 }] }], Wrapper, {
+						plain: true
+					})).toBeUndefined();
+
+				});
+
+				it("accepts plain property when plain is true", async () => {
+
+					const Target = resource({ name: required(string()), price: optional(integer()) });
+					const Wrapper = resource({ items: multiple(reference(Target)) });
+
+					expect(validateTemplate([{ items: [{ name: "" }] }], Wrapper, {
+						plain: true
+					})).toBeUndefined();
+
+				});
+
+				it("rejects aggregate on flat model when plain is true", async () => {
+
+					const shape = resource({ name: required(string()), price: optional(integer()) });
+
+					expect(validateTemplate([{ "total=count:": 0 }], shape, { depth: 0, plain: true })).toBeDefined();
+
+				});
+
+				it("accepts plain property on flat model when plain is true", async () => {
+
+					const shape = resource({ name: required(string()), price: optional(integer()) });
+
+					expect(validateTemplate([{ name: "" }], shape, { depth: 0, plain: true })).toBeUndefined();
+
+				});
+
+			});
+
+			describe("operator semantics", () => {
+
+				// operator/type compatibility must be evaluated against the effective shape
+				// computed by apply(binding, shape), which accounts for transform pipelines
+
+				const Target = resource({
+					name: required(string()),
+					age: optional(integer()),
+					active: optional(boolean()),
+					label: required(text()),
+					labels: repeatable(text()),
+					link: optional(reference(resource({ id: id(), label: required(string()) })))
+				});
+				const Wrapper = resource({ items: multiple(reference(Target)) });
+
+
+				describe("text search operator (~)", () => {
+
+					it("accepts text search on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { "~name": "alice" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts text search on local property", async () => {
+						expect(validateTemplate([{ items: [{}, { "~label": "hello" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts text search on multi-valued localised property", async () => {
+						// array-per-tag coalesces to a multi-valued string set; `~` searches it existentially
+						expect(validateTemplate([{ items: [{}, { "~labels": "hello" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("rejects number keywords on single-valued localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "~label": 42 }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects text search on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "~age": "42" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects text search on boolean property", async () => {
+						expect(validateTemplate([{ items: [{}, { "~active": "true" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects text search on reference property", async () => {
+						expect(validateTemplate([{ items: [{}, { "~link": "test" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects text search on undefined property", async () => {
+
+						expect(validateTemplate([{ items: [{}, { "~missing": "x" }] }], Wrapper, {})).toEqual({
+							"[0]": { "items": { "~missing": "undefined property path" } }
+						});
+					});
+
+					it("rejects number keywords on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { "~name": 42 }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects boolean keywords on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { "~name": true }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects null keywords on local property", async () => {
+						expect(validateTemplate([{ items: [{}, { "~label": null }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects array keywords on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { "~name": ["a", "b"] }] }], Wrapper, {})).toBeDefined();
+					});
+
+				});
+
+				describe("union keyword validation", () => {
+
+					const UnionTarget = resource({
+						value: required(union(string(), integer()))
+					});
+					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
+
+					it("accepts text search matching string union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "~value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("rejects text search matching no textual union variant", async () => {
+
+						const NumericUnion = resource({
+							value: required(union(integer(), boolean()))
+						});
+						const NumericWrapper = resource({ items: multiple(reference(NumericUnion)) });
+
+						expect(validateTemplate([{ items: [{}, { "~value": "hello" }] }], NumericWrapper, {})).toBeDefined();
+
+					});
+
+				});
+
+				describe("range operators (<, >, <=, >=)", () => {
+
+					it("accepts range operator on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=name": "alice" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts range operator on boolean property", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=active": true }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("rejects non-boolean range bound on boolean property", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=active": "x" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("accepts range operator on single-valued localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=label": "x" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("rejects non-string range bound on single-valued localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=label": 42 }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("accepts range operator on multi-valued localised property", async () => {
+						// array-per-tag coalesces to a multi-valued string set; the bound filters it existentially
+						expect(validateTemplate([{ items: [{}, { ">=labels": "x" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					// a transform pipe over a single-string-per-tag localised property is coalesced
+					// access, so the bound is checked against the pipe's effective type
+
+					it("accepts numeric bound on length-piped coalesced localised key", async () => {
+						expect(validateTemplate([{ items: [{}, { "<=length:label": 5 }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("rejects string bound on length-piped coalesced localised key", async () => {
+						expect(validateTemplate([{ items: [{}, { "<=length:label": "x" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("accepts string bound on lower-piped coalesced localised key", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=lower:label": "x" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("rejects numeric bound on lower-piped coalesced localised key", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=lower:label": 42 }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects range operator on reference property", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=link": "x" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects range operator on undefined property", async () => {
+
+						expect(validateTemplate([{ items: [{}, { ">=missing": 0 }] }], Wrapper, {})).toEqual({
+							"[0]": { "items": { ">=missing": "undefined property path" } }
+						});
+					});
+
+					it.each([
+						["<", "<age"],
+						[">", ">age"],
+						["<=", "<=age"],
+						[">=", ">=age"]
+					])("accepts %s operator on number property", async (_op, key) => {
+						expect(validateTemplate([{ items: [{}, { [key]: 18 }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("rejects string limit on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=age": "alice" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects number limit on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=name": 42 }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects boolean limit on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=age": true }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects null limit on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=name": null }] }], Wrapper, {})).toBeDefined();
+					});
+
+				});
+
+				describe("union limit validation", () => {
+
+					const UnionTarget = resource({
+						value: required(union(string(), integer()))
+					});
+					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
+
+					it("accepts range limit matching first union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts range limit matching second union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=value": 42 }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("rejects range limit matching no union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=value": true }] }], UnionWrapper, {})).toBeDefined();
+					});
+
+					it.each([
+						["<", "<value"],
+						[">", ">value"],
+						["<=", "<=value"],
+						[">=", ">=value"]
+					])("accepts %s operator on union property with matching variant", async (_op, key) => {
+						expect(validateTemplate([{ items: [{}, { [key]: 42 }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+				});
+
+				describe("union option validation", () => {
+
+					// per-branch admissibility: each option independently matches at least one declared
+					// variant, so a mixed-type set may select different branches per option; a null
+					// option is typeless and exempt
+
+					const UnionTarget = resource({
+						value: required(union(string(), integer()))
+					});
+					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
+
+					it("accepts single option matching a union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": 42 }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts mixed-type option set with every option matching a variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": [42, "hello"] }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts conjunctive mixed-type option set with every option matching a variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "!value": ["hello", 42] }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts null option beside a matching option", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": [null, 42] }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts focus with mixed-type option set on single-valued union property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+value": [42, "hello"] }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("rejects single option matching no union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": true }] }], UnionWrapper, {})).toBeDefined();
+					});
+
+					it("rejects only the options matching no union variant", async () => {
+
+						expect(validateTemplate([{ items: [{}, { "?value": [42, true] }] }], UnionWrapper, {})).toEqual({
+							"[0]": { "items": { "?value": { "[1]": "expected option matching at least a union variant" } } }
+						});
+
+					});
+
+				});
+
+				describe("deep localised keys", () => {
+
+					// a coalescible leaf behind a multi-valued prefix keeps its plain-string forms for both
+					// cardinalities (matching and filtering are cardinality-agnostic), but the localised step
+					// enters the path product, so the prefix fan-out makes the deep key multi-valued and the
+					// sort/focus single-valued gates reject it (closes #26)
+
+					const Product = resource({
+						label: required(text()),
+						labels: repeatable(text())
+					});
+					const Vendor = resource({ products: multiple(reference(Product)) });
+					const DeepWrapper = resource({ items: multiple(reference(Vendor)) });
+
+					it("accepts text search on coalescible leaf behind multi-valued prefix", async () => {
+						expect(validateTemplate([{ items: [{}, { "~products.label": "widget" }] }], DeepWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts plain-string option on coalescible leaf behind multi-valued prefix", async () => {
+						expect(validateTemplate([{ items: [{}, { "?products.label": "x" }] }], DeepWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts string bound on coalescible leaf behind multi-valued prefix", async () => {
+						expect(validateTemplate([{ items: [{}, { ">=products.label": "x" }] }], DeepWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts plain-string form on array-per-tag leaf behind multi-valued prefix", async () => {
+						// array-per-tag now coalesces existentially, the same as a single-string-per-tag leaf
+						expect(validateTemplate([{ items: [{}, { "~products.labels": "x" }] }], DeepWrapper, {})).toBeUndefined();
+					});
+
+					it("rejects sort on coalescible leaf behind multi-valued prefix", async () => {
+						// the prefix fan-out makes the key multi-valued, so the single-valued sort gate rejects it
+						expect(validateTemplate([{ items: [{}, { "^products.label": "asc" }] }], DeepWrapper, {})).toBeDefined();
+					});
+
+					it("rejects focus on coalescible leaf behind multi-valued prefix", async () => {
+						expect(validateTemplate([{ items: [{}, { "+products.label": "x" }] }], DeepWrapper, {})).toBeDefined();
+					});
+
+					it("accepts aggregate-reduced sort on coalescible leaf behind multi-valued prefix", async () => {
+						// reducing through min/max collapses the fan-out to one value per resource
+						expect(validateTemplate([{ items: [{}, { "^min:products.label": "asc" }] }], DeepWrapper, {})).toBeUndefined();
+					});
+
+				});
+
+				describe("disjunctive/conjunctive operators (?, !)", () => {
+
+					// single option values
+
+					it("accepts disjunctive filter on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?name": "alice" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts disjunctive filter on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?age": 18 }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts disjunctive filter on boolean property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?active": true }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts conjunctive filter on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { "!name": "alice" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts conjunctive filter on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "!age": 18 }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts conjunctive filter on boolean property", async () => {
+						expect(validateTemplate([{ items: [{}, { "!active": true }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts null option on any property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?name": null }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts reference option on reference property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?link": "app:/items/1" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					// array of options
+
+					it("accepts array of options on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?name": ["alice", "bob"] }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts array of options on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?age": [18, 25] }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts array with null option", async () => {
+						expect(validateTemplate([{ items: [{}, { "?name": ["alice", null] }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					// localised options — the tagged-map form is legal for both arms (structural,
+					// tagged-value equality); coalescing makes plain-string options (single or array) legal
+					// against either cardinality, matched existentially over the coalesced value set
+
+					it("accepts tag-map option on localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?label": { "en": "hello" } }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts string-array-per-tag option on localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?labels": { "en": ["hello"] } }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts null option on localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?label": null }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts coalesced bare string option on single-valued localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?label": "hello" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts coalesced string-array option on single-valued localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?label": ["hello", "world"] }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts bare string option on multi-valued localised property", async () => {
+						// array-per-tag coalesces, so a plain-string option matches its coalesced set existentially
+						expect(validateTemplate([{ items: [{}, { "?labels": "hello" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts string-array option on multi-valued localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?labels": ["hello", "world"] }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("rejects tag-map-array option on localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?label": [{ "en": "hello" }, { "en": "world" }] }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects option set mixing plain and tagged options on localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?label": ["hello", { "en": "world" }] }] }], Wrapper, {})).toBeDefined();
+					});
+
+					// type mismatch rejections
+
+					it("rejects string option on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?age": "alice" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects number option on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?name": 42 }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects boolean option on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?age": true }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects array with mismatched option on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?age": [18, "wrong"] }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects number option on local property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?label": 42 }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects number option on localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?labels": 42 }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects non-IRI string option on reference property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?link": "not-an-iri" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects conjunctive string option on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "!age": "alice" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					// undefined property
+
+					it("rejects option on undefined property", async () => {
+
+						expect(validateTemplate([{ items: [{}, { "?missing": "x" }] }], Wrapper, {})).toEqual({
+							"[0]": { "items": { "?missing": "undefined property path" } }
+						});
+					});
+
+				});
+
+				describe("focus operator (+)", () => {
+
+					it("accepts focus on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+name": ["alice"] }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts focus on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+age": [18] }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts focus on boolean property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+active": [true] }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts focus with null option", async () => {
+						expect(validateTemplate([{ items: [{}, { "+name": [null, "alice"] }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts focus with reference option on reference property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+link": "app:/items/1" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts focus with tag-map option on localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+label": { "en": "hello" } }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts focus with coalesced bare string option on single-valued localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+label": "hello" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("rejects focus on a multi-valued property", async () => {
+						const T = resource({ tags: repeatable(string()) });
+						const W = resource({ items: multiple(reference(T)) });
+						expect(validateTemplate([{ items: [{}, { "+tags": ["x"] }] }], W, {})).toBeDefined();
+					});
+
+					it("rejects focus on a multi-valued localised property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+labels": { en: "x" } }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects focus with string option on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+age": "alice" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects focus with number option on string property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+name": 42 }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects focus with non-IRI string on reference property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+link": "not-an-iri" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects focus with mismatched array element on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+age": [18, "wrong"] }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects focus on undefined property", async () => {
+						expect(validateTemplate([{ items: [{}, { "+missing": "x" }] }], Wrapper, {})).toEqual({
+							"[0]": { "items": { "+missing": "undefined property path" } }
+						});
+					});
+
+				});
+
+				describe("union option validation", () => {
+
+					const UnionTarget = resource({
+						value: required(union(string(), integer())),
+						link: optional(reference(resource({ id: id() })))
+					});
+					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
+
+					// disjunctive filter
+
+					it("accepts disjunctive filter matching first union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts disjunctive filter matching second union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": 42 }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts null option on union property", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": null }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("rejects option matching no union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": true }] }], UnionWrapper, {})).toBeDefined();
+					});
+
+					// conjunctive filter
+
+					it("accepts conjunctive filter matching one union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "!value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("rejects conjunctive filter matching no union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "!value": true }] }], UnionWrapper, {})).toBeDefined();
+					});
+
+					// focus operator
+
+					it("accepts focus option matching one union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "+value": ["hello"] }] }], UnionWrapper, {})).toBeUndefined();
+						expect(validateTemplate([{ items: [{}, { "+value": [42] }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("rejects focus option matching no union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "+value": [true] }] }], UnionWrapper, {})).toBeDefined();
+					});
+
+					// array of options
+
+					it("accepts array of options matching same union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": ["hello", "world"] }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("accepts array of options matching different union variants", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": ["hello", 42] }] }], UnionWrapper, {})).toBeUndefined();
+					});
+
+					it("rejects array with option matching no union variant", async () => {
+						expect(validateTemplate([{ items: [{}, { "?value": ["hello", true] }] }], UnionWrapper, {})).toBeDefined();
+					});
+
+				});
+
+				describe("sort operator (^)", () => {
+
+					it("accepts 'asc' sort value", async () => {
+						expect(validateTemplate([{ items: [{}, { "^name": "asc" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts 'desc' sort value", async () => {
+						expect(validateTemplate([{ items: [{}, { "^name": "desc" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts positive number sort value", async () => {
+						expect(validateTemplate([{ items: [{}, { "^name": 1 }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts negative number sort value", async () => {
+						expect(validateTemplate([{ items: [{}, { "^name": -1 }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("accepts zero sort value", async () => {
+						expect(validateTemplate([{ items: [{}, { "^name": 0 }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("rejects boolean sort value", async () => {
+						expect(validateTemplate([{ items: [{}, { "^name": true }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects null sort value", async () => {
+						expect(validateTemplate([{ items: [{}, { "^name": null }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("rejects arbitrary string sort value", async () => {
+						expect(validateTemplate([{ items: [{}, { "^name": "ascending" }] }], Wrapper, {})).toBeDefined();
+					});
+
+					it("accepts sort on number property", async () => {
+						expect(validateTemplate([{ items: [{}, { "^age": "asc" }] }], Wrapper, {})).toBeUndefined();
+					});
+
+					it("rejects sort on undefined property", async () => {
+						expect(validateTemplate([{ items: [{}, { "^missing": "asc" }] }], Wrapper, {})).toEqual({
+							"[0]": { "items": { "^missing": "undefined property path" } }
+						});
+					});
+
+				});
+
+				describe("effective shape with transforms", () => {
+
+					it("accepts range operator on transform-derived number", async () => {
+
+						// year transform on year property → effective kind is "number"
+
+						const T = resource({ released: optional(date()) });
+						const W = resource({ items: multiple(reference(T)) });
+
+						expect(validateTemplate([{ items: [{}, { ">=year:released": 2020 }] }], W, {})).toBeUndefined();
+					});
+
+					it("rejects text search on transform-derived number", async () => {
+
+						// count transform → effective kind is "number"
+
+						const T = resource({ name: required(string()), price: optional(integer()) });
+						const W = resource({ items: multiple(reference(T)) });
+
+						expect(validateTemplate([{ items: [{}, { "~count:price": "x" }] }], W, {})).toBeDefined();
+					});
+
+					it("accepts text search on transform-preserving string", async () => {
+
+						// lower transform on string → effective kind is "string"
+
+						const T = resource({ name: required(string()) });
+						const W = resource({ items: multiple(reference(T)) });
+
+						expect(validateTemplate([{ items: [{}, { "~lower:name": "alice" }] }], W, {})).toBeUndefined();
+					});
+
+					it("accepts operator when transform resolves out of domain (vacuously valid)", async () => {
+
+						// floor (scalar, numeric domain) on a string property → out of domain → null sentinel
+						// → the operator is vacuously valid, with no shape to constrain
+
+						const T = resource({ name: required(string()) });
+						const W = resource({ items: multiple(reference(T)) });
+
+						expect(validateTemplate([{ items: [{}, { "~floor:name": "x" }] }], W, {})).toBeUndefined();
+					});
+
+				});
+
+			});
+
+		});
+
+		describe("collection-level keying", () => {
+
+			// nested model validation uses validateNested → validateModel which validates
+			// type guards (e.g., boolean instead of string) and cardinality, not value constraints
+
+			const Target = resource({
+				id: id(),
+				name: required(string())
+			});
+
+			const TargetWithoutId = resource({
+				name: required(string())
+			});
+
+
+			it("preserves flat trace for single nested model", async () => {
+
+				// single nested value: no per-resource wrapping
+
+				const shape = resource({
+					items: multiple(reference(Target))
+				});
+
+				const trace = validateTemplate([{ items: [{ name: 42 }] } as any], shape, {}) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty(["[0]", "items"]);
+
+				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
+
+				expect(items).toHaveProperty("name");
+				expect(items).not.toHaveProperty("[0]");
+
+			});
+
+			it("keys violations by @id for single nested model", async () => {
+
+				const shape = resource({
+					items: multiple(reference(Target))
+				});
+
+				const trace = validateTemplate([{
+					items: [
+						{ "id": "app:/items/1", name: 42 }
+					]
+				} as any], shape, {}) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty(["[0]", "items"]);
+
+				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
+
+				expect(items).toHaveProperty("name");
+
+			});
+
+			it("keys violations by blank node for single nested model without id property", async () => {
+
+				const shape = resource({
+					items: multiple(reference(TargetWithoutId))
+				});
+
+				const trace = validateTemplate([{
+					items: [
+						{ name: 42 }
+					]
+				} as any], shape, {}) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty(["[0]", "items"]);
+
+				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
+
+				expect(items).toHaveProperty("name");
+
+			});
+
+			it("includes only invalid nested models in trace", async () => {
+
+				const shape = resource({
+					items: multiple(reference(Target))
+				});
+
+				const trace = validateTemplate([{
+					items: [
+						{ "id": "app:/items/2", name: 42 }
+					]
+				} as any], shape, {}) as Record<string, Trace>;
+
+				expect(trace).toHaveProperty(["[0]", "items"]);
+
+				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
+
+				expect(items).toHaveProperty("name");
+
+			});
+
+			it("returns undefined when all nested models are valid", async () => {
+
+				const shape = resource({
+					items: multiple(reference(Target))
+				});
+
+				expect(validateTemplate([{
+					items: [
+						{ "id": "app:/items/1", name: "Alice" }
+					] as any
+				}], shape, {})).toBeUndefined();
+
+			});
+
+		});
+
+	});
+
 });
 
 describe("utilities", () => {
+
+	describe("match", () => {
+
+		describe("absolute pattern", () => {
+
+			it("matches absolute IRI with same origin", async () => {
+
+				expect(match(
+					"https://example.org/products/123",
+					"https://example.org/products/{id}"
+				)).toBeTruthy();
+
+			});
+
+			it("rejects absolute IRI with different origin", async () => {
+
+				expect(match(
+					"https://other.org/products/123",
+					"https://example.org/products/{id}"
+				)).toBeFalsy();
+
+			});
+
+			it("rejects root-relative IRI", async () => {
+
+				expect(match(
+					"/products/123",
+					"https://example.org/products/{id}"
+				)).toBeFalsy();
+
+			});
+
+		});
+
+		describe("root-relative pattern", () => {
+
+			it("matches root-relative IRI", async () => {
+
+				expect(match(
+					"/products/123",
+					"/products/{id}"
+				)).toBeTruthy();
+
+			});
+
+			it("matches absolute IRI ignoring origin", async () => {
+
+				expect(match(
+					"https://example.org/products/123",
+					"/products/{id}"
+				)).toBeTruthy();
+
+			});
+
+			it("matches absolute IRI with any origin", async () => {
+
+				expect(match(
+					"https://other.org/products/123",
+					"/products/{id}"
+				)).toBeTruthy();
+
+			});
+
+		});
+
+	});
 
 	describe("flatten", () => {
 
@@ -6916,23 +9876,23 @@ describe("utilities", () => {
 
 			it("preserves name from input shape", async () => {
 
-				const parent = resource({ name: "Parent" }, {});
-				const child = resource({ extends: parent, name: "Child" }, {});
+				const parent = resource({ name: { und: "Parent" } }, {});
+				const child = resource({ extends: parent, name: { und: "Child" } }, {});
 
 				const flat = flatten(child);
 
-				expect(flat.name).toEqual("Child");
+				expect(flat.name).toEqual({ und: "Child" });
 
 			});
 
 			it("preserves description from input shape", async () => {
 
-				const parent = resource({ description: "Parent desc" }, {});
-				const child = resource({ extends: parent, description: "Child desc" }, {});
+				const parent = resource({ description: { und: "Parent desc" } }, {});
+				const child = resource({ extends: parent, description: { und: "Child desc" } }, {});
 
 				const flat = flatten(child);
 
-				expect(flat.description).toEqual("Child desc");
+				expect(flat.description).toEqual({ und: "Child desc" });
 
 			});
 
@@ -7386,112 +10346,6 @@ describe("utilities", () => {
 
 			});
 
-			describe("checkEmbeddings", () => {
-
-				it("returns undefined when no properties contain embedded resources", async () => {
-
-					const shape = resource({
-						name: required(string()),
-						age: required(integer())
-					});
-
-					expect(checkEmbeddings(shape.properties)).toBeUndefined();
-
-				});
-
-				it("returns undefined for embedded resource without id or type", async () => {
-
-					const Nested = resource({
-						label: required(string())
-					});
-
-					const shape = resource({
-						child: optional(Nested)
-					});
-
-					expect(checkEmbeddings(shape.properties)).toBeUndefined();
-
-				});
-
-				it("returns undefined for standalone reference with id", async () => {
-
-					const Target = resource({
-						rid: id(),
-						name: required(string())
-					});
-
-					const shape = resource({
-						link: required(reference(Target))
-					});
-
-					expect(checkEmbeddings(shape.properties)).toBeUndefined();
-
-				});
-
-				it("reports embedded resource containing id entry", async () => {
-
-					const Nested = resource({
-						rid: id(),
-						label: required(string())
-					});
-
-					expect(() => resource({
-						child: optional(Nested)
-					})).toThrow(TraceError);
-
-				});
-
-				it("reports embedded resource containing type entry", async () => {
-
-					const Nested = resource({
-						rtype: type(),
-						label: required(string())
-					});
-
-					expect(() => resource({
-						child: optional(Nested)
-					})).toThrow(TraceError);
-
-				});
-
-				it("reports embedded resources containing id and type entries", async () => {
-
-					const WithId = resource({
-						rid: id(),
-						label: required(string())
-					});
-
-					const WithType = resource({
-						rtype: type(),
-						label: required(string())
-					});
-
-					expect(() => resource({
-						first: optional(WithId),
-						second: optional(WithType)
-					})).toThrow(TraceError);
-
-				});
-
-				it("reports embedded resource in union variant containing id entry", async () => {
-
-					const Nested = resource({
-						rid: id(),
-						label: required(string())
-					});
-
-					const Other = resource({
-						value: required(integer())
-					});
-
-					expect(() => resource({
-						child: optional(union({ nested: Nested, other: Other }))
-					})).toThrow(TraceError);
-
-				});
-
-			});
-
 			describe("flatten", () => {
 
 				it("rejects duplicate id entries from inheritance", async () => {
@@ -7651,8 +10505,8 @@ describe("utilities", () => {
 
 			it("reports conflicting localised model without child override", async () => {
 
-				const parentA = resource({ label: required(localised({ en: "hello" })) });
-				const parentB = resource({ label: required(localised({ fr: "bonjour" })) });
+				const parentA = resource({ label: required(text({ en: "hello" })) });
+				const parentB = resource({ label: required(text({ fr: "bonjour" })) });
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeDefined();
@@ -7661,8 +10515,8 @@ describe("utilities", () => {
 
 			it("returns undefined when parents agree on localised model", async () => {
 
-				const parentA = resource({ label: required(localised({ en: "hello" })) });
-				const parentB = resource({ label: required(localised({ en: "hello" })) });
+				const parentA = resource({ label: required(text({ en: "hello" })) });
+				const parentB = resource({ label: required(text({ en: "hello" })) });
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
@@ -7671,9 +10525,9 @@ describe("utilities", () => {
 
 			it("returns undefined when child overrides conflicting localised model", async () => {
 
-				const parentA = resource({ label: required(localised({ en: "hello" })) });
-				const parentB = resource({ label: required(localised({ fr: "bonjour" })) });
-				const child = resource({ label: required(localised({ de: "hallo" })) });
+				const parentA = resource({ label: required(text({ en: "hello" })) });
+				const parentB = resource({ label: required(text({ fr: "bonjour" })) });
+				const child = resource({ label: required(text({ de: "hallo" })) });
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
 
@@ -7932,65 +10786,319 @@ describe("utilities", () => {
 
 	});
 
-	describe("match", () => {
+	describe("enforce", () => {
 
-		describe("absolute pattern", () => {
+		describe("limit", () => {
 
-			it("matches absolute IRI with same origin", async () => {
+			const limit = 100;
 
-				expect(match(
-					"https://example.org/products/123",
-					"https://example.org/products/{id}"
-				)).toBeTruthy();
+			it("injects no # when the limit is 0 (unbounded)", async () => {
 
-			});
+				const Target = resource({ name: required(string()) });
+				const Wrapper = resource({ items: multiple(reference(Target)) });
 
-			it("rejects absolute IRI with different origin", async () => {
-
-				expect(match(
-					"https://other.org/products/123",
-					"https://example.org/products/{id}"
-				)).toBeFalsy();
+				expect(enforce({ items: [{ name: "" }] }, Wrapper, { limit: 0 }))
+					.toEqual({ items: [{ name: "" }] });
 
 			});
 
-			it("rejects root-relative IRI", async () => {
 
-				expect(match(
-					"/products/123",
-					"https://example.org/products/{id}"
-				)).toBeFalsy();
+			describe("top-level dispatch", () => {
 
-			});
+				it("returns empty object unchanged", async () => {
 
-		});
+					const shape = resource({ name: required(string()) });
 
-		describe("root-relative pattern", () => {
+					expect(enforce({}, shape, { limit })).toEqual({});
 
-			it("matches root-relative IRI", async () => {
-
-				expect(match(
-					"/products/123",
-					"/products/{id}"
-				)).toBeTruthy();
+				});
 
 			});
 
-			it("matches absolute IRI ignoring origin", async () => {
+			describe("scalar slots (maxCount 1)", () => {
 
-				expect(match(
-					"https://example.org/products/123",
-					"/products/{id}"
-				)).toBeTruthy();
+				it("returns primitive scalar unchanged", async () => {
+
+					const shape = resource({ name: required(string()), age: optional(integer()) });
+
+					expect(enforce({ name: "", age: 0 }, shape, { limit }))
+						.toEqual({ name: "", age: 0 });
+
+				});
+
+				it("returns IRI reference unchanged", async () => {
+
+					const Target = resource({ label: required(string()) });
+					const shape = resource({ link: optional(reference(Target)) });
+
+					expect(enforce({ link: "https://example.org/x" }, shape, { limit }))
+						.toEqual({ link: "https://example.org/x" });
+
+				});
+
+				it("recurses into reference-with-template, eagerly resolving the target", async () => {
+
+					const Target = resource({ items: multiple(string()) });
+					const shape = resource({ link: optional(reference(Target)) });
+
+					expect(enforce({ link: { items: [""] } }, shape, { limit }))
+						.toEqual({ link: { items: ["", { "#": limit }] } });
+
+				});
+
+				it("returns localised scalar unchanged", async () => {
+
+					const shape = resource({ label: optional(text()) });
+
+					expect(enforce({ label: "hello" }, shape, { limit }))
+						.toEqual({ label: "hello" });
+					expect(enforce({ label: { en: "hi", it: "ciao" } }, shape, { limit }))
+						.toEqual({ label: { en: "hi", it: "ciao" } });
+
+				});
 
 			});
 
-			it("matches absolute IRI with any origin", async () => {
+			describe("object collection slots", () => {
 
-				expect(match(
-					"https://other.org/products/123",
-					"/products/{id}"
-				)).toBeTruthy();
+				const Inner = resource({ label: required(string()) });
+				const shape = resource({ items: multiple(reference(Inner)) });
+
+				it("injects # into reference-with-template wrapper", async () => {
+
+					expect(enforce({ items: [{ label: "" }] }, shape, { limit }))
+						.toEqual({ items: [{ label: "" }, { "#": limit }] });
+
+				});
+
+				it("preserves existing # on selection slot", async () => {
+
+					expect(enforce({ items: [{ label: "" }, { "#": 25 }] }, shape, { limit }))
+						.toEqual({ items: [{ label: "" }, { "#": 25 }] });
+
+				});
+
+				it("recurses into element body even when # is present", async () => {
+
+					const Outer = resource({ children: multiple(reference(Inner)) });
+					const nested = resource({ items: multiple(reference(Outer)) });
+
+					expect(enforce(
+						{ items: [{ children: [{ label: "" }] }, { "#": 25 }] }, nested, { limit }
+					)).toEqual({
+						items: [{ children: [{ label: "" }, { "#": limit }] }, { "#": 25 }]
+					});
+
+				});
+
+				it("injects # on bare IRI reference collection", async () => {
+
+					expect(enforce({ items: ["https://example.org/x"] }, shape, { limit }))
+						.toEqual({ items: ["https://example.org/x", { "#": limit }] });
+
+				});
+
+				it("handles embedded-resource collection by injecting # on selection slot", async () => {
+
+					const embedded = resource({ items: multiple(resource({ label: required(string()) })) });
+
+					expect(enforce({ items: [{ label: "" }] }, embedded, { limit }))
+						.toEqual({ items: [{ label: "" }, { "#": limit }] });
+
+				});
+
+			});
+
+			describe("primitive collection slots", () => {
+
+				it("injects # into bare-scalar string collection", async () => {
+
+					const shape = resource({ tags: multiple(string()) });
+
+					expect(enforce({ tags: [""] }, shape, { limit }))
+						.toEqual({ tags: ["", { "#": limit }] });
+
+				});
+
+				it("injects # into bare-scalar number collection", async () => {
+
+					const shape = resource({ sizes: multiple(integer()) });
+
+					expect(enforce({ sizes: [0] }, shape, { limit }))
+						.toEqual({ sizes: [0, { "#": limit }] });
+
+				});
+
+				it("injects # into bare-scalar boolean collection", async () => {
+
+					const shape = resource({ flags: multiple(boolean()) });
+
+					expect(enforce({ flags: [false] }, shape, { limit }))
+						.toEqual({ flags: [false, { "#": limit }] });
+
+				});
+
+				it("injects # into placeholder-element primitive collection", async () => {
+
+					const shape = resource({ tags: multiple(string()) });
+
+					expect(enforce({ tags: [""] }, shape, { limit }))
+						.toEqual({ tags: ["", { "#": limit }] });
+
+				});
+
+				it("injects # into selection-bearing primitive collection", async () => {
+
+					const shape = resource({ tags: multiple(string()) });
+
+					expect(enforce({ tags: ["", { "~": "pre" }] }, shape, { limit }))
+						.toEqual({ tags: ["", { "~": "pre", "#": limit }] });
+
+				});
+
+				it("preserves existing # in selection-bearing primitive collection", async () => {
+
+					const shape = resource({ tags: multiple(string()) });
+
+					expect(enforce({ tags: ["", { "#": 10 }] }, shape, { limit }))
+						.toEqual({ tags: ["", { "#": 10 }] });
+
+				});
+
+			});
+
+			describe("localised collection slots", () => {
+
+				it("leaves multi-valued localised array unchanged", async () => {
+
+					const shape = resource({ labels: multiple(text()) });
+
+					expect(enforce({ labels: ["hello"] }, shape, { limit }))
+						.toEqual({ labels: ["hello"] });
+
+				});
+
+				it("leaves localised per-tag map collection unchanged", async () => {
+
+					const shape = resource({ labels: multiple(text()) });
+
+					expect(enforce({ labels: { en: "hi" } }, shape, { limit }))
+						.toEqual({ labels: { en: "hi" } });
+
+				});
+
+			});
+
+			describe("scalar union slots (maxCount 1)", () => {
+
+				const A = resource({ name: required(string()) });
+				const B = resource({ tags: multiple(string()) });
+				const shape = resource({ value: optional(union(A, B)) });
+
+				it("recurses into union-form variant templates", async () => {
+
+					expect(enforce(
+						{ value: { "0": { name: "" }, "1": { tags: [""] } } }, shape, { limit }
+					)).toEqual({
+						value: { "0": { name: "" }, "1": { tags: ["", { "#": limit }] } }
+					});
+
+				});
+
+			});
+
+			describe("collection union slots (maxCount > 1)", () => {
+
+				const A = resource({ name: required(string()) });
+				const B = resource({ tags: multiple(string()) });
+				const shape = resource({ items: multiple(union(A, B)) });
+
+				it("injects # on union-form wrapper", async () => {
+
+					expect(enforce(
+						{ items: [{ "0": { name: "" }, "1": { tags: [""] } }] }, shape, { limit }
+					)).toEqual({
+						items: [{
+							"0": { name: "" },
+							"1": { tags: ["", { "#": limit }] }
+						}, {
+							"#": limit
+						}]
+					});
+
+				});
+
+				it("preserves existing # on selection slot", async () => {
+
+					expect(enforce(
+						{ items: [{ "0": { name: "" } }, { "#": 25 }] }, shape, { limit }
+					)).toEqual({
+						items: [{ "0": { name: "" } }, { "#": 25 }]
+					});
+
+				});
+
+				it("recurses into indexed branches even when selection # present", async () => {
+
+					expect(enforce(
+						{ items: [{ "1": { tags: [""] } }, { "#": 25 }] }, shape, { limit }
+					)).toEqual({
+						items: [{ "1": { tags: ["", { "#": limit }] } }, { "#": 25 }]
+					});
+
+				});
+
+				it("injects # on partial union-form element", async () => {
+
+					const single = resource({ items: multiple(union(A)) });
+
+					expect(enforce(
+						{ items: [{ "0": { name: "" } }] }, single, { limit }
+					)).toEqual({
+						items: [{ "0": { name: "" } }, { "#": limit }]
+					});
+
+				});
+
+				it("injects # into bare-primitive collection element", async () => {
+
+					const prim = resource({ items: multiple(union(string(), integer())) });
+
+					expect(enforce({ items: [""] }, prim, { limit }))
+						.toEqual({ items: ["", { "#": limit }] });
+					expect(enforce({ items: [0] }, prim, { limit }))
+						.toEqual({ items: [0, { "#": limit }] });
+
+				});
+
+				it("injects # on plain object-form collection element", async () => {
+
+					expect(enforce({ items: [{ name: "" }] }, shape, { limit }))
+						.toEqual({ items: [{ name: "" }, { "#": limit }] });
+
+				});
+
+			});
+
+			describe("projection bindings", () => {
+
+				it("recurses into binding-keyed collection placeholder", async () => {
+
+					const Inner = resource({ label: required(string()) });
+					const Outer = resource({ children: multiple(reference(Inner)) });
+					const shape = resource({ items: multiple(reference(Outer)) });
+
+					expect(enforce(
+						{ items: [{ "alias=children": [{ label: "" }] }] }, shape, { limit }
+					)).toEqual({
+						items: [{
+							"alias=children": [{ label: "" }, { "#": limit }]
+						}, {
+							"#": limit
+						}]
+					});
+
+				});
 
 			});
 
