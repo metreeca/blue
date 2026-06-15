@@ -2099,7 +2099,7 @@ describe("operators", () => {
 
 						expect(validateResource([{
 							name: "Alice",
-							links: { label: "Parent" }
+							links: "app:/target/1"
 						}], mixed)).toBeUndefined();
 
 					});
@@ -3404,6 +3404,7 @@ describe("operators", () => {
 			describe("union with reference variants", () => {
 
 				const PostalAddress = resource({
+					id: id(),
 					street: required(string()),
 					city: required(string())
 				});
@@ -3411,7 +3412,7 @@ describe("operators", () => {
 				const textOrAddress = resource({
 					address: optional(union(
 						string(),
-						reference(PostalAddress)
+						reference(PostalAddress, { captive: true })
 					))
 				});
 
@@ -3495,6 +3496,140 @@ describe("operators", () => {
 						}], bounded)).toHaveProperty(["[0]", "value"]);
 
 					});
+
+				});
+
+			});
+
+		});
+
+		describe("captive reference expansion", () => {
+
+			const Inner = resource({ id: id(), label: required(string()) });
+
+			const captiveStandalone = resource({
+				child: required(reference(Inner, { captive: true }))
+			});
+
+			const plainStandalone = resource({
+				child: required(reference(Inner))
+			});
+
+			const captiveUnion = resource({
+				link: required(union(integer(), reference(Inner, { captive: true })))
+			});
+
+			const plainUnion = resource({
+				link: required(union(integer(), reference(Inner)))
+			});
+
+			describe("captive reference", () => {
+
+				it("accepts a bare IRI", async () => {
+
+					expect(validateResource([{ child: "app:/inner/1" }], captiveStandalone)).toBeUndefined();
+
+				});
+
+				it("accepts an inline target state by default (no depth limit)", async () => {
+
+					expect(validateResource([{ child: { id: "app:/inner/1", label: "x" } }], captiveStandalone))
+						.toBeUndefined();
+
+				});
+
+				it("rejects an inline target state violating the target shape", async () => {
+
+					expect(validateResource([{ child: { id: "app:/inner/1", label: 42 } }], captiveStandalone))
+						.toBeDefined();
+
+				});
+
+				it("accepts a bare IRI when depth is 0", async () => {
+
+					expect(validateResource([{ child: "app:/inner/1" }], captiveStandalone, { depth: 0 }))
+						.toBeUndefined();
+
+				});
+
+				it("rejects an inline target state when depth is 0", async () => {
+
+					expect(validateResource([{ child: { id: "app:/inner/1", label: "x" } }], captiveStandalone, { depth: 0 }))
+						.toBeDefined();
+
+				});
+
+			});
+
+			describe("plain reference", () => {
+
+				it("accepts a bare IRI", async () => {
+
+					expect(validateResource([{ child: "app:/inner/1" }], plainStandalone)).toBeUndefined();
+
+				});
+
+				it("rejects an inline target state regardless of depth", async () => {
+
+					expect(validateResource([{ child: { id: "app:/inner/1", label: "x" } }], plainStandalone))
+						.toBeDefined();
+
+				});
+
+			});
+
+			describe("within unions", () => {
+
+				it("accepts a bare IRI for a captive reference variant", async () => {
+
+					expect(validateResource([{ link: "app:/inner/1" }], captiveUnion)).toBeUndefined();
+
+				});
+
+				it("accepts an inline target state for a captive reference variant", async () => {
+
+					expect(validateResource([{ link: { id: "app:/inner/1", label: "x" } }], captiveUnion)).toBeUndefined();
+
+				});
+
+				it("rejects an inline target state for a captive reference variant when depth is 0", async () => {
+
+					expect(validateResource([{ link: { id: "app:/inner/1", label: "x" } }], captiveUnion, { depth: 0 }))
+						.toBeDefined();
+
+				});
+
+				it("rejects an inline target state for a plain reference variant", async () => {
+
+					expect(validateResource([{ link: { id: "app:/inner/1", label: "x" } }], plainUnion)).toBeDefined();
+
+				});
+
+			});
+
+			describe("depth budget", () => {
+
+				const Mid = resource({ id: id(), inner: required(reference(Inner, { captive: true })) });
+
+				const captiveChain = resource({
+					child: required(reference(Mid, { captive: true }))
+				});
+
+				it("accepts one expansion level when depth is 1", async () => {
+
+					// child expanded (level 1); its inner reference kept as a bare IRI
+					expect(validateResource([{ child: { id: "app:/mid/1", inner: "app:/inner/1" } }], captiveChain, {
+						depth: 1
+					})).toBeUndefined();
+
+				});
+
+				it("rejects a second expansion level when depth is 1", async () => {
+
+					// child expanded (level 1); inner also expanded (level 2) exceeds the budget
+					expect(validateResource([{
+						child: { id: "app:/mid/1", inner: { id: "app:/inner/1", label: "x" } }
+					}], captiveChain, { depth: 1 })).toBeDefined();
 
 				});
 
@@ -4297,6 +4432,21 @@ describe("operators", () => {
 
 			});
 
+			it("rejects expanded nested resource when model requests IRI only", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				// an IRI-only request (`child: ""`) carries no nested template, so an expanded
+				// response is over-fetch: every returned property is unexpected
+				expect(validateResult([{ child: { id: "app:/inner/1", label: "x" } }], {
+					shape,
+					model: { child: "" }
+				})).toBeDefined();
+
+			});
+
 		});
 
 		describe("id and type", () => {
@@ -4630,6 +4780,43 @@ describe("operators", () => {
 					expect(validateResult([{ contact: "literal" }], {
 						shape: optionalUnion,
 						model: { contact: { "1": { street: "", city: "" } } }
+					})).toBeDefined();
+
+				});
+
+			});
+
+			describe("reference variants", () => {
+
+				const Linked = resource({ id: id(), label: required(string()) });
+
+				const refUnion = resource({
+					link: required(union(string(), reference(Linked)))
+				});
+
+				it("accepts a bare IRI selecting the reference variant", async () => {
+
+					expect(validateResult([{ link: "app:/linked/1" }], {
+						shape: refUnion,
+						model: { link: { "1": "" } }
+					})).toBeUndefined();
+
+				});
+
+				it("accepts an expanded resource selecting the reference variant", async () => {
+
+					expect(validateResult([{ link: { id: "app:/linked/1", label: "x" } }], {
+						shape: refUnion,
+						model: { link: { "1": { id: "", label: "" } } }
+					})).toBeUndefined();
+
+				});
+
+				it("rejects an invalid IRI for the reference variant", async () => {
+
+					expect(validateResult([{ link: "not-an-iri" }], {
+						shape: refUnion,
+						model: { link: { "1": "" } }
 					})).toBeDefined();
 
 				});

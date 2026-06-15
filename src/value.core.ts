@@ -272,7 +272,7 @@ export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
 
 		if ( targetGroup.length !== sourceGroup.length ) {
 			throw new TraceError("incompatible union shape override", {
-				"{variants}": `partial group retention for <${key}>: child <${targetGroup.length}> vs parent <${sourceGroup.length}>`
+				"{variants}": `partial retention <${targetGroup.length}> of <${sourceGroup.length}> for group <${key}>`
 			});
 		}
 
@@ -413,9 +413,10 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape): u
  * Validates values against a {@link UnionShape} disjunctively.
  *
  * Each value is matched against the union variants in order. A value satisfies the union if it
- * satisfies at least one variant; reference variants are dereferenced through their target
- * resource shape. On failure, the trace aggregates the per-variant traces under positional keys
- * (`[0]`, `[1]`, …).
+ * satisfies at least one variant; every variant, including a reference variant, is checked through
+ * {@link validateValue}, so a reference variant admits a bare IRI only (state-side captive
+ * expansion is applied upstream by the resource validator). On failure, the trace aggregates the
+ * per-variant traces under positional keys (`[0]`, `[1]`, …).
  *
  * @param values The values to validate
  * @param union The union shape defining the variant alternatives
@@ -424,30 +425,16 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape): u
  */
 export function validateUnion(values: readonly unknown[], union: UnionShape): undefined | Trace {
 
-	function validateOne(value: unknown): undefined | Trace {
+	return collect(Object.fromEntries(values.map((value, index) => {
 
-		const traces = union.variants.map(variant =>
-			variant.kind === "reference"
-				? validateResource([value], eager(variant.shape))
-				: validateValue([value], variant)
-		);
+		const traces = union.variants.map(variant => validateValue([value], variant));
 
-		if ( traces.some(t => t === undefined) ) {
+		const trace = traces.some(trace => trace === undefined) ? undefined : collect(Object.fromEntries(
+			traces.map((trace, position) => [`[${position}]`, trace])
+		)) ?? "no union variant matched";
 
-			return undefined;
+		return [`[${index}]`, trace];
 
-		} else {
-
-			return collect(Object.fromEntries(
-				traces.map((trace, index) => [`[${index}]`, trace])
-			)) ?? "no union variant matched";
-
-		}
-
-	}
-
-	return collect(Object.fromEntries(
-		values.map((value, index) => [`[${index}]`, validateOne(value)])
-	));
+	})));
 
 }

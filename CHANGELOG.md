@@ -19,6 +19,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	ignored when the resource has no `id` entry; idempotency sealing accounts for the entry value
 - Add `depth` option to template validation for limiting nested reference and resource expansion and property path
 	length in queries; `0` rejects nested templates while still accepting IRI references; defaults to unlimited
+- Add `depth` option to resource validation for expanding `captive` references inline as target resource states; `0`
+	rejects expansion (accepting bare IRIs only), undefined imposes no limit; applies uniformly inside and outside unions
 - Add `limit` option to template validation for capping the `#` pagination constraint in queries; if a query specifies
 	`#` exceeding this value, the query is rejected; if the query omits `#`, the limit value is injected as a default;
 	defaults to unlimited
@@ -89,8 +91,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Accept local/locals shorthand values in cardinality counting
 - Accept `locals` array shorthand on scalar cardinality properties
-- Unwrap indexed union containers in value scope validation — reference variants are dereferenced through their target
-	resource shape
+- Unwrap indexed union containers in value scope validation — a reference variant admits a bare IRI, with inline
+	`captive` target states expanded only as permitted by the resource validator's `depth` budget
 - Allow child local/locals shapes to override the parent model during merge
 - Inherit `forward`/`reverse` metadata when overriding inherited properties
 - Reject duplicate `Id` and `Type` entries across the full inheritance chain in resource shape factories

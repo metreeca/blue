@@ -1238,6 +1238,7 @@ describe("validation", () => {
 		describe("union values", () => {
 
 			const PostalAddress = resource({
+				id: id(),
 				street: required(string()),
 				city: required(string())
 			});
@@ -1245,7 +1246,7 @@ describe("validation", () => {
 			const Contact = resource({
 				address: optional(union(
 					string(),
-					reference(PostalAddress)
+					reference(PostalAddress, { captive: true })
 				))
 			});
 
@@ -1287,6 +1288,50 @@ describe("validation", () => {
 
 				const result = validate({}, { shape: Contact });
 				expect(result({ value: v => v })).toEqual({});
+
+			});
+
+		});
+
+		describe("depth idempotency", () => {
+
+			const Inner = resource({ id: id(), label: required(string()) });
+
+			const shape = resource({
+				child: optional(reference(Inner, { captive: true }))
+			});
+
+			const value = { child: { id: "app:/inner/1", label: "x" } };
+
+			it("skips validation when depth was stricter and is now relaxed", async () => {
+
+				const branded = validate(value, { shape, depth: 1 })({ value: v => v });
+
+				expect(validate(branded, { shape, depth: 3 })({ value: v => v })).toBe(branded);
+
+			});
+
+			it("skips validation when depth was limited and is now omitted", async () => {
+
+				const branded = validate(value, { shape, depth: 1 })({ value: v => v });
+
+				expect(validate(branded, { shape })({ value: v => v })).toBe(branded);
+
+			});
+
+			it("revalidates when depth was relaxed and is now stricter", async () => {
+
+				const branded = validate(value, { shape, depth: 3 })({ value: v => v });
+
+				expect(validate(branded, { shape, depth: 1 })({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("revalidates and rejects when depth was omitted and is now zero", async () => {
+
+				const branded = validate(value, { shape })({ value: v => v });
+
+				expect(validate(branded, { shape, depth: 0 })({ trace: t => t })).toBeDefined();
 
 			});
 

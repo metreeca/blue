@@ -48,6 +48,8 @@ import {
 } from "@metreeca/qest/template";
 import { collect, normalise, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
+import { validateReferences } from "./reference.core.js";
+import type { ReferenceShape } from "./reference.js";
 import type { Property, ResourceShape } from "./resource.js";
 import {
 	validateLocaleString,
@@ -535,6 +537,12 @@ export function mergeProperty(target: Property, source: Property): Property {
  * source state. Unions mixing owned and foreign variants are validated against the owned
  * arm only, with foreign variants pruned.
  *
+ * A reference-valued property accepts the linked resource's absolute IRI. A `captive` reference
+ * additionally accepts an inline target resource state, validated recursively against the target
+ * shape; the `depth` option bounds how many nesting levels may be expanded (`0` rejects all
+ * expansion, accepting IRIs only; `undefined` imposes no limit). Plain (non-captive) references
+ * accept the IRI form only. This applies uniformly to reference variants inside and outside unions.
+ *
  * Property-value absence normalisation enforces qest's `Resource` / `Values` / `Text`
  * contract: canonical absent forms (`undefined`, `[]`, and, on slots that accept a nested
  * Resource, `{}`) and empty localised maps are normalised to property omission before
@@ -554,6 +562,9 @@ export function mergeProperty(target: Property, source: Property): Property {
  * @param opts.entry Expected {@link Reference} for the resource's identifier; the resource's
  *     `id` value (if any) must match this reference exactly; ignored when the resource has
  *     no `id` entry
+ * @param opts.depth Maximum nesting depth for expanding `captive` reference values as inline
+ *     target resource states; each expansion level counts against the budget. `0` rejects all
+ *     expansion (IRI-only); if omitted, no depth limit is enforced
  *
  * @returns A keyed {@link Trace} of constraint violations per resource (keyed by `<iri>` for
  *     resources carrying a valid `id` and by `[index]` otherwise) or `undefined` when every
@@ -561,11 +572,13 @@ export function mergeProperty(target: Property, source: Property): Property {
  */
 export function validateResource(values: readonly unknown[], shape: ResourceShape, {
 
-	entry
+	entry,
+	depth
 
 }: {
 
 	readonly entry?: Reference
+	readonly depth?: number
 
 } = {}): undefined | Trace {
 
@@ -813,15 +826,11 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 				? isArray(present)
 					? collect({ "{kind}": "expected scalar value" })
-					: shape.kind === "union"
-						? validateUnion(values, shape)
-						: validateValue(values, shape)
+					: validateState(values, shape)
 
 				: present !== undefined && !isArray(present)
 					? collect({ "{kind}": "expected array value" })
-					: shape.kind === "union"
-						? validateUnion(values, shape)
-						: validateValue(values, shape);
+					: validateState(values, shape);
 
 			if ( structural ) {
 
@@ -846,6 +855,94 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 			}
 
 		}
+
+	}
+
+	function validateState(values: readonly unknown[], shape: Shape): undefined | Trace {
+
+		switch ( shape.kind ) {
+
+			case "reference":
+
+				return validateReferenceState(values, shape);
+
+			case "resource":
+
+				return validateResource(values, shape, { depth });
+
+			case "union":
+
+				return acceptsResource(shape)
+					? validateUnionState(values, shape)
+					: validateUnion(values, shape);
+
+			default:
+
+				return validateValue(values, shape);
+
+		}
+
+	}
+
+	function validateReferenceState(values: readonly unknown[], shape: ReferenceShape): undefined | Trace {
+
+		return shape.captive && (depth === undefined || depth > 0)
+
+			? collect(Object.fromEntries(values.map((value, index) => [`[${index}]`,
+				isObject(value)
+					? validateResource([value], eager(shape.shape), { depth: depth === undefined ? undefined : depth-1 })
+					: validateReferences([value], shape)
+			])))
+
+			: validateReferences(values, shape);
+
+	}
+
+	function validateUnionState(values: readonly unknown[], shape: UnionShape): undefined | Trace {
+
+		return collect(Object.fromEntries(values.map((value, index) => [`[${index}]`,
+			validateUnionElement(value, shape.variants)
+		])));
+
+	}
+
+	function validateUnionElement(value: unknown, variants: readonly ValuesShape[]): undefined | Trace {
+
+		const traces = variants.map(variant => validateStateElement(value, variant));
+
+		return traces.some(trace => trace === undefined)
+			? undefined
+			: collect(Object.fromEntries(traces.map((trace, index) => [`[${index}]`, trace])))
+				?? "no union variant matched";
+
+	}
+
+	function validateStateElement(value: unknown, shape: ValuesShape): undefined | Trace {
+
+		switch ( shape.kind ) {
+
+			case "reference":
+
+				return validateReferenceElement(value, shape);
+
+			case "resource":
+
+				return isObject(value) ? validateResource([value], shape, { depth }) : "expected nested resource";
+
+			default:
+
+				return validateValue([value], shape);
+
+		}
+
+	}
+
+	function validateReferenceElement(value: unknown, shape: ReferenceShape): undefined | Trace {
+
+		return isReference(value) ? validateReferences([value], shape)
+			: isObject(value) && shape.captive && (depth === undefined || depth > 0)
+				? validateResource([value], eager(shape.shape), { depth: depth === undefined ? undefined : depth-1 })
+				: validateReferences([value], shape);
 
 	}
 

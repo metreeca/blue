@@ -1908,22 +1908,26 @@ describe("operators", () => {
 
 		});
 
-		it("dereferences reference variants through the target resource shape", async () => {
+		it("treats a reference variant as IRI-only, without dereferencing the target shape", async () => {
 
-			const Target = resource({ name: required(string()) });
-			const shape = union(reference(Target), string());
+			const Target = resource({ id: id(), name: required(string()) });
+			const shape = union(reference(Target), integer());
 
-			expect(validateUnion([{ name: "test" }], shape)).toBeUndefined();
-			expect(validateUnion(["plain"], shape)).toBeUndefined();
+			// a bare IRI satisfies the reference variant
+			expect(validateUnion(["app:/x"], shape)).toBeUndefined();
+
+			// an inline target object is not dereferenced here; captive expansion is depth-gated upstream
+			expect(validateUnion([{ name: "test" }], shape)).toBeDefined();
 
 		});
 
-		it("rejects a reference variant value with an invalid embedded resource", async () => {
+		it("accepts an id-only IRI against a reference variant", async () => {
 
-			const Target = resource({ name: required(string()) });
-			const shape = union(reference(Target), integer());
+			const A = resource({ id: id(), name: required(string()) });
+			const B = resource({ id: id(), title: required(string()) });
+			const shape = union(reference(A), reference(B));
 
-			expect(validateUnion([{ name: 42 }], shape)).toBeDefined();
+			expect(validateUnion(["https://example.com/x"], shape)).toBeUndefined();
 
 		});
 
