@@ -595,7 +595,7 @@ export function union<
 	V extends readonly [Lazy<ValueShape>, ...Lazy<ValueShape>[]]
 >(...variants: V): UnionShape<Variants<V>> {
 
-	const resolved = variants.map(eager) as Variants<V>;
+	const resolved = variants.map(variant => eager(variant)) as Variants<V>;
 
 	// localised text is a whole-property type, never a union variant: a single language map cannot
 	// mix into the property's value set alongside the literals, references, and resources of the
@@ -823,7 +823,36 @@ export function cardinality<
  *
  * @throws {TraceError} If the factory transitively references itself, producing a circular extends chain
  */
-export function eager<S extends Lazy<Shape>>(shape: S): Resolved<S> {
+export function eager<S extends Lazy<Shape>>(shape: S): Resolved<S>;
+
+/**
+ * Resolves a {@link Lazy} shape to its eager form and maps the result.
+ *
+ * Resolves `shape` as the single-argument overload does, then passes the eager shape to `mapper`
+ * and returns its result, an ergonomic shortcut for transforming a freshly resolved shape without
+ * an intervening binding.
+ *
+ * @typeParam S The {@link Lazy} {@link Shape} type
+ * @typeParam V The value the `mapper` produces
+ *
+ * @param shape A shape value or no-arg factory returning one
+ * @param mapper A transform applied to the eager shape
+ *
+ * @returns The value produced by `mapper`
+ *
+ * @throws {TraceError} If the factory transitively references itself, producing a circular extends chain
+ */
+export function eager<S extends Lazy<Shape>, V>(shape: S, mapper: (shape: Resolved<S>) => V): V;
+
+/**
+ * Resolves a {@link Lazy} shape, optionally mapping the eager result.
+ */
+export function eager<S extends Lazy<Shape>, V>(shape: S, mapper?: (shape: Resolved<S>) => V): Resolved<S> | V {
+
+	function map(resolved: Resolved<S>): Resolved<S> | V {
+		return mapper ? mapper(resolved) : resolved;
+	}
+
 
 	if ( isFunction(shape) ) {
 
@@ -846,7 +875,7 @@ export function eager<S extends Lazy<Shape>>(shape: S): Resolved<S> {
 
 				cache.set(shape, flattened);
 
-				return flattened as Resolved<S>;
+				return map(flattened as Resolved<S>);
 
 			} catch ( error ) {
 
@@ -858,13 +887,13 @@ export function eager<S extends Lazy<Shape>>(shape: S): Resolved<S> {
 
 		} else {
 
-			return cached as Resolved<S>;
+			return map(cached as Resolved<S>);
 
 		}
 
 	} else {
 
-		return (shape.kind === "resource" ? flatten(shape) : shape) as Resolved<S>;
+		return map((shape.kind === "resource" ? flatten(shape) : shape) as Resolved<S>);
 
 	}
 
@@ -986,7 +1015,7 @@ export function apply(probe: Probe, shape: Lazy<Shape>): RangeShape | NullShape 
 	const entry = eager(shape);
 
 	return transform(traverse(
-		entry.kind === "union" ? entry.variants.map(eager)
+		entry.kind === "union" ? entry.variants.map(variant => eager(variant))
 			: entry.kind === "reference" ? [eager(entry.shape)]
 				: [entry]
 	));

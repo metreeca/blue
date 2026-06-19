@@ -36,6 +36,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `const` type parameters to `localised()`, `number()`, and `string()` constraint overloads — non-empty array
 	constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
 - Add `model` field to `SetShape` — holds the runtime prototype value, computed from the shape model and cardinality
+- Add `mapper` overload to `eager()` for transforming the resolved shape inline without an intervening binding
 - Reject `id`/`type` entries in embedded resource shapes during state validation
 
 ### Changed

@@ -2374,4 +2374,24 @@ describe("eager", () => {
 
 	});
 
+	describe("with a mapper", () => {
+
+		it("applies the mapper to the eager shape", async () => {
+
+			const value = resource({});
+
+			expect(eager(value, shape => shape.kind)).toBe("resource");
+
+		});
+
+		it("passes the resolved shape to the mapper", async () => {
+
+			const factory = () => resource({});
+
+			expect(eager(factory, shape => shape)).toBe(eager(factory));
+
+		});
+
+	});
+
 });
