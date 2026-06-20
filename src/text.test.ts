@@ -441,7 +441,7 @@ describe("operators", () => {
 		it("accepts object with valid tag range keys", async () => {
 
 			expect(checkTextModel({ "*": ["hello"] })).toBeUndefined();
-			expect(checkTextModel({ "en-*": ["hello"] })).toBeUndefined();
+			expect(checkTextModel({ "en-US": ["hello"] })).toBeUndefined();
 
 		});
 
@@ -465,6 +465,13 @@ describe("operators", () => {
 
 			expect(result).toBeDefined();
 			expect(result).toHaveProperty("123");
+
+			// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
+
+			const extended = checkTextModel({ "en-*": ["hello"] });
+
+			expect(extended).toBeDefined();
+			expect(extended).toHaveProperty("en-*");
 
 		});
 
@@ -761,7 +768,7 @@ describe("operators", () => {
 
 			it("handles language range matching", async () => {
 
-				const shape = text({ languageIn: ["en-*"] });
+				const shape = text({ languageIn: ["en"] });
 
 				expect(validateTextString([{ "en-US": "color" }], shape)).toBeUndefined();
 				expect(validateTextString([{ "en-GB": "colour" }], shape)).toBeUndefined();
@@ -1002,7 +1009,7 @@ describe("operators", () => {
 
 				expect(validateTextStrings([{ "en-US": ["color"] }], {
 					...text(),
-					languageIn: ["en-*"]
+					languageIn: ["en"]
 				} as any)).toBeUndefined();
 
 			});
@@ -1088,7 +1095,7 @@ describe("operators", () => {
 
 			expect(validateLocaleString({ "en": "hello" })).toBeUndefined();
 			expect(validateLocaleString({ "*": "hello" })).toBeUndefined();
-			expect(validateLocaleString({ "en-*": "hello" })).toBeUndefined();
+			expect(validateLocaleString({ "en-US": "hello" })).toBeUndefined();
 
 		});
 
@@ -1118,6 +1125,13 @@ describe("operators", () => {
 
 			expect(result).toBeDefined();
 			expect(result).toHaveProperty("123");
+
+			// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
+
+			const extended = validateLocaleString({ "en-*": "hello" });
+
+			expect(extended).toBeDefined();
+			expect(extended).toHaveProperty("en-*");
 
 		});
 
@@ -1203,7 +1217,7 @@ describe("operators", () => {
 
 			expect(validateLocaleStrings({ "en": ["hello"] })).toBeUndefined();
 			expect(validateLocaleStrings({ "*": ["hello"] })).toBeUndefined();
-			expect(validateLocaleStrings({ "en-*": ["hello"] })).toBeUndefined();
+			expect(validateLocaleStrings({ "en-US": ["hello"] })).toBeUndefined();
 
 		});
 
@@ -1245,6 +1259,13 @@ describe("operators", () => {
 
 			expect(result).toBeDefined();
 			expect(result).toHaveProperty("123");
+
+			// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
+
+			const extended = validateLocaleStrings({ "en-*": ["hello"] });
+
+			expect(extended).toBeDefined();
+			expect(extended).toHaveProperty("en-*");
 
 		});
 

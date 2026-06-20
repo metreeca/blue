@@ -167,13 +167,16 @@ export interface TextConstraints {
 	/**
 	 * Allowed language ranges for language-tagged strings.
 	 *
-	 * When specified, language tags must match one of the given BCP47 language ranges. Must be non-empty.
+	 * When specified, language tags must match one of the given {@link TagRange} values under RFC 4647 basic
+	 * filtering. Each range is a basic language range (a sequence of subtags or the standalone `*` wildcard);
+	 * extended ranges such as `en-*` are not accepted. Must be non-empty.
 	 *
 	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
 	 *
 	 * @defaultValue `undefined` (no language constraint)
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#LanguageInConstraintComponent SHACL § 4.8.2 sh:languageIn}
+	 * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
 	 */
 	readonly languageIn?: readonly [TagRange, ...TagRange[]];
 

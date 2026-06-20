@@ -143,10 +143,11 @@ export function mergeText(target: TextShape, source: TextShape): TextShape {
  * The model declares the property's per-tag cardinality, so it admits a tag-range-keyed map whose
  * per-tag values are either uniformly single strings (single-string-per-tag) or uniformly singleton
  * string tuples (array-per-tag). Mixed maps combining both shapes are rejected: a property is one
- * cardinality or the other, never both. Keys that fail `isTagRange` are reported as `invalid tag
- * range`. Unlike the placeholder validators ({@link validateLocaleString} / {@link validateLocaleStrings}),
- * which match a value against a property's already-declared cardinality, this checks the declaration
- * itself at shape construction.
+ * cardinality or the other, never both. Keys must be basic language ranges (a sequence of subtags or
+ * the standalone `*` wildcard); extended ranges such as `en-*` are not accepted, and any key that
+ * fails `isTagRange` is reported as `invalid tag range`. Unlike the placeholder validators
+ * ({@link validateLocaleString} / {@link validateLocaleStrings}), which match a value against a property's
+ * already-declared cardinality, this checks the declaration itself at shape construction.
  *
  * @param value The localised model to validate
  *
@@ -409,9 +410,11 @@ export function validateTextStrings(values: readonly unknown[], {
  * localised property's {@link Locale} {@link Placeholders} — or a bare string, the coalesced scalar
  * placeholder a single-string-per-tag localised property reduces to under language negotiation.
  * Per-tag array values are rejected: those belong to the string-array arm, validated by
- * {@link validateLocaleStrings}. Keys that fail `isTagRange` are reported as `invalid tag range`; a
- * localised property carries no inline {@link Selection}, so an operator-prefixed key is simply an
- * invalid tag range. Template values are placeholders, so string length and language constraints are
+ * {@link validateLocaleStrings}. Keys must be basic language ranges (a sequence of subtags or the
+ * standalone `*` wildcard); extended ranges such as `en-*` are not accepted, and any key that fails
+ * `isTagRange` is reported as `invalid tag range`. A localised property carries no inline
+ * {@link Selection}, so an operator-prefixed key is simply an invalid tag range. Template values are
+ * placeholders, so string length and language constraints are
  * intentionally not enforced.
  *
  * @param value The template value to validate
@@ -452,10 +455,11 @@ export function validateLocaleString(value: unknown): undefined | Trace {
  * the string-array arm of a localised property's {@link Locale} {@link Placeholders} — or a bare
  * single-element string array, the coalesced array placeholder an array-per-tag localised property
  * reduces to under language negotiation. Per-tag single string values are rejected: those belong to
- * the single-string arm, validated by {@link validateLocaleString}. Keys that fail `isTagRange` are
- * reported as `invalid tag range`; a
- * localised property carries no inline {@link Selection}, so an operator-prefixed key is simply an
- * invalid tag range. Template values are placeholders, so string length and language constraints are
+ * the single-string arm, validated by {@link validateLocaleString}. Keys must be basic language ranges
+ * (a sequence of subtags or the standalone `*` wildcard); extended ranges such as `en-*` are not
+ * accepted, and any key that fails `isTagRange` is reported as `invalid tag range`. A localised
+ * property carries no inline {@link Selection}, so an operator-prefixed key is simply an invalid tag
+ * range. Template values are placeholders, so string length and language constraints are
  * intentionally not enforced.
  *
  * @param value The template value to validate
