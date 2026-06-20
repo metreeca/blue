@@ -59,10 +59,8 @@ import {
 	validateTextStrings
 } from "./text.core.js";
 import type { TextShape } from "./text.js";
-import { mergeValues, validateUnion, validateValue } from "./value.core.js";
+import { eager, mergeValues, probeShape, validateUnion, validateValue } from "./value.core.js";
 import {
-	apply,
-	eager,
 	type RangeShape,
 	type SetShape,
 	type Shape,
@@ -961,7 +959,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  *   `model`, with cardinality bounds enforced through the range's `minCount` / `maxCount`
  *
  * Model bindings whose probe (`path` and `pipe`) fails to resolve against the shape are rejected
- * with the atomic trace surfaced by {@link apply}, regardless of whether a value is supplied for the
+ * with the atomic trace surfaced by {@link probeShape}, regardless of whether a value is supplied for the
  * binding.
  *
  * Reference slots accept either a bare {@link Reference} or an expanded nested resource; expanded
@@ -1091,7 +1089,7 @@ export function validateResult(values: readonly unknown[], {
 	function validateProjection(value: unknown, probe: Probe, nested: unknown): undefined | Trace {
 
 		// an id/type projection (pipe-free, single-path) validates against the identifier/type rules;
-		// any other probe resolves through `apply`
+		// any other probe resolves through `probeShape`
 
 		const leaf = probe.pipe.length === 0 && probe.path.length === 1
 			? shape.properties[probe.path[0]]
@@ -1105,11 +1103,11 @@ export function validateResult(values: readonly unknown[], {
 
 	function validateApplied(value: unknown, probe: Probe, nested: unknown): undefined | Trace {
 
-		const range = apply(probe, shape);
+		const range = probeShape(shape, probe);
 
 		if ( isString(range) ) {
 
-			// probe unresolvable against the shape — propagate `apply`'s atomic trace; the
+			// probe unresolvable against the shape — propagate `probeShape`'s atomic trace; the
 			// enclosing binding key already identifies the offending entry
 
 			return range;
@@ -1716,7 +1714,7 @@ export function validateResult(values: readonly unknown[], {
  * Value constraints, cardinality bounds, and custom validators are skipped, since a template
  * describes a retrieval projection rather than actual data. Bindings whose probe (`path` and
  * `pipe`) fails to resolve against the shape are rejected with the atomic trace surfaced by
- * {@link apply}; missing properties are accepted as not requested. Property entries may map to
+ * {@link probeShape}; missing properties are accepted as not requested. Property entries may map to
  * `undefined` to mark optional template / projection slots elided at construction time.
  *
  * Where a property specifies a linked resource, the accepted retrieval forms depend on the
@@ -2180,7 +2178,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		 * operators `@` (non-negative integer offset) and `#` (non-negative integer limit) are validated
 		 * directly; the path-bearing
 		 * operators `<`, `>`, `<=`, `>=`, `~`, `?`, `!`, `+`, `^` resolve their probe path through
-		 * {@link apply} and dispatch the value through a shape-kind-appropriate check. The matching and
+		 * {@link probeShape} and dispatch the value through a shape-kind-appropriate check. The matching and
 		 * filtering operators (`<`/`>`/`<=`/`>=`, `~`, `?`/`!`) accept a coalesced localised target at any
 		 * cardinality, matched existentially over its coalesced value set. Sort `^` validates the
 		 * `"asc"` / `"desc"` / number operand and additionally requires a single-valued key: a multi-valued
@@ -2189,7 +2187,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		 * prefix); behind a multi-valued prefix the path product makes it multi-valued and it is rejected.
 		 * The `opts` gates are enforced up-front: path length against `depth`, aggregate
 		 * transforms against `plain`. When the probe fails to resolve in every variant,
-		 * {@link apply}'s atomic trace is surfaced as the per-key entry without further dispatch. Defensive
+		 * {@link probeShape}'s atomic trace is surfaced as the per-key entry without further dispatch. Defensive
 		 * against divergence between qest's {@link isSelector} and {@link decodeProbe}: any decoder failure
 		 * surfaces as a single per-key trace entry carrying the decoder's error.
 		 *
@@ -2223,7 +2221,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 				// resolve the selector sub-path against each element variant and envelope the survivors: the
 				// operator is checked existentially over the union of reachable variants (SHACL sh:or)
 
-				const reached = variants.map(variant => apply(probe, variant));
+				const reached = variants.map(variant => probeShape(variant, probe));
 				const focuses = reached.filter((r): r is RangeShape => !isString(r) && r.kind === "range");
 
 				const range: undefined | RangeShape | Extract<Trace, string> = focuses.length > 0
@@ -2592,7 +2590,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		} else {
 
-			const range = apply({ target: key, pipe: [], path: [key] }, shape);
+			const range = probeShape(shape, { target: key, pipe: [], path: [key] });
 
 			return isString(range) ? range // error trace
 				: range.kind === "null" ? undefined // accepted probe resolving to a known undefined value
@@ -2634,7 +2632,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			} else {
 
-				const range = apply(probe, shape);
+				const range = probeShape(shape, probe);
 
 				// the coalesced array placeholder `[""]` over an array-per-tag localised target is the only
 				// array admitted in a projection value; any other tuple is rejected before dispatch
@@ -2854,7 +2852,7 @@ export function flatten(shape: ResourceShape): ResourceShape {
  * expressed as pure structural constraints.
  *
  * Drives a shape-aware recursive descent that mirrors {@link validateTemplate}'s dispatch: each
- * template slot is resolved to its effective {@link RangeShape} via {@link apply} and visited under its
+ * template slot is resolved to its effective {@link RangeShape} via {@link probeShape} and visited under its
  * declared cardinality and form (scalar / collection, plain / indexed union, localised). A
  * collection is a one- or two-element `[element, Selection?]` tuple; descent into nested templates
  * follows the leading element (keyed by identifier-initial keys: both plain
@@ -2920,7 +2918,7 @@ export function enforce(value: unknown, shape: ResourceShape, {
 
 			return Object.fromEntries(Object.entries(value).map(([k, v]) => {
 
-				const range = apply(decodeProbe(k), shape);
+				const range = probeShape(shape, decodeProbe(k));
 
 				// only a resolved RangeShape carries something to walk; a trace or absent range leaves the value as-is
 

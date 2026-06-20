@@ -87,6 +87,7 @@ import type { Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import type { Reference } from "@metreeca/qest";
 import type { ResourceShape } from "./resource.js";
+import { eager, type Shape } from "./value.js";
 
 
 /**
@@ -252,4 +253,25 @@ export function reference(shape: Lazy<ResourceShape>, constraints?: ReferenceCon
 
 	});
 
+}
+
+
+//// Utilities /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves a reference range to its target {@link ResourceShape | resource shape}.
+ *
+ * Crosses a reference range to its eagerly-resolved target, and takes a resource range to itself, generalising a
+ * resource shape as an already-resolved reference. Yields `undefined` for any range that admits no properties
+ * (scalar, localised). It takes a single variant: flatten a union range through {@link value!getShapeVariants} first,
+ * so colliding variant property names stay distinct rather than merging.
+ *
+ * @param shape One of the range {@link value!getShapeVariants | variants}
+ *
+ * @returns The target resource shape, or `undefined` when `shape` admits no properties
+ */
+export function getShapeTarget(shape: Shape): undefined | ResourceShape {
+	return shape.kind === "resource" ? shape
+		: shape.kind === "reference" ? eager(shape.shape)
+			: undefined;
 }

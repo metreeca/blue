@@ -21,8 +21,8 @@
  * {@link type} factories used to declare the expected structure of linked data resources.
  * Shapes carry property definitions, cardinality constraints, IRI mappings, and inheritance,
  * and drive both runtime validation and compile-time type inference through {@link Content}.
- * Use {@link value!model | model} to extract the deeply typed retrieval template stored on a
- * resource shape.
+ * Use {@link value!getShapeModel | getShapeModel} to extract the deeply typed retrieval template
+ * stored on a resource shape.
  *
  * > [!IMPORTANT]
  * > Resource shapes are **closed**: validated resources may only contain properties explicitly
@@ -327,8 +327,9 @@ import type { Resource, Text } from "@metreeca/qest/resource";
 import type { Template } from "@metreeca/qest/template";
 import { TraceError } from "./index.core.js";
 import type { Validator } from "./index.js";
+import { getShapeTarget } from "./reference.js";
 import { checkSingletons, flatten } from "./resource.core.js";
-import { eager, type Schema, type SetShape, type State } from "./value.js";
+import { eager, type Schema, type SetShape, type Shape, type State } from "./value.js";
 
 
 /**
@@ -1486,4 +1487,86 @@ export function property<R extends SetShape>(
 		range
 	});
 
+}
+
+
+//// Utilities /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves a shape's own class.
+ *
+ * Narrows `shape` to a {@link ResourceShape | resource shape}, then takes its own `class` (its target class). Yields
+ * `undefined` when `shape` is not a resource shape or declares no class.
+ *
+ * @param shape The shape to inspect
+ *
+ * @returns The own `class`, or `undefined` when absent
+ */
+export function getShapeClass(shape: Lazy<Shape>): undefined | Reference {
+	return eager(shape, shape => shape.kind === "resource" ? shape.class : undefined);
+}
+
+/**
+ * Resolves a shape's inherited classes.
+ *
+ * Narrows `shape` to a {@link ResourceShape | resource shape}, then takes its `classes` (the supertypes it inherits).
+ * Yields `undefined` when `shape` is not a resource shape or declares none.
+ *
+ * @param shape The shape to inspect
+ *
+ * @returns The inherited `classes`, or `undefined` when absent
+ */
+export function getShapeClasses(shape: Lazy<Shape>): undefined | readonly Reference[] {
+	return eager(shape, shape => shape.kind === "resource" ? shape.classes : undefined);
+}
+
+
+/**
+ * Resolves a shape's identifier field name.
+ *
+ * Narrows `shape` to a {@link ResourceShape | resource shape}, then takes the name of its `kind: "id"` property,
+ * mapped to the JSON-LD `@id` keyword. Yields `undefined` when `shape` is not a resource shape or declares no
+ * identifier property.
+ *
+ * @param shape The shape to inspect
+ *
+ * @returns The identifier property's field name, or `undefined` when absent
+ */
+export function getShapeId(shape: Lazy<Shape>): undefined | Identifier {
+	return eager(shape, shape => shape.kind === "resource"
+		? Object.entries(shape.properties).find(([, p]) => p.kind === "id")?.[0]
+		: undefined
+	);
+}
+
+/**
+ * Resolves a shape's type field name.
+ *
+ * Narrows `shape` to a {@link ResourceShape | resource shape}, then takes the name of its `kind: "type"` property,
+ * mapped to the JSON-LD `@type` keyword. Yields `undefined` when `shape` is not a resource shape or declares no
+ * type property.
+ *
+ * @param shape The shape to inspect
+ *
+ * @returns The type property's field name, or `undefined` when absent
+ */
+export function getShapeType(shape: Lazy<Shape>): undefined | Identifier {
+	return eager(shape, shape => shape.kind === "resource"
+		? Object.entries(shape.properties).find(([, p]) => p.kind === "type")?.[0]
+		: undefined
+	);
+}
+
+/**
+ * Resolves a shape's properties.
+ *
+ * Resolves `shape` to its {@link getShapeTarget | target} {@link ResourceShape | resource shape}, then takes its
+ * properties keyed by name. Yields an empty record when `shape` resolves to no resource shape.
+ *
+ * @param shape One of the range {@link value!getShapeVariants | variants}
+ *
+ * @returns The properties keyed by name, or an empty record when absent
+ */
+export function getShapeProperties(shape: Shape): ResourceShape["properties"] {
+	return getShapeTarget(shape)?.properties ?? {};
 }

@@ -27,7 +27,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `reference` module with `ReferenceShape` interface, `ReferenceConstraints` interface, and `reference()` factory
 	accepting optional constraints (`foreign`, `captive`)
 - Add `value` module with composite shapes (`SetShape`, `UnionShape`), cardinality factories (`required`, `optional`,
-	`repeatable`, `multiple`, `cardinality`), `union()` factory, `apply()` probe resolver, and type utilities (`Infer`,
+	`repeatable`, `multiple`, `cardinality`), `union()` factory, `probeShape()` probe resolver, and type utilities (`Infer`,
 	`Eager`, `Declared`, `Cardinality`, `Variants`)
 - Add `TraceError` class extending `RangeError` with a typed `cause: Trace` and pretty-printed trace in the error
 	message
@@ -37,6 +37,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 	constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
 - Add `model` field to `SetShape` — holds the runtime prototype value, computed from the shape model and cardinality
 - Add `mapper` overload to `eager()` for transforming the resolved shape inline without an intervening binding
+- Add shape introspection accessors — `getShapeModel` (retrieval template), `getShapeVariants` (union variants),
+	`getShapeTarget` (reference target resource shape), `getShapeProperties` (resolved properties), `getShapeClass` /
+	`getShapeClasses` (own / inherited classes), and `getShapeId` / `getShapeType` (identifier / type field names)
 - Reject `id`/`type` entries in embedded resource shapes during state validation
 
 ### Changed

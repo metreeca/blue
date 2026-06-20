@@ -32,8 +32,8 @@
  *   - {@link ResourceShape} — linked data resources
  * - {@link UnionShape} — a disjunction of value-shape variants for a polymorphic value
  * - {@link SetShape} — a cardinality-constrained value set
- * - {@link RangeShape} — value range a {@link Probe} resolves to via {@link apply}: bounds and variants
- * - {@link NullShape} — a provably absent value a {@link Probe} resolves to via {@link apply}
+ * - {@link RangeShape} — value range a {@link Probe} resolves to via {@link probeShape}: bounds and variants
+ * - {@link NullShape} — a provably absent value a {@link Probe} resolves to via {@link probeShape}
  *
  * <img src="value.svg" alt="Shape hierarchy" style="width: 100%" />
  *
@@ -52,13 +52,24 @@
  * and boxing values into singleton tuples for multi-valued ranges) and are exported for tests
  * and downstream shape extensions.
  *
+ * **Factories**
+ *
+ * - {@link eager} resolves a {@link Lazy} shape factory to its concrete {@link Shape}, caching
+ *   results and flattening {@link ResourceShape} entries.
+ * - {@link union} builds a {@link UnionShape} from two or more value-shape variants.
+ * - The cardinality factories wrap a shape in a {@link SetShape} with fixed bounds: {@link required}
+ *   (exactly one), {@link optional} (at most one), {@link repeatable} (at least one), and
+ *   {@link multiple} (any number).
+ * - {@link cardinality} is the general form, returning a factory for an arbitrary `minCount` /
+ *   `maxCount` pair that the four named factories specialise.
+  *
  * **Utilities**
  *
- * - {@link eager} resolves a {@link Lazy} shape, caching factory results and flattening
- *   {@link ResourceShape} entries.
- * - {@link model} extracts the runtime {@link Schema} of a shape, an ergonomic shortcut for
+ * - {@link getShapeModel} extracts the runtime {@link Schema} of a shape, an ergonomic shortcut for
  *   `eager(shape).model`.
- * - {@link apply} resolves the effective {@link RangeShape} type for a {@link Probe} against a
+ * - {@link getShapeVariants} flattens a {@link UnionShape} to its variants in declaration order, or
+ *   wraps any other shape in a singleton.
+ * - {@link probeShape} resolves the effective {@link RangeShape} type for a {@link Probe} against a
  *   {@link Shape}, walking property paths through nested resources, branching across
  *   {@link UnionShape} variants at the entry or at any property range, and applying each
  *   transform pipe stage. It yields a {@link NullShape} when the probe is accepted
@@ -70,51 +81,20 @@
  * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
  */
 
-import { type Eager, type Identifier, isFunction, isString, type Lazy } from "@metreeca/core";
+import { type Eager, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { TagRange } from "@metreeca/core/language";
-import { assert, error } from "@metreeca/core/report";
-import {
-	type Instance,
-	isProbe,
-	type Probe,
-	type Selection,
-	type Transform,
-	Transforms
-} from "@metreeca/qest/template";
+import { type Instance, type Probe, type Selection } from "@metreeca/qest/template";
 import type { BooleanShape } from "./boolean.js";
-import { type Trace, TraceError } from "./index.js";
-import { decimal, integer, type NumberShape } from "./number.js";
+import { type Trace } from "./index.js";
+import { type NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
-import { flatten } from "./resource.core.js";
 import type { ResourceShape } from "./resource.js";
-import { date, instant, iri, string, type StringShape, time, timestamp } from "./string.js";
+import { type StringShape } from "./string.js";
 import type { TextShape } from "./text.js";
+import { eager, probeShape } from "./value.core.js";
 
-
-/**
- * Known temporal string shape models.
- *
- * Closed set of all model values produced by temporal string shape factories. Used by {@link apply}
- * to distinguish temporal strings from plain strings when checking transform compatibility.
- */
-const Temporal: ReadonlySet<string> = new Set([
-
-	date,
-	time,
-	instant,
-	timestamp
-
-].map(factory => factory().model));
-
-
-/**
- * Cache for eagerly resolved shapes from lazy factories.
- *
- * Uses WeakMap so entries are automatically released when the factory function is no longer referenced.
- * A `null` entry signals a factory currently being resolved, enabling circular dependency detection.
- */
-const cache = new WeakMap<() => Shape, null | Shape>();
+export { eager, probeShape };
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -393,14 +373,14 @@ export type SetSelection<
  * Carries the cardinality bounds ({@link RangeShape.minCount | minCount} / {@link RangeShape.maxCount | maxCount})
  * accumulated across the traversed steps, and {@link RangeShape.variants | variants}: the value shapes the path can
  * reach, a never-empty disjunction over the text-including {@link ValuesShape} alphabet. The `"range"`
- * {@link RangeShape.kind | kind} discriminates it from an absent {@link NullShape} in an {@link apply} result.
+ * {@link RangeShape.kind | kind} discriminates it from an absent {@link NullShape} in an {@link probeShape} result.
  *
  * > [!NOTE]
  * > A path can reach a mix no declared shape expresses: for `creator.name` with `creator: union(Person,
  * > Organization)`, `Person.name: string()`, `Organization.name: text()`, it reaches both string and text, which a
  * > declared property cannot hold (a value-variant union and whole-property text never combine).
  *
- * @see {@link apply}
+ * @see {@link probeShape}
  *
  * @see {@link NullShape}
  */
@@ -436,9 +416,9 @@ export type RangeShape = {
  * Produced when static analysis proves the path carries no value, rather than when a runtime constraint fails. An
  * accepted outcome, not a failure, and therefore distinct from the {@link Trace} strings reported when the probe
  * cannot be resolved or its transform pipe cannot be applied. The `"null"` {@link NullShape.kind | kind} discriminates
- * it from a resolved {@link RangeShape} in an {@link apply} result.
+ * it from a resolved {@link RangeShape} in an {@link probeShape} result.
  *
- * @see {@link apply}
+ * @see {@link probeShape}
  *
  * @see {@link RangeShape}
  */
@@ -459,7 +439,7 @@ export type NullShape = {
  *
  * Returns the full structural description of the shape's template side, with every declared
  * property present and cardinality-driven optionality carried on the value types. Produced by
- * the runtime {@link model} helper and consumed wherever the authoritative template is
+ * the runtime {@link getShapeModel} helper and consumed wherever the authoritative template is
  * required, notably {@link State} projection and inheritance override checking.
  *
  * @typeParam S The lazy {@link Shape} to extract from
@@ -809,98 +789,7 @@ export function cardinality<
 //// Utilities /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Resolves a {@link Lazy} shape to its eager form, caching the result on repeated calls.
- *
- * When given a factory, evaluates it on first call and caches the outcome; subsequent calls
- * return the cached shape. {@link ResourceShape | Resource} shapes are flattened during
- * resolution; other shapes pass through unchanged.
- *
- * @typeParam S The {@link Lazy} {@link Shape} type
- *
- * @param shape A shape value or no-arg factory returning one
- *
- * @returns The eager shape, with resource shapes flattened
- *
- * @throws {TraceError} If the factory transitively references itself, producing a circular extends chain
- */
-export function eager<S extends Lazy<Shape>>(shape: S): Resolved<S>;
-
-/**
- * Resolves a {@link Lazy} shape to its eager form and maps the result.
- *
- * Resolves `shape` as the single-argument overload does, then passes the eager shape to `mapper`
- * and returns its result, an ergonomic shortcut for transforming a freshly resolved shape without
- * an intervening binding.
- *
- * @typeParam S The {@link Lazy} {@link Shape} type
- * @typeParam V The value the `mapper` produces
- *
- * @param shape A shape value or no-arg factory returning one
- * @param mapper A transform applied to the eager shape
- *
- * @returns The value produced by `mapper`
- *
- * @throws {TraceError} If the factory transitively references itself, producing a circular extends chain
- */
-export function eager<S extends Lazy<Shape>, V>(shape: S, mapper: (shape: Resolved<S>) => V): V;
-
-/**
- * Resolves a {@link Lazy} shape, optionally mapping the eager result.
- */
-export function eager<S extends Lazy<Shape>, V>(shape: S, mapper?: (shape: Resolved<S>) => V): Resolved<S> | V {
-
-	function map(resolved: Resolved<S>): Resolved<S> | V {
-		return mapper ? mapper(resolved) : resolved;
-	}
-
-
-	if ( isFunction(shape) ) {
-
-		const cached = cache.get(shape);
-
-		if ( cached === null ) {
-
-			throw new TraceError("circular extends chain", {
-				[shape.name || "<anonymous>"]: "circular dependency"
-			});
-
-		} else if ( cached === undefined ) {
-
-			cache.set(shape, null);
-
-			try {
-
-				const resolved = shape();
-				const flattened = (resolved.kind === "resource" ? flatten(resolved) : resolved);
-
-				cache.set(shape, flattened);
-
-				return map(flattened as Resolved<S>);
-
-			} catch ( error ) {
-
-				cache.delete(shape);
-
-				throw error;
-
-			}
-
-		} else {
-
-			return map(cached as Resolved<S>);
-
-		}
-
-	} else {
-
-		return map((shape.kind === "resource" ? flatten(shape) : shape) as Resolved<S>);
-
-	}
-
-}
-
-/**
- * Extracts the deeply typed retrieval template from a {@link Lazy} value or union shape.
+ * Extracts the deeply typed retrieval template from a {@link Lazy} shape.
  *
  * Resolves the shape eagerly and returns its stored `model`, providing an ergonomic shortcut for
  * obtaining a typed template without explicit field access. The return type is computed by
@@ -913,387 +802,21 @@ export function eager<S extends Lazy<Shape>, V>(shape: S, mapper?: (shape: Resol
  *
  * @returns The shape's stored model
  */
-export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
+export function getShapeModel<S extends Lazy<Shape>>(shape: S): Schema<S> {
 
 	return eager(shape).model;
 
 }
 
 /**
- * Apply a {@link Probe} to a shape, resolving the effective {@link RangeShape}.
+ * Resolves a union range to its variants.
  *
- * Traverses the {@link Probe.path} segments through nested resource properties to locate the target shape, then
- * applies
- * the {@link Probe.pipe} transforms to compute the effective value set with accumulated cardinality.
+ * Flattens a union range to its variants in declaration order; takes any other range to the singleton `[shape]`.
  *
- * **Shape dispatch:**
+ * @param shape The range shape to enumerate
  *
- * - {@link ResourceShape}: traverses path segments through nested properties
- * - {@link ReferenceShape}: eagerly resolves the lazy target shape, then proceeds as for {@link ResourceShape}
- * - {@link UnionShape}: seeds traversal with each variant, then proceeds as for the per-variant shape
- * - Other shapes: any non-empty path fails resolution; the empty path applies the transform pipe directly
- *
- * **Path traversal** — at each step, flattens inheritance and looks up the next property. Unknown properties cause
- * the path to fail. At {@link UnionShape} boundaries (either at the entry or encountered as a property range),
- * variants lacking the property are skipped; the path fails only when no variant defines it. Mid-path traversal past
- * an `id` or `type` field fails as an `"undefined property path"`, since these resolve to scalar IRIs with no
- * traversable structure; terminal `id`/`type` access remains valid.
- *
- * **Pipe application** — applies transforms to the shape resolved by path traversal, reducing each active variant
- * independently when multiple remain. A pipe composing more than one aggregate transform is rejected upfront as
- * `"multiple aggregate transforms"`, independently of the resolved shape. A non-empty pipe is coalesced access to a
- * localised leaf: a text shape contributes the winning tag's value(s) as an ordinary `xsd:string` for domain matching
- * and effective typing, at the leaf's per-tag cardinality (one value for single-string-per-tag, the winning tag's set
- * for array-per-tag). Among processing-space literals (boolean,
- * numeric, plain or temporal string), type compatibility is not a well-formedness condition: a transform applied to a
- * literal outside its declared domain is never an error, it simply drops the offending variant, and when no variant
- * survives the probe resolves to a {@link NullShape} (a known absent value), or, for a total
- * aggregate, to its empty-set value (`0`). The same leniency extends to values outside the processing space
- * (references and resources) which no transform other than `count` can act on, so they too drop
- * rather than erroring. The `count` aggregate accepts any
- * value, references included; `min` and `max` accept the literal processing types (boolean,
- * numeric, string, temporal); the remaining transforms accept their declared processing type only. `avg` always yields
- * a `decimal`: the specification narrows its range to `float` for `float` input and `double` for `double` input, but
- * that processing-space distinction is not preserved on egress, so the effective type is reported uniformly as
- * `decimal`.
- *
- * **Cardinality** — per-step constraints combine multiplicatively within a branch and by envelope
- * across sibling branches:
- *
- * - *Within a branch* — `minCount` and `maxCount` are the products of per-step bounds; either becomes
- *   `undefined` if any step has that bound undefined. A `0` product stands (for `minCount` an
- *   equivalent encoding of "no lower bound", for `maxCount` the strongest upper bound).
- * - *Across branches* — at entry-union or mid-path union-range crossings, the effective bounds
- *   are the envelope of per-branch products: `minCount` takes the lowest lower bound (`undefined`
- *   absorbs — no lower bound wins), `maxCount` takes the highest upper bound (`undefined` absorbs
- *   — unbounded wins). Matches SHACL `sh:or` — a value satisfies the union if at least one branch
- *   accepts it.
- * - {@link UnionShape} steps themselves contribute no per-step cardinality — the enclosing range
- *   carries the single cardinality shared by all variants.
- * - A **localised step** enters the product like any other: a text property is terminal (no path may
- *   traverse past it) and contributes its per-tag bounds (`maxCount` of `1` for single-string-per-tag,
- *   unbounded for array-per-tag), which multiply into the branch product. A single-string-per-tag leaf
- *   is single-valued on its own, but a multi-valued prefix multiplies through, so a deep coalescible
- *   key is correctly multi-valued for the sort/focus single-valued gates while matching and filtering
- *   stay cardinality-agnostic.
- * - A non-empty pipe sets `minCount` to `1` for the total aggregates `count` and `sum`, which always
- *   yield a value (`0` on the empty set), and to `undefined` for every other transform; scalar transforms
- *   preserve `maxCount`; aggregate transforms set `maxCount` to `1`.
- *
- * @param probe The probe containing property path and transform pipe
- * @param shape The {@link Shape} to inspect
- *
- * @returns A {@link RangeShape} effective type carrying the accumulated cardinality and the reachable value-shape
- *     variants when the probe resolves; a {@link NullShape} when the probe is accepted but provably resolves to no
- *     value (every surviving variant falling outside its transforms' declared domains). Returns an atomic
- *     {@link Trace} string when the probe cannot be resolved against the shape: `"undefined property path"` if the
- *     path fails to resolve (including a step past a non-traversable `id` / `type` field), or `"multiple aggregate
- *     transforms"` if the pipe composes more than one aggregate transform
- *
- * @throws {TypeError} If `probe` is not a well-formed {@link Probe} (a malformed `path`/`pipe`, or a `pipe`
- *     referencing an unknown transform)
- *
- * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
+ * @returns The variants in declaration order, or the singleton `[shape]` for a non-union range
  */
-export function apply(probe: Probe, shape: Lazy<Shape>): RangeShape | NullShape | Extract<Trace, string> {
-
-	type Branch = {
-
-		readonly minCount?: number
-		readonly maxCount?: number
-
-		readonly variant: ValuesShape
-
-	}
-
-
-	// defensive: a hand-built probe may carry an unknown transform or a malformed path/pipe, which would
-	// otherwise surface as a runtime crash deep in the pipe; reject it up front
-
-	const { pipe, path } = assert(probe, isProbe, "malformed probe");
-
-	const entry = eager(shape);
-
-	return transform(traverse(
-		entry.kind === "union" ? entry.variants.map(variant => eager(variant))
-			: entry.kind === "reference" ? [eager(entry.shape)]
-				: [entry]
-	));
-
-
-	/**
-	 * Traverse the property path, enveloping per-branch cumulative cardinalities.
-	 *
-	 * Folds the path into a cohort of single-variant branches — each one carrying its own path
-	 * cumulative `{min,max}` — by flat-mapping each branch's resolved variants at every segment.
-	 * Branches that lack the next property are dropped; `id` / `type` fields resolve to scalar IRIs
-	 * with no traversable structure, so a path stepping past them drops as well. A localised step
-	 * multiplies its per-tag bounds into the branch product like any other step (see the cardinality
-	 * rules on {@link apply}). The surviving cohort is then enveloped (SHACL `sh:or`) into a single
-	 * focus; an exhausted cohort yields `"undefined property path"`.
-	 */
-	function traverse(seed: readonly ValuesShape[]): RangeShape | Extract<Trace, string> {
-
-		const branches = path.reduce<readonly Branch[]>((branches, segment) =>
-
-				branches.flatMap(branch => {
-
-					const resolved = resolve(branch.variant, segment);
-
-					return resolved === undefined ? [] // skip branches that lack the property
-						: resolved.variants.map(variant => ({
-							minCount: multiply(branch.minCount, resolved.minCount),
-							maxCount: multiply(branch.maxCount, resolved.maxCount),
-							variant
-						}));
-
-				}),
-
-			seed.map(variant => ({ minCount: 1, maxCount: 1, variant }))
-		);
-
-		return branches.length === 0 ? "undefined property path" : {
-
-			kind: "range",
-
-			minCount: branches.map(branch => branch.minCount).reduce(min),
-			maxCount: branches.map(branch => branch.maxCount).reduce(max),
-
-			variants: branches.map(branch => branch.variant)
-
-		};
-
-	}
-
-	/**
-	 * Resolve a single property step, returning its cardinality and value shape variants.
-	 */
-	function resolve(shape: ValuesShape, property: Identifier): undefined | RangeShape {
-
-		const resolved = shape.kind === "resource" ? shape
-			: shape.kind === "reference" ? eager(shape.shape)
-				: undefined;
-
-		const properties = resolved !== undefined
-			? resolved.properties
-			: undefined;
-
-		if ( properties === undefined ) {
-
-			return undefined; // non-traversable leaf type: skip in union context
-
-		} else {
-
-			// gate lookup to own keys: prevents JSON-derived identifiers like __proto__,
-			// constructor, toString from leaking into Object.prototype during resolution
-
-			const entry = Object.hasOwn(properties, property) ? properties[property] : undefined;
-
-			if ( entry === undefined ) {
-
-				return undefined; // undefined property: resolution fails
-
-			} else if ( entry.kind === "id" || entry.kind === "type" ) {
-
-				// id / type fields resolve to a scalar absolute IRI with no traversable structure
-
-				return {
-
-					kind: "range",
-
-					maxCount: 1,
-
-					variants: [iri({ variant: "absolute" })]
-
-				};
-
-			} else {
-
-				const { range } = entry;
-
-				return {
-
-					kind: "range",
-
-					minCount: range.minCount,
-					maxCount: range.maxCount,
-
-					variants: range.shape.kind === "union"
-						? range.shape.variants
-						: [range.shape]
-
-				};
-
-			}
-
-		}
-
-	}
-
-	/**
-	 * Lowest lower bound across optional minimums; `undefined` absorbs — no lower bound wins.
-	 */
-	function min(a: number | undefined, b: number | undefined): number | undefined {
-
-		return a === undefined || b === undefined ? undefined : Math.min(a, b);
-
-	}
-
-	/**
-	 * Highest upper bound across optional maximums; `undefined` absorbs — unbounded wins.
-	 */
-	function max(a: number | undefined, b: number | undefined): number | undefined {
-
-		return a === undefined || b === undefined ? undefined : Math.max(a, b);
-
-	}
-
-	/**
-	 * Multiply optional cardinalities; `undefined` propagates, otherwise the product stands (including a
-	 * `0`: the strongest upper bound for `maxCount`, an equivalent "no lower bound" for `minCount`).
-	 */
-	function multiply(a: number | undefined, b: number | undefined): number | undefined {
-
-		return a === undefined || b === undefined ? undefined : a*b;
-
-	}
-
-
-	/**
-	 * Apply the transform pipe to each variant, adjusting cardinality and assembling the effective value set.
-	 *
-	 * Forwards atomic traces from the upstream traversal unchanged; rejects a pipe composing more than one aggregate
-	 * transform as `"multiple aggregate transforms"`. A non-empty pipe coalesces localised variants first: a text
-	 * variant is replaced by its coalesced `xsd:string` view (the winning tag's value(s)) at its per-tag cardinality.
-	 * When no variant resolves to a value set, yields the total aggregate's empty-set value (`0`) if the pipe applies
-	 * one, otherwise a {@link NullShape}: every surviving variant having fallen outside its transforms' declared
-	 * domains.
-	 */
-	function transform(focus: RangeShape | Extract<Trace, string>): RangeShape | NullShape | Extract<Trace, string> {
-
-		if ( isString(focus) ) {
-
-			return focus;
-
-		} else if ( pipe.filter(name => Transforms[name].aggregate !== false).length > 1 ) {
-
-			return "multiple aggregate transforms";
-
-		} else {
-
-			// a non-empty pipe is coalesced access to a localised leaf: a text variant contributes the
-			// winning tag's value(s) as an ordinary xsd:string, the cardinality flowing through unchanged
-
-			const staged = pipe.length === 0 ? focus.variants
-				: focus.variants.map(shape => shape.kind === "text" ? string() : shape);
-
-			const successes = staged
-				.map(shape => pipe.reduceRight(stage, shape))
-				.filter(shape => shape !== undefined);
-
-			if ( successes.length > 0 ) {
-
-				const piped = pipe.length > 0;
-				const total = pipe.some(name => Transforms[name].aggregate === "total");
-				const aggregate = pipe.some(name => Transforms[name].aggregate !== false);
-
-				return {
-
-					kind: "range",
-
-					minCount: !piped ? focus.minCount : total ? 1 : undefined,
-					maxCount: aggregate ? 1 : focus.maxCount,
-
-					variants: successes
-
-				};
-
-			} else if ( pipe.some(name => Transforms[name].aggregate === "total") ) {
-
-				// a total aggregate over an all-out-of-domain input still yields its empty-set value
-				// (`0`); the scalar transforms wrapping the aggregate then apply to that integer base
-
-				const wrapping = pipe.slice(0, pipe.findIndex(name => Transforms[name].aggregate !== false));
-				const result = wrapping.reduceRight(stage, integer());
-
-				return result !== undefined
-					? { kind: "range", minCount: 1, maxCount: 1, variants: [result] }
-					: { kind: "null" };
-
-			} else {
-
-				return { kind: "null" };
-
-			}
-		}
-
-	}
-
-	/**
-	 * Applies one transform to the running pipe state, dropping the value to `undefined` once it falls
-	 * outside a transform's declared domain.
-	 */
-	function stage(state: undefined | ValuesShape, transformType: Transform): undefined | ValuesShape {
-
-		if ( state === undefined ) { return undefined; } else {
-
-			const transform = Transforms[transformType];
-
-			return accepts(transform.accepts, state) ? produce(transform.returns, state) : undefined;
-
-		}
-
-	}
-
-	/**
-	 * Resolve a transform's output shape from its declared return type.
-	 */
-	function produce(returns: (typeof Transforms)[Transform]["returns"], state: ValuesShape): ValuesShape {
-
-		return returns === "same" ? state
-			: returns === "integer" ? integer()
-				: returns === "decimal" ? decimal()
-					: returns === "string" ? string()
-						: error<ValuesShape>(`unsupported transform output type '${returns}'`);
-
-	}
-
-	/**
-	 * Whether a shape lies within a transform's declared input domain.
-	 *
-	 * `"any"` admits every shape (so `count` accepts references); `"literal"` admits the
-	 * boolean, numeric, string, and temporal processing types; the remaining domains each admit a single
-	 * processing type. Any shape
-	 * outside the matched domain (references and resources included) fails, dropping the
-	 * value to `undefined`. Localised text never reaches the domain check: {@link transform} coalesces text
-	 * variants to their `xsd:string` view before staging.
-	 */
-	function accepts(domain: (typeof Transforms)[Transform]["accepts"], shape: ValuesShape): boolean {
-
-		return domain === "any" ? true
-			: domain === "literal" ? isLiteral(shape)
-				: domain === "numeric" ? isNumeric(shape)
-					: domain === "string" ? isTextual(shape)
-						: domain === "temporal" ? isTemporal(shape)
-							: false;
-
-	}
-
-
-	function isLiteral(shape: ValuesShape) {
-		return shape.kind === "boolean" || shape.kind === "number" || shape.kind === "string";
-	}
-
-	function isNumeric(shape: ValuesShape) {
-		return shape.kind === "number";
-	}
-
-	function isTextual(shape: ValuesShape) {
-		return shape.kind === "string" && !Temporal.has(shape.model);
-	}
-
-	function isTemporal(shape: ValuesShape) {
-		return shape.kind === "string" && Temporal.has(shape.model);
-	}
-
+export function getShapeVariants(shape: Shape): readonly Shape[] {
+	return shape.kind === "union" ? shape.variants : [shape];
 }

@@ -25,7 +25,7 @@ import { reference } from "./reference.js";
 import { id, resource, type ResourceShape, type } from "./resource.js";
 import { date, duration, instant, iri, string, time, timestamp, year } from "./string.js";
 import {
-	apply,
+	probeShape,
 	type NullShape,
 	type RangeShape,
 	multiple,
@@ -52,7 +52,7 @@ describe("apply", () => {
 	// transform-focused helpers: wrap leaf shape in a resource property
 
 	function transformRange(pipe: readonly Transform[], s: ValuesShape): RangeShape | NullShape | Extract<Trace, string> {
-		return apply(probe(["_"], pipe), resource({ _: required(s) }));
+		return probeShape(resource({ _: required(s) }), probe(["_"], pipe));
 	}
 
 
@@ -338,7 +338,7 @@ describe("apply", () => {
 
 		it("preserves required cardinality through identity", async () => {
 
-			const result = apply(probe(["name"]), resource({ name: required(string()) }));
+			const result = probeShape(resource({ name: required(string()) }), probe(["name"]));
 
 			expect(range(result).minCount).toBe(1);
 			expect(range(result).maxCount).toBe(1);
@@ -347,7 +347,7 @@ describe("apply", () => {
 
 		it("preserves optional cardinality through identity", async () => {
 
-			const result = apply(probe(["name"]), resource({ name: optional(string()) }));
+			const result = probeShape(resource({ name: optional(string()) }), probe(["name"]));
 
 			expect(range(result).minCount).toBeUndefined();
 			expect(range(result).maxCount).toBe(1);
@@ -356,7 +356,7 @@ describe("apply", () => {
 
 		it("preserves repeatable cardinality through identity", async () => {
 
-			const result = apply(probe(["name"]), resource({ name: repeatable(string()) }));
+			const result = probeShape(resource({ name: repeatable(string()) }), probe(["name"]));
 
 			expect(range(result).minCount).toBe(1);
 			expect(range(result).maxCount).toBeUndefined();
@@ -365,7 +365,7 @@ describe("apply", () => {
 
 		it("scalar transform preserves maxCount and sets minCount to undefined", async () => {
 
-			const result = apply(probe(["count"], ["abs"]), resource({ count: required(integer()) }));
+			const result = probeShape(resource({ count: required(integer()) }), probe(["count"], ["abs"]));
 
 			// scalar preserves maxCount; minCount becomes undefined (domain violations → undefined)
 
@@ -376,7 +376,7 @@ describe("apply", () => {
 
 		it("scalar transform preserves undefined maxCount", async () => {
 
-			const result = apply(probe(["value"], ["abs"]), resource({ value: repeatable(integer()) }));
+			const result = probeShape(resource({ value: repeatable(integer()) }), probe(["value"], ["abs"]));
 
 			expect(range(result).minCount).toBeUndefined();
 			expect(range(result).maxCount).toBeUndefined();
@@ -388,7 +388,7 @@ describe("apply", () => {
 			["sum", ["sum"], repeatable(integer())]
 		] as const)("%s total aggregate sets maxCount and minCount to 1", async (_label, pipe, set) => {
 
-			const result = apply(probe(["value"], [...pipe]), resource({ value: set }));
+			const result = probeShape(resource({ value: set }), probe(["value"], [...pipe]));
 
 			// total aggregates always yield a value (0 on the empty set), so minCount is 1
 
@@ -404,7 +404,7 @@ describe("apply", () => {
 			["avg+floor", ["avg", "floor"], repeatable(decimal())]
 		] as const)("%s aggregate sets maxCount to 1 and minCount to undefined", async (_label, pipe, set) => {
 
-			const result = apply(probe(["value"], [...pipe]), resource({ value: set }));
+			const result = probeShape(resource({ value: set }), probe(["value"], [...pipe]));
 
 			// non-total aggregates yield undefined on the empty set, so minCount is undefined
 
@@ -418,7 +418,7 @@ describe("apply", () => {
 	describe("path cardinality accumulation", () => {
 
 		function pathRange(p: Probe, s: ResourceShape): RangeShape | NullShape | Extract<Trace, string> {
-			return apply(p, s);
+			return probeShape(s, p);
 		}
 
 
@@ -489,7 +489,7 @@ describe("apply", () => {
 	describe("path traversal", () => {
 
 		function probeRange(p: Probe, s: ResourceShape): RangeShape | NullShape | Extract<Trace, string> {
-			return apply(p, s);
+			return probeShape(s, p);
 		}
 
 
@@ -553,7 +553,7 @@ describe("apply", () => {
 				name: required(string())
 			});
 
-			expect(apply(probe(["missing"]), s)).toEqual("undefined property path");
+			expect(probeShape(s, probe(["missing"]))).toEqual("undefined property path");
 
 		});
 
@@ -567,7 +567,7 @@ describe("apply", () => {
 				child: required(Inner)
 			});
 
-			expect(apply(probe(["child", "missing"]), s)).toEqual("undefined property path");
+			expect(probeShape(s, probe(["child", "missing"]))).toEqual("undefined property path");
 
 		});
 
@@ -617,7 +617,7 @@ describe("apply", () => {
 
 			// neither variant defines "missing" — returns undefined range
 
-			expect(apply(probe(["value", "missing"]), s)).toEqual("undefined property path");
+			expect(probeShape(s, probe(["value", "missing"]))).toEqual("undefined property path");
 
 		});
 
@@ -655,7 +655,7 @@ describe("apply", () => {
 
 			// "year" requires temporal strings — neither text nor num qualifies
 
-			expect(apply(probe(["value"], ["year"]), s)).toEqual({ kind: "null" });
+			expect(probeShape(s, probe(["value"], ["year"]))).toEqual({ kind: "null" });
 
 		});
 
@@ -675,7 +675,7 @@ describe("apply", () => {
 				name: required(string())
 			});
 
-			expect(apply(probe(["name"], ["floor"]), s)).toEqual({ kind: "null" });
+			expect(probeShape(s, probe(["name"], ["floor"]))).toEqual({ kind: "null" });
 
 		});
 
@@ -698,7 +698,7 @@ describe("apply", () => {
 	describe("id/type path resolution", () => {
 
 		function probeRange(p: Probe, s: ResourceShape): RangeShape | NullShape | Extract<Trace, string> {
-			return apply(p, s);
+			return probeShape(s, p);
 		}
 
 
@@ -751,7 +751,7 @@ describe("apply", () => {
 					name: required(string())
 				});
 
-				expect(apply(probe(["rid", "something"]), s)).toEqual("undefined property path");
+				expect(probeShape(s, probe(["rid", "something"]))).toEqual("undefined property path");
 
 			});
 
@@ -768,7 +768,7 @@ describe("apply", () => {
 					child: required(reference(Inner))
 				});
 
-				expect(apply(probe(["child", "rid", "value"]), s)).toEqual("undefined property path");
+				expect(probeShape(s, probe(["child", "rid", "value"]))).toEqual("undefined property path");
 
 			});
 
@@ -823,7 +823,7 @@ describe("apply", () => {
 					name: required(string())
 				});
 
-				expect(apply(probe(["kind", "something"]), s)).toEqual("undefined property path");
+				expect(probeShape(s, probe(["kind", "something"]))).toEqual("undefined property path");
 
 			});
 
@@ -840,7 +840,7 @@ describe("apply", () => {
 					child: required(reference(Inner))
 				});
 
-				expect(apply(probe(["child", "kind", "value"]), s)).toEqual("undefined property path");
+				expect(probeShape(s, probe(["child", "kind", "value"]))).toEqual("undefined property path");
 
 			});
 
@@ -854,7 +854,7 @@ describe("apply", () => {
 
 			const Inner = resource({ label: required(string()) });
 
-			const result = apply(probe([]), reference(Inner));
+			const result = probeShape(reference(Inner), probe([]));
 
 			expect(range(result).variants[0]).toBe(Inner);
 
@@ -864,7 +864,7 @@ describe("apply", () => {
 
 			const Inner = resource({ label: required(string()) });
 
-			const result = apply(probe(["label"]), reference(Inner));
+			const result = probeShape(reference(Inner), probe(["label"]));
 
 			expect(range(result).variants[0]).toEqual(string());
 
@@ -874,7 +874,7 @@ describe("apply", () => {
 
 			const Inner = resource({ label: optional(string()) });
 
-			const result = apply(probe(["label"]), reference(Inner));
+			const result = probeShape(reference(Inner), probe(["label"]));
 
 			expect(range(result).minCount).toBeUndefined();
 			expect(range(result).maxCount).toBe(1);
@@ -885,7 +885,7 @@ describe("apply", () => {
 
 			const Inner = resource({ value: required(integer()) });
 
-			const result = apply(probe(["value"], ["abs"]), reference(Inner));
+			const result = probeShape(reference(Inner), probe(["value"], ["abs"]));
 
 			expect(range(result).variants[0]).toEqual(integer());
 
@@ -895,7 +895,7 @@ describe("apply", () => {
 
 			const Inner = resource({ label: required(string()) });
 
-			expect(apply(probe(["missing"]), reference(Inner))).toEqual("undefined property path");
+			expect(probeShape(reference(Inner), probe(["missing"]))).toEqual("undefined property path");
 
 		});
 
@@ -910,7 +910,7 @@ describe("apply", () => {
 			["text", text()]
 		])("resolves empty path for %s shape", async (_label, s) => {
 
-			const result = apply(probe([]), s);
+			const result = probeShape(s, probe([]));
 
 			expect(range(result).variants[0]).toBe(s);
 
@@ -918,7 +918,7 @@ describe("apply", () => {
 
 		it("applies compatible transform pipe on empty path", async () => {
 
-			const result = apply(probe([], ["floor"]), decimal());
+			const result = probeShape(decimal(), probe([], ["floor"]));
 
 			expect(range(result).variants[0]).toEqual(decimal());
 
@@ -926,7 +926,7 @@ describe("apply", () => {
 
 		it("applies aggregate transform on empty path", async () => {
 
-			const result = apply(probe([], ["count"]), integer());
+			const result = probeShape(integer(), probe([], ["count"]));
 
 			expect(range(result).variants[0]).toEqual(integer());
 			expect(range(result).minCount).toBe(1);
@@ -940,19 +940,19 @@ describe("apply", () => {
 			["boolean", boolean()]
 		])("returns undefined range for non-empty path on %s shape", async (_label, s) => {
 
-			expect(apply(probe(["missing"]), s)).toEqual("undefined property path");
+			expect(probeShape(s, probe(["missing"]))).toEqual("undefined property path");
 
 		});
 
 		it("returns null sentinel for incompatible pipe on leaf shape", async () => {
 
-			expect(apply(probe([], ["floor"]), string())).toEqual({ kind: "null" });
+			expect(probeShape(string(), probe([], ["floor"]))).toEqual({ kind: "null" });
 
 		});
 
 		it("chains transforms on leaf shape", async () => {
 
-			const result = apply(probe([], ["avg", "floor"]), decimal());
+			const result = probeShape(decimal(), probe([], ["avg", "floor"]));
 
 			expect(range(result).variants[0]).toEqual(decimal());
 
