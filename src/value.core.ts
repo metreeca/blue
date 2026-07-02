@@ -33,11 +33,11 @@ import { deriveNumber, mergeNumber, narrowsNumber, validateNumber } from "./numb
 import { decimal, integer, type NumberShape } from "./number.js";
 import { deriveReference, getShapeTarget, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import type { ReferenceShape } from "./reference.js";
-import { deriveResource, flatten, mergeResource, narrowsResource, validateResource } from "./resource.core.js";
+import { deriveResource, flatten, mergeResource, narrowsResource, validateResource, validateTemplate } from "./resource.core.js";
 import { type ResourceShape } from "./resource.js";
 import { deriveString, mergeString, narrowsString, validateString } from "./string.core.js";
 import { iri, string, type StringShape } from "./string.js";
-import { deriveText, mergeText, narrowsText, validateText } from "./text.core.js";
+import { deriveText, mergeText, narrowsText, validateLocale, validateText } from "./text.core.js";
 import type { TextShape } from "./text.js";
 import { deriveUnion, mergeUnion, narrowsUnion } from "./union.core.js";
 import type { UnionShape } from "./union.js";
@@ -501,10 +501,22 @@ export function deriveValues({ shape, model, maxCount }: SetShape): unknown {
  *
  * @param values The values to validate
  * @param shape The shape defining validation constraints
+ * @param opts Validation options
+ * @param opts.model Whether to validate `values` as retrieval placeholders rather than instances: `hasValue`
+ *     constraints are skipped, localised text is validated as a `Locale` placeholder, and nested resources as
+ *     retrieval templates; defaults to `false`
  *
  * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
-export function validateValue(values: readonly unknown[], shape: ValuesShape): undefined | Trace {
+export function validateValue(values: readonly unknown[], shape: ValuesShape, {
+
+	model = false
+
+}: {
+
+	model?: boolean
+
+} = {}): undefined | Trace {
 
 	switch ( shape.kind ) {
 
@@ -514,23 +526,27 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape): u
 
 		case "number":
 
-			return validateNumber(values, shape);
+			return validateNumber(values, shape, { model });
 
 		case "string":
 
-			return validateString(values, shape);
+			return validateString(values, shape, { model });
 
 		case "text":
 
-			return validateText(values, shape);
+			return model
+				? validateLocale(values)
+				: validateText(values, shape);
 
 		case "reference":
 
-			return validateReference(values, shape);
+			return validateReference(values, shape, { model });
 
 		case "resource":
 
-			return validateResource(values, shape);
+			return model
+				? validateTemplate(values, shape, {})
+				: validateResource(values, shape);
 
 	}
 

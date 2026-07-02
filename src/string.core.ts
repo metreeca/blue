@@ -315,11 +315,11 @@ export function validateString(values: readonly unknown[], {
 
 }: StringShape, {
 
-	placeholder = false
+	model = false
 
 }: {
 
-	placeholder?: boolean
+	model?: boolean
 
 } = {}): undefined | Trace {
 
@@ -351,7 +351,7 @@ export function validateString(values: readonly unknown[], {
 			|| `expected values in [${allowed.join(", ")}]`
 		),
 
-		"{hasValue}": placeholder || group(matching, group =>
+		"{hasValue}": model || group(matching, group =>
 			hasValue === undefined || hasValue.every(v => group.includes(v))
 			|| `expected values to include [${hasValue.join(", ")}]`
 		)

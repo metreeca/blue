@@ -554,6 +554,52 @@ export function validateTextStrings(values: readonly unknown[], {
 
 
 /**
+ * Validates a {@link Locale} placeholder against both per-tag arms.
+ *
+ * Tries the two {@link Locale} arms in turn (the single-string-per-tag form via
+ * {@link validateLocaleString} and the string-array-per-tag form via {@link validateLocaleStrings}),
+ * succeeding if either form passes. When both arms fail, returns whichever sub-trace carries
+ * structured per-tag detail (preferring object traces over plain string errors), so that downstream
+ * consumers see the specific tag-level violations instead of a generic "neither arm matched" message.
+ *
+ * Symmetric to {@link validateText}, the localised-value counterpart: where {@link validateText}
+ * probes both arms of an actual localised value against a {@link TextShape}, this probes both arms of a
+ * localised placeholder, enforcing no length or language constraints since template values are
+ * placeholders.
+ *
+ * @param values The placeholder values to validate (zero or one element)
+ *
+ * @returns A trace of violations, or `undefined` when either arm accepts the value
+ */
+export function validateLocale(values: readonly unknown[]): undefined | Trace {
+
+	if ( values.length === 0 ) {
+
+		return undefined;
+
+	} else if ( values.length > 1 ) {
+
+		return "expected at most one <text> value";
+
+	} else {
+
+		const [value] = values;
+
+		const stringTrace = validateLocaleString(value);
+		const stringsTrace = validateLocaleStrings(value);
+
+		// either arm accepts; otherwise prefer the structurally richer trace (object over plain string)
+
+		return stringTrace === undefined || stringsTrace === undefined ? undefined
+			: isObject(stringsTrace) ? stringsTrace
+				: isObject(stringTrace) ? stringTrace
+					: stringsTrace;
+
+	}
+
+}
+
+/**
  * Validates the single-string-per-tag arm of a {@link Locale} placeholder.
  *
  * Accepts either a tag-range-keyed map of single string values — the single-string arm of a

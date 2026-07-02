@@ -326,6 +326,29 @@ The `plain`, `depth`, and `limit` options bound the accepted query language: `pl
 > When exposing endpoints to untrusted clients, restrict query complexity as required by setting `plain`
 > to `true`, `depth` to `0` or a positive value, and/or `limit` to a maximum result set size.
 
+## Validating Values
+
+The same `validate` function checks an individual value against a value shape when `shape` is passed alone, without
+`model`:
+
+```ts
+import { validate } from "@metreeca/blue";
+import { integer } from "@metreeca/blue/number";
+
+validate(price, { shape: integer({ minInclusive: 0 }) })({
+	value: amount => {
+		// amount is typed as number
+	},
+	trace: trace => {
+		// trace describes validation violations
+	}
+});
+```
+
+Only the leaf constraints (datatype, numeric range, string length, pattern, language) are enforced against the single
+value; cardinality is not checked, as it belongs to the enclosing set shape. A union shape requires the value to match
+exactly one variant. On success, the value is the input narrowed to `State<S>`.
+
 # SHACL Foundations
 
 [SHACL](https://www.w3.org/TR/shacl/) (Shapes Constraint Language) is a [W3C](https://www.w3.org/) standard for

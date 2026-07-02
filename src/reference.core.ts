@@ -174,11 +174,11 @@ export function deriveReference({ shape }: ReferenceShape): Reference {
  */
 export function validateReference(values: readonly unknown[], shape: ReferenceShape, {
 
-	placeholder=false
+	model=false
 
 }: {
 
-	placeholder?: boolean
+	model?: boolean
 
 }={}): undefined | Trace {
 
@@ -189,7 +189,7 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 
 	const patterns = target.pattern !== undefined ? [target.pattern] : [];
 	const allowed = target.in !== undefined ? [target.in] : [];
-	const required = placeholder || target.hasValue === undefined ? [] : [target.hasValue];
+	const required = model || target.hasValue === undefined ? [] : [target.hasValue];
 
 	return collect({
 

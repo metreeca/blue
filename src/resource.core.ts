@@ -1561,17 +1561,17 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			case "number":
 
-				return validateNumber([value], shape, { placeholder: true });
+				return validateNumber([value], shape, { model: true });
 
 			case "string":
 
-				return validateString([value], shape, { placeholder: true });
+				return validateString([value], shape, { model: true });
 
 			case "reference":
 
 				return isObject(value)
 					? validateTemplate(value, eager(shape.shape), next)
-					: validateReference([value], shape, { placeholder: true });
+					: validateReference([value], shape, { model: true });
 
 			case "resource":
 

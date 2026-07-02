@@ -21,6 +21,7 @@ import {
 	deriveText,
 	mergeText,
 	narrowsText,
+	validateLocale,
 	validateLocaleString,
 	validateLocaleStrings,
 	validateText,
@@ -1128,6 +1129,59 @@ describe("validators", () => {
 
 	});
 
+
+	describe("validateLocale", () => {
+
+		it("returns undefined for an empty values array", async () => {
+			expect(validateLocale([])).toBeUndefined();
+		});
+
+		it("rejects more than one value", async () => {
+			expect(validateLocale(["a", "b"])).toBeDefined();
+		});
+
+		it("accepts a bare string (coalesced scalar placeholder)", async () => {
+			expect(validateLocale(["hello"])).toBeUndefined();
+			expect(validateLocale([""])).toBeUndefined();
+		});
+
+		it("accepts a bare singleton string array (coalesced array placeholder)", async () => {
+			expect(validateLocale([["hello"]])).toBeUndefined();
+		});
+
+		it("accepts a single-string-per-tag map", async () => {
+			expect(validateLocale([{ en: "hello" }])).toBeUndefined();
+			expect(validateLocale([{ "*": "hello" }])).toBeUndefined();
+		});
+
+		it("accepts an array-per-tag map", async () => {
+			expect(validateLocale([{ en: ["hello"] }])).toBeUndefined();
+		});
+
+		it("rejects a non-text scalar", async () => {
+			expect(validateLocale([42])).toBeDefined();
+			expect(validateLocale([true])).toBeDefined();
+		});
+
+		it("propagates per-tag detail when both arms reject the value", async () => {
+
+			const trace = validateLocale([{ en: 42 }]);
+
+			expect(trace).toBeDefined();
+			expect(JSON.stringify(trace)).toContain("en");
+
+		});
+
+		it("reports an invalid tag range", async () => {
+
+			const trace = validateLocale([{ "123": "hello" }]);
+
+			expect(trace).toBeDefined();
+			expect(JSON.stringify(trace)).toContain("123");
+
+		});
+
+	});
 
 	describe("validateLocaleString", () => {
 
