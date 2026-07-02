@@ -28,6 +28,30 @@ import type { Trace } from "./index.js";
 
 
 /**
+ * Reports whether an overriding boolean shape narrows an inherited base shape.
+ *
+ * Tests the override relation without building the merged shape: a boolean carries no constraints, so `target`
+ * narrows `source` exactly when their `model` matches.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
+ */
+export function narrowsBoolean(target: BooleanShape, source: BooleanShape): undefined | Trace {
+
+	return collect({
+
+		// structural: model must be strictly equal
+
+		"{model}": target.model === source.model
+			|| `mismatched types <${target.model}> and <${source.model}>`
+
+	});
+
+}
+
+/**
  * Merges an overriding boolean shape with an inherited base shape.
  *
  * Validates that `kind` and `model` match between target and source.
@@ -41,14 +65,7 @@ import type { Trace } from "./index.js";
  */
 export function mergeBoolean(target: BooleanShape, source: BooleanShape): BooleanShape {
 
-	const trace = collect({
-
-		// structural: model must be strictly equal
-
-		"{model}": target.model === source.model
-			|| `mismatched types <${target.model}> and <${source.model}>`
-
-	});
+	const trace = narrowsBoolean(target, source);
 
 	if ( trace !== undefined ) {
 		throw new TraceError("incompatible boolean shape override", trace);
@@ -63,6 +80,17 @@ export function mergeBoolean(target: BooleanShape, source: BooleanShape): Boolea
 
 }
 
+/**
+ * Derives the default prototype model for a boolean shape.
+ *
+ * A boolean shape admits both truth values with no constraints to draw from, so the prototype is always `false`. The
+ * {@link value!deriveValue | deriveValue} dispatcher prefers an explicit `model` and falls back to this default.
+ *
+ * @returns The default boolean prototype model `false`
+ */
+export function deriveBoolean({}: BooleanShape) {
+	return false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

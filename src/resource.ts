@@ -21,7 +21,7 @@
  * {@link type} factories used to declare the expected structure of linked data resources.
  * Shapes carry property definitions, cardinality constraints, IRI mappings, and inheritance,
  * and drive both runtime validation and compile-time type inference through {@link Content}.
- * Use {@link value!getShapeModel | getShapeModel} to extract the deeply typed retrieval template
+ * Use {@link value!model | model} to extract the deeply typed retrieval template
  * stored on a resource shape.
  *
  * > [!IMPORTANT]
@@ -47,7 +47,7 @@
  *
  * const Product = resource({
  *   id: id(),
- *   name: required(string({ minLength: 1 })),
+ *   name: required(string({ model: "name", minLength: 1 })),
  *   price: required(integer({ minInclusive: 0 })),
  *   available: optional(boolean()),
  *   tags: repeatable(string())
@@ -97,9 +97,10 @@
  * together with its parent.
  *
  * > [!NOTE]
- * > In state validation, embedded resources are always validated as complete states and may not
- * > declare {@link id} or {@link type} entries. In template validation, these entries are accepted,
- * > enabling identity projection through nested resource slots.
+ * > An embedded resource shape may not declare an {@link id} entry: embedded resources have no
+ * > independent identity, so the rejection is enforced when the enclosing shape is built and such a
+ * > shape cannot be constructed. A {@link type} entry is accepted and validated in both state and
+ * > template retrieval.
  *
  * ```typescript
  * import { required, optional } from '@metreeca/blue/value';
@@ -160,11 +161,11 @@
  * **Embedded versus Captive Resources**
  *
  * **Embedded resources** have no independent identity or lifecycle and are always managed as part
- * of their parent. During state validation, {@link id} / {@link type} entries are rejected on
- * embedded resource shapes; during template validation they are accepted, allowing retrieval
- * templates to project identity fields through nested resource slots. Embedded resources are
- * defined by directly including a resource shape without a
- * {@link reference!reference | reference} wrapper.
+ * of their parent. An embedded resource shape may not declare an {@link id} entry: the rejection is
+ * enforced when the enclosing shape is built, so such a shape cannot be constructed. A {@link type}
+ * entry is accepted and validated in both state and template retrieval. Embedded resources are
+ * defined by directly including a resource shape without a {@link reference!reference | reference}
+ * wrapper.
  *
  * **Captive resources**, identified by the
  * {@link reference!ReferenceConstraints.captive | captive} flag, have independent identity and
@@ -183,7 +184,7 @@
  *
  * const NamedEntity = resource({
  *   id: id(),
- *   name: required(string({ minLength: 1 }))
+ *   name: required(string({ model: "name", minLength: 1 }))
  * });
  *
  * const Employee = resource({ extends: NamedEntity }, {
@@ -204,19 +205,20 @@
  *
  * **Narrowing union slots**
  *
- * When a parent declares a {@link value!union | union}-typed slot, an extending shape may drop variants and tighten the
+ * When a parent declares a {@link union!union | union}-typed slot, an extending shape may drop variants and tighten the
  * variants it keeps, but never add new ones. Narrowing takes one of two forms:
  *
- * 1. **Single-variant narrowing** (Form 1) — the child supplies a non-union value shape whose discriminator (`kind`,
- *    plus `datatype` for `string` / `number` and `class` for `reference` / `resource` variants) appears exactly once
- *    among the parent's variants. The merged slot becomes a bare value shape; consumers see the variant's plain model
- *    rather than the union's variant-keyed model.
- * 2. **Union subsetting** (Form 2) — the child supplies a smaller {@link value!union | union}; for each discriminator
- *    group in the parent, the child must contain either all parent variants of that group in the same relative
- *    order, or none. Surviving variants are merged pairwise; dropped variants are absent from the result.
+ * 1. **Single-variant narrowing** (Form 1) — the child supplies a non-union value shape that narrows exactly one of
+ *    the parent's variants (by `kind`, only-tightening constraints, a matching `datatype` for `string` / `number`, and
+ *    a matching target shape for `reference` or a subtype `class` for `resource`). The merged slot becomes a bare value
+ *    shape; consumers see the variant's plain model rather than the union's variant-keyed model.
+ * 2. **Union subsetting** (Form 2) — the child supplies a smaller {@link union!union | union} whose variants each
+ *    narrow a distinct parent variant. The pairing is order-independent and injective; surviving variants are merged
+ *    and unpaired parent variants are dropped.
  *
  * ```typescript
- * import { required, union } from '@metreeca/blue/value';
+ * import { required } from '@metreeca/blue/value';
+ * import { union } from '@metreeca/blue/union';
  * import { string } from '@metreeca/blue/string';
  * import { integer } from '@metreeca/blue/number';
  * import { resource } from '@metreeca/blue/resource';
@@ -227,7 +229,7 @@
  *
  * // Form 1 — narrows the slot to a bare string
  * const Vendor = resource({ extends: Entity }, {
- *   code: required(string({ pattern: "^[A-Z]" }))
+ *   code: required(string({ model: "ABC", pattern: "^[A-Z]" }))
  * });
  *
  * // Form 2 — keeps the union but drops the string variant wholesale
@@ -237,19 +239,20 @@
  * ```
  *
  * The merged union's `model` re-indexes contiguously from `0`; consumers must key off the shape's own `model`,
- * not assume positional alignment with an ancestor. See {@link value!UnionShape | UnionShape} for the full
+ * not assume positional alignment with an ancestor. See {@link union!UnionShape | UnionShape} for the full
  * inheritance contract.
  *
  * **Polymorphic Properties**
  *
- * Use {@link value!union | union} for properties accepting multiple value types. Variants are
- * supplied as positional arguments and act as alternatives during validation: a value satisfies
- * the union if it satisfies at least one variant. Cardinality constraints belong on the enclosing
+ * Use {@link union!union | union} for properties accepting multiple value types. Variants are
+ * supplied as positional arguments and act as mutually exclusive alternatives (`sh:xone`): a `state` or `model`
+ * value is expected to single out exactly one variant. Cardinality constraints belong on the enclosing
  * {@link SetShape}, not on individual variants. At runtime, values are stored directly with no
  * variant wrapping:
  *
  * ```typescript
- * import { union, optional, required } from '@metreeca/blue/value';
+ * import { optional, required } from '@metreeca/blue/value';
+ * import { union } from '@metreeca/blue/union';
  * import { string } from '@metreeca/blue/string';
  * import { resource } from '@metreeca/blue/resource';
  * import { reference } from '@metreeca/blue/reference';
@@ -327,9 +330,16 @@ import type { Resource, Text } from "@metreeca/qest/resource";
 import type { Template } from "@metreeca/qest/template";
 import { TraceError } from "./index.core.js";
 import type { Validator } from "./index.js";
-import { getShapeTarget } from "./reference.js";
 import { checkSingletons, flatten } from "./resource.core.js";
-import { eager, type Schema, type SetShape, type Shape, type State } from "./value.js";
+import { eager, type Schema, type SetShape, type State } from "./value.js";
+
+export {
+	getShapeClass,
+	getShapeClasses,
+	getShapeId,
+	getShapeProperties,
+	getShapeType
+} from "./resource.core.js"
 
 
 /**
@@ -520,7 +530,7 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#targetClass SHACL § 2.1.1 sh:targetClass}
 	 */
-	readonly class?: IRI;
+	readonly class?: Reference;
 
 	/**
 	 * Ancillary class constraints for resource instances.
@@ -531,7 +541,7 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#ClassConstraintComponent SHACL § 4.2.1 sh:class}
 	 */
-	readonly classes?: readonly [IRI, ...IRI[]];
+	readonly classes?: readonly [Reference, ...Reference[]];
 
 
 	/**
@@ -569,7 +579,7 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.5.1 sh:in}
 	 */
-	readonly in?: readonly [IRI, ...IRI[]];
+	readonly in?: readonly [Reference, ...Reference[]];
 
 	/**
 	 * Required resource {@link Id identifiers} that must be present.
@@ -582,7 +592,7 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.5.2 sh:hasValue}
 	 */
-	readonly hasValue?: readonly [IRI, ...IRI[]];
+	readonly hasValue?: readonly [Reference, ...Reference[]];
 
 }
 
@@ -594,8 +604,9 @@ export interface ResourceConstraints {
  * most one `id` entry is allowed per resource shape and per inheritance hierarchy.
  *
  * > [!IMPORTANT]
- * > Rejected on embedded resource shapes during state validation, as embedded resources have no
- * > independent identity. Accepted during template validation for identity projection.
+ * > Rejected on embedded resource shapes when the enclosing shape is built, as embedded resources
+ * > have no independent identity; such a shape cannot be constructed. A standalone
+ * > {@link reference!reference | reference} target carries its own identifier and is unaffected.
  *
  * **Inheritance**
  *
@@ -635,9 +646,8 @@ export interface Id {
  * Tags a resource property as mapping to JSON-LD `@type`. Created by the {@link type} factory. At
  * most one `type` entry is allowed per resource shape and per inheritance hierarchy.
  *
- * > [!IMPORTANT]
- * > Rejected on embedded resource shapes during state validation, as embedded resources have no
- * > independent identity. Accepted during template validation for identity projection.
+ * Unlike an {@link id} entry, a `type` entry is accepted on embedded resource shapes during both
+ * state and template validation.
  *
  * > [!IMPORTANT]
  * > This property is system-managed: its value is derived from the
@@ -677,6 +687,7 @@ export interface Type {
 	readonly hidden?: boolean;
 
 }
+
 
 /**
  * Shape definition for a resource property.
@@ -896,10 +907,10 @@ export type Prototype<E extends Entries> = {
  * relax them.
  *
  * For inherited union slots, {@link Narrowings} expands the comparison to also accept the new narrowing forms
- * permitted at extends-time: a non-union value shape whose discriminator matches a parent variant (Form 1
- * single-variant narrowing) and a union whose variants form a subsequence of the parent's, retaining or dropping each
- * discriminator group as a whole (Form 2 subsetting). Type-level acceptance is intentionally permissive: non-unique
- * discriminators in Form 1 and partial-group retention in Form 2 compile but throw at runtime.
+ * permitted at extends-time: a non-union value shape that narrows a parent variant (Form 1 single-variant narrowing)
+ * and a union whose variants each narrow a distinct parent variant (Form 2 subsetting). Type-level acceptance is
+ * intentionally permissive: a child variant that narrows no parent variant, several, or the same parent as another
+ * child variant compiles but throws at runtime.
  *
  * @typeParam E The local entries record type
  * @typeParam I The inherited template model type produced by {@link Inheritance}
@@ -916,7 +927,7 @@ export type Override<E extends Entries, I> = {
  * Expands an inherited slot type into the union of its valid narrowings.
  *
  * Used by {@link Override} on the *parent* side of the assignability check: the helper widens the inherited type so
- * that the new union-narrowing inheritance forms — {@link value!UnionShape | union}-derived indexed-record models
+ * that the new union-narrowing inheritance forms — {@link union!UnionShape | union}-derived indexed-record models
  * being subsetted (Form 2) or replaced by a single variant (Form 1) — pass the structural compatibility test that
  * gates resource extension.
  *
@@ -931,7 +942,8 @@ export type Override<E extends Entries, I> = {
  * expansion only fires for indexed-union slots, leaving regular nested-resource and primitive slots intact.
  *
  * Type-level acceptance is intentionally permissive: kinds absent from the parent union are still rejected at compile
- * time, while non-unique discriminators in Form 1 and partial-group retention in Form 2 compile but throw at runtime.
+ * time, while a child variant narrowing no parent variant, several, or the same parent as another child variant
+ * compiles but throws at runtime.
  *
  * The plural name denotes the resulting *set* of acceptable narrowings: any of the listed forms qualifies. From the
  * child author's perspective, the inheritance narrows the parent; from the type checker's perspective, the parent's
@@ -1022,7 +1034,7 @@ export type Intersection<U> =
  * Subtracting `keyof E` from the inherited side before intersection is required because TypeScript intersection is
  * order-insensitive: without the subtraction the parent's contribution is retained alongside the child's narrowing,
  * leaving residue such as `string & { readonly "0": string; readonly "1": Locale }` on slots narrowed via
- * single-variant {@link value!UnionShape | union} narrowing (Form 1).
+ * single-variant {@link union!UnionShape | union} narrowing (Form 1).
  *
  * @typeParam E The local entries record type
  * @typeParam C The constraints type providing the inherited template via {@link Inheritance}
@@ -1487,86 +1499,4 @@ export function property<R extends SetShape>(
 		range
 	});
 
-}
-
-
-//// Utilities /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Resolves a shape's own class.
- *
- * Narrows `shape` to a {@link ResourceShape | resource shape}, then takes its own `class` (its target class). Yields
- * `undefined` when `shape` is not a resource shape or declares no class.
- *
- * @param shape The shape to inspect
- *
- * @returns The own `class`, or `undefined` when absent
- */
-export function getShapeClass(shape: Lazy<Shape>): undefined | Reference {
-	return eager(shape, shape => shape.kind === "resource" ? shape.class : undefined);
-}
-
-/**
- * Resolves a shape's inherited classes.
- *
- * Narrows `shape` to a {@link ResourceShape | resource shape}, then takes its `classes` (the supertypes it inherits).
- * Yields `undefined` when `shape` is not a resource shape or declares none.
- *
- * @param shape The shape to inspect
- *
- * @returns The inherited `classes`, or `undefined` when absent
- */
-export function getShapeClasses(shape: Lazy<Shape>): undefined | readonly Reference[] {
-	return eager(shape, shape => shape.kind === "resource" ? shape.classes : undefined);
-}
-
-
-/**
- * Resolves a shape's identifier field name.
- *
- * Narrows `shape` to a {@link ResourceShape | resource shape}, then takes the name of its `kind: "id"` property,
- * mapped to the JSON-LD `@id` keyword. Yields `undefined` when `shape` is not a resource shape or declares no
- * identifier property.
- *
- * @param shape The shape to inspect
- *
- * @returns The identifier property's field name, or `undefined` when absent
- */
-export function getShapeId(shape: Lazy<Shape>): undefined | Identifier {
-	return eager(shape, shape => shape.kind === "resource"
-		? Object.entries(shape.properties).find(([, p]) => p.kind === "id")?.[0]
-		: undefined
-	);
-}
-
-/**
- * Resolves a shape's type field name.
- *
- * Narrows `shape` to a {@link ResourceShape | resource shape}, then takes the name of its `kind: "type"` property,
- * mapped to the JSON-LD `@type` keyword. Yields `undefined` when `shape` is not a resource shape or declares no
- * type property.
- *
- * @param shape The shape to inspect
- *
- * @returns The type property's field name, or `undefined` when absent
- */
-export function getShapeType(shape: Lazy<Shape>): undefined | Identifier {
-	return eager(shape, shape => shape.kind === "resource"
-		? Object.entries(shape.properties).find(([, p]) => p.kind === "type")?.[0]
-		: undefined
-	);
-}
-
-/**
- * Resolves a shape's properties.
- *
- * Resolves `shape` to its {@link getShapeTarget | target} {@link ResourceShape | resource shape}, then takes its
- * properties keyed by name. Yields an empty record when `shape` resolves to no resource shape.
- *
- * @param shape One of the range {@link value!getShapeVariants | variants}
- *
- * @returns The properties keyed by name, or an empty record when absent
- */
-export function getShapeProperties(shape: Shape): ResourceShape["properties"] {
-	return getShapeTarget(shape)?.properties ?? {};
 }

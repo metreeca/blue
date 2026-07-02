@@ -23,10 +23,10 @@
  * @module
  */
 
-import type { Reference } from "@metreeca/qest";
 import type { Relay } from "@metreeca/core/relay";
+import type { Reference } from "@metreeca/qest";
 import { describe, expectTypeOf, test } from "vitest";
-import { validate, type Trace } from "./index.js";
+import { type Trace, validate } from "./index.js";
 import { integer } from "./number.js";
 import { id, resource } from "./resource.js";
 import { string } from "./string.js";

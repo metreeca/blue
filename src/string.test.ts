@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+import { xsd } from "@metreeca/core/datatype";
 import { describe, expect, it } from "vitest";
-import { checkString, mergeString, validateString } from "./string.core.js";
-import { date, duration, email, instant, iri, string, time, timestamp, url, year } from "./string.js";
+import { TraceError } from "./index.core.js";
+import { checkString, deriveString, mergeString, narrowsString, validateString } from "./string.core.js";
+import { date, duration, email, instant, iri, phone, string, time, timestamp, url, year } from "./string.js";
 
 
 describe("factories", () => {
@@ -58,7 +60,7 @@ describe("factories", () => {
 		describe("constraints", () => {
 
 			it.each([
-				["minLength", { minLength: 1 }, "minLength", 1],
+				["minLength", { model: "x", minLength: 1 }, "minLength", 1],
 				["maxLength", { maxLength: 100 }, "maxLength", 100],
 				["in", { in: ["a", "b", "c"] }, "in", ["a", "b", "c"]],
 				["hasValue", { hasValue: ["required"] }, "hasValue", ["required"]]
@@ -74,13 +76,13 @@ describe("factories", () => {
 
 				it("accepts string value", async () => {
 
-					expect(string({ pattern: "^[A-Z]+$" }).pattern).toBe("^[A-Z]+$");
+					expect(string({ model: "ABC", pattern: "^[A-Z]+$" }).pattern).toBe("^[A-Z]+$");
 
 				});
 
 				it("accepts RegExp value", async () => {
 
-					expect(string({ pattern: /^[A-Z]+$/ }).pattern).toBe("^[A-Z]+$");
+					expect(string({ model: "ABC", pattern: /^[A-Z]+$/ }).pattern).toBe("^[A-Z]+$");
 
 				});
 
@@ -110,10 +112,74 @@ describe("factories", () => {
 
 			});
 
+			describe("datatype", () => {
+
+				it("omits datatype by default", async () => {
+
+					expect(string().datatype).toBeUndefined();
+
+				});
+
+				it("passes through an explicit datatype", async () => {
+
+					expect(string({ datatype: xsd.date }).datatype).toBe(xsd.date);
+
+				});
+
+			});
+
 		});
 
 	});
 
+
+	describe("model resolution", () => {
+
+		it("keeps the default model when it is legal", async () => {
+
+			expect(string().model).toBe("");
+			expect(string({ maxLength: 5 }).model).toBe("");
+
+		});
+
+		it("derives the first in member when the default is illegal", async () => {
+
+			expect(string({ in: ["ab", "cd"] }).model).toBe("ab");
+			expect(email({ in: ["a@b.co"] }).model).toBe("a@b.co");
+
+		});
+
+		it("derives the shortest hasValue member when no in is set", async () => {
+
+			expect(string({ hasValue: ["req", "x"] }).model).toBe("x");
+
+		});
+
+		it("synthesises a padded string for a minLength with no other source", async () => {
+
+			expect(string({ minLength: 3 }).model).toBe("***");
+
+		});
+
+		it("throws when no legal model can be derived", async () => {
+
+			expect(() => string({ pattern: /^[a-z]+$/ })).toThrow(RangeError);
+
+		});
+
+		it("accepts an explicit legal model", async () => {
+
+			expect(string({ model: "abc", minLength: 3 }).model).toBe("abc");
+
+		});
+
+		it("rejects an explicit illegal model", async () => {
+
+			expect(() => string({ model: "ab", minLength: 3 })).toThrow(RangeError);
+
+		});
+
+	});
 
 	describe("email", () => {
 
@@ -139,6 +205,47 @@ describe("factories", () => {
 			const shape = email({ in: ["user@example.com"] });
 
 			expect(shape.in).toEqual(["user@example.com"]);
+
+		});
+
+		it("sets the xsd:string datatype", async () => {
+
+			expect(email().datatype).toBe(xsd.string);
+
+		});
+
+	});
+
+	describe("phone", () => {
+
+		it("returns a shape with E.164 model", async () => {
+
+			const shape = phone();
+
+			expect(shape.kind).toBe("string");
+			expect(shape.model).toBe("+15555550123");
+
+		});
+
+		it("returns a shape with E.164 pattern", async () => {
+
+			const shape = phone();
+
+			expect(shape.pattern).toBe("^\\+[1-9]\\d{1,14}$");
+
+		});
+
+		it("passes through constraints", async () => {
+
+			const shape = phone({ in: ["+442071838750"] });
+
+			expect(shape.in).toEqual(["+442071838750"]);
+
+		});
+
+		it("sets the xsd:string datatype", async () => {
+
+			expect(phone().datatype).toBe(xsd.string);
 
 		});
 
@@ -183,6 +290,12 @@ describe("factories", () => {
 
 		});
 
+		it("sets the xsd:string datatype", async () => {
+
+			expect(iri().datatype).toBe(xsd.string);
+
+		});
+
 	});
 
 	describe("url", () => {
@@ -205,17 +318,23 @@ describe("factories", () => {
 
 		});
 
+		it("sets the xsd:string datatype", async () => {
+
+			expect(url().datatype).toBe(xsd.string);
+
+		});
+
 	});
 
 
 	describe.each([
-		["year", year, "1970", "^\\d{4}(?:Z|[+-]\\d{2}:\\d{2})?$"],
-		["date", date, "1970-01-01", "^\\d{4}-\\d{2}-\\d{2}(?:Z|[+-]\\d{2}:\\d{2})?$"],
-		["time", time, "00:00:00", "^\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$"],
-		["instant", instant, "1970-01-01T00:00:00", "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$"],
-		["timestamp", timestamp, "1970-01-01T00:00:00.000Z", "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"],
-		["duration", duration, "PT0S", "^-?P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"]
-	] as const)("%s", (_label, factory, expectedModel, expectedPattern) => {
+		["year", year, "1970", "^\\d{4}(?:Z|[+-]\\d{2}:\\d{2})?$", xsd.gYear],
+		["date", date, "1970-01-01", "^\\d{4}-\\d{2}-\\d{2}(?:Z|[+-]\\d{2}:\\d{2})?$", xsd.date],
+		["time", time, "00:00:00", "^\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$", xsd.time],
+		["instant", instant, "1970-01-01T00:00:00", "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$", xsd.dateTime],
+		["timestamp", timestamp, "1970-01-01T00:00:00.000Z", "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$", xsd.dateTime],
+		["duration", duration, "PT0S", "^-?P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$", xsd.duration]
+	] as const)("%s", (_label, factory, expectedModel, expectedPattern, expectedDatatype) => {
 
 		it("returns a shape with expected kind and model", async () => {
 
@@ -232,11 +351,521 @@ describe("factories", () => {
 
 		});
 
+		it("sets the matching xsd datatype", async () => {
+
+			expect(factory().datatype).toBe(expectedDatatype);
+
+		});
+
 	});
 
 });
 
 describe("operators", () => {
+
+	describe("checkString", () => {
+
+		it("returns undefined for consistent constraints", async () => {
+
+			expect(checkString({ minLength: 3, maxLength: 10 })).toBeUndefined();
+			expect(checkString({ minLength: 5, maxLength: 5 })).toBeUndefined();
+			expect(checkString({ hasValue: ["a"], in: ["a", "b", "c"] })).toBeUndefined();
+			expect(checkString({})).toBeUndefined();
+
+		});
+
+		it("returns trace for minLength > maxLength", async () => {
+
+			const trace = checkString({ minLength: 10, maxLength: 5 });
+
+			expect(trace).toBeDefined();
+			expect(trace).toHaveProperty("{minLength/maxLength}");
+
+		});
+
+		it("returns undefined for minLength equal to maxLength", async () => {
+
+			expect(checkString({ minLength: 5, maxLength: 5 })).toBeUndefined();
+
+		});
+
+		it("returns trace for hasValue entries not in the in set", async () => {
+
+			const trace = checkString({ hasValue: ["x"], in: ["a", "b"] });
+
+			expect(trace).toBeDefined();
+			expect(trace).toHaveProperty("{hasValue/in}");
+
+		});
+
+		it("returns undefined when hasValue entries are in the in set", async () => {
+
+			expect(checkString({ hasValue: ["a"], in: ["a", "b", "c"] })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only minLength is specified", async () => {
+
+			expect(checkString({ minLength: 5 })).toBeUndefined();
+
+		});
+
+		it("returns undefined when only maxLength is specified", async () => {
+
+			expect(checkString({ maxLength: 10 })).toBeUndefined();
+
+		});
+
+		it("returns undefined for a legal model", async () => {
+
+			expect(checkString({ model: "abc", minLength: 1, maxLength: 5 })).toBeUndefined();
+			expect(checkString({ model: "ab", pattern: "^[a-z]+$", in: ["ab", "cd"] })).toBeUndefined();
+
+		});
+
+		it("returns trace for a model shorter than minLength", async () => {
+
+			expect(checkString({ model: "ab", minLength: 3 })).toHaveProperty("{model}");
+
+		});
+
+		it("returns trace for a model longer than maxLength", async () => {
+
+			expect(checkString({ model: "abcd", maxLength: 3 })).toHaveProperty("{model}");
+
+		});
+
+		it("returns trace for a model not matching pattern", async () => {
+
+			expect(checkString({ model: "A1", pattern: "^[a-z]+$" })).toHaveProperty("{model}");
+
+		});
+
+		it("returns trace for a model not in the in set", async () => {
+
+			expect(checkString({ model: "x", in: ["a", "b"] })).toHaveProperty("{model}");
+
+		});
+
+		it("skips the model check when the model is absent", async () => {
+
+			expect(checkString({ minLength: 3 })).toBeUndefined();
+
+		});
+
+	});
+
+	describe("narrowsString", () => {
+
+		it("accepts a child that tightens minLength", async () => {
+
+			expect(narrowsString(string({ model: "hello", minLength: 5 }), string())).toBeUndefined();
+
+		});
+
+		it("accepts an identical child", async () => {
+
+			expect(narrowsString(string(), string())).toBeUndefined();
+
+		});
+
+		it("rejects a child that widens minLength", async () => {
+
+			expect(narrowsString(string({ model: "x", minLength: 1 }), string({ model: "hello", minLength: 5 }))).toBeDefined();
+
+		});
+
+		it("rejects a child with a disjoint enumeration", async () => {
+
+			expect(narrowsString(string({ in: ["a"] }), string({ in: ["b"] }))).toBeDefined();
+
+		});
+
+		it("accepts equal datatypes", async () => {
+
+			expect(narrowsString(date(), date())).toBeUndefined();
+
+		});
+
+		it("accepts a child datatype when the parent has none", async () => {
+
+			expect(narrowsString(
+				string({ model: "1970-01-01", datatype: xsd.date }),
+				string({ model: "1970-01-01" })
+			)).toBeUndefined();
+
+		});
+
+		it("accepts a parent datatype when the child has none", async () => {
+
+			expect(narrowsString(
+				string({ model: "1970-01-01" }),
+				string({ model: "1970-01-01", datatype: xsd.date })
+			)).toBeUndefined();
+
+		});
+
+		it("rejects mismatched datatypes", async () => {
+
+			expect(narrowsString(string({ datatype: xsd.date }), string({ datatype: xsd.time }))).toHaveProperty("{datatype}");
+
+		});
+
+		it("accepts equal patterns", async () => {
+
+			expect(narrowsString(string({ model: "abc", pattern: "^[a-z]+$" }), string({ model: "abc", pattern: "^[a-z]+$" }))).toBeUndefined();
+
+		});
+
+		it("accepts a child pattern when the parent has none", async () => {
+
+			expect(narrowsString(string({ model: "abc", pattern: "^[a-z]+$" }), string())).toBeUndefined();
+
+		});
+
+		it("accepts a parent pattern when the child has none", async () => {
+
+			expect(narrowsString(string(), string({ model: "abc", pattern: "^[a-z]+$" }))).toBeUndefined();
+
+		});
+
+		it("rejects mismatched patterns", async () => {
+
+			expect(narrowsString(string({ model: "abc", pattern: "^[a-z]+$" }), string({ model: "123", pattern: "^[0-9]+$" }))).toHaveProperty("{pattern}");
+
+		});
+
+		it("accepts differing models as compatible placeholders", async () => {
+
+			expect(narrowsString(string("abc"), string("xyz"))).toBeUndefined();
+
+		});
+
+	});
+
+	describe("mergeString", () => {
+
+		describe("kind", () => {
+
+			it("preserves kind as 'string'", async () => {
+
+				const merged = mergeString(string(), string());
+
+				expect(merged.kind).toBe("string");
+
+			});
+
+		});
+
+		describe("model", () => {
+
+			it("merges shapes with equal models", async () => {
+
+				const merged = mergeString(string(), string());
+
+				expect(merged.model).toBe("");
+
+			});
+
+			it("merges shapes with equal non-default models", async () => {
+
+				const merged = mergeString(string("example"), string("example"));
+
+				expect(merged.model).toBe("example");
+
+			});
+
+			it("merges shapes with different models, keeping the target model", async () => {
+
+				expect(mergeString(string("abc"), string("xyz")).model).toBe("abc");
+
+			});
+
+		});
+
+		describe("pattern", () => {
+
+			it("inherits source pattern when target has none", async () => {
+
+				const merged = mergeString(string(), string({ model: "abc", pattern: "^[a-z]+$" }));
+
+				expect(merged.pattern).toBe("^[a-z]+$");
+
+			});
+
+			it("keeps target pattern when source has none", async () => {
+
+				const merged = mergeString(string({ model: "abc", pattern: "^[a-z]+$" }), string());
+
+				expect(merged.pattern).toBe("^[a-z]+$");
+
+			});
+
+			it("keeps the shared pattern when both match", async () => {
+
+				const merged = mergeString(
+					string({ model: "abc", pattern: "^[a-z]+$" }),
+					string({ model: "abc", pattern: "^[a-z]+$" })
+				);
+
+				expect(merged.pattern).toBe("^[a-z]+$");
+
+			});
+
+			it("rejects mismatched patterns", async () => {
+
+				expect(() => mergeString(
+					string({ model: "abc", pattern: "^[a-z]+$" }),
+					string({ model: "abcd", pattern: "^.{3,}$" })
+				)).toThrow(RangeError);
+
+			});
+
+			it("returns undefined when neither has a pattern", async () => {
+
+				const merged = mergeString(string(), string());
+
+				expect(merged.pattern).toBeUndefined();
+
+			});
+
+		});
+
+		describe.each([
+
+			["minLength", "0123456789", 5, 10, 3] as const,
+			["maxLength", "abc", 10, 5, 15] as const
+
+		])("%s", (constraint, model, sourceValue, tighterValue, incompatibleValue) => {
+
+			it("inherits source value when target has none", async () => {
+
+				const merged = mergeString(string(), string({ model, [constraint]: sourceValue }));
+
+				expect((merged as any)[constraint]).toBe(sourceValue);
+
+			});
+
+			it("keeps target value when source has none", async () => {
+
+				const merged = mergeString(string({ model, [constraint]: sourceValue }), string());
+
+				expect((merged as any)[constraint]).toBe(sourceValue);
+
+			});
+
+			it("keeps tighter target value", async () => {
+
+				const merged = mergeString(string({ model, [constraint]: tighterValue }), string({ model, [constraint]: sourceValue }));
+
+				expect((merged as any)[constraint]).toBe(tighterValue);
+
+			});
+
+			it("rejects incompatible target value", async () => {
+
+				expect(() => mergeString(string({ model, [constraint]: incompatibleValue }), string({ model, [constraint]: sourceValue }))).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("in", () => {
+
+			it("inherits source in when target has none", async () => {
+
+				const merged = mergeString(string(), string({ in: ["a", "b", "c"] }));
+
+				expect(merged.in).toEqual(["a", "b", "c"]);
+
+			});
+
+			it("keeps target in when source has none", async () => {
+
+				const merged = mergeString(string({ in: ["a", "b"] }), string());
+
+				expect(merged.in).toEqual(["a", "b"]);
+
+			});
+
+			it("intersects target and source in", async () => {
+
+				const merged = mergeString(
+					string({ in: ["a", "b", "c"] }),
+					string({ in: ["b", "c", "d"] })
+				);
+
+				expect(merged.in).toEqual(["b", "c"]);
+
+			});
+
+			it("rejects empty intersection", async () => {
+
+				expect(() => mergeString(
+					string({ in: ["a", "b"] }),
+					string({ in: ["c", "d"] })
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("hasValue", () => {
+
+			it("inherits source hasValue when target has none", async () => {
+
+				const merged = mergeString(string(), string({ hasValue: ["a"] }));
+
+				expect(merged.hasValue).toEqual(["a"]);
+
+			});
+
+			it("keeps target hasValue when source has none", async () => {
+
+				const merged = mergeString(string({ hasValue: ["a"] }), string());
+
+				expect(merged.hasValue).toEqual(["a"]);
+
+			});
+
+			it("unions target and source hasValue", async () => {
+
+				const merged = mergeString(
+					string({ hasValue: ["a", "b"] }),
+					string({ hasValue: ["b", "c"] })
+				);
+
+				expect(merged.hasValue).toEqual(expect.arrayContaining(["a", "b", "c"]));
+				expect(merged.hasValue).toHaveLength(3);
+
+			});
+
+		});
+
+		describe("datatype", () => {
+
+			it("inherits source datatype when target has none", async () => {
+
+				const merged = mergeString(string({ model: "1970-01-01" }), string({ model: "1970-01-01", datatype: xsd.date }));
+
+				expect(merged.datatype).toBe(xsd.date);
+
+			});
+
+			it("keeps target datatype when source has none", async () => {
+
+				const merged = mergeString(string({ model: "1970-01-01", datatype: xsd.date }), string({ model: "1970-01-01" }));
+
+				expect(merged.datatype).toBe(xsd.date);
+
+			});
+
+			it("keeps equal datatype", async () => {
+
+				const merged = mergeString(string({ datatype: xsd.date }), string({ datatype: xsd.date }));
+
+				expect(merged.datatype).toBe(xsd.date);
+
+			});
+
+			it("rejects mismatched datatype", async () => {
+
+				expect(() => mergeString(string({ datatype: xsd.date }), string({ datatype: xsd.time }))).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("post-merge validation", () => {
+
+			it("rejects merged minLength > merged maxLength", async () => {
+
+				expect(() => mergeString(
+					string({ model: "0123456789", minLength: 10 }),
+					string({ maxLength: 5 })
+				)).toThrow(RangeError);
+
+			});
+
+			it("accepts merged minLength equal to merged maxLength", async () => {
+
+				const merged = mergeString(
+					string({ model: "hello", minLength: 5 }),
+					string({ maxLength: 5 })
+				);
+
+				expect(merged.minLength).toBe(5);
+				expect(merged.maxLength).toBe(5);
+
+			});
+
+			it("rejects hasValue entries not in merged in set", async () => {
+
+				expect(() => mergeString(
+					string({ hasValue: ["x"] }),
+					string({ in: ["a", "b"] })
+				)).toThrow(RangeError);
+
+			});
+
+			it("accepts hasValue entries that are in merged in set", async () => {
+
+				const merged = mergeString(
+					string({ hasValue: ["a"] }),
+					string({ in: ["a", "b", "c"] })
+				);
+
+				expect(merged.hasValue).toEqual(["a"]);
+
+			});
+
+		});
+
+	});
+
+	describe("deriveString", () => {
+
+		it("derives the empty string for an unconstrained shape", async () => {
+
+			expect(deriveString({})).toBe("");
+
+		});
+
+		it("draws the shortest in member", async () => {
+
+			expect(deriveString({ in: ["abc", "a"] })).toBe("a");
+
+		});
+
+		it("draws the shortest hasValue member when no in is set", async () => {
+
+			expect(deriveString({ hasValue: ["xx", "y"] })).toBe("y");
+
+		});
+
+		it("keeps the supplied model when no in or hasValue is set", async () => {
+
+			expect(deriveString({ model: "z" })).toBe("z");
+
+		});
+
+		it("fills a minLength-long placeholder", async () => {
+
+			expect(deriveString({ minLength: 3 })).toBe("***");
+
+		});
+
+		it("throws when the drawn value fails the pattern", async () => {
+
+			expect(() => deriveString({ pattern: "^[A-Z]+$" })).toThrow(TraceError);
+
+		});
+
+	});
+
+});
+
+describe("validators", () => {
 
 	describe("validateString", () => {
 
@@ -266,7 +895,7 @@ describe("operators", () => {
 
 			it("validates only matched string values against constraints", async () => {
 
-				const trace = validateString(["ab", 42, "c"], string({ minLength: 3 }));
+				const trace = validateString(["ab", 42, "c"], string({ model: "abc", minLength: 3 }));
 
 				expect(trace).toHaveProperty("{kind}");
 				expect(trace).toHaveProperty("{minLength}");
@@ -275,7 +904,7 @@ describe("operators", () => {
 
 			it("returns undefined when non-string values filtered and strings pass", async () => {
 
-				const trace = validateString(["hello", 42], string({ minLength: 3 }));
+				const trace = validateString(["hello", 42], string({ model: "abc", minLength: 3 }));
 
 				expect(trace).toHaveProperty("{kind}");
 				expect(trace).not.toHaveProperty("{minLength}");
@@ -293,19 +922,19 @@ describe("operators", () => {
 
 			it("returns undefined for strings at boundary", async () => {
 
-				expect(validateString([atBoundary], string({ [constraint]: limit }))).toBeUndefined();
+				expect(validateString([atBoundary], string({ model: "abcd", [constraint]: limit }))).toBeUndefined();
 
 			});
 
 			it("returns undefined for strings within boundary", async () => {
 
-				expect(validateString([withinBoundary], string({ [constraint]: limit }))).toBeUndefined();
+				expect(validateString([withinBoundary], string({ model: "abcd", [constraint]: limit }))).toBeUndefined();
 
 			});
 
 			it("returns keyed trace for strings beyond boundary", async () => {
 
-				const trace = validateString([beyondBoundary], string({ [constraint]: limit }));
+				const trace = validateString([beyondBoundary], string({ model: "abcd", [constraint]: limit }));
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty(`{${constraint}}`);
@@ -318,7 +947,7 @@ describe("operators", () => {
 
 			it("returns keyed trace for empty string when minLength > 0", async () => {
 
-				const trace = validateString([""], string({ minLength: 1 }));
+				const trace = validateString([""], string({ model: "x", minLength: 1 }));
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{minLength}");
@@ -356,13 +985,13 @@ describe("operators", () => {
 
 			it("returns undefined for strings within length range", async () => {
 
-				expect(validateString(["abc"], string({ minLength: 2, maxLength: 5 }))).toBeUndefined();
+				expect(validateString(["abc"], string({ model: "abc", minLength: 2, maxLength: 5 }))).toBeUndefined();
 
 			});
 
 			it("returns undefined for strings at length boundaries", async () => {
 
-				const shape = string({ minLength: 2, maxLength: 5 });
+				const shape = string({ model: "abc", minLength: 2, maxLength: 5 });
 
 				expect(validateString(["ab"], shape)).toBeUndefined();
 				expect(validateString(["abcde"], shape)).toBeUndefined();
@@ -371,7 +1000,7 @@ describe("operators", () => {
 
 			it("returns keyed trace for strings outside length range", async () => {
 
-				const shape = string({ minLength: 2, maxLength: 5 });
+				const shape = string({ model: "abc", minLength: 2, maxLength: 5 });
 
 				expect(validateString(["a"], shape)).toHaveProperty("{minLength}");
 				expect(validateString(["abcdef"], shape)).toHaveProperty("{maxLength}");
@@ -384,13 +1013,13 @@ describe("operators", () => {
 
 			it("returns undefined for strings matching pattern", async () => {
 
-				expect(validateString(["hello"], string({ pattern: /^[a-z]+$/ }))).toBeUndefined();
+				expect(validateString(["hello"], string({ model: "abc", pattern: /^[a-z]+$/ }))).toBeUndefined();
 
 			});
 
 			it("returns keyed trace for strings not matching pattern", async () => {
 
-				const trace = validateString(["Hello123"], string({ pattern: /^[a-z]+$/ }));
+				const trace = validateString(["Hello123"], string({ model: "abc", pattern: /^[a-z]+$/ }));
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{pattern}");
@@ -399,7 +1028,7 @@ describe("operators", () => {
 
 			it("returns keyed trace for empty string when pattern requires content", async () => {
 
-				const trace = validateString([""], string({ pattern: /^[a-z]+$/ }));
+				const trace = validateString([""], string({ model: "abc", pattern: /^[a-z]+$/ }));
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{pattern}");
@@ -408,13 +1037,13 @@ describe("operators", () => {
 
 			it("returns undefined for strings matching email pattern", async () => {
 
-				expect(validateString(["user@example.com"], string({ pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }))).toBeUndefined();
+				expect(validateString(["user@example.com"], string({ model: "a@b.co", pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }))).toBeUndefined();
 
 			});
 
 			it("returns keyed trace for invalid email pattern", async () => {
 
-				const trace = validateString(["invalid-email"], string({ pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }));
+				const trace = validateString(["invalid-email"], string({ model: "a@b.co", pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }));
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{pattern}");
@@ -423,7 +1052,7 @@ describe("operators", () => {
 
 			it("validates pattern with anchors", async () => {
 
-				const shape = string({ pattern: /^ABC$/ });
+				const shape = string({ model: "ABC", pattern: /^ABC$/ });
 
 				expect(validateString(["ABC"], shape)).toBeUndefined();
 				expect(validateString(["ABCD"], shape)).toHaveProperty("{pattern}");
@@ -433,7 +1062,7 @@ describe("operators", () => {
 
 			it("validates pattern as string", async () => {
 
-				expect(validateString(["12345"], string({ pattern: "^[0-9]+$" }))).toBeUndefined();
+				expect(validateString(["12345"], string({ model: "123", pattern: "^[0-9]+$" }))).toBeUndefined();
 
 			});
 
@@ -531,6 +1160,7 @@ describe("operators", () => {
 			it("returns undefined when satisfying both length and pattern", async () => {
 
 				expect(validateString(["hello"], string({
+					model: "abc",
 					minLength: 2,
 					maxLength: 10,
 					pattern: /^[a-z]+$/
@@ -540,7 +1170,7 @@ describe("operators", () => {
 
 			it("returns keyed trace for valid pattern but invalid length", async () => {
 
-				const trace = validateString(["ab"], string({ minLength: 5, pattern: /^[a-z]+$/ }));
+				const trace = validateString(["ab"], string({ model: "hello", minLength: 5, pattern: /^[a-z]+$/ }));
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{minLength}");
@@ -551,6 +1181,7 @@ describe("operators", () => {
 			it("returns keyed trace for valid length but invalid pattern", async () => {
 
 				const trace = validateString(["Hello123"], string({
+					model: "abc",
 					maxLength: 10,
 					pattern: /^[a-z]+$/
 				}));
@@ -613,7 +1244,7 @@ describe("operators", () => {
 
 			it("counts unicode characters correctly for length constraints", async () => {
 
-				expect(validateString(["héllo"], string({ minLength: 5, maxLength: 10 }))).toBeUndefined();
+				expect(validateString(["héllo"], string({ model: "hello", minLength: 5, maxLength: 10 }))).toBeUndefined();
 
 			});
 
@@ -628,7 +1259,7 @@ describe("operators", () => {
 
 			it("handles unicode in pattern matching", async () => {
 
-				expect(validateString(["héllo"], string({ pattern: /^[a-zA-Zéö]+$/ }))).toBeUndefined();
+				expect(validateString(["héllo"], string({ model: "héllo", pattern: /^[a-zA-Zéö]+$/ }))).toBeUndefined();
 
 			});
 
@@ -642,303 +1273,11 @@ describe("operators", () => {
 				["no count prefix for a single failing value", ["ab"], /^expected string length >= <3>/]
 			])("reports %s", async (_label, values, message) => {
 
-				const trace = validateString(values, string({ minLength: 3 }));
+				const trace = validateString(values, string({ model: "abc", minLength: 3 }));
 
 				expect((trace as Record<string, string>)["{minLength}"]).toMatch(message);
 
 			});
-
-		});
-
-	});
-
-	describe("mergeString", () => {
-
-		describe("kind", () => {
-
-			it("preserves kind as 'string'", async () => {
-
-				const merged = mergeString(string(), string());
-
-				expect(merged.kind).toBe("string");
-
-			});
-
-		});
-
-		describe("model", () => {
-
-			it("merges shapes with equal models", async () => {
-
-				const merged = mergeString(string(), string());
-
-				expect(merged.model).toBe("");
-
-			});
-
-			it("merges shapes with equal non-default models", async () => {
-
-				const merged = mergeString(string("example"), string("example"));
-
-				expect(merged.model).toBe("example");
-
-			});
-
-			it("rejects shapes with different models", async () => {
-
-				expect(() => mergeString(string("abc"), string("xyz"))).toThrow(RangeError);
-
-			});
-
-		});
-
-		describe("pattern", () => {
-
-			it("inherits source pattern when target has none", async () => {
-
-				const merged = mergeString(string(), string({ pattern: "^[a-z]+$" }));
-
-				expect(merged.pattern).toBe("^[a-z]+$");
-
-			});
-
-			it("keeps target pattern when source has none", async () => {
-
-				const merged = mergeString(string({ pattern: "^[a-z]+$" }), string());
-
-				expect(merged.pattern).toBe("^[a-z]+$");
-
-			});
-
-			it("combines patterns using lookaheads", async () => {
-
-				const merged = mergeString(
-					string({ pattern: "^[a-z]+$" }),
-					string({ pattern: "^.{3,}$" })
-				);
-
-				expect(merged.pattern).toBe("(?=^.{3,}$)^[a-z]+$");
-
-			});
-
-			it("returns undefined when neither has a pattern", async () => {
-
-				const merged = mergeString(string(), string());
-
-				expect(merged.pattern).toBeUndefined();
-
-			});
-
-		});
-
-		describe.each([
-
-			["minLength", 5, 10, 3] as const,
-			["maxLength", 10, 5, 15] as const
-
-		])("%s", (constraint, sourceValue, tighterValue, incompatibleValue) => {
-
-			it("inherits source value when target has none", async () => {
-
-				const merged = mergeString(string(), string({ [constraint]: sourceValue }));
-
-				expect((merged as any)[constraint]).toBe(sourceValue);
-
-			});
-
-			it("keeps target value when source has none", async () => {
-
-				const merged = mergeString(string({ [constraint]: sourceValue }), string());
-
-				expect((merged as any)[constraint]).toBe(sourceValue);
-
-			});
-
-			it("keeps tighter target value", async () => {
-
-				const merged = mergeString(string({ [constraint]: tighterValue }), string({ [constraint]: sourceValue }));
-
-				expect((merged as any)[constraint]).toBe(tighterValue);
-
-			});
-
-			it("rejects incompatible target value", async () => {
-
-				expect(() => mergeString(string({ [constraint]: incompatibleValue }), string({ [constraint]: sourceValue }))).toThrow(RangeError);
-
-			});
-
-		});
-
-		describe("in", () => {
-
-			it("inherits source in when target has none", async () => {
-
-				const merged = mergeString(string(), string({ in: ["a", "b", "c"] }));
-
-				expect(merged.in).toEqual(["a", "b", "c"]);
-
-			});
-
-			it("keeps target in when source has none", async () => {
-
-				const merged = mergeString(string({ in: ["a", "b"] }), string());
-
-				expect(merged.in).toEqual(["a", "b"]);
-
-			});
-
-			it("intersects target and source in", async () => {
-
-				const merged = mergeString(
-					string({ in: ["a", "b", "c"] }),
-					string({ in: ["b", "c", "d"] })
-				);
-
-				expect(merged.in).toEqual(["b", "c"]);
-
-			});
-
-			it("rejects empty intersection", async () => {
-
-				expect(() => mergeString(
-					string({ in: ["a", "b"] }),
-					string({ in: ["c", "d"] })
-				)).toThrow(RangeError);
-
-			});
-
-		});
-
-		describe("hasValue", () => {
-
-			it("inherits source hasValue when target has none", async () => {
-
-				const merged = mergeString(string(), string({ hasValue: ["a"] }));
-
-				expect(merged.hasValue).toEqual(["a"]);
-
-			});
-
-			it("keeps target hasValue when source has none", async () => {
-
-				const merged = mergeString(string({ hasValue: ["a"] }), string());
-
-				expect(merged.hasValue).toEqual(["a"]);
-
-			});
-
-			it("unions target and source hasValue", async () => {
-
-				const merged = mergeString(
-					string({ hasValue: ["a", "b"] }),
-					string({ hasValue: ["b", "c"] })
-				);
-
-				expect(merged.hasValue).toEqual(expect.arrayContaining(["a", "b", "c"]));
-				expect(merged.hasValue).toHaveLength(3);
-
-			});
-
-		});
-
-		describe("post-merge validation", () => {
-
-			it("rejects merged minLength > merged maxLength", async () => {
-
-				expect(() => mergeString(
-					string({ minLength: 10 }),
-					string({ maxLength: 5 })
-				)).toThrow(RangeError);
-
-			});
-
-			it("accepts merged minLength equal to merged maxLength", async () => {
-
-				const merged = mergeString(
-					string({ minLength: 5 }),
-					string({ maxLength: 5 })
-				);
-
-				expect(merged.minLength).toBe(5);
-				expect(merged.maxLength).toBe(5);
-
-			});
-
-			it("rejects hasValue entries not in merged in set", async () => {
-
-				expect(() => mergeString(
-					string({ hasValue: ["x"] }),
-					string({ in: ["a", "b"] })
-				)).toThrow(RangeError);
-
-			});
-
-			it("accepts hasValue entries that are in merged in set", async () => {
-
-				const merged = mergeString(
-					string({ hasValue: ["a"] }),
-					string({ in: ["a", "b", "c"] })
-				);
-
-				expect(merged.hasValue).toEqual(["a"]);
-
-			});
-
-		});
-
-	});
-
-	describe("checkString", () => {
-
-		it("returns undefined for consistent constraints", async () => {
-
-			expect(checkString({ minLength: 3, maxLength: 10 })).toBeUndefined();
-			expect(checkString({ minLength: 5, maxLength: 5 })).toBeUndefined();
-			expect(checkString({ hasValue: ["a"], in: ["a", "b", "c"] })).toBeUndefined();
-			expect(checkString({})).toBeUndefined();
-
-		});
-
-		it("returns trace for minLength > maxLength", async () => {
-
-			const trace = checkString({ minLength: 10, maxLength: 5 });
-
-			expect(trace).toBeDefined();
-			expect(trace).toHaveProperty("{minLength/maxLength}");
-
-		});
-
-		it("returns undefined for minLength equal to maxLength", async () => {
-
-			expect(checkString({ minLength: 5, maxLength: 5 })).toBeUndefined();
-
-		});
-
-		it("returns trace for hasValue entries not in the in set", async () => {
-
-			const trace = checkString({ hasValue: ["x"], in: ["a", "b"] });
-
-			expect(trace).toBeDefined();
-			expect(trace).toHaveProperty("{hasValue/in}");
-
-		});
-
-		it("returns undefined when hasValue entries are in the in set", async () => {
-
-			expect(checkString({ hasValue: ["a"], in: ["a", "b", "c"] })).toBeUndefined();
-
-		});
-
-		it("returns undefined when only minLength is specified", async () => {
-
-			expect(checkString({ minLength: 5 })).toBeUndefined();
-
-		});
-
-		it("returns undefined when only maxLength is specified", async () => {
-
-			expect(checkString({ maxLength: 10 })).toBeUndefined();
 
 		});
 

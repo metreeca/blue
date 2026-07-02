@@ -20,50 +20,74 @@
  * @module
  */
 
-import { type Identifier, isFunction, isString, type Lazy } from "@metreeca/core";
-import { immutable } from "@metreeca/core/deep";
+import { type Identifier, isArray, isFunction, isString, type Lazy } from "@metreeca/core";
+import { xsd } from "@metreeca/core/datatype";
+import { equals, immutable } from "@metreeca/core/deep";
 import { assert, error } from "@metreeca/core/report";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/template";
-import { mergeBoolean, validateBoolean } from "./boolean.core.js";
+import { deriveBoolean, mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
 import type { BooleanShape } from "./boolean.js";
 import { collect, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
-import { mergeNumber, validateNumber } from "./number.core.js";
+import { deriveNumber, mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
 import { decimal, integer, type NumberShape } from "./number.js";
-import { mergeReference, validateReferences } from "./reference.core.js";
+import { deriveReference, getShapeTarget, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import type { ReferenceShape } from "./reference.js";
-import { flatten, mergeResource, validateResource } from "./resource.core.js";
+import { deriveResource, flatten, mergeResource, narrowsResource, validateResource } from "./resource.core.js";
 import { type ResourceShape } from "./resource.js";
-import { mergeString, validateString } from "./string.core.js";
-import { date, instant, iri, string, type StringShape, time, timestamp } from "./string.js";
-import { mergeText, validateText } from "./text.core.js";
+import { deriveString, mergeString, narrowsString, validateString } from "./string.core.js";
+import { iri, string, type StringShape } from "./string.js";
+import { deriveText, mergeText, narrowsText, validateText } from "./text.core.js";
 import type { TextShape } from "./text.js";
-import { type NullShape, type RangeShape, type Resolved, type SetShape, type Shape, type UnionShape, type ValueShape, type ValuesShape } from "./value.js";
+import { deriveUnion, mergeUnion, narrowsUnion } from "./union.core.js";
+import type { UnionShape } from "./union.js";
+import {
+	type NullShape,
+	type RangeShape,
+	type Resolved,
+	type Schema,
+	type SetShape,
+	type Shape,
+	type ValuesShape
+} from "./value.js";
 
 
 /**
- * Known temporal string shape models.
+ * Temporal processing datatypes.
  *
- * Closed set of all model values produced by temporal string shape factories. Used by {@link probeShape}
- * to distinguish temporal strings from plain strings when checking transform compatibility.
+ * The comparable temporal datatypes (`xsd:date`, `xsd:time`, `xsd:dateTime`) qest admits to the `temporal`
+ * transform domain. Used by {@link effective} to distinguish temporal strings from plain strings when checking
+ * transform compatibility. Excludes opaque temporal datatypes like `xsd:gYear` and `xsd:duration`, which qest
+ * treats as ordinary `xsd:string`.
+ *
+ * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
 const Temporal: ReadonlySet<string> = new Set([
-
-	date,
-	time,
-	instant,
-	timestamp
-
-].map(factory => factory().model));
+	xsd.date,
+	xsd.time,
+	xsd.dateTime
+]);
 
 
 /**
- * Cache for eagerly resolved shapes from lazy factories.
+ * Cache for eager shapes resolved from lazy factories.
  *
- * Uses WeakMap so entries are automatically released when the factory function is no longer referenced.
- * A `null` entry signals a factory currently being resolved, enabling circular dependency detection.
+ * Maps each factory to its eager {@link Shape}, so {@link eager} resolves it once and reuses it across calls. Uses
+ * WeakMap so entries are released when the factory is no longer referenced. A `null` entry signals a shape currently
+ * being resolved, enabling circular dependency detection.
  */
-const cache = new WeakMap<() => Shape, null | Shape>();
+const shapes = new WeakMap<() => Shape, null | Shape>();
+
+/**
+ * Cache for retrieval models derived from lazy factories.
+ *
+ * Maps each factory to the model {@link deriveValue | derived} from its eager {@link Shape}, so {@link model}
+ * derives it once and reuses it across calls. Derivation stays lazy, deferred to the first request rather than
+ * performed during {@link eager} shape resolution, which runs while shapes are still under construction and their
+ * self-referential reference targets are not yet resolvable. Uses WeakMap so entries are released when the factory is
+ * no longer referenced. A `null` entry signals a model currently being derived, enabling circular dependency detection.
+ */
+const models = new WeakMap<() => Shape, null | Schema<Shape>>();
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -94,6 +118,160 @@ export function checkValues({
 			|| `inconsistent bounds <${minCount}> > <${maxCount}>`
 
 	});
+
+}
+
+
+/**
+ * Reports whether an overriding value shape narrows an inherited base shape.
+ *
+ * Tests the override relation without building the merged shape: returns `undefined` when `target` is a valid
+ * narrowing of `source` (matching `kind` and only-tightening constraints), or a keyed {@link Trace} describing the
+ * obstacles otherwise. Dispatches by `kind`; a `kind` mismatch is itself reported as an obstacle, so the predicate is
+ * total over any pair of value shapes. Companion to {@link mergeValue}, which builds the merged shape after the same
+ * check; the two share the narrowing relation so that a `undefined` result here guarantees a successful
+ * {@link mergeValue}.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
+ */
+export function narrowsValue(target: ValuesShape, source: ValuesShape): undefined | Trace {
+
+	// kind-equality guard: a mismatch is reported rather than dispatched, so each per-kind branch is reached only when
+	// both shapes share target.kind — the source casts below merely bridge a gap the type system cannot see
+
+	return target.kind !== source.kind ? `mismatched kinds <${target.kind}> vs <${source.kind}>`
+		: target.kind === "boolean" ? narrowsBoolean(target, source as BooleanShape)
+			: target.kind === "number" ? narrowsNumber(target, source as NumberShape)
+				: target.kind === "string" ? narrowsString(target, source as StringShape)
+					: target.kind === "text" ? narrowsText(target, source as TextShape)
+						: target.kind === "reference" ? narrowsReference(target, source as ReferenceShape)
+							: narrowsResourceValue(target, source as ResourceShape);
+
+
+	/**
+	 * Reports whether an overriding resource shape narrows an inherited base shape as a value.
+	 *
+	 * Strengthens {@link narrowsResource} with class subtyping: a resource *value* of the target narrows the base only
+	 * when it carries every class the base declares (an instance of a different class is not an instance of the base),
+	 * unlike the class-conjunctive composition {@link mergeResource} performs for `extends`. This is the discriminating
+	 * relation used to pair resource variants of a {@link UnionShape | union}.
+	 *
+	 * @param target The overriding child shape
+	 * @param source The inherited parent shape
+	 *
+	 * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source` as a value
+	 */
+	function narrowsResourceValue(target: ResourceShape, source: ResourceShape): undefined | Trace {
+
+		const classes = new Set<string>([
+			...target.class !== undefined ? [target.class] : [],
+			...target.classes ?? []
+		]);
+
+		const missing = [
+			...source.class !== undefined ? [source.class] : [],
+			...source.classes ?? []
+		].filter(iri => !classes.has(iri));
+
+		return collect({
+
+			// subtype: base classes must all be present in the target
+
+			"{class}": missing.length === 0 || `missing base classes [${missing}]`,
+
+			...wrap(narrowsResource(target, source))
+
+		});
+
+	}
+
+}
+
+/**
+ * Reports whether an overriding {@link SetShape} narrows an inherited base.
+ *
+ * Tests the override relation without building the merged set: returns `undefined` when the override only tightens
+ * cardinality (`minCount` not lowered, `maxCount` not raised), the merged bounds stay consistent, and the wrapped
+ * shape narrows the base shape via {@link narrowsShape}; returns a keyed {@link Trace} of obstacles otherwise.
+ *
+ * @param target The overriding child {@link SetShape}
+ * @param source The inherited parent {@link SetShape}
+ *
+ * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
+ */
+export function narrowsValues(target: SetShape, source: SetShape): undefined | Trace {
+
+	const minCount = target.minCount ?? source.minCount;
+	const maxCount = target.maxCount ?? source.maxCount;
+
+	return collect({
+
+		// narrow: minCount — child >= parent
+
+		"{minCount}": target.minCount === undefined || source.minCount === undefined
+			|| target.minCount >= source.minCount
+			|| `widened limit <${target.minCount}> beyond <${source.minCount}>`,
+
+		// narrow: maxCount — child <= parent
+
+		"{maxCount}": target.maxCount === undefined || source.maxCount === undefined
+			|| target.maxCount <= source.maxCount
+			|| `widened limit <${target.maxCount}> beyond <${source.maxCount}>`,
+
+		// structural + narrowing: child shape must narrow the base shape
+
+		"{shape}": narrowsShape(target.shape, source.shape),
+
+		// post-merge constraint consistency
+
+		...wrap(checkValues({ minCount, maxCount }))
+
+	});
+
+
+	/**
+	 * Reports whether an overriding shape narrows an inherited base shape.
+	 *
+	 * Generalises {@link narrowsValue} to {@link UnionShape | unions}: a union base is narrowed by a union child
+	 * through
+	 * {@link narrowsUnion}, or by a non-union child that narrows exactly one base variant; a non-union base is
+	 * narrowed
+	 * through {@link narrowsValue}, and a union child against a non-union base is a kind mismatch.
+	 *
+	 * @param target The overriding child shape
+	 * @param source The inherited parent shape
+	 *
+	 * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
+	 */
+	function narrowsShape(target: Shape, source: Shape): undefined | Trace {
+
+		return source.kind === "union"
+			? target.kind === "union" ? narrowsUnion(target, source) : narrowsVariant(target, source)
+			: target.kind === "union" ? `mismatched kinds <union> vs <${source.kind}>`
+				: narrowsValue(target, source);
+
+	}
+
+	/**
+	 * Reports whether a non-union child narrows exactly one variant of a base union.
+	 *
+	 * @param target The overriding child value shape (non-union)
+	 * @param source The inherited parent {@link UnionShape}
+	 *
+	 * @returns A narrowing obstacle, or `undefined` when `target` narrows exactly one base variant
+	 */
+	function narrowsVariant(target: ValuesShape, source: UnionShape): undefined | Trace {
+
+		const matches = source.variants.filter(base => narrowsValue(target, base) === undefined);
+
+		return matches.length === 1 ? undefined
+			: matches.length === 0 ? `narrows no base variant`
+				: `narrows several base variants`;
+
+	}
 
 }
 
@@ -146,11 +324,9 @@ export function mergeValue<T extends ValuesShape>(target: T, source: T): T {
 /**
  * Merges an overriding {@link SetShape} with an inherited base.
  *
- * Validates that the override narrows cardinality constraints, then delegates to the appropriate value shape or union
- * merge function. When the parent shape is a {@link UnionShape | union} and the child shape is not, dispatches to
- * single-variant narrowing: the child must match exactly one parent variant by *discriminator* (`kind` for `boolean` /
- * `text`; `(kind, datatype)` for `string` / `number`; `(kind, class)` for `reference` / `resource`), and the result's
- * `shape` is the merged non-union value shape.
+ * Validates the override via {@link narrowsValues}, then builds the merged set. When the base shape is a
+ * {@link UnionShape | union} the wrapped shape is merged through {@link mergeUnion}, or, for a non-union child,
+ * collapsed to the single base variant it narrows; otherwise it is merged through {@link mergeValue}.
  *
  * @param target The overriding child {@link SetShape}
  * @param source The inherited parent {@link SetShape}
@@ -161,43 +337,16 @@ export function mergeValue<T extends ValuesShape>(target: T, source: T): T {
  */
 export function mergeValues(target: SetShape, source: SetShape): SetShape {
 
-	// merged constraints
-
-	const minCount = target.minCount ?? source.minCount;
-	const maxCount = target.maxCount ?? source.maxCount;
-
-	// validate
-
-	const trace = collect({
-
-		// narrow: minCount — child >= parent
-
-		"{minCount}": target.minCount === undefined || source.minCount === undefined
-			|| target.minCount >= source.minCount
-			|| `widened limit <${target.minCount}> beyond <${source.minCount}>`,
-
-		// narrow: maxCount — child <= parent
-
-		"{maxCount}": target.maxCount === undefined || source.maxCount === undefined
-			|| target.maxCount <= source.maxCount
-			|| `widened limit <${target.maxCount}> beyond <${source.maxCount}>`,
-
-		// structural: shape kind must match — exception: child non-union may narrow a parent union
-		//             (single-variant narrowing dispatched via narrow below)
-
-		"{shape}": source.shape.kind === "union"
-			|| target.shape.kind === source.shape.kind
-			|| `mismatched kinds <${target.shape.kind}> vs <${source.shape.kind}>`,
-
-		// post-merge constraint consistency
-
-		...wrap(checkValues({ minCount, maxCount }))
-
-	});
+	const trace = narrowsValues(target, source);
 
 	if ( trace !== undefined ) {
 		throw new TraceError("incompatible value set override", trace);
 	}
+
+	// merged constraints
+
+	const minCount = target.minCount ?? source.minCount;
+	const maxCount = target.maxCount ?? source.maxCount;
 
 	// build value set shape
 
@@ -207,10 +356,12 @@ export function mergeValues(target: SetShape, source: SetShape): SetShape {
 		? target.shape.kind === "union"
 			? mergeUnion(target.shape, source.shape)
 			: narrow(target.shape, source.shape)
+		// ;(cast) narrowsValues confirmed both shapes share a non-union kind
 		: mergeValue(target.shape as ValuesShape, source.shape);
 
 	const model = isScalar ? shape.model : [shape.model];
 
+	// ;(cast) structural object literal widened to the SetShape generic
 	return immutable({
 
 		kind: target.kind,
@@ -225,172 +376,120 @@ export function mergeValues(target: SetShape, source: SetShape): SetShape {
 
 
 	/**
-	 * Narrows a parent {@link UnionShape} to a single non-union value shape.
+	 * Narrows a base {@link UnionShape} to the single non-union value shape the child narrows.
 	 *
-	 * Selects the unique parent variant whose discriminator matches the child shape and merges them via
-	 * {@link mergeValue}. Rejects when the child's discriminator is absent from, or non-unique within, the parent.
+	 * Selects the unique base variant the child narrows (by {@link narrowsValue}) and merges them via
+	 * {@link mergeValue}. Rejects when the child narrows no base variant or several.
 	 *
 	 * @param target The overriding child value shape (non-union)
 	 * @param source The inherited parent {@link UnionShape}
 	 *
 	 * @returns The merged value shape
 	 *
-	 * @throws {TraceError} On absent or non-unique discriminator
+	 * @throws {TraceError} When the child narrows no or several base variants
 	 */
 	function narrow(target: ValuesShape, source: UnionShape): ValuesShape {
 
-		const key = discriminator(target);
-		const matches = source.variants.filter(variant => discriminator(variant) === key);
+		const matches = source.variants.filter(base => narrowsValue(target, base) === undefined);
 
 		if ( matches.length === 0 ) {
 			throw new TraceError("incompatible value set override", {
-				"{shape}": `discriminator <${key}> absent from parent union`
+				"{shape}": `narrows no base variant`
 			});
 		}
 
 		if ( matches.length > 1 ) {
 			throw new TraceError("incompatible value set override", {
-				"{shape}": `discriminator <${key}> non-unique within parent union`
+				"{shape}": `narrows several base variants`
 			});
 		}
 
+		// ;(cast) narrowsValue guarantees matches[0] shares target's kind
 		return mergeValue(target, matches[0] as typeof target);
 
 	}
 
 }
 
+
 /**
- * Merges an overriding union with an inherited base union.
+ * Derives the retrieval model for a value shape.
  *
- * The child union may drop branches and tighten the branches it keeps, but never add new ones. Concretely, every child
- * branch must match a parent branch, which it overrides via {@link mergeValue}; parent branches with no child match are
- * dropped from the result.
+ * Dispatches on the shape kind to the matching per-kind derivation, returning an explicit `model` in preference to a
+ * derived default where the shape carries one (boolean, number, string, text). Reference, resource, and union shapes
+ * are always derived: a reference yields a sample identifier from its target constraints, a resource its property
+ * template, and a union its per-variant model map.
  *
- * Implementation note: branches are matched by *discriminator* (`kind` for `boolean` / `text`; `(kind, datatype)` for
- * `string` / `number`; `(kind, class)` for `reference` / `resource`). Several branches may still share a discriminator
- * (for example two same-datatype `string` variants differing only in constraints); these have no identity other than
- * their position, so the child union cannot drop just some of them without making the remaining matches ambiguous.
- * Matching is therefore positional within each group: the child union must keep either all parent branches of a group
- * in their original order, or none. The merged `model` re-indexes contiguously from `0`.
+ * @typeParam S The value {@link Shape} to derive from
  *
- * @param target The overriding child union
- * @param source The inherited parent union
+ * @param shape The shape whose model to derive
  *
- * @returns The merged union
+ * @returns The derived model, typed by {@link Schema} to preserve cardinality-driven optionality, nested resource
+ *     models, and union variants
  *
- * @throws {TraceError} On partial-group retention, out-of-order variants, or incompatible pairwise overrides
+ * @throws {TraceError} When a derived literal or reference model is not legal for its shape
  */
-export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
+export function deriveValue<S extends Shape>(shape: S): Schema<S> {
 
-	const sourceGroups = group(source.variants);
-	const targetGroups = group(target.variants);
+	switch ( shape.kind ) {
 
-	// each child group must match a parent group, with equal arity (full retention)
+		case "boolean":
 
-	for (const [key, targetGroup] of targetGroups) {
+			return shape.model ?? deriveBoolean(shape);
 
-		const sourceGroup = sourceGroups.get(key);
+		case "number":
 
-		if ( sourceGroup === undefined ) {
-			throw new TraceError("incompatible union shape override", {
-				"{variants}": `discriminator <${key}> not present in parent union`
-			});
-		}
+			return shape.model ?? deriveNumber(shape);
 
-		if ( targetGroup.length !== sourceGroup.length ) {
-			throw new TraceError("incompatible union shape override", {
-				"{variants}": `partial retention <${targetGroup.length}> of <${sourceGroup.length}> for group <${key}>`
-			});
-		}
+		case "string":
 
-	}
+			return shape.model ?? deriveString(shape);
 
-	// child group order must follow parent group order (subsequence)
+		case "text":
 
-	const sourceKeys = [...sourceGroups.keys()];
-	let cursor = 0;
+			return shape.model ?? deriveText(shape);
 
-	for (const key of targetGroups.keys()) {
+		case "reference":
 
-		while ( cursor < sourceKeys.length && sourceKeys[cursor] !== key ) { cursor++; }
+			return deriveReference(shape);
 
-		if ( cursor >= sourceKeys.length ) {
-			throw new TraceError("incompatible union shape override", {
-				"{variants}": `out-of-order discriminator <${key}>`
-			});
-		}
+		case "resource":
 
-		cursor++;
+			return deriveResource(shape);
 
-	}
+		case "union":
 
-	// build merged variants in parent group order; dropped groups are absent from the result
-
-	const variants = [...sourceGroups].flatMap(([key, sourceGroup]) => {
-
-		const targetGroup = targetGroups.get(key);
-
-		return targetGroup === undefined ? []
-			: sourceGroup.map((sourceVariant, index) => mergeValue(targetGroup[index], sourceVariant));
-
-	});
-
-	return immutable({
-
-		kind: target.kind,
-
-		model: Object.fromEntries(variants.map((v, i) => [`${i}`, v.model])),
-
-		variants
-
-	});
-
-
-	/**
-	 * Groups variants by discriminator, preserving first-occurrence order in the resulting map.
-	 */
-	function group(variants: readonly ValueShape[]): Map<string, ValueShape[]> {
-
-		return variants.reduce((groups, variant) => {
-
-			const key = discriminator(variant);
-			const existing = groups.get(key);
-
-			if ( existing === undefined ) {
-				groups.set(key, [variant]);
-			} else {
-				existing.push(variant);
-			}
-
-			return groups;
-
-		}, new Map<string, ValueShape[]>());
+			return deriveUnion(shape);
 
 	}
 
 }
 
-
 /**
- * Computes the *discriminator* key for a union variant.
+ * Derives the retrieval placeholder for a value set.
  *
- * Returns `kind` for `boolean` and `text` variants. For `string` and `number` variants, returns `kind` paired with the
- * prototype `model` value, which proxies the datatype, so that unions of differently-typed strings or numbers are
- * treated as distinct discriminator groups. For `reference` and `resource` variants, returns `kind` paired with the
- * target {@link ResourceShape.class | class} IRI, so that unions of differently-classed references or resources are
- * treated as distinct discriminator groups.
+ * Derives the wrapped shape's value through {@link deriveValue} and projects it at the set's cardinality, mirroring the
+ * {@link cardinality} factory: a localised {@link text!text | text} set keeps its per-tag map (derived through
+ * {@link deriveValue}, so its stored model is honored), a scalar set (`maxCount === 1`) holds the value directly, and a
+ * multi-valued set holds a singleton `[value]` tuple carrying any trailing selection.
  *
- * @param variant The union variant
+ * @param set The value set whose placeholder to derive
  *
- * @returns The discriminator key
+ * @returns The derived set placeholder
  */
-function discriminator(variant: ValuesShape): string {
+export function deriveValues({ shape, model, maxCount }: SetShape): unknown {
 
-	return variant.kind === "reference" ? `reference:${eager(variant.shape).class ?? ""}`
-		: variant.kind === "resource" ? `resource:${variant.class ?? ""}`
-			: variant.kind === "string" || variant.kind === "number" ? `${variant.kind}:${variant.model}`
-				: variant.kind;
+	return shape.kind === "text"
+
+		// localised: cardinality applies per tag within the map, so wrap each tag's content
+
+		? Object.fromEntries(Object.entries(deriveValue(shape)).map(([tag, content]) =>
+			[tag, maxCount === 1 ? content : [content]]
+		))
+
+		: maxCount === 1 ? deriveValue(shape)
+			: isArray(model) && model.length > 1 ? [deriveValue(shape), model[1]]
+				: [deriveValue(shape)];
 
 }
 
@@ -427,43 +526,13 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape): u
 
 		case "reference":
 
-			return validateReferences(values, shape);
+			return validateReference(values, shape);
 
 		case "resource":
 
 			return validateResource(values, shape);
 
 	}
-
-}
-
-/**
- * Validates values against a {@link UnionShape} disjunctively.
- *
- * Each value is matched against the union variants in order. A value satisfies the union if it
- * satisfies at least one variant; every variant, including a reference variant, is checked through
- * {@link validateValue}, so a reference variant admits a bare IRI only (state-side captive
- * expansion is applied upstream by the resource validator). On failure, the trace aggregates the
- * per-variant traces under positional keys (`[0]`, `[1]`, …).
- *
- * @param values The values to validate
- * @param union The union shape defining the variant alternatives
- *
- * @returns A keyed trace of validation errors, or `undefined` if every value matches a variant
- */
-export function validateUnion(values: readonly unknown[], union: UnionShape): undefined | Trace {
-
-	return collect(Object.fromEntries(values.map((value, index) => {
-
-		const traces = union.variants.map(variant => validateValue([value], variant));
-
-		const trace = traces.some(trace => trace === undefined) ? undefined : collect(Object.fromEntries(
-			traces.map((trace, position) => [`[${position}]`, trace])
-		)) ?? "no union variant matched";
-
-		return [`[${index}]`, trace];
-
-	})));
 
 }
 
@@ -485,40 +554,11 @@ export function validateUnion(values: readonly unknown[], union: UnionShape): un
  *
  * @throws {TraceError} If the factory transitively references itself, producing a circular extends chain
  */
-export function eager<S extends Lazy<Shape>>(shape: S): Resolved<S>;
-
-/**
- * Resolves a {@link Lazy} shape to its eager form and maps the result.
- *
- * Resolves `shape` as the single-argument overload does, then passes the eager shape to `mapper`
- * and returns its result, an ergonomic shortcut for transforming a freshly resolved shape without
- * an intervening binding.
- *
- * @typeParam S The {@link Lazy} {@link Shape} type
- * @typeParam V The value the `mapper` produces
- *
- * @param shape A shape value or no-arg factory returning one
- * @param mapper A transform applied to the eager shape
- *
- * @returns The value produced by `mapper`
- *
- * @throws {TraceError} If the factory transitively references itself, producing a circular extends chain
- */
-export function eager<S extends Lazy<Shape>, V>(shape: S, mapper: (shape: Resolved<S>) => V): V;
-
-/**
- * Resolves a {@link Lazy} shape, optionally mapping the eager result.
- */
-export function eager<S extends Lazy<Shape>, V>(shape: S, mapper?: (shape: Resolved<S>) => V): Resolved<S> | V {
-
-	function map(resolved: Resolved<S>): Resolved<S> | V {
-		return mapper ? mapper(resolved) : resolved;
-	}
-
+export function eager<S extends Lazy<Shape>>(shape: S): Resolved<S> {
 
 	if ( isFunction(shape) ) {
 
-		const cached = cache.get(shape);
+		const cached = shapes.get(shape);
 
 		if ( cached === null ) {
 
@@ -528,20 +568,20 @@ export function eager<S extends Lazy<Shape>, V>(shape: S, mapper?: (shape: Resol
 
 		} else if ( cached === undefined ) {
 
-			cache.set(shape, null);
+			shapes.set(shape, null);
 
 			try {
 
 				const resolved = shape();
 				const flattened = (resolved.kind === "resource" ? flatten(resolved) : resolved);
 
-				cache.set(shape, flattened);
+				shapes.set(shape, flattened);
 
-				return map(flattened as Resolved<S>);
+				return flattened as Resolved<S>;
 
 			} catch ( error ) {
 
-				cache.delete(shape);
+				shapes.delete(shape);
 
 				throw error;
 
@@ -549,13 +589,84 @@ export function eager<S extends Lazy<Shape>, V>(shape: S, mapper?: (shape: Resol
 
 		} else {
 
-			return map(cached as Resolved<S>);
+			return cached as Resolved<S>;
 
 		}
 
 	} else {
 
-		return map((shape.kind === "resource" ? flatten(shape) : shape) as Resolved<S>);
+		return (shape.kind === "resource" ? flatten(shape) : shape) as Resolved<S>;
+
+	}
+
+}
+
+/**
+ * Extracts the deeply typed retrieval template from a {@link Lazy} shape.
+ *
+ * Resolves the shape eagerly and returns its model, an ergonomic shortcut for obtaining a typed template without
+ * explicit field access. The return type is computed by {@link Schema}, which preserves cardinality-driven optionality,
+ * nested resource models, and union variants in full structural detail. For a lazy factory the model is derived once
+ * on first request and memoised, so repeated calls reuse it.
+ *
+ * A {@link reference!ReferenceShape | reference} model is derived from the resolved target's identifier constraints,
+ * yielding a legal sample identifier rather than the stored placeholder, with the target resolved on access to support
+ * the circular and self-referential definitions the {@link reference!reference | reference} factory admits. A
+ * {@link union!UnionShape | union} model is rebuilt from its per-variant models, so reference variants likewise carry
+ * derived identifiers. Literal, text, and resource models are returned as stored, already validated at construction.
+ *
+ * @typeParam S The lazy {@link Shape} to extract from
+ *
+ * @param shape The shape (or lazy factory) whose model to extract
+ *
+ * @returns The shape's model, with reference identifiers derived from their target constraints
+ *
+ * @throws {TraceError} When a lazy factory transitively references itself, producing a circular extends chain
+ * @throws {TraceError} When a reference target's derived model is not a legal identifier
+ */
+export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
+
+	if ( isFunction(shape) ) {
+
+		const cached = models.get(shape);
+
+		if ( cached === null ) {
+
+			throw new TraceError("circular extends chain", {
+				[shape.name || "<anonymous>"]: "circular dependency"
+			});
+
+		} else if ( cached !== undefined ) {
+
+			// the cache erases the factory's generic, so the model is recovered as Schema<S> at this boundary
+
+			return cached as Schema<S>;
+
+		} else {
+
+			models.set(shape, null);
+
+			try {
+
+				const model = deriveValue(eager(shape));
+
+				models.set(shape, model);
+
+				return model;
+
+			} catch ( error ) {
+
+				models.delete(shape);
+
+				throw error;
+
+			}
+
+		}
+
+	} else {
+
+		return deriveValue(eager(shape));
 
 	}
 
@@ -563,7 +674,7 @@ export function eager<S extends Lazy<Shape>, V>(shape: S, mapper?: (shape: Resol
 
 
 /**
- * Probe a shape for the effective {@link RangeShape} a {@link Probe} resolves to.
+ * Resolve the effective {@link RangeShape} a {@link Probe} yields against a shape.
  *
  * Traverses the {@link Probe.path} segments through nested resource properties to locate the target shape, then
  * applies the {@link Probe.pipe} transforms to compute the effective value set with accumulated cardinality.
@@ -608,8 +719,9 @@ export function eager<S extends Lazy<Shape>, V>(shape: S, mapper?: (shape: Resol
  * - *Across branches* — at entry-union or mid-path union-range crossings, the effective bounds
  *   are the envelope of per-branch products: `minCount` takes the lowest lower bound (`undefined`
  *   absorbs — no lower bound wins), `maxCount` takes the highest upper bound (`undefined` absorbs
- *   — unbounded wins). Matches SHACL `sh:or` — a value satisfies the union if at least one branch
- *   accepts it.
+ *   — unbounded wins). The effective range admits any reachable branch, so its cardinality
+ *   envelopes them all; discrimination to the single driving branch is resolved separately against
+ *   the model.
  * - {@link UnionShape} steps themselves contribute no per-step cardinality — the enclosing range
  *   carries the single cardinality shared by all variants.
  * - A **localised step** enters the product like any other: a text property is terminal (no path may
@@ -627,7 +739,9 @@ export function eager<S extends Lazy<Shape>, V>(shape: S, mapper?: (shape: Resol
  * @param probe The probe containing property path and transform pipe
  *
  * @returns A {@link RangeShape} effective type carrying the accumulated cardinality and the reachable value-shape
- *     variants when the probe resolves; a {@link NullShape} when the probe is accepted but provably resolves to no
+ *     variants when the probe resolves, deduplicated to distinct shapes so an aggregate or
+ *     path that collapses the union onto one type yields a single variant; a {@link NullShape} when the probe is
+ *     accepted but provably resolves to no
  *     value (every surviving variant falling outside its transforms' declared domains). Returns an atomic
  *     {@link Trace} string when the probe cannot be resolved against the shape: `"undefined property path"` if the
  *     path fails to resolve (including a step past a non-traversable `id` / `type` field), or `"multiple aggregate
@@ -638,7 +752,7 @@ export function eager<S extends Lazy<Shape>, V>(shape: S, mapper?: (shape: Resol
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function probeShape(shape: Lazy<Shape>, probe: Probe): RangeShape | NullShape | Extract<Trace, string> {
+export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | NullShape | Extract<Trace, string> {
 
 	type Branch = {
 
@@ -655,13 +769,18 @@ export function probeShape(shape: Lazy<Shape>, probe: Probe): RangeShape | NullS
 
 	const { pipe, path } = assert(probe, isProbe, "malformed probe");
 
-	const entry = eager(shape);
+	// a union shape seeds one traversal per branch; a reference unwraps to its target; any other shape
+	// is its own single seed
 
-	return transform(traverse(
-		entry.kind === "union" ? entry.variants.map(variant => eager(variant))
-			: entry.kind === "reference" ? [eager(entry.shape)]
-				: [entry]
-	));
+	const seeds: readonly ValuesShape[] = expand(eager(shape));
+
+	// dedupe as late as possible: aggregate collapse and path convergence may fold the union onto
+	// repeated shapes, so a single pass at the boundary keeps the returned range's variants distinct
+
+	const resolved = transform(traverse(seeds));
+
+	return isString(resolved) || resolved.kind !== "range" ? resolved
+		: { ...resolved, variants: distinct(resolved.variants) };
 
 
 	/**
@@ -672,8 +791,8 @@ export function probeShape(shape: Lazy<Shape>, probe: Probe): RangeShape | NullS
 	 * Branches that lack the next property are dropped; `id` / `type` fields resolve to scalar IRIs
 	 * with no traversable structure, so a path stepping past them drops as well. A localised step
 	 * multiplies its per-tag bounds into the branch product like any other step (see the cardinality
-	 * rules on {@link probeShape}). The surviving cohort is then enveloped (SHACL `sh:or`) into a single
-	 * focus; an exhausted cohort yields `"undefined property path"`.
+	 * rules on {@link effective}). The surviving cohort is then enveloped across all reachable branches into a
+	 * single focus; an exhausted cohort yields `"undefined property path"`.
 	 */
 	function traverse(seed: readonly ValuesShape[]): RangeShape | Extract<Trace, string> {
 
@@ -683,12 +802,16 @@ export function probeShape(shape: Lazy<Shape>, probe: Probe): RangeShape | NullS
 
 					const resolved = resolve(branch.variant, segment);
 
-					return resolved === undefined ? [] // skip branches that lack the property
-						: resolved.variants.map(variant => ({
-							minCount: multiply(branch.minCount, resolved.minCount),
-							maxCount: multiply(branch.maxCount, resolved.maxCount),
-							variant
-						}));
+					// skip branches that lack the property
+
+					return resolved === undefined ? [] : resolved.variants.map(variant => ({
+
+						minCount: multiply(branch.minCount, resolved.minCount),
+						maxCount: multiply(branch.maxCount, resolved.maxCount),
+
+						variant
+
+					}));
 
 				}),
 
@@ -713,9 +836,7 @@ export function probeShape(shape: Lazy<Shape>, probe: Probe): RangeShape | NullS
 	 */
 	function resolve(shape: ValuesShape, property: Identifier): undefined | RangeShape {
 
-		const resolved = shape.kind === "resource" ? shape
-			: shape.kind === "reference" ? eager(shape.shape)
-				: undefined;
+		const resolved = getShapeTarget(shape);
 
 		const properties = resolved !== undefined
 			? resolved.properties
@@ -799,6 +920,28 @@ export function probeShape(shape: Lazy<Shape>, probe: Probe): RangeShape | NullS
 
 		return a === undefined || b === undefined ? undefined : a*b;
 
+	}
+
+	/**
+	 * Expands a shape into its seed variants: a union's branches, a reference's target, or the shape itself.
+	 */
+	function expand(entry: Shape): readonly ValuesShape[] {
+		return entry.kind === "union" ? entry.variants.map(variant => eager(variant))
+			: entry.kind === "reference" ? [eager(entry.shape)]
+				: [entry];
+	}
+
+	/**
+	 * Drops structurally identical variants, preserving first-seen order.
+	 *
+	 * Aggregate collapse (a fixed-return transform mapping every branch to one type) and path convergence (distinct
+	 * branches resolving to the same leaf, including `id` / `type` steps to an absolute IRI) can fold a union onto
+	 * repeated shapes; deduping keeps the returned range's variants distinct so discrimination stays exact.
+	 */
+	function distinct(variants: readonly ValuesShape[]): readonly ValuesShape[] {
+		return variants.filter((variant, index) =>
+			variants.findIndex(other => equals(other, variant)) === index
+		);
 	}
 
 
@@ -932,11 +1075,32 @@ export function probeShape(shape: Lazy<Shape>, probe: Probe): RangeShape | NullS
 	}
 
 	function isTextual(shape: ValuesShape) {
-		return shape.kind === "string" && !Temporal.has(shape.model);
+		return shape.kind === "string" && !isTemporal(shape);
 	}
 
 	function isTemporal(shape: ValuesShape) {
-		return shape.kind === "string" && Temporal.has(shape.model);
+		return shape.kind === "string" && shape.datatype !== undefined && Temporal.has(shape.datatype);
 	}
 
+}
+
+
+/**
+ * Enumerates the value shape variants spanned by a declared set or a resolved range.
+ *
+ * Reduces a {@link SetShape} or {@link RangeShape} to the never-empty disjunction of value shapes it admits, the common
+ * currency for value validation regardless of where the shape came from. A {@link RangeShape} carries its reachable
+ * variants directly; a {@link SetShape} unwraps its declared value shape — the {@link UnionShape} branches in
+ * declaration order, or the singleton of a non-union value shape.
+ *
+ * @param shape The declared {@link SetShape} or the {@link effective | resolved} {@link RangeShape} to enumerate
+ *
+ * @returns The admitted value shape variants in declaration order; the returned array is read-only
+ *
+ * @see {@link effective} for the path resolution that produces a {@link RangeShape}
+ */
+export function getMultiVariants(shape: SetShape | RangeShape): readonly ValuesShape[] {
+	return shape.kind === "range" ? shape.variants
+		: shape.shape.kind === "union" ? shape.shape.variants
+			: [shape.shape];
 }

@@ -108,9 +108,11 @@
  */
 
 import { isNumber } from "@metreeca/core";
+import { xsd } from "@metreeca/core/datatype";
 import { immutable } from "@metreeca/core/deep";
+import type { Reference } from "@metreeca/qest";
 import { TraceError } from "./index.core.js";
-import { checkNumber } from "./number.core.js";
+import { checkNumber, deriveNumber } from "./number.core.js";
 
 
 const BYTE_MAX = 2**7-1;
@@ -133,16 +135,18 @@ const FLOAT_MAX = (2-2** -23)*2**127;
  * numeric-valued properties are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
- * | Field          | Override Rule                                                                  |
- * | -------------- | ----------------------------------------------------------------------------- |
- * | `kind`         | Cannot be overridden                                                          |
- * | `model`        | Must be strictly equal — mismatch signals incompatible datatypes              |
- * | `minExclusive` | Child ≥ parent, narrowing the exclusive lower bound                                |
- * | `maxExclusive` | Child ≤ parent, narrowing the exclusive upper bound                                |
- * | `minInclusive` | Child ≥ parent, narrowing the inclusive lower bound                                |
- * | `maxInclusive` | Child ≤ parent, narrowing the inclusive upper bound                                |
- * | `in`           | Intersection of parent and child sets; empty result is reported as an error             |
- * | `hasValue`     | Union of parent and child required values; child must require all parent values  |
+ * | Field          | Override Rule                                                                               |
+ * | -------------- | ------------------------------------------------------------------------------------------- |
+ * | `kind`         | Cannot be overridden                                                                        |
+ * | `model`        | Taken from the child: a validated sample value                                              |
+ * | `datatype`     | Must be strictly equal when both defined; the single defined value carries through          |
+ * | `integral`     | Child may add but not drop; an integral parent cannot be overridden by a non-integral child |
+ * | `minExclusive` | Child ≥ parent, narrowing the exclusive lower bound                                         |
+ * | `maxExclusive` | Child ≤ parent, narrowing the exclusive upper bound                                         |
+ * | `minInclusive` | Child ≥ parent, narrowing the inclusive lower bound                                         |
+ * | `maxInclusive` | Child ≤ parent, narrowing the inclusive upper bound                                         |
+ * | `in`           | Intersection of parent and child sets; empty result is reported as an error                 |
+ * | `hasValue`     | Union of parent and child required values; child must require all parent values             |
  *
  * Inclusive/exclusive pairs are independently merged: a child may define an exclusive bound alongside a parent's
  * inclusive bound (or vice versa), narrowing the range without removing the original constraint.
@@ -168,10 +172,8 @@ export interface NumberShape extends NumberConstraints {
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
-	 * **Inheritance** — must be strictly equal between parent and child; a mismatch signals
-	 * incompatible datatypes (for example, `int` vs `decimal`). Within a {@link value!union | union}, the prototype value
-	 * also discriminates the variant's datatype, so differently-typed numeric variants form distinct discriminator
-	 * groups.
+	 * A sample value drawn from the shape's value space: factories validate it against the value constraints at
+	 * construction, and a merge keeps the child's value.
 	 *
 	 * @defaultValue `0`
 	 */
@@ -188,11 +190,43 @@ export interface NumberShape extends NumberConstraints {
 export interface NumberConstraints extends NumericConstraints {
 
 	/**
-	 * Prototype value for runtime model assembly.
+	 * Explicit prototype value for runtime model assembly.
 	 *
-	 * @defaultValue `0`
+	 * Seeds the prototype the factory validates against the value constraints. When omitted, the prototype is derived
+	 * from the value space: an `in` or `hasValue` member, else a bound. When supplied, it must itself be a legal value.
+	 *
+	 * @defaultValue `undefined` (the prototype is derived from the value constraints)
 	 */
 	readonly model?: number;
+
+	/**
+	 * RDF datatype IRI for the numeric literal.
+	 *
+	 * Infers the RDF datatype of validated JSON values, which carry no datatype information of their own.
+	 *
+	 * **Inheritance** — must be strictly equal when both parent and child define it; otherwise the single defined value
+	 * carries through. A mismatch signals incompatible datatypes.
+	 *
+	 * @defaultValue `undefined` (falls back to `xsd:double`)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#DatatypeConstraintComponent SHACL § 4.2.2 sh:datatype}
+	 */
+	readonly datatype?: Reference;
+
+	/**
+	 * Restricts values to integers.
+	 *
+	 * When `true`, validated values must be integers (no fractional part); fractional values are rejected. Decouples
+	 * integrality from {@link datatype}, so custom or non-XSD integral types are declarable without relying on a
+	 * recognised datatype IRI. The integer-family factories ({@link byte}, {@link short}, {@link int}, {@link long},
+	 * {@link integer}) set it; {@link float}, {@link double}, and {@link decimal} leave it unset.
+	 *
+	 * **Inheritance** — a child may add the constraint but not drop it: overriding an integral parent with a
+	 * non-integral child is rejected.
+	 *
+	 * @defaultValue `undefined` (fractional values allowed)
+	 */
+	readonly integral?: boolean;
 
 }
 
@@ -319,14 +353,15 @@ export function number<const C extends NumberConstraints>(constraints?: C): Numb
  */
 export function number(constraints: number | NumberConstraints = {}): NumberShape {
 
-	const { model, ...rest } = isNumber(constraints) ? { model: constraints } : constraints;
+	const effective = isNumber(constraints) ? { model: constraints } : constraints;
 
 	const shape: NumberShape = immutable({
 
 		kind: "number",
-		model: model ?? 0,
 
-		...rest
+		...effective,
+
+		model: deriveNumber(effective)
 
 	});
 
@@ -346,7 +381,9 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
 /**
  * Creates a shape for 8-bit signed integer values.
  *
- * Defaults the range to `[-128, 127]`; supplied bounds in `constraints` override the defaults.
+ * - Defaults the datatype to `xsd:byte`.
+ * - Marks the shape {@link NumberConstraints.integral | integral}.
+ * - Defaults the range to `[-128, 127]`; supplied bounds in `constraints` override the defaults.
  *
  * @param constraints Optional {@link NumericConstraints validation constraints}
  *
@@ -358,7 +395,8 @@ export function byte(constraints: NumericConstraints = {}): NumberShape {
 
 	return number({
 
-		model: 8,
+		datatype: xsd.byte,
+		integral: true,
 
 		minInclusive: -BYTE_MAX-1,
 		maxInclusive: BYTE_MAX,
@@ -372,7 +410,9 @@ export function byte(constraints: NumericConstraints = {}): NumberShape {
 /**
  * Creates a shape for 16-bit signed integer values.
  *
- * Defaults the range to `[-32768, 32767]`; supplied bounds in `constraints` override the defaults.
+ * - Defaults the datatype to `xsd:short`.
+ * - Marks the shape {@link NumberConstraints.integral | integral}.
+ * - Defaults the range to `[-32768, 32767]`; supplied bounds in `constraints` override the defaults.
  *
  * @param constraints Optional {@link NumericConstraints validation constraints}
  *
@@ -384,7 +424,8 @@ export function short(constraints: NumericConstraints = {}): NumberShape {
 
 	return number({
 
-		model: 16,
+		datatype: xsd.short,
+		integral: true,
 
 		minInclusive: -SHORT_MAX-1,
 		maxInclusive: SHORT_MAX,
@@ -398,7 +439,9 @@ export function short(constraints: NumericConstraints = {}): NumberShape {
 /**
  * Creates a shape for 32-bit signed integer values.
  *
- * Defaults the range to `[-2147483648, 2147483647]`; supplied bounds in `constraints` override the defaults.
+ * - Defaults the datatype to `xsd:int`.
+ * - Marks the shape {@link NumberConstraints.integral | integral}.
+ * - Defaults the range to `[-2147483648, 2147483647]`; supplied bounds in `constraints` override the defaults.
  *
  * @param constraints Optional {@link NumericConstraints validation constraints}
  *
@@ -410,7 +453,8 @@ export function int(constraints: NumericConstraints = {}): NumberShape {
 
 	return number({
 
-		model: 32,
+		datatype: xsd.int,
+		integral: true,
 
 		minInclusive: -INT_MAX-1,
 		maxInclusive: INT_MAX,
@@ -424,9 +468,11 @@ export function int(constraints: NumericConstraints = {}): NumberShape {
 /**
  * Creates a shape for 64-bit signed integer values.
  *
- * Defaults the range to {@link Number.MIN_SAFE_INTEGER}…{@link Number.MAX_SAFE_INTEGER} (±2⁵³−1), narrower than the
- * datatype's nominal ±2⁶³−1, since values beyond JavaScript's safe-integer range cannot be represented faithfully as
- * `number`. Supplied bounds in `constraints` override the defaults.
+ * - Defaults the datatype to `xsd:long`.
+ * - Defaults the range to {@link Number.MIN_SAFE_INTEGER}…{@link Number.MAX_SAFE_INTEGER} (±2⁵³−1), narrower than the
+ *   datatype's nominal ±2⁶³−1, since values beyond JavaScript's safe-integer range cannot be represented faithfully as
+ *   `number`. Supplied bounds in `constraints` override the defaults.
+ * - Marks the shape {@link NumberConstraints.integral | integral}.
  *
  * @param constraints Optional {@link NumericConstraints validation constraints}
  *
@@ -438,7 +484,8 @@ export function long(constraints: NumericConstraints = {}): NumberShape {
 
 	return number({
 
-		model: 64,
+		datatype: xsd.long,
+		integral: true,
 
 		minInclusive: Number.MIN_SAFE_INTEGER,
 		maxInclusive: Number.MAX_SAFE_INTEGER,
@@ -452,8 +499,9 @@ export function long(constraints: NumericConstraints = {}): NumberShape {
 /**
  * Creates a shape for IEEE 754 single-precision floating-point values.
  *
- * Defaults the range to the finite single-precision interval `±(2 − 2⁻²³) × 2¹²⁷`; supplied bounds in `constraints`
- * override the defaults.
+ * - Defaults the datatype to `xsd:float`.
+ * - Defaults the range to the finite single-precision interval `±(2 − 2⁻²³) × 2¹²⁷`; supplied bounds in `constraints`
+ *   override the defaults.
  *
  * @param constraints Optional {@link NumericConstraints validation constraints}
  *
@@ -465,7 +513,7 @@ export function float(constraints: NumericConstraints = {}): NumberShape {
 
 	return number({
 
-		model: 0.32,
+		datatype: xsd.float,
 
 		minInclusive: -FLOAT_MAX,
 		maxInclusive: FLOAT_MAX,
@@ -479,6 +527,8 @@ export function float(constraints: NumericConstraints = {}): NumberShape {
 /**
  * Creates a shape for IEEE 754 double-precision floating-point values.
  *
+ * Defaults the datatype to `xsd:double`.
+ *
  * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating double-precision floats
@@ -487,12 +537,14 @@ export function float(constraints: NumericConstraints = {}): NumberShape {
  */
 export function double(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 0.64, ...constraints });
+	return number({ datatype: xsd.double, ...constraints });
 
 }
 
 /**
  * Creates a shape for arbitrary-precision integer values.
+ *
+ * Defaults the datatype to `xsd:integer` and marks the shape {@link NumberConstraints.integral | integral}.
  *
  * @param constraints Optional {@link NumericConstraints validation constraints}
  *
@@ -502,12 +554,14 @@ export function double(constraints: NumericConstraints = {}): NumberShape {
  */
 export function integer(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 1, ...constraints });
+	return number({ datatype: xsd.integer, integral: true, ...constraints });
 
 }
 
 /**
  * Creates a shape for arbitrary-precision decimal values.
+ *
+ * Defaults the datatype to `xsd:decimal`.
  *
  * @param constraints Optional {@link NumericConstraints validation constraints}
  *
@@ -517,6 +571,6 @@ export function integer(constraints: NumericConstraints = {}): NumberShape {
  */
 export function decimal(constraints: NumericConstraints = {}): NumberShape {
 
-	return number({ model: 1.1, ...constraints });
+	return number({ datatype: xsd.decimal, ...constraints });
 
 }

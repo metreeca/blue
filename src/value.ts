@@ -32,8 +32,8 @@
  *   - {@link ResourceShape} — linked data resources
  * - {@link UnionShape} — a disjunction of value-shape variants for a polymorphic value
  * - {@link SetShape} — a cardinality-constrained value set
- * - {@link RangeShape} — value range a {@link Probe} resolves to via {@link probeShape}: bounds and variants
- * - {@link NullShape} — a provably absent value a {@link Probe} resolves to via {@link probeShape}
+ * - {@link RangeShape} — value range a {@link Probe} resolves to via {@link effective}: bounds and variants
+ * - {@link NullShape} — a provably absent value a {@link Probe} resolves to via {@link effective}
  *
  * <img src="value.svg" alt="Shape hierarchy" style="width: 100%" />
  *
@@ -46,7 +46,7 @@
  * - {@link State} — the runtime state value matching the template, recovered through the
  *   {@link @metreeca/qest!Instance | Instance} (state side).
  *
- * Ancillary helpers {@link Resolved}, {@link Variants}, {@link Bounds}, and {@link Boxed}
+ * Ancillary helpers {@link Resolved}, {@link Bounds}, and {@link Boxed}
  * factor the internal projections (narrowing the eager unwrap of a {@link Lazy} shape to the
  * {@link Shape} bound, resolving union branches, conditioning a shape's model on cardinality,
  * and boxing values into singleton tuples for multi-valued ranges) and are exported for tests
@@ -54,22 +54,19 @@
  *
  * **Factories**
  *
- * - {@link eager} resolves a {@link Lazy} shape factory to its concrete {@link Shape}, caching
- *   results and flattening {@link ResourceShape} entries.
- * - {@link union} builds a {@link UnionShape} from two or more value-shape variants.
  * - The cardinality factories wrap a shape in a {@link SetShape} with fixed bounds: {@link required}
  *   (exactly one), {@link optional} (at most one), {@link repeatable} (at least one), and
  *   {@link multiple} (any number).
  * - {@link cardinality} is the general form, returning a factory for an arbitrary `minCount` /
  *   `maxCount` pair that the four named factories specialise.
-  *
+ *
  * **Utilities**
  *
- * - {@link getShapeModel} extracts the runtime {@link Schema} of a shape, an ergonomic shortcut for
+ * - {@link eager} resolves a {@link Lazy} shape factory to its concrete {@link Shape}, caching
+ *   results and flattening {@link ResourceShape} entries.
+ * - {@link model} extracts the runtime {@link Schema} of a shape, an ergonomic shortcut for
  *   `eager(shape).model`.
- * - {@link getShapeVariants} flattens a {@link UnionShape} to its variants in declaration order, or
- *   wraps any other shape in a singleton.
- * - {@link probeShape} resolves the effective {@link RangeShape} type for a {@link Probe} against a
+ * - {@link effective} resolves the effective {@link RangeShape} type for a {@link Probe} against a
  *   {@link Shape}, walking property paths through nested resources, branching across
  *   {@link UnionShape} variants at the entry or at any property range, and applying each
  *   transform pipe stage. It yields a {@link NullShape} when the probe is accepted
@@ -92,12 +89,11 @@ import type { ReferenceShape } from "./reference.js";
 import type { ResourceShape } from "./resource.js";
 import { type StringShape } from "./string.js";
 import type { TextShape } from "./text.js";
-import { eager, probeShape } from "./value.core.js";
+import type { UnionShape } from "./union.js";
+import { eager, effective, model, validateValue } from "./value.core.js";
 
-export { eager, probeShape };
+export { eager, effective, model, validateValue };
 
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Discriminated union of all value and union shapes.
@@ -135,91 +131,6 @@ export type ValueShape =
 	| ReferenceShape
 	| ResourceShape;
 
-
-/**
- * Discriminated type alternatives for polymorphic values.
- *
- * Variants act as alternatives during validation: a value satisfies the union if it satisfies at
- * least one variant. Order is preserved for deterministic error reporting but does not imply
- * priority. Each variant is a {@link ValueShape} (a literal, reference, or resource); localised
- * {@link text!text | text} is a whole-property type and is never a variant, so {@link union}
- * rejects a text shape. In a retrieval template a union-typed slot is addressed only through the
- * indexed {@link @metreeca/qest!Union | Union} form (`{"0": ..., "1": ...}`); a plain placeholder
- * over it is rejected.
- *
- * **Cardinality**
- *
- * The expected cardinality of the polymorphic value set constrains the form of the expected value;
- * for example, given `union(string(), reference(PostalAddress))`:
- *
- * | Cardinality  | Model Type                                  |
- * | ------------ | ------------------------------------------- |
- * | scalar       | `string \| Reference`                       |
- * | multi-valued | `readonly (string \| Reference)[]`          |
- *
- * **Inheritance**
- *
- * When a {@link ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends}, a
- * union-typed property may drop variants and tighten the variants it keeps, but never add new ones. Narrowing takes one
- * of two forms, governed by a *discriminator* per variant (`kind` for `boolean` / `text`; `(kind, datatype)` for
- * `string` / `number`; `(kind, class)` for `reference` / `resource`):
- *
- * 1. **Single-variant narrowing** (Form 1) — child supplies a non-union value shape whose discriminator appears
- *    exactly once among the parent's variants. The result is the merged single shape; the enclosing
- *    {@link SetShape.shape | SetShape.shape} is no longer a union. Rejects when the discriminator is absent or
- *    non-unique within the parent.
- *
- * 2. **Union subsetting** (Form 2) — child supplies a union whose variants form a subsequence of the parent's. For each
- *    discriminator group in the parent, the child must contain either all parent variants of that group in the same
- *    relative order, or none. Each retained pair is merged pairwise; dropped variants are absent from the result.
- *
- * The merged union's `model` re-indexes contiguously from `0`. Dropping a parent variant renumbers every later
- * variant — consumers must key off the shape's own `model`, not assume positional alignment with an ancestor.
- * Union-form templates (`{"0": ..., "1": ...}`) are interpreted against the *current* shape's
- * variants; well-typed templates derived from {@link Schema} carry the correct indices automatically.
- *
- * | Field      | Override Rule                                                                                |
- * | ---------- | -------------------------------------------------------------------------------------------- |
- * | `kind`     | Cannot be overridden                                                                         |
- * | `model`    | Computed from variants, re-indexed contiguously from `0`                                     |
- * | `variants` | Dropped or kept per discriminator group (all-or-none, in order); kept variants pairwise narrowed |
- *
- * @typeParam V The variants tuple; each variant eager or a {@link Lazy} factory for recursive self-reference
- *
- * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.2 sh:or}
- */
-export type UnionShape<
-	V extends readonly Lazy<ValueShape>[] = readonly ValueShape[]
-> = {
-
-	/**
-	 * Discriminator identifying this as a union.
-	 *
-	 * **Inheritance** — cannot be overridden.
-	 */
-	readonly kind: "union";
-
-	/**
-	 * Prototype value for runtime model assembly.
-	 *
-	 * Variant-keyed record mapping each variant's position to its model type, matching the
-	 * {@link @metreeca/qest!Union | Union} form expected by retrieval templates.
-	 *
-	 * **Inheritance** — computed from variants, not user-defined.
-	 */
-	readonly model: { readonly [K in keyof Variants<V> & `${number}`]: Variants<V>[K]["model"] };
-
-
-	/**
-	 * Ordered value shape variants.
-	 *
-	 * **Inheritance** — subsequence of the parent's variants that, per discriminator group, retains all of the group's
-	 * variants in order or drops the whole group (see {@link UnionShape}); each retained variant is delegated to value
-	 * shape merge rules.
-	 */
-	readonly variants: V;
-
-};
 
 /**
  * Shape for a cardinality-constrained value set.
@@ -320,9 +231,8 @@ export type SetShape<
 	 * The constrained value shape, or a union of value shapes for polymorphic values.
 	 *
 	 * **Inheritance** — child `shape.kind` must match parent `shape.kind`, with one exception: when parent is a
-	 * {@link UnionShape | union}, child may supply a non-union value shape whose discriminator appears exactly once
-	 * among parent variants (single-variant narrowing). Otherwise delegated to value shape or
-	 * {@link UnionShape | union} merge rules.
+	 * {@link UnionShape | union}, child may supply a non-union value shape that narrows exactly one parent variant
+	 * (single-variant narrowing). Otherwise delegated to value shape or {@link UnionShape | union} merge rules.
 	 */
 	readonly shape: Shape & { readonly model: State<S> };
 
@@ -373,14 +283,14 @@ export type SetSelection<
  * Carries the cardinality bounds ({@link RangeShape.minCount | minCount} / {@link RangeShape.maxCount | maxCount})
  * accumulated across the traversed steps, and {@link RangeShape.variants | variants}: the value shapes the path can
  * reach, a never-empty disjunction over the text-including {@link ValuesShape} alphabet. The `"range"`
- * {@link RangeShape.kind | kind} discriminates it from an absent {@link NullShape} in an {@link probeShape} result.
+ * {@link RangeShape.kind | kind} discriminates it from an absent {@link NullShape} in an {@link effective} result.
  *
  * > [!NOTE]
  * > A path can reach a mix no declared shape expresses: for `creator.name` with `creator: union(Person,
  * > Organization)`, `Person.name: string()`, `Organization.name: text()`, it reaches both string and text, which a
  * > declared property cannot hold (a value-variant union and whole-property text never combine).
  *
- * @see {@link probeShape}
+ * @see {@link effective}
  *
  * @see {@link NullShape}
  */
@@ -416,9 +326,9 @@ export type RangeShape = {
  * Produced when static analysis proves the path carries no value, rather than when a runtime constraint fails. An
  * accepted outcome, not a failure, and therefore distinct from the {@link Trace} strings reported when the probe
  * cannot be resolved or its transform pipe cannot be applied. The `"null"` {@link NullShape.kind | kind} discriminates
- * it from a resolved {@link RangeShape} in an {@link probeShape} result.
+ * it from a resolved {@link RangeShape} in an {@link effective} result.
  *
- * @see {@link probeShape}
+ * @see {@link effective}
  *
  * @see {@link RangeShape}
  */
@@ -439,7 +349,7 @@ export type NullShape = {
  *
  * Returns the full structural description of the shape's template side, with every declared
  * property present and cardinality-driven optionality carried on the value types. Produced by
- * the runtime {@link getShapeModel} helper and consumed wherever the authoritative template is
+ * the runtime {@link model} helper and consumed wherever the authoritative template is
  * required, notably {@link State} projection and inheritance override checking.
  *
  * @typeParam S The lazy {@link Shape} to extract from
@@ -469,23 +379,6 @@ export type State<S extends Lazy<Shape>> =
  */
 export type Resolved<S extends Lazy<Shape>> =
 	Eager<S> extends Shape ? Eager<S> : never;
-
-/**
- * Unwraps a tuple of {@link UnionShape} branches to their eagerly-resolved {@link ValueShape} types.
- *
- * Resolves each lazy factory in a union's branch tuple to its underlying shape, preserving
- * position and arity for the indexed projections that union-typed template slots rely on.
- * Internal helper used by union shape construction.
- *
- * @typeParam V The tuple of union branches (eager or lazy) to resolve
- */
-export type Variants<V extends readonly Lazy<ValueShape>[]> = {
-
-	readonly [K in keyof V]: V[K] extends Lazy<infer T extends ValueShape> ? T
-		: V[K] extends ValueShape ? V[K]
-			: never;
-
-};
 
 /**
  * Conditions a shape's model on cardinality bounds to produce the template-side value type.
@@ -534,71 +427,6 @@ export type Boxed<V, U extends undefined | number> =
 
 
 //// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Creates a union of value shapes.
- *
- * Variants act as alternatives during validation: a value satisfies the union if it satisfies at least one variant.
- * Variant order is preserved deterministically: it drives indexed `model` keys (`{"0": ..., "1": ...}`), positional
- * trace-error reporting, and the subsequence rule that gates narrowing in extending shapes (see {@link UnionShape} for
- * the full inheritance contract).
- *
- * Variants are grouped by *discriminator* (`kind` for `boolean` / `text`; `(kind, datatype)` for `string` / `number`;
- * `(kind, class)` for `reference` / `resource`), so a parent declaring
- * `union(reference(Person), reference(Organization))` exposes two distinct discriminator groups, and an extending shape
- * may narrow each independently. Variants sharing a
- * discriminator (for example two same-datatype `string` variants) collapse into one group at extends-time and must be
- * retained together or dropped together.
- *
- * @typeParam V The variants tuple type
- *
- * @param variants The variant shapes
- *
- * @returns An immutable union with the specified variants
- *
- * @throws {TypeError} If any variant is a {@link text!text | text} shape; localised text is a whole-property
- *     type and is never a union variant, retrieved through the standalone locale placeholder instead
- *
- * @example
- *
- * ```typescript
- * const address = optional(union(
- *   string(),
- *   reference(PostalAddress)
- * ));
- * ```
- *
- * @see {@link UnionShape} for the variant-narrowing inheritance forms (single-variant narrowing, union subsetting)
- * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.2 sh:or}
- */
-export function union<
-	V extends readonly [Lazy<ValueShape>, ...Lazy<ValueShape>[]]
->(...variants: V): UnionShape<Variants<V>> {
-
-	const resolved = variants.map(variant => eager(variant)) as Variants<V>;
-
-	// localised text is a whole-property type, never a union variant: a single language map cannot
-	// mix into the property's value set alongside the literals, references, and resources of the
-	// other branches; localised properties are obtained through the standalone locale placeholder
-
-	if ( resolved.some((variant: ValuesShape) => variant.kind === "text") ) {
-
-		throw new TypeError("unexpected <text> variant in union");
-
-	}
-
-	return immutable({
-
-		kind: "union",
-
-		model: Object.fromEntries(resolved.map((v: ValuesShape, i: number) => [`${i}`, v.model])),
-
-		variants: resolved
-
-	}) as UnionShape<Variants<V>>;
-
-}
-
 
 /**
  * Creates a {@link SetShape} with no cardinality constraints (0..*).
@@ -783,40 +611,4 @@ export function cardinality<
 
 	}) as SetFactory<L, U>;
 
-}
-
-
-//// Utilities /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Extracts the deeply typed retrieval template from a {@link Lazy} shape.
- *
- * Resolves the shape eagerly and returns its stored `model`, providing an ergonomic shortcut for
- * obtaining a typed template without explicit field access. The return type is computed by
- * {@link Schema}, which preserves cardinality-driven optionality, nested resource models,
- * and union variants in full structural detail.
- *
- * @typeParam S The lazy {@link Shape} to extract from
- *
- * @param shape The shape (or lazy factory) whose model to extract
- *
- * @returns The shape's stored model
- */
-export function getShapeModel<S extends Lazy<Shape>>(shape: S): Schema<S> {
-
-	return eager(shape).model;
-
-}
-
-/**
- * Resolves a union range to its variants.
- *
- * Flattens a union range to its variants in declaration order; takes any other range to the singleton `[shape]`.
- *
- * @param shape The range shape to enumerate
- *
- * @returns The variants in declaration order, or the singleton `[shape]` for a non-union range
- */
-export function getShapeVariants(shape: Shape): readonly Shape[] {
-	return shape.kind === "union" ? shape.variants : [shape];
 }

@@ -83,7 +83,7 @@ import type { Tag, TagRange } from "@metreeca/core/language";
 import type { Locale } from "@metreeca/qest/template";
 
 import { TraceError } from "./index.core.js";
-import { checkText, checkTextModel } from "./text.core.js";
+import { checkText, deriveText } from "./text.core.js";
 
 
 /**
@@ -238,7 +238,7 @@ export function text(a: Locale | TextConstraints = {}): TextShape {
 
 	const withConstraints = isTextConstraints(a);
 
-	const model: Locale = withConstraints ? { "*": "" } : a;
+	const model: Locale = withConstraints ? deriveText(a) : a;
 	const constraints = withConstraints ? a : {};
 
 	const shape: TextShape = immutable({
@@ -254,12 +254,6 @@ export function text(a: Locale | TextConstraints = {}): TextShape {
 
 	if ( trace !== undefined ) {
 		throw new TraceError("inconsistent text shape constraints", trace);
-	}
-
-	const malformed = checkTextModel(model);
-
-	if ( malformed !== undefined ) {
-		throw new TraceError("malformed text shape model", malformed);
 	}
 
 	return shape;

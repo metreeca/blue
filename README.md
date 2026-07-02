@@ -126,9 +126,9 @@ function Vendor() {
 }
 ```
 
-Shape factories like `string()`, `number()`, `boolean()`, `text()`, and `reference()` define the expected value
-type and optional constraints for each property. Cardinality helpers wrap shape factories to control how many values are
-expected and to determine the inferred TypeScript type:
+Shape factories like `string()`, `number()`, `boolean()`, `text()`, and `reference()` define the expected value type and
+optional constraints for each property. Cardinality helpers wrap shape factories to control how many values are expected
+and to determine the inferred TypeScript type:
 
 | Factory         | Cardinality | TypeScript Type             |
 |-----------------|-------------|-----------------------------|
@@ -141,10 +141,11 @@ Resource properties link to other resources in two ways. A `reference()` wrapper
 independently identified and managed entity like `Vendor`. A direct shape inclusion defines an **embedded resource**, a
 nested object with no independent identity, created and managed together with its parent like `Rating`.
 
-Properties that accept multiple types are modelled as unions of positional variants. A value satisfies the union if it
-satisfies at least one variant; at runtime, values are stored directly with no variant wrapping. Each variant is a
-literal, reference, or resource shape; localised `text()` is a whole-property type and is never a union variant, so
-`union()` rejects a text shape. Either of the following representations is accepted at the same `address` position:
+Properties that accept multiple types are modelled as unions of positional variants (`sh:xone`). Each value must single
+out **exactly one** variant and is rejected when it fits several (ambiguous) or none (unsatisfiable); a multi-valued
+property discriminates each of its values independently. At runtime, values are stored directly with no variant
+wrapping. Each variant is a literal, reference, or resource shape; localised `text()` is a whole-property type and is
+never a union variant, so `union()` rejects a text shape. Either of the following representations is accepted at the same `address` position:
 
 ```json
 { "address": "12 Harbour Street, Copenhagen" }
@@ -182,26 +183,28 @@ const Vendor = resource({ extends: NamedThing }, {
 
 When the parent declares a `union(...)` slot, an extending shape may narrow it in two forms:
 
-- **Single-variant narrowing** — the child supplies a non-union value shape whose discriminator (`kind`, plus
-  `class` for `reference` / `resource` variants) appears exactly once among the parent's variants. The merged slot
-  becomes a bare value shape; consumers see the variant's plain model rather than the indexed-record form.
-- **Union subsetting** — the child supplies a smaller `union(...)`; for each discriminator group in the parent, the
-  child must contain either all parent variants of that group in the same relative order, or none. Surviving variants
-  are merged pairwise; dropped variants are absent from the result.
+- **Single-variant narrowing** — the child supplies a non-union value shape that narrows exactly one of the parent's
+  variants (matched by `kind`, by `datatype` / `pattern` / `integral` for literals, or by target shape or subtype
+  `class` for `reference` / `resource`). The merged slot becomes a bare value shape; consumers see the variant's plain
+  model rather than the indexed-record form.
+- **Union subsetting** — the child supplies a smaller `union(...)`; each child variant narrows a distinct parent variant
+  (an injective pairing), the paired variants are merged, and unpaired parent variants are dropped. A parent variant
+  that no child variant can single out, such as one of two variants sharing a target shape, cannot be narrowed
+  individually.
 
 ```ts
 const Entity = resource({
-    code: required(union(string(), number()))
+	code: required(union(string(), number()))
 });
 
 // Form 1 — narrows the slot to a bare string
 const Vendor = resource({ extends: Entity }, {
-    code: required(string({ pattern: "^[A-Z]" }))
+	code: required(string({ model: "ABC", pattern: "^[A-Z]" }))
 });
 
 // Form 2 — keeps the union but drops the string variant wholesale
 const Numbered = resource({ extends: Entity }, {
-    code: required(union(number({ minInclusive: 0 })))
+	code: required(union(number({ minInclusive: 0 })))
 });
 ```
 
@@ -210,9 +213,8 @@ Consumers must key off the shape's own `model`, not assume positional alignment 
 
 ## Type Inference
 
-Schemas double as TypeScript type definitions. The `State` utility extracts the runtime state
-value type matching a shape's template; pair it with `Schema` whenever the template form
-itself is needed:
+Schemas double as TypeScript type definitions. The `State` utility extracts the runtime state value type matching a
+shape's template; pair it with `Schema` whenever the template form itself is needed:
 
 ```ts
 import { type State } from "@metreeca/blue/value";
@@ -301,9 +303,9 @@ properties are accepted as not requested; explicit `undefined` entries are equiv
 projection slots elided at construction time. Where a property specifies a reference shape, the query may be either an
 IRI reference placeholder, retrieving only the identifier, or a nested template validated against the target shape. A
 reference placeholder is never resolved on decoding, so it accepts any IRI reference (the empty string, a root-relative
-or relative reference, or an absolute IRI); reference values in selection operands, by contrast, are resolved against the
-base IRI and absolute. A union-typed property is addressed only through the indexed form (`{"0": ..., "1": ...}`), one
-placeholder per branch; a plain placeholder over it is rejected. Projection cells over a localised property carry a
+or relative reference, or an absolute IRI); reference values in selection operands, by contrast, are resolved against
+the base IRI and absolute. A union-typed property is addressed only through the indexed form (`{"0": ..., "1": ...}`),
+one placeholder per branch; a plain placeholder over it is rejected. Projection cells over a localised property carry a
 complete localised value whose per-language-tag shape is pinned to the property's per-tag cardinality (a single string
 for single-string-per-tag, a singleton array for array-per-tag); the localised value is assembled once per row rather
 than fanned out per tag.
@@ -337,19 +339,19 @@ enabling TypeScript developers to use shape-based validation without mastering S
 This controlled subset is specified by:
 
 - [cardinality constraints](https://www.w3.org/TR/shacl/#core-components-count) (`sh:minCount`, `sh:maxCount`)
-	for specifying how many values a property must or may have
+  for specifying how many values a property must or may have
 - [value range constraints](https://www.w3.org/TR/shacl/#core-components-range) (`sh:minExclusive`,
-	`sh:maxExclusive`, `sh:minInclusive`, `sh:maxInclusive`) for numeric value ranges
+  `sh:maxExclusive`, `sh:minInclusive`, `sh:maxInclusive`) for numeric value ranges
 - [string constraints](https://www.w3.org/TR/shacl/#core-components-string) (`sh:minLength`, `sh:maxLength`,
-	`sh:pattern`, `sh:languageIn`) for text length, patterns, and language tags
+  `sh:pattern`, `sh:languageIn`) for text length, patterns, and language tags
 - [value type constraints](https://www.w3.org/TR/shacl/#core-components-value-type) (`sh:class`) for declaring the
-	expected type of resource instances; limited to a single class
+  expected type of resource instances; limited to a single class
 - [value constraints](https://www.w3.org/TR/shacl/#InConstraintComponent) (`sh:in`, `sh:hasValue`) for enumerations and
-	required values
-- [logical constraints](https://www.w3.org/TR/shacl/#core-components-logical) limited to `sh:or` as typed unions on
-	properties; `sh:not`, `sh:and`, and `sh:xone` are not supported
+  required values
+- [logical constraints](https://www.w3.org/TR/shacl/#core-components-logical) limited to `sh:xone` as typed unions on
+  properties; `sh:not`, `sh:and`, and `sh:or` are not supported
 - [closed shapes](https://www.w3.org/TR/shacl/#ClosedConstraintComponent) enforced by default on all resource shapes;
-	unknown properties are always rejected
+  unknown properties are always rejected
 
 [Property pair constraints](https://www.w3.org/TR/shacl/#core-components-property-pairs) and
 [property paths](https://www.w3.org/TR/shacl/#property-paths) are not supported; cross-property logic can be implemented

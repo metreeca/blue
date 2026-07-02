@@ -24,7 +24,7 @@ import { isNumber } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { collect, every, group, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
-import type { NumberShape } from "./number.js";
+import type { NumberConstraints, NumberShape } from "./number.js";
 
 
 /**
@@ -36,6 +36,10 @@ import type { NumberShape } from "./number.js";
  */
 export function checkNumber({
 
+	model,
+
+	integral,
+
 	minExclusive,
 	maxExclusive,
 	minInclusive,
@@ -46,15 +50,29 @@ export function checkNumber({
 
 }: {
 
+	readonly model?: number;
+
+	readonly integral?: boolean;
+
 	readonly minExclusive?: number;
 	readonly maxExclusive?: number;
 	readonly minInclusive?: number;
 	readonly maxInclusive?: number;
 
-	readonly in?: readonly number[];
+	readonly in?: readonly [number, ...number[]];
 	readonly hasValue?: readonly number[];
 
 }): undefined | Trace {
+
+	// least and greatest legal integers implied by the bounds, used for the empty-integral-range check
+
+	const lower = minInclusive !== undefined ? Math.ceil(minInclusive)
+		: minExclusive !== undefined ? Math.floor(minExclusive)+1
+			: undefined;
+
+	const upper = maxInclusive !== undefined ? Math.floor(maxInclusive)
+		: maxExclusive !== undefined ? Math.ceil(maxExclusive)-1
+			: undefined;
 
 	return collect({
 
@@ -76,25 +94,65 @@ export function checkNumber({
 
 		"{hasValue/in}": hasValue === undefined || allowed === undefined
 			|| hasValue.every(v => allowed.includes(v))
-			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`
+			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`,
+
+		"{integral/minExclusive}": !integral || minExclusive === undefined || Number.isInteger(minExclusive)
+			|| `fractional bound <${minExclusive}> on integral shape`,
+
+		"{integral/maxExclusive}": !integral || maxExclusive === undefined || Number.isInteger(maxExclusive)
+			|| `fractional bound <${maxExclusive}> on integral shape`,
+
+		"{integral/minInclusive}": !integral || minInclusive === undefined || Number.isInteger(minInclusive)
+			|| `fractional bound <${minInclusive}> on integral shape`,
+
+		"{integral/maxInclusive}": !integral || maxInclusive === undefined || Number.isInteger(maxInclusive)
+			|| `fractional bound <${maxInclusive}> on integral shape`,
+
+		"{integral/in}": !integral || allowed === undefined || allowed.every(v => Number.isInteger(v))
+			|| `fractional values [${allowed.filter(v => !Number.isInteger(v))}] on integral shape`,
+
+		"{integral/hasValue}": !integral || hasValue === undefined || hasValue.every(v => Number.isInteger(v))
+			|| `fractional values [${hasValue.filter(v => !Number.isInteger(v))}] on integral shape`,
+
+		"{integral/range}": !integral || lower === undefined || upper === undefined || lower <= upper
+			|| `no integer within bounds <[${lower}, ${upper}]>`,
+
+		// model legality: probe the prototype with the regular validator, dropping the set-level hasValue
+
+		"{model}": model === undefined || validateNumber([model], {
+
+			kind: "number",
+			model,
+
+			integral,
+
+			minExclusive,
+			maxExclusive,
+			minInclusive,
+			maxInclusive,
+
+			in: allowed
+
+		})
 
 	});
 
 }
 
+
 /**
- * Merges an overriding number shape with an inherited base shape.
+ * Reports whether an overriding number shape narrows an inherited base shape.
  *
- * Combines constraints from `source` into `target`, enforcing that overrides only narrow inherited definitions.
+ * Tests the override relation without building the merged shape: returns `undefined` when `target` only tightens
+ * `source` (matching `datatype`, not dropping `integral`, bounds not widened, `in` intersection non-empty,
+ * merged constraints consistent), or a keyed {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
  *
- * @returns The merged shape with combined constraints
- *
- * @throws {TraceError} On incompatible overrides
+ * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function mergeNumber(target: NumberShape, source: NumberShape): NumberShape {
+export function narrowsNumber(target: NumberShape, source: NumberShape): undefined | Trace {
 
 	// conjunctive: in — intersection
 
@@ -115,14 +173,18 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 	const minInclusive = target.minInclusive ?? source.minInclusive;
 	const maxInclusive = target.maxInclusive ?? source.maxInclusive;
 
-	// validate
+	return collect({
 
-	const trace = collect({
+		// structural: datatype must be strictly equal when both defined
 
-		// structural: model must be strictly equal
+		"{datatype}": target.datatype === undefined || source.datatype === undefined
+			|| target.datatype === source.datatype
+			|| `mismatched datatypes <${target.datatype}> and <${source.datatype}>`,
 
-		"{model}": target.model === source.model
-			|| `mismatched types <${target.model}> and <${source.model}>`,
+		// structural: integral — child may add but not drop the constraint
+
+		"{integral}": source.integral !== true || target.integral !== false
+			|| `dropped integral constraint`,
 
 		// narrow: minExclusive — child >= parent
 
@@ -158,21 +220,62 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 
 		...wrap(checkNumber({
 
+			integral: target.integral ?? source.integral,
+
 			minExclusive,
 			maxExclusive,
 			minInclusive,
 			maxInclusive,
 
-			in: allowed,
+			// ;(cast) the merge intersection is a plain array; its non-emptiness is reported by {in} above
+
+			in: allowed as NumberShape["in"],
 			hasValue
 
 		}))
 
 	});
 
+}
+
+/**
+ * Merges an overriding number shape with an inherited base shape.
+ *
+ * Combines constraints from `source` into `target`, enforcing that overrides only narrow inherited definitions.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns The merged shape with combined constraints
+ *
+ * @throws {TraceError} On incompatible overrides
+ */
+export function mergeNumber(target: NumberShape, source: NumberShape): NumberShape {
+
+	const trace = narrowsNumber(target, source);
+
 	if ( trace !== undefined ) {
 		throw new TraceError("incompatible number shape override", trace);
 	}
+
+	// conjunctive: in — intersection
+
+	const allowed = target.in !== undefined && source.in !== undefined
+		? target.in.filter(v => source.in!.includes(v))
+		: target.in ?? source.in;
+
+	// conjunctive: hasValue — union
+
+	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
+		? [...new Set([...target.hasValue, ...source.hasValue])]
+		: target.hasValue ?? source.hasValue;
+
+	// merged constraints
+
+	const minExclusive = target.minExclusive ?? source.minExclusive;
+	const maxExclusive = target.maxExclusive ?? source.maxExclusive;
+	const minInclusive = target.minInclusive ?? source.minInclusive;
+	const maxInclusive = target.maxInclusive ?? source.maxInclusive;
 
 	// build shape — casts are safe: non-emptiness validated above
 
@@ -180,6 +283,9 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 
 		kind: target.kind,
 		model: target.model,
+		datatype: target.datatype ?? source.datatype,
+
+		integral: target.integral ?? source.integral,
 
 		minExclusive,
 		maxExclusive,
@@ -190,6 +296,83 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 		hasValue: hasValue as NumberShape["hasValue"]
 
 	});
+
+}
+
+/**
+ * Resolves a legal prototype model for a number shape, throwing when none is legal.
+ *
+ * Draws the `in` member of smallest magnitude, else the `hasValue` member of smallest magnitude, else the supplied
+ * `model`, else `0` when it sits within the bounds, else a bound (stepping inside an exclusive limit, averaging a
+ * two-sided exclusive range). The resolved value is validated and a {@link TraceError} is thrown when it is not a
+ * legal member of the shape's value space.
+ *
+ * @param constraints The shape constraints, including the optional explicit `model`, the resolved value must satisfy
+ *
+ * @returns A legal prototype model
+ *
+ * @throws {TraceError} When the supplied or drawn model is not legal
+ */
+export function deriveNumber({
+
+	model,
+
+	integral,
+
+	minExclusive,
+	maxExclusive,
+	minInclusive,
+	maxInclusive,
+
+	in: allowed,
+	hasValue
+
+}: NumberConstraints): number {
+
+	const value = allowed !== undefined ? minimal(allowed)
+		: hasValue !== undefined ? minimal(hasValue)
+			: model !== undefined ? model
+				: nullable() ? 0
+					: minInclusive !== undefined ? minInclusive
+						: maxInclusive !== undefined ? maxInclusive
+							: minExclusive === undefined ? (maxExclusive !== undefined ? maxExclusive-1 : 0)
+								: maxExclusive === undefined || minExclusive+1 < maxExclusive ? minExclusive+1
+									: (minExclusive+maxExclusive)/2;
+
+
+	function nullable() {
+		return (minInclusive === undefined || minInclusive <= 0)
+			&& (maxInclusive === undefined || maxInclusive >= 0)
+			&& (minExclusive === undefined || minExclusive < 0)
+			&& (maxExclusive === undefined || maxExclusive > 0);
+	}
+
+	function minimal(values: readonly  number[]) : number{
+		return values.reduce((a, b) => Math.abs(b) < Math.abs(a) ? b : a);
+	}
+
+
+	const trace = validateNumber([value], {
+
+		kind: "number",
+		model: value,
+
+		integral,
+
+		minExclusive,
+		maxExclusive,
+		minInclusive,
+		maxInclusive,
+
+		in: allowed
+
+	});
+
+	if ( trace !== undefined ) {
+		throw new TraceError("inconsistent number shape constraints", trace);
+	}
+
+	return value;
 
 }
 
@@ -211,10 +394,20 @@ export function validateNumber(values: readonly unknown[], {
 	minInclusive,
 	maxInclusive,
 
+	integral,
+
 	in: allowed,
 	hasValue
 
-}: NumberShape): undefined | Trace {
+}: NumberShape, {
+
+	placeholder=false
+
+}: {
+
+	placeholder?: boolean
+
+}={}): undefined | Trace {
 
 	const matching = values.filter(isNumber);
 	const mistyped = values.length-matching.length;
@@ -223,6 +416,11 @@ export function validateNumber(values: readonly unknown[], {
 
 		"{kind}": mistyped === 0
 			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+
+		"{integral}": every(matching, value =>
+			!integral || Number.isInteger(value)
+			|| `expected integral values`
+		),
 
 		"{minExclusive}": every(matching, value =>
 			minExclusive === undefined || value > minExclusive
@@ -249,7 +447,7 @@ export function validateNumber(values: readonly unknown[], {
 			|| `expected values in [${allowed.join(", ")}]`
 		),
 
-		"{hasValue}": group(matching, group =>
+		"{hasValue}": placeholder || group(matching, group =>
 			hasValue === undefined || hasValue.every(v => group.includes(v))
 			|| `expected values to include [${hasValue.join(", ")}]`
 		)

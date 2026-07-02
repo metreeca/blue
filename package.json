@@ -26,6 +26,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./value": "./dist/value.js",
+    "./union": "./dist/union.js",
     "./boolean": "./dist/boolean.js",
     "./number": "./dist/number.js",
     "./string": "./dist/string.js",

@@ -26,8 +26,8 @@
 import type { IRI } from "@metreeca/core/resource";
 import { type Reference } from "@metreeca/qest";
 import { describe, expectTypeOf, test } from "vitest";
+import type { BooleanShape } from "./boolean.js";
 import { validate } from "./index.js";
-import { text } from "./text.js";
 import type { NumberShape } from "./number.js";
 import {
 	type Content,
@@ -49,9 +49,10 @@ import {
 	type Type,
 	type
 } from "./resource.js";
-import type { BooleanShape } from "./boolean.js";
 import type { StringShape } from "./string.js";
-import { multiple, optional, repeatable, required, type SetShape, union } from "./value.js";
+import { text } from "./text.js";
+import { union } from "./union.js";
+import { multiple, optional, repeatable, required, type SetShape } from "./value.js";
 
 
 // helper shapes for tests
@@ -655,6 +656,7 @@ describe("Inheritance", () => {
 
 	test("intersects multi-parent models", () => {
 		function P1() { return resource({ a: required(string()) }); }
+
 		function P2() { return resource({ b: required(integer()) }); }
 
 		expectTypeOf<Inheritance<{ extends: readonly [typeof P1, typeof P2] }>>()

@@ -34,7 +34,7 @@
  *
  * const Product = resource({
  *   id: id(),
- *   name: required(string({ minLength: 1, maxLength: 100 })),
+ *   name: required(string({ model: "name", minLength: 1, maxLength: 100 })),
  *   price: required(integer({ minInclusive: 0 })),
  *   available: optional(boolean()),
  *   tags: repeatable(string()),
@@ -101,6 +101,7 @@
  */
 
 import { type Lazy } from "@metreeca/core";
+import { map } from "@metreeca/core/combo";
 import { equals, seal } from "@metreeca/core/deep";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { type Reference } from "@metreeca/qest";
@@ -373,129 +374,131 @@ export function validate(value: unknown, {
 
 }> {
 
-	const resolved = eager(shape);
+	return map(eager(shape), shape => {
 
-	if ( model === true ) {
+		if ( model === true ) {
 
-		const sealed = seal<{
+			const sealed = seal<{
 
-			readonly model: boolean | Template
-			readonly shape: ResourceShape
+				readonly model: boolean | Template
+				readonly shape: ResourceShape
 
-			readonly plain?: boolean
-			readonly depth?: number
-			readonly limit?: number
+				readonly plain?: boolean
+				readonly depth?: number
+				readonly limit?: number
 
-		}>(value, Validated);
+			}>(value, Validated);
 
-		if ( sealed !== undefined && sealed.model === true
-			&& resolved === sealed.shape
-			&& (!plain || sealed.plain)
-			&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
-			&& (!limit || sealed.limit && sealed.limit <= limit) // limit === 0 effectively undefined
-		) {
+			if ( sealed !== undefined && sealed.model === true
+				&& shape === sealed.shape
+				&& (!plain || sealed.plain)
+				&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
+				&& (!limit || sealed.limit && sealed.limit <= limit) // limit === 0 effectively undefined
+			) {
 
-			return createRelay({ value });
+				return createRelay({ value });
 
-		} else {
+			} else {
 
-			const trace = validateTemplate([value], resolved, { depth, plain, limit });
+				const trace = validateTemplate([value], shape, { depth, plain, limit });
 
-			return trace !== undefined ? createRelay({ trace }) : createRelay({
+				return trace !== undefined ? createRelay({ trace }) : createRelay({
 
-				value: seal(enforce(value, resolved, { limit }), Validated, {
+					value: seal(enforce(value, shape, { limit }), Validated, {
 
-					model: true,
-					shape: resolved,
+						model: true,
+						shape: shape,
 
-					plain,
-					depth,
-					limit
+						plain,
+						depth,
+						limit
 
-				})
+					})
 
-			});
+				});
 
-		}
+			}
 
-	} else if ( model !== undefined && model !== false ) {
+		} else if ( model !== undefined && model !== false ) {
 
-		const sealed = seal<{
+			const sealed = seal<{
 
-			readonly model: boolean | Template
-			readonly shape: ResourceShape
+				readonly model: boolean | Template
+				readonly shape: ResourceShape
 
-			readonly entry?: Reference
+				readonly entry?: Reference
 
-		}>(value, Validated);
+			}>(value, Validated);
 
-		if ( sealed !== undefined && sealed.model !== true && sealed.model !== false
-			&& equals(sealed.model, model)
-			&& resolved === sealed.shape
-			&& (entry === undefined || sealed.entry === entry)
-		) {
+			if ( sealed !== undefined && sealed.model !== true && sealed.model !== false
+				&& equals(sealed.model, model)
+				&& shape === sealed.shape
+				&& (entry === undefined || sealed.entry === entry)
+			) {
 
-			return createRelay({ value });
+				return createRelay({ value });
 
-		} else {
+			} else {
 
-			const trace = validateResult([value], { shape: resolved, model, entry });
+				const trace = validateResult([value], { shape: shape, model, entry });
 
-			return trace !== undefined ? createRelay({ trace }) : createRelay({
+				return trace !== undefined ? createRelay({ trace }) : createRelay({
 
-				value: seal(value, Validated, {
+					value: seal(value, Validated, {
 
-					model,
-					shape: resolved,
+						model,
+						shape: shape,
 
-					entry
+						entry
 
-				})
+					})
 
-			});
+				});
 
-		}
-
-	} else {
-
-		const sealed = seal<{
-
-			readonly model: boolean | Template
-			readonly shape: ResourceShape
-
-			readonly entry?: Reference
-			readonly depth?: number
-
-		}>(value, Validated);
-
-		if ( sealed !== undefined && sealed.model === false
-			&& resolved === sealed.shape
-			&& (entry === undefined || sealed.entry === entry)
-			&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
-		) {
-
-			return createRelay({ value });
+			}
 
 		} else {
 
-			const trace = validateResource([value], resolved, { entry, depth });
+			const sealed = seal<{
 
-			return trace !== undefined ? createRelay({ trace }) : createRelay({
+				readonly model: boolean | Template
+				readonly shape: ResourceShape
 
-				value: seal(value, Validated, {
+				readonly entry?: Reference
+				readonly depth?: number
 
-					model: false,
-					shape: resolved,
+			}>(value, Validated);
 
-					entry,
-					depth
+			if ( sealed !== undefined && sealed.model === false
+				&& shape === sealed.shape
+				&& (entry === undefined || sealed.entry === entry)
+				&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
+			) {
 
-				})
+				return createRelay({ value });
 
-			});
+			} else {
+
+				const trace = validateResource([value], shape, { entry, depth });
+
+				return trace !== undefined ? createRelay({ trace }) : createRelay({
+
+					value: seal(value, Validated, {
+
+						model: false,
+						shape: shape,
+
+						entry,
+						depth
+
+					})
+
+				});
+
+			}
 
 		}
 
-	}
+	});
 
 }

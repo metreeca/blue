@@ -30,7 +30,8 @@ description: Development guidelines and conventions for the @metreeca/blue packa
 
 # Data Model
 
-**CRITICAL: Retrieval models contain only bindings.** Plain property keys like `{ name }` are shorthands for
-`{ name=name }` and are handled by `decodeProbe()` with no need for dedicated processing. All model entries — whether
-explicit bindings like `"alias=year:released"` or implicit ones like `"name"` — are uniformly processed through
-`decodeProbe()` and `apply()`.
+**CRITICAL: `Template` keys are property identifiers, never bindings.** A `Template` (`{ [Identifier]: Placeholders }`)
+retrieves a resource: its keys are plain property names, validated against `shape.properties` by `validateResult`.
+Projection bindings (`"alias=year:released"`) key a `Projection`, and selection operators (`"<price"`, `"#"`) key a
+`Selection`; both appear only inside a collection `Query` and are decoded through `decodeProbe()` / `effective()` by
+`validateTemplate`, not by `validateResult`.

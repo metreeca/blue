@@ -15,15 +15,17 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { string } from "./string.js";
 import {
 	checkText,
-	checkTextModel,
+	deriveText,
 	mergeText,
-	validateLocaleStrings,
-	validateTextStrings,
-	validateText,
+	narrowsText,
 	validateLocaleString,
-	validateTextString
+	validateLocaleStrings,
+	validateText,
+	validateTextString,
+	validateTextStrings
 } from "./text.core.js";
 import { text } from "./text.js";
 
@@ -46,7 +48,11 @@ describe("factories", () => {
 				["no arguments", () => text().model, { "*": "" }],
 				["empty constraints", () => text({}).model, { "*": "" }],
 				["a scalar model argument", () => text({ "*": "example" }).model, { "*": "example" }],
-				["a multi-tag model argument", () => text({ en: "hello", fr: "bonjour" }).model, { en: "hello", fr: "bonjour" }]
+				["a multi-tag model argument", () => text({ en: "hello", fr: "bonjour" }).model, {
+					en: "hello",
+					fr: "bonjour"
+				}],
+				["a languageIn constraint", () => text({ languageIn: ["en", "it"] }).model, { en: "", it: "" }]
 			])("resolves model from %s", async (_label, model, expected) => {
 
 				expect(model()).toEqual(expected);
@@ -186,6 +192,172 @@ describe("operators", () => {
 
 			expect(trace).toBeDefined();
 			expect(trace).toHaveProperty("{minLength/maxLength}");
+
+		});
+
+		describe("model", () => {
+
+			it("rejects plain string (no bare-string shorthand)", async () => {
+
+				expect(checkText({ model: "hello" } as any)).toHaveProperty("{model}");
+				expect(checkText({ model: "" } as any)).toHaveProperty("{model}");
+
+			});
+
+			it("rejects singleton string array (no bare-array shorthand)", async () => {
+
+				expect(checkText({ model: ["hello"] } as any)).toHaveProperty("{model}");
+
+			});
+
+			it("rejects multi-element string array", async () => {
+
+				expect(checkText({ model: ["hello", "world"] } as any)).toHaveProperty("{model}");
+
+			});
+
+			it("accepts object with string values", async () => {
+
+				expect(checkText({ model: { "en": "hello" } } as any)).toBeUndefined();
+
+			});
+
+			it("accepts object with singleton string array values", async () => {
+
+				expect(checkText({ model: { "en": ["hello"] } } as any)).toBeUndefined();
+
+			});
+
+			it("rejects object with multi-element string array values", async () => {
+
+				const trace = checkText({ model: { "en": ["hello", "world"] } } as any);
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty(["{model}", "en"]);
+
+			});
+
+			it("accepts object with valid tag range keys", async () => {
+
+				expect(checkText({ model: { "*": ["hello"] } } as any)).toBeUndefined();
+				expect(checkText({ model: { "en-US": ["hello"] } } as any)).toBeUndefined();
+
+			});
+
+			it("accepts empty object", async () => {
+
+				expect(checkText({ model: {} } as any)).toBeUndefined();
+
+			});
+
+			it("rejects non-string non-array non-object value", async () => {
+
+				expect(checkText({ model: 42 } as any)).toHaveProperty("{model}");
+				expect(checkText({ model: true } as any)).toHaveProperty("{model}");
+				expect(checkText({ model: null } as any)).toHaveProperty("{model}");
+
+			});
+
+			it("reports invalid tag range keys", async () => {
+
+				const trace = checkText({ model: { "123": ["hello"] } } as any);
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty(["{model}", "123"]);
+
+				// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
+
+				const extended = checkText({ model: { "en-*": ["hello"] } } as any);
+
+				expect(extended).toBeDefined();
+				expect(extended).toHaveProperty(["{model}", "en-*"]);
+
+			});
+
+			it("reports non-string non-array values", async () => {
+
+				const trace = checkText({ model: { en: 42 } } as any);
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty(["{model}", "en"]);
+
+			});
+
+			it("reports only invalid entries in mixed object", async () => {
+
+				const trace = checkText({ model: { en: ["hello"], "123": ["bad"], fr: 42 } } as any);
+
+				expect(trace).toBeDefined();
+				expect(trace).toHaveProperty(["{model}", "123"]);
+				expect(trace).toHaveProperty(["{model}", "fr"]);
+				expect(trace).not.toHaveProperty(["{model}", "en"]);
+
+			});
+
+			it("rejects mixed scalar and singleton-array values across tag-range keys", async () => {
+
+				// qest's Locale type defines `{ TagRange: string }` and `{ TagRange: [string] }` as
+				// distinct arms; a single map with both shapes satisfies neither
+
+				expect(checkText({ model: { en: "hello", fr: ["bonjour"] } } as any)).toHaveProperty("{model}");
+
+			});
+
+			describe("selection operator keys rejected", () => {
+
+				// localised properties carry no inline Selection — Locale is its own Placeholders
+				// arm, not a Locale & Selection branch — so an operator-prefixed key is just an
+				// invalid tag range
+
+				it("reports a selection key alongside tag-range keys as an invalid tag range", async () => {
+
+					const trace = checkText({ model: { en: ["hi"], ">=length:": 5 } } as any);
+
+					expect(trace).toHaveProperty(["{model}", ">=length:"]);
+					expect(trace).not.toHaveProperty(["{model}", "en"]);
+
+				});
+
+				it("rejects an object with only selection keys", async () => {
+
+					expect(checkText({ model: { ">=length:": 5 } } as any)).toHaveProperty("{model}");
+
+				});
+
+				it.each([
+					["keyword search", { en: ["hi"], "~": "foo" }],
+					["sort ordering", { en: ["hi"], "^": "asc" }],
+					["pagination offset", { en: ["hi"], ":": 0 }],
+					["pagination limit", { en: ["hi"], "#": 10 }]
+				])("rejects %s selection key", async (_label, value) => {
+
+					expect(checkText({ model: value } as any)).toHaveProperty("{model}");
+
+				});
+
+			});
+
+		});
+
+	});
+
+	describe("narrowsText", () => {
+
+		it("accepts a child that tightens minLength", async () => {
+
+			expect(narrowsText(text({ minLength: 5 }), text())).toBeUndefined();
+
+		});
+
+		it("rejects a child that widens minLength", async () => {
+
+			expect(narrowsText(text({ minLength: 1 }), text({ minLength: 5 }))).toBeDefined();
+
+		});
+
+		it("rejects a child with a disjoint languageIn", async () => {
+
+			expect(narrowsText(text({ languageIn: ["en"] }), text({ languageIn: ["fr"] }))).toBeDefined();
 
 		});
 
@@ -396,150 +568,25 @@ describe("operators", () => {
 
 	});
 
-	describe("checkTextModel", () => {
+	describe("deriveText", () => {
 
-		it("rejects plain string (no bare-string shorthand)", async () => {
+		it("derives the wildcard placeholder when no language constraint is set", async () => {
 
-			expect(checkTextModel("hello")).toBeDefined();
-			expect(checkTextModel("")).toBeDefined();
-
-		});
-
-		it("rejects singleton string array (no bare-array shorthand)", async () => {
-
-			expect(checkTextModel(["hello"])).toBeDefined();
+			expect(deriveText({})).toEqual({ "*": "" });
 
 		});
 
-		it("rejects multi-element string array", async () => {
+		it("derives an empty placeholder keyed by every languageIn range", async () => {
 
-			expect(checkTextModel(["hello", "world"])).toBeDefined();
-
-		});
-
-		it("accepts object with string values", async () => {
-
-			expect(checkTextModel({ "en": "hello" })).toBeUndefined();
-
-		});
-
-		it("accepts object with singleton string array values", async () => {
-
-			expect(checkTextModel({ "en": ["hello"] })).toBeUndefined();
-
-		});
-
-		it("rejects object with multi-element string array values", async () => {
-
-			const result = checkTextModel({ "en": ["hello", "world"] });
-
-			expect(result).toBeDefined();
-			expect(result).toHaveProperty("en");
-
-		});
-
-		it("accepts object with valid tag range keys", async () => {
-
-			expect(checkTextModel({ "*": ["hello"] })).toBeUndefined();
-			expect(checkTextModel({ "en-US": ["hello"] })).toBeUndefined();
-
-		});
-
-		it("accepts empty object", async () => {
-
-			expect(checkTextModel({})).toBeUndefined();
-
-		});
-
-		it("rejects non-string non-array non-object value", async () => {
-
-			expect(checkTextModel(42)).toBeDefined();
-			expect(checkTextModel(true)).toBeDefined();
-			expect(checkTextModel(null)).toBeDefined();
-
-		});
-
-		it("reports invalid tag range keys", async () => {
-
-			const result = checkTextModel({ "123": ["hello"] });
-
-			expect(result).toBeDefined();
-			expect(result).toHaveProperty("123");
-
-			// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
-
-			const extended = checkTextModel({ "en-*": ["hello"] });
-
-			expect(extended).toBeDefined();
-			expect(extended).toHaveProperty("en-*");
-
-		});
-
-		it("reports non-string non-array values", async () => {
-
-			const result = checkTextModel({ en: 42 });
-
-			expect(result).toBeDefined();
-			expect(result).toHaveProperty("en");
-
-		});
-
-		it("reports only invalid entries in mixed object", async () => {
-
-			const result = checkTextModel({ en: ["hello"], "123": ["bad"], fr: 42 });
-
-			expect(result).toBeDefined();
-			expect(result).toHaveProperty("123");
-			expect(result).toHaveProperty("fr");
-			expect(result).not.toHaveProperty("en");
-
-		});
-
-		it("rejects mixed scalar and singleton-array values across tag-range keys", async () => {
-
-			// qest's Locale type defines `{ TagRange: string }` and `{ TagRange: [string] }` as
-			// distinct arms; a single map with both shapes satisfies neither
-
-			expect(checkTextModel({ en: "hello", fr: ["bonjour"] })).toBeDefined();
-
-		});
-
-		describe("selection operator keys rejected", () => {
-
-			// localised properties carry no inline Selection — Locale is its own Placeholders
-			// arm, not a Locale & Selection branch — so an operator-prefixed key is just an
-			// invalid tag range
-
-			it("reports a selection key alongside tag-range keys as an invalid tag range", async () => {
-
-				const result = checkTextModel({ en: ["hi"], ">=length:": 5 });
-
-				expect(result).toHaveProperty(">=length:");
-				expect(result).not.toHaveProperty("en");
-
-			});
-
-			it("rejects an object with only selection keys", async () => {
-
-				expect(checkTextModel({ ">=length:": 5 })).toBeDefined();
-
-			});
-
-			it.each([
-				["keyword search", { en: ["hi"], "~": "foo" }],
-				["sort ordering", { en: ["hi"], "^": "asc" }],
-				["pagination offset", { en: ["hi"], ":": 0 }],
-				["pagination limit", { en: ["hi"], "#": 10 }]
-			])("rejects %s selection key", async (_label, value) => {
-
-				expect(checkTextModel(value)).toBeDefined();
-
-			});
+			expect(deriveText({ languageIn: ["en", "it"] })).toEqual({ en: "", it: "" });
 
 		});
 
 	});
 
+});
+
+describe("validators", () => {
 
 	describe("validateText", () => {
 

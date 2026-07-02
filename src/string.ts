@@ -28,13 +28,14 @@
  * | ----------------- | ------------------- | ---------------------------------- | ----------------------------- |
  * | [string][]        | {@link string}      | Unicode character sequence         |                               |
  * | string            | {@link email}       | [RFC 5321][] email address         |                               |
+ * | string            | {@link phone}       | [ITU-T E.164][] telephone number   |                               |
  * | string            | {@link iri}         | [RFC 3987][] IRI reference         |                               |
  * | string            | {@link url}         | [RFC 3986][] hierarchical URL      |                               |
  * | [gYear][]         | {@link year} ²      | [ISO 8601][iso-year] year          | YYYY[Z/±hh:mm]                |
  * | [date][]          | {@link date}        | [ISO 8601][iso-date] date          | YYYY-MM-DD[Z/±hh:mm]          |
  * | [time][]          | {@link time}        | [ISO 8601][iso-time] time          | hh:mm:ss[.sss][Z/±hh:mm]      |
  * | [dateTime][]      | {@link instant}     | [ISO 8601][iso-datetime] date+time | YYYY-MM-DDThh:mm:ss[.sss][TZ] |
- * | [dateTimeStamp][] | {@link timestamp} ³ | [ISO 8601][iso-datetime] timestamp | YYYY-MM-DDThh:mm:ss.sssZ      |
+ * | [dateTime][]      | {@link timestamp} ³ | [ISO 8601][iso-datetime] UTC timestamp | YYYY-MM-DDThh:mm:ss.sssZ |
  * | [duration][]      | {@link duration}    | [ISO 8601][iso-duration] duration  | [-]PnYnMnDTnHnMnS             |
  *
  * [string]: https://www.w3.org/TR/xmlschema-2/#string
@@ -43,12 +44,12 @@
  * [date]: https://www.w3.org/TR/xmlschema-2/#date
  * [time]: https://www.w3.org/TR/xmlschema-2/#time
  * [dateTime]: https://www.w3.org/TR/xmlschema-2/#dateTime
- * [dateTimeStamp]: https://www.w3.org/TR/xmlschema11-2/#dateTimeStamp
  * [duration]: https://www.w3.org/TR/xmlschema-2/#duration
  *
  * [RFC 5321]: https://datatracker.ietf.org/doc/html/rfc5321
  * [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
  * [RFC 3987]: https://datatracker.ietf.org/doc/html/rfc3987
+ * [ITU-T E.164]: https://www.itu.int/rec/T-REC-E.164
  * [iso-year]: https://en.wikipedia.org/wiki/ISO_8601#Years
  * [iso-date]: https://en.wikipedia.org/wiki/ISO_8601#Dates
  * [iso-time]: https://en.wikipedia.org/wiki/ISO_8601#Times
@@ -56,13 +57,14 @@
  * [iso-duration]: https://en.wikipedia.org/wiki/ISO_8601#Durations
  *
  * ¹ XSD 1.0 datatypes are referenced by [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/) and
- * [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) as normative;
- * `dateTimeStamp` is defined in [XSD 1.1](https://www.w3.org/TR/xmlschema11-2/#dateTimeStamp)
+ * [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) as normative
  *
  * ² [XSD 1.1 Part 2 § D.3.4](https://www.w3.org/TR/xmlschema11-2/#deviantformats) permits optional timezone indicators
  * for `gYear` as a deviation from ISO 8601
  *
- * ³ Requires exactly 3 fractional second digits (millisecond precision) and UTC timezone (`Z` only)
+ * ³ Requires exactly 3 fractional second digits (millisecond precision) and UTC timezone (`Z` only); typed as
+ * `xsd:dateTime` rather than the more specific `xsd:dateTimeStamp` for compatibility with SPARQL temporal functions,
+ * which are defined over `xsd:dateTime`
  *
  * **Compatibility**
  *
@@ -75,11 +77,14 @@
  * ```typescript
  * import { string } from '@metreeca/blue/string';
  *
- * const text = string();                                 // unconstrained string
- * const name = string({ minLength: 1, maxLength: 100 }); // length-constrained
- * const code = string({ pattern: /^[A-Z]{3}-\d{4}$/ });  // pattern-constrained
- * const status = string({ in: ["active", "inactive"] }); // enumeration-constrained
+ * const text = string();                                                  // unconstrained string
+ * const name = string({ model: "name", minLength: 1, maxLength: 100 });   // length-constrained
+ * const code = string({ model: "ABC-1234", pattern: /^[A-Z]{3}-\d{4}$/ });// pattern-constrained
+ * const status = string({ in: ["active", "inactive"] });                  // enumeration-constrained
  * ```
+ *
+ * > A constrained `model` placeholder must itself be a legal value for the shape; a `pattern` the synthesised
+ * > placeholder cannot satisfy requires an explicit `model` (or an `in`/`hasValue` member to derive from).
  *
  * **Specialised String Factories**
  *
@@ -106,7 +111,7 @@
  * import { string, email, date } from '@metreeca/blue/string';
  *
  * const Person = resource({
- *   name: required(string({ minLength: 1 })),
+ *   name: required(string({ model: "name", minLength: 1 })),
  *   email: optional(email()),
  *   birthDate: optional(date())
  * });
@@ -120,10 +125,12 @@
  */
 
 import { isRegExp, isString } from "@metreeca/core";
+import { xsd } from "@metreeca/core/datatype";
 import { immutable } from "@metreeca/core/deep";
-import type { Variant } from "@metreeca/core/resource";
+import { type Variant } from "@metreeca/core/resource";
+import type { Reference } from "@metreeca/qest";
 import { TraceError } from "./index.core.js";
-import { checkString } from "./string.core.js";
+import { checkString, deriveString } from "./string.core.js";
 
 
 /**
@@ -138,15 +145,16 @@ import { checkString } from "./string.core.js";
  * string-valued properties are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
- * | Field       | Override Rule                                                                     |
- * | ----------- | --------------------------------------------------------------------------------- |
- * | `kind`      | Cannot be overridden                                                              |
- * | `model`     | Must be strictly equal — mismatch signals incompatible datatypes                  |
- * | `pattern`   | Parent and child patterns are combined so that both apply                          |
- * | `minLength` | Child ≥ parent, narrowing the minimum length                                           |
- * | `maxLength` | Child ≤ parent, narrowing the maximum length                                           |
- * | `in`        | Intersection of parent and child sets; empty result is reported as an error                  |
- * | `hasValue`  | Union of parent and child required values; child must require all parent values       |
+ * | Field       | Override Rule                                                                      |
+ * | ----------- | ---------------------------------------------------------------------------------- |
+ * | `kind`      | Cannot be overridden                                                               |
+ * | `model`     | Taken from the child: a validated sample value                                     |
+ * | `datatype`  | Must be strictly equal when both defined; the single defined value carries through |
+ * | `pattern`   | Must be strictly equal when both defined; the single defined value carries through |
+ * | `minLength` | Child ≥ parent, narrowing the minimum length                                       |
+ * | `maxLength` | Child ≤ parent, narrowing the maximum length                                       |
+ * | `in`        | Intersection of parent and child sets; empty result is reported as an error        |
+ * | `hasValue`  | Union of parent and child required values; child must require all parent values    |
  *
  * **Cross-Field Validation**
  *
@@ -167,10 +175,8 @@ export interface StringShape extends StringConstraints {
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
-	 * **Inheritance** — must be strictly equal between parent and child; a mismatch signals
-	 * incompatible datatypes (for example, `date` vs `email`). Within a {@link value!union | union}, the prototype value
-	 * also discriminates the variant's datatype, so differently-typed string variants form distinct discriminator
-	 * groups.
+	 * A sample value drawn from the shape's value space: factories validate it against the value constraints at
+	 * construction, and a merge keeps the child's value.
 	 *
 	 * @defaultValue `""` (empty string)
 	 */
@@ -179,10 +185,12 @@ export interface StringShape extends StringConstraints {
 	/**
 	 * Regular expression pattern that values must match.
 	 *
-	 * The pattern is tested against the entire value. Use anchors (`^` and `$`) to match
-	 * the complete string rather than partial matches.
+	 * The pattern is matched without anchoring: the constraint holds when the pattern occurs anywhere
+	 * within the value. Use anchors (`^` and `$`) to require a match against the complete string.
 	 *
-	 * **Inheritance** — parent and child patterns are combined so that both apply.
+	 * **Inheritance** — must be strictly equal when both parent and child define it; otherwise the single defined value
+	 * carries through. Within a {@link union!union | union}, this equality makes `pattern` a discriminator: two
+	 * same-datatype string variants that differ only by `pattern` are distinct branches.
 	 *
 	 * @defaultValue `undefined` (no pattern constraint)
 	 *
@@ -201,11 +209,29 @@ export interface StringShape extends StringConstraints {
 export interface StringConstraints extends TextualConstraints {
 
 	/**
-	 * Prototype value for runtime model assembly.
+	 * Explicit prototype value for runtime model assembly.
 	 *
-	 * @defaultValue `""` (empty string)
+	 * Seeds the prototype the factory validates against the value constraints. When omitted, the prototype is derived
+	 * from the value space: an `in` or `hasValue` member, else a `minLength`-long filler, else the empty string. When
+	 * supplied, it must itself be a legal value, which a restrictive `pattern` may otherwise require.
+	 *
+	 * @defaultValue `undefined` (the prototype is derived from the value constraints)
 	 */
 	readonly model?: string;
+
+	/**
+	 * RDF datatype IRI for the textual literal.
+	 *
+	 * Infers the RDF datatype of validated JSON values, which carry no datatype information of their own.
+	 *
+	 * **Inheritance** — must be strictly equal when both parent and child define it; otherwise the single defined value
+	 * carries through. A mismatch signals incompatible datatypes.
+	 *
+	 * @defaultValue `undefined` (falls back to `xsd:string`)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#DatatypeConstraintComponent SHACL § 4.2.2 sh:datatype}
+	 */
+	readonly datatype?: Reference;
 
 
 	/**
@@ -234,10 +260,12 @@ export interface StringConstraints extends TextualConstraints {
 	/**
 	 * Regular expression pattern that values must match.
 	 *
-	 * The pattern is tested against the entire value. Use anchors (`^` and `$`) to match
-	 * the complete string rather than partial matches.
+	 * The pattern is matched without anchoring: the constraint holds when the pattern occurs anywhere
+	 * within the value. Use anchors (`^` and `$`) to require a match against the complete string.
 	 *
-	 * **Inheritance** — parent and child patterns are combined so that both apply.
+	 * **Inheritance** — must be strictly equal when both parent and child define it; otherwise the single defined value
+	 * carries through. Within a {@link union!union | union}, this equality makes `pattern` a discriminator: two
+	 * same-datatype string variants that differ only by `pattern` are distinct branches.
 	 *
 	 * @defaultValue `undefined` (no pattern constraint)
 	 *
@@ -316,7 +344,7 @@ export function string<M extends string>(model: M): StringShape & { readonly mod
  * ```typescript
  * const text = string();
  * const name = string({ minLength: 1, maxLength: 100 });
- * const code = string({ pattern: /^[A-Z]{3}-\d{4}$/ });
+ * const code = string({ model: "ABC-1234", pattern: /^[A-Z]{3}-\d{4}$/ });
  * ```
  */
 export function string<const C extends StringConstraints>(constraints?: C): StringShape;
@@ -326,16 +354,18 @@ export function string<const C extends StringConstraints>(constraints?: C): Stri
  */
 export function string(constraints: string | StringConstraints = {}): StringShape {
 
-	const { model, pattern, ...rest } = isString(constraints) ? { model: constraints } : constraints;
+	const effective = isString(constraints) ? { model: constraints } : constraints;
+
+	const source = isRegExp(effective.pattern) ? effective.pattern.source : effective.pattern;
 
 	const shape: StringShape = immutable({
 
 		kind: "string",
-		model: model ?? "",
 
-		pattern: isRegExp(pattern) ? pattern.source : pattern,
+		...effective,
 
-		...rest
+		model: deriveString({ ...effective, pattern: source }),
+		pattern: source
 
 	});
 
@@ -355,6 +385,8 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 /**
  * Creates a shape for email address values.
  *
+ * Defaults the datatype to `xsd:string`.
+ *
  * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating email addresses
@@ -362,15 +394,45 @@ export function string(constraints: string | StringConstraints = {}): StringShap
  * @see {@link https://datatracker.ietf.org/doc/html/rfc5321 RFC 5321 - Simple Mail Transfer Protocol}
  */
 export function email(constraints: TextualConstraints = {}): StringShape {
+
 	return string({
 		model: "user@example.net",
+		datatype: xsd.string,
 		pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
 		...constraints
 	});
+
+}
+
+/**
+ * Creates a shape for telephone number values.
+ *
+ * Defaults the datatype to `xsd:string`.
+ *
+ * Accepts numbers in ITU-T E.164 notation: a leading `+`, a non-zero country code digit, and up to 14 further digits,
+ * with no spaces or separators (for example, `+15555550123`).
+ *
+ * @param constraints Optional {@link TextualConstraints validation constraints}
+ *
+ * @returns An immutable shape for validating E.164 telephone numbers
+ *
+ * @see {@link https://www.itu.int/rec/T-REC-E.164 ITU-T E.164 - International public telecommunication numbering plan}
+ */
+export function phone(constraints: TextualConstraints = {}): StringShape {
+
+	return string({
+		model: "+15555550123",
+		datatype: xsd.string,
+		pattern: /^\+[1-9]\d{1,14}$/,
+		...constraints
+	});
+
 }
 
 /**
  * Creates a shape for Internationalized Resource Identifier values.
+ *
+ * Defaults the datatype to `xsd:string`.
  *
  * IRIs generalise URIs (RFC 3986) and URLs by allowing the full Unicode character set beyond ASCII. The `variant`
  * constraint controls which subset of the IRI hierarchy is accepted: `hierarchical` (URLs/IRLs with authority),
@@ -387,13 +449,13 @@ export function iri(constraints: TextualConstraints & {
 
 	readonly  variant?: Variant
 
-} = { 
-	
+} = {
+
 	variant: "relative"
 
 }): StringShape {
 
-	const { variant = "relative", ...textual } = constraints;
+	const { variant = "relative" } = constraints;
 
 	return string({
 
@@ -402,18 +464,23 @@ export function iri(constraints: TextualConstraints & {
 				: variant === "internal" ? "/path"
 					: "./path",
 
+		datatype: xsd.string,
+
 		pattern: variant === "hierarchical" ? /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\S*$/
 			: variant === "absolute" ? /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/
 				: variant === "internal" ? /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\S+|\/\S*)$/
 					: /^\S+$/,
 
-		...textual
+		...constraints
+
 	});
 
 }
 
 /**
  * Creates a shape for hierarchical URL values.
+ *
+ * Defaults the datatype to `xsd:string`.
  *
  * Convenience alias for {@link iri} with `variant: "hierarchical"`, accepting only URLs with a scheme and authority
  * component (for example, `https://example.net/path`).
@@ -437,6 +504,8 @@ export function url(constraints: TextualConstraints = {}): StringShape {
 /**
  * Creates a shape for ISO 8601 year values (YYYY).
  *
+ * Defaults the datatype to `xsd:gYear`.
+ *
  * Supports optional timezone indicators (Z for UTC or ±hh:mm offset).
  *
  * @param constraints Optional {@link TextualConstraints validation constraints}
@@ -453,6 +522,7 @@ export function year(constraints: TextualConstraints = {}): StringShape {
 
 	return string({
 		model: "1970",
+		datatype: xsd.gYear,
 		pattern: /^\d{4}(?:Z|[+-]\d{2}:\d{2})?$/,
 		...constraints
 	});
@@ -461,6 +531,8 @@ export function year(constraints: TextualConstraints = {}): StringShape {
 
 /**
  * Creates a shape for ISO 8601 calendar date values (YYYY-MM-DD).
+ *
+ * Defaults the datatype to `xsd:date`.
  *
  * @param constraints Optional {@link TextualConstraints validation constraints}
  *
@@ -472,6 +544,7 @@ export function date(constraints: TextualConstraints = {}): StringShape {
 
 	return string({
 		model: "1970-01-01",
+		datatype: xsd.date,
 		pattern: /^\d{4}-\d{2}-\d{2}(?:Z|[+-]\d{2}:\d{2})?$/,
 		...constraints
 	});
@@ -480,6 +553,8 @@ export function date(constraints: TextualConstraints = {}): StringShape {
 
 /**
  * Creates a shape for ISO 8601 time of day values (hh:mm:ss).
+ *
+ * Defaults the datatype to `xsd:time`.
  *
  * @param constraints Optional {@link TextualConstraints validation constraints}
  *
@@ -491,6 +566,7 @@ export function time(constraints: TextualConstraints = {}): StringShape {
 
 	return string({
 		model: "00:00:00",
+		datatype: xsd.time,
 		pattern: /^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
 		...constraints
 	});
@@ -499,6 +575,8 @@ export function time(constraints: TextualConstraints = {}): StringShape {
 
 /**
  * Creates a shape for ISO 8601 date and time values (YYYY-MM-DDThh:mm:ss).
+ *
+ * Defaults the datatype to `xsd:dateTime`.
  *
  * @param constraints Optional {@link TextualConstraints validation constraints}
  *
@@ -510,6 +588,7 @@ export function instant(constraints: TextualConstraints = {}): StringShape {
 
 	return string({
 		model: "1970-01-01T00:00:00",
+		datatype: xsd.dateTime,
 		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
 		...constraints
 	});
@@ -517,24 +596,24 @@ export function instant(constraints: TextualConstraints = {}): StringShape {
 }
 
 /**
- * Creates a shape for ISO 8601 timestamp values with millisecond precision (YYYY-MM-DDThh:mm:ss.sssZ).
+ * Creates a shape for UTC timestamp values with millisecond precision (YYYY-MM-DDThh:mm:ss.sssZ).
  *
- * Requires exactly 3 fractional second digits (millisecond precision) and UTC timezone (Z only).
+ * Defaults the datatype to `xsd:dateTime` rather than the more specific `xsd:dateTimeStamp` so values remain compatible
+ * with SPARQL temporal functions, which are defined over `xsd:dateTime`.
+ *
+ * Requires exactly 3 fractional second digits (millisecond precision) and UTC timezone (`Z` only).
  *
  * @param constraints Optional {@link TextualConstraints validation constraints}
  *
- * @returns An immutable shape for validating ISO 8601 timestamp strings
+ * @returns An immutable shape for validating UTC timestamp strings
  *
- * @remarks
- *
- * Applies further restrictions beyond xsd:dateTimeStamp to ensure consistent precision and timezone.
- *
- * @see {@link https://www.w3.org/TR/xmlschema11-2/#dateTimeStamp XSD 1.1 Part 2: Datatypes § 3.4.28 dateTimeStamp}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
 export function timestamp(constraints: TextualConstraints = {}): StringShape {
 
 	return string({
 		model: "1970-01-01T00:00:00.000Z",
+		datatype: xsd.dateTime,
 		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
 		...constraints
 	});
@@ -543,6 +622,8 @@ export function timestamp(constraints: TextualConstraints = {}): StringShape {
 
 /**
  * Creates a shape for ISO 8601 duration values (PnYnMnDTnHnMnS).
+ *
+ * Defaults the datatype to `xsd:duration`.
  *
  * @param constraints Optional {@link TextualConstraints validation constraints}
  *
@@ -554,6 +635,7 @@ export function duration(constraints: TextualConstraints = {}): StringShape {
 
 	return string({
 		model: "PT0S",
+		datatype: xsd.duration,
 		pattern: /^-?P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/,
 		...constraints
 	});

@@ -15,9 +15,25 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { mergeBoolean, validateBoolean } from "./boolean.core.js";
+import { deriveBoolean, mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
 import { boolean } from "./boolean.js";
-
+import { TraceError } from "./index.core.js";
+import { decimal, integer, number } from "./number.js";
+import { reference } from "./reference.js";
+import { resource } from "./resource.js";
+import { date, string, time } from "./string.js";
+import { text } from "./text.js";
+import { union, type UnionShape } from "./union.js";
+import {
+	checkValues,
+	deriveValue,
+	deriveValues,
+	mergeValue,
+	mergeValues,
+	narrowsValue,
+	narrowsValues
+} from "./value.core.js";
+import { cardinality, multiple, optional, required, type SetShape } from "./value.js";
 
 describe("factories", () => {
 
@@ -67,27 +83,23 @@ describe("factories", () => {
 
 describe("operators", () => {
 
-	describe("validateBoolean", () => {
+	describe("narrowsBoolean", () => {
 
-		it.each<[string, readonly unknown[]]>([
-			["valid boolean values", [true, false]],
-			["empty values", []]
-		])("returns undefined for %s", async (_label, values) => {
+		it("accepts an identical child", async () => {
 
-			expect(validateBoolean(values, boolean())).toBeUndefined();
+			expect(narrowsBoolean(boolean(), boolean())).toBeUndefined();
 
 		});
 
-		it.each<[string, readonly unknown[], RegExp]>([
-			["a single non-boolean value", [42], /expected <boolean> values$/],
-			["mixed valid and non-boolean values", [true, 42, "hello"], /expected <boolean> values \(2\/3\)/],
-			["multiple non-boolean values", [42, "hello"], /expected <boolean> values \(2\/2\)/]
-		])("returns a kind trace for %s", async (_label, values, message) => {
+		it("accepts a child with an equal model", async () => {
 
-			const trace = validateBoolean(values, boolean());
+			expect(narrowsBoolean(boolean(true), boolean(true))).toBeUndefined();
 
-			expect(trace).toHaveProperty("{kind}");
-			expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
+		});
+
+		it("rejects a child with a different model", async () => {
+
+			expect(narrowsBoolean(boolean(true), boolean(false))).toBeDefined();
 
 		});
 
@@ -110,6 +122,47 @@ describe("operators", () => {
 		it("rejects shapes with different models", async () => {
 
 			expect(() => mergeBoolean(boolean(true), boolean(false))).toThrow(RangeError);
+
+		});
+
+	});
+
+	describe("deriveBoolean", () => {
+
+		it("derives false regardless of the shape model", async () => {
+
+			expect(deriveBoolean(boolean())).toBe(false);
+			expect(deriveBoolean(boolean(true))).toBe(false);
+
+		});
+
+	});
+
+});
+
+describe("validators", () => {
+
+	describe("validateBoolean", () => {
+
+		it.each<[string, readonly unknown[]]>([
+			["valid boolean values", [true, false]],
+			["empty values", []]
+		])("returns undefined for %s", async (_label, values) => {
+
+			expect(validateBoolean(values, boolean())).toBeUndefined();
+
+		});
+
+		it.each<[string, readonly unknown[], RegExp]>([
+			["a single non-boolean value", [42], /expected <boolean> values$/],
+			["mixed valid and non-boolean values", [true, 42, "hello"], /expected <boolean> values \(2\/3\)/],
+			["multiple non-boolean values", [42, "hello"], /expected <boolean> values \(2\/2\)/]
+		])("returns a kind trace for %s", async (_label, values, message) => {
+
+			const trace = validateBoolean(values, boolean());
+
+			expect(trace).toHaveProperty("{kind}");
+			expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
 
 		});
 

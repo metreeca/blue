@@ -27,30 +27,36 @@ import type { Text } from "@metreeca/qest/resource";
 import { type Locale, type Placeholders, type Selection } from "@metreeca/qest/template";
 import { collect, every, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
-import type { TextShape } from "./text.js";
+import type { TextConstraints, TextShape } from "./text.js";
 
 
 /**
- * Checks internal consistency of {@link TextShape} string-length constraints.
+ * Checks internal consistency of a {@link TextShape} declaration.
  *
- * Verifies that the optional `minLength` does not exceed the optional `maxLength`. Used by
- * shape factories to reject malformed declarations at construction time.
+ * Verifies that the optional `minLength` does not exceed the optional `maxLength`, and that the
+ * optional {@link Locale} `model` is a well-formed prototype declaration. Used by shape factories
+ * to reject malformed declarations at construction time.
  *
  * @param constraints The constraint fields to check
  * @param constraints.minLength Lower bound on per-tag string length
  * @param constraints.maxLength Upper bound on per-tag string length
+ * @param constraints.model The localised prototype model
  *
- * @returns A keyed trace of violations, or `undefined` if the bounds are consistent
+ * @returns A keyed trace of violations, or `undefined` if the declaration is consistent
  */
 export function checkText({
 
 	minLength,
-	maxLength
+	maxLength,
+
+	model
 
 }: {
 
 	readonly minLength?: number;
 	readonly maxLength?: number;
+
+	readonly model?: Locale;
 
 }): undefined | Trace {
 
@@ -58,25 +64,83 @@ export function checkText({
 
 		"{minLength/maxLength}": minLength === undefined || maxLength === undefined
 			|| minLength <= maxLength
-			|| `inconsistent bounds <${minLength}> > <${maxLength}>`
+			|| `inconsistent bounds <${minLength}> > <${maxLength}>`,
+
+		// model legality: validate the prototype Locale declaration
+
+		"{model}": model === undefined || checkTextModel(model)
 
 	});
 
+
+	/**
+	 * Validates a localised text shape's {@link Locale} model.
+	 *
+	 * The model declares the property's per-tag cardinality, so it admits a tag-range-keyed map whose
+	 * per-tag values are either uniformly single strings (single-string-per-tag) or uniformly singleton
+	 * string tuples (array-per-tag). Mixed maps combining both shapes are rejected: a property is one
+	 * cardinality or the other, never both. Keys must be basic language ranges (a sequence of subtags or
+	 * the standalone `*` wildcard); extended ranges such as `en-*` are not accepted, and any key that
+	 * fails `isTagRange` is reported as `invalid tag range`. Unlike the placeholder validators
+	 * ({@link validateLocaleString} / {@link validateLocaleStrings}), which match a value against a property's
+	 * already-declared cardinality, this checks the declaration itself at shape construction. {@link checkText}
+	 * invokes it under the `{model}` key, folding model legality into its overall declaration check.
+	 *
+	 * @param value The localised model to validate
+	 *
+	 * @returns A keyed trace of per-entry violations, or `undefined` when the model is a uniform
+	 *     tag-keyed map of single strings or singleton string tuples
+	 *
+	 * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
+	 */
+	function checkTextModel(value: unknown): undefined | Trace {
+
+		if ( isObject(value) ) {
+
+			const entries = Object.entries(value);
+
+			const hasScalar = entries.some(([k, v]) => isTagRange(k) && isString(v));
+			const hasArray = entries.some(([k, v]) => isTagRange(k) && isArray(v, [isString]));
+
+			if ( hasScalar && hasArray ) {
+
+				return collect({ "{kind}": "mixed scalar and singleton-tuple values" });
+
+			} else {
+
+				return collect(Object.fromEntries(entries.map(([k, v]) => [k,
+					!isTagRange(k) ? "invalid tag range"
+						: isString(v) ? undefined
+							: isArray(v, [isString]) ? undefined
+								: "expected string or singleton string tuple"
+				])));
+
+			}
+
+		} else {
+
+			return "expected <text> value";
+
+		}
+
+	}
+
 }
 
+
 /**
- * Merges an overriding text shape with an inherited base shape.
+ * Reports whether an overriding text shape narrows an inherited base shape.
  *
- * Combines constraints from `source` into `target`, enforcing that overrides only narrow inherited definitions.
+ * Tests the override relation without building the merged shape: returns `undefined` when `target` only tightens
+ * `source` (lengths not widened, `languageIn` intersection non-empty, merged constraints consistent), or a keyed
+ * {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
  *
- * @returns The merged shape with combined constraints
- *
- * @throws {TraceError} On incompatible overrides
+ * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function mergeText(target: TextShape, source: TextShape): TextShape {
+export function narrowsText(target: TextShape, source: TextShape): undefined | Trace {
 
 	// conjunctive: languageIn — intersection
 
@@ -89,9 +153,7 @@ export function mergeText(target: TextShape, source: TextShape): TextShape {
 	const minLength = target.minLength ?? source.minLength;
 	const maxLength = target.maxLength ?? source.maxLength;
 
-	// validate
-
-	const trace = collect({
+	return collect({
 
 		// narrow: minLength — child >= parent
 
@@ -117,9 +179,38 @@ export function mergeText(target: TextShape, source: TextShape): TextShape {
 
 	});
 
+}
+
+/**
+ * Merges an overriding text shape with an inherited base shape.
+ *
+ * Combines constraints from `source` into `target`, enforcing that overrides only narrow inherited definitions.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns The merged shape with combined constraints
+ *
+ * @throws {TraceError} On incompatible overrides
+ */
+export function mergeText(target: TextShape, source: TextShape): TextShape {
+
+	const trace = narrowsText(target, source);
+
 	if ( trace !== undefined ) {
 		throw new TraceError("incompatible text shape override", trace);
 	}
+
+	// conjunctive: languageIn — intersection
+
+	const languageIn = target.languageIn !== undefined && source.languageIn !== undefined
+		? target.languageIn.filter(v => source.languageIn!.includes(v))
+		: target.languageIn ?? source.languageIn;
+
+	// merged constraints
+
+	const minLength = target.minLength ?? source.minLength;
+	const maxLength = target.maxLength ?? source.maxLength;
 
 	// build shape — child model overrides parent
 
@@ -138,53 +229,24 @@ export function mergeText(target: TextShape, source: TextShape): TextShape {
 }
 
 /**
- * Validates a localised text shape's {@link Locale} model.
+ * Derives the default localised prototype model.
  *
- * The model declares the property's per-tag cardinality, so it admits a tag-range-keyed map whose
- * per-tag values are either uniformly single strings (single-string-per-tag) or uniformly singleton
- * string tuples (array-per-tag). Mixed maps combining both shapes are rejected: a property is one
- * cardinality or the other, never both. Keys must be basic language ranges (a sequence of subtags or
- * the standalone `*` wildcard); extended ranges such as `en-*` are not accepted, and any key that
- * fails `isTagRange` is reported as `invalid tag range`. Unlike the placeholder validators
- * ({@link validateLocaleString} / {@link validateLocaleStrings}), which match a value against a property's
- * already-declared cardinality, this checks the declaration itself at shape construction.
+ * Produces a {@link Locale} placeholder keyed by every {@link TextConstraints.languageIn | languageIn} range mapped to
+ * empty content, so retrieval requests all permitted languages; when no language constraint is set the placeholder is
+ * the single `*` wildcard standing for any language. The result is a legal placeholder rather than a legal value,
+ * since the content is empty and the keys are basic ranges rather than concrete tags.
  *
- * @param value The localised model to validate
+ * @param constraints The text constraints whose language constraint selects the placeholder ranges
  *
- * @returns A keyed trace of per-entry violations, or `undefined` when the model is a uniform
- *     tag-keyed map of single strings or singleton string tuples
- *
- * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
+ * @returns The default localised prototype model
  */
-export function checkTextModel(value: unknown): undefined | Trace {
+export function deriveText({
 
-	if ( isObject(value) ) {
+	languageIn
 
-		const entries = Object.entries(value);
+}: TextConstraints): Locale {
 
-		const hasScalar = entries.some(([k, v]) => isTagRange(k) && isString(v));
-		const hasArray = entries.some(([k, v]) => isTagRange(k) && isArray(v, [isString]));
-
-		if ( hasScalar && hasArray ) {
-
-			return collect({ "{kind}": "mixed scalar and singleton-tuple values" });
-
-		} else {
-
-			return collect(Object.fromEntries(entries.map(([k, v]) => [k,
-				!isTagRange(k) ? "invalid tag range"
-					: isString(v) ? undefined
-						: isArray(v, [isString]) ? undefined
-							: "expected string or singleton string tuple"
-			])));
-
-		}
-
-	} else {
-
-		return "expected <text> value";
-
-	}
+	return immutable(Object.fromEntries((languageIn ?? ["*"]).map(range => [range, ""])));
 
 }
 
@@ -233,6 +295,94 @@ export function validateText(values: readonly unknown[], shape: TextShape): unde
 	return isObject(stringsTrace) ? stringsTrace
 		: isObject(stringTrace) ? stringTrace
 			: stringsTrace;
+
+}
+
+/**
+ * Validates a localised {@link Text} value set against a {@link TextShape} under set cardinality bounds.
+ *
+ * Commits to a single per-tag form based on the expected cardinality: the single-string-per-tag arm
+ * ({@link validateTextString}) when `maxCount === 1`, the string-array-per-tag arm ({@link validateTextStrings})
+ * otherwise. It then enforces the `minCount` / `maxCount` bounds against each language tag's value count. An empty tag
+ * map, or one whose every tag holds an empty array, counts as an absent value and satisfies the shape unless
+ * `minCount >= 1` requires at least one language tag.
+ *
+ * Unlike {@link validateText}, which probes both arms where the per-tag form cannot be predicted from cardinality, this
+ * entry point is cardinality-aware and commits to a single arm.
+ *
+ * @param value The value to validate, with `undefined` and empty-array absence already normalised away
+ * @param bounds The set-level cardinality bounds
+ * @param bounds.minCount Minimum number of values required per language tag
+ * @param bounds.maxCount Maximum number of values admitted per language tag
+ * @param shape The text shape carrying per-tag length and language constraints
+ *
+ * @returns A keyed trace of violations, or `undefined` when the value matches
+ */
+export function validateTextSet(value: unknown, {
+
+	minCount,
+	maxCount
+
+}: {
+
+	readonly minCount?: number
+	readonly maxCount?: number
+
+}, shape: TextShape): undefined | Trace {
+
+	const present = isObject(value) && (
+		Object.keys(value).length === 0
+		|| Object.values(value).every(v => isArray(v) && v.length === 0)
+	) ? undefined : value;
+
+	const values = present === undefined ? [] : [present];
+
+	const structural = maxCount === 1
+		? validateTextString(values, shape)
+		: validateTextStrings(values, shape);
+
+	if ( structural !== undefined ) {
+
+		return structural;
+
+	} else if ( present === undefined ) {
+
+		return minCount !== undefined && minCount >= 1
+			? collect({ "{minCount}": `expected at least one language tag` })
+			: undefined;
+
+	} else {
+
+		// validator contract: structural arm passed and present !== undefined, so present
+		// is a non-array object (see validateTextString/validateTextStrings)
+
+		const entries = Object.entries(present as Record<string, unknown>);
+
+		if ( entries.length === 0 && minCount !== undefined && minCount >= 1 ) {
+
+			return collect({ "{minCount}": `expected at least one language tag` });
+
+		} else {
+
+			return collect(Object.fromEntries(entries.map(([tag, tagValue]) => {
+
+				const count = isArray(tagValue) ? tagValue.length : 1;
+
+				return [tag, collect({
+
+					"{minCount}": minCount === undefined || count >= minCount
+						|| `expected at least <${minCount}> value(s) for tag`,
+
+					"{maxCount}": maxCount === undefined || count <= maxCount
+						|| `expected at most <${maxCount}> value(s) for tag`
+
+				})];
+
+			})));
+
+		}
+
+	}
 
 }
 

@@ -87,7 +87,8 @@ import type { Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import type { Reference } from "@metreeca/qest";
 import type { ResourceShape } from "./resource.js";
-import { eager, type Shape } from "./value.js";
+
+export { getShapeTarget } from "./reference.core.js"
 
 
 /**
@@ -119,7 +120,12 @@ export interface ReferenceShape extends ReferenceConstraints {
 	readonly kind: "reference";
 
 	/**
-	 * Prototype value for runtime model assembly.
+	 * Placeholder prototype identifier.
+	 *
+	 * A generic placeholder retained on the stored shape; the legal sample identifier is produced lazily from the
+	 * resolved target's identifier constraints by {@link value!model | model}, resolving the target on
+	 * access rather than at construction so the lazy target the {@link reference} factory admits stays unresolved until
+	 * read.
 	 *
 	 * **Inheritance** — must be strictly equal between parent and child.
 	 *
@@ -198,9 +204,9 @@ export interface ReferenceConstraints {
 	 *
 	 * > [!IMPORTANT]
 	 * > Captive resources are independent from {@link resource!resource | embedded resources}. Embedded resources have
-	 * > no independent identity or lifecycle ({@link resource!id | id} / {@link resource!type | type} rejected during
-	 * > state validation) and are always managed as part of their parent; captive resources have both and can be
-	 * > managed independently, but are cascade-deleted with the source resource.
+	 * > no independent identity or lifecycle ({@link resource!id | id} rejected during state validation) and are always
+	 * > managed as part of their parent; captive resources have both and can be managed independently, but are
+	 * > cascade-deleted with the source resource.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -253,25 +259,4 @@ export function reference(shape: Lazy<ResourceShape>, constraints?: ReferenceCon
 
 	});
 
-}
-
-
-//// Utilities /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Resolves a reference range to its target {@link ResourceShape | resource shape}.
- *
- * Crosses a reference range to its eagerly-resolved target, and takes a resource range to itself, generalising a
- * resource shape as an already-resolved reference. Yields `undefined` for any range that admits no properties
- * (scalar, localised). It takes a single variant: flatten a union range through {@link value!getShapeVariants} first,
- * so colliding variant property names stay distinct rather than merging.
- *
- * @param shape One of the range {@link value!getShapeVariants | variants}
- *
- * @returns The target resource shape, or `undefined` when `shape` admits no properties
- */
-export function getShapeTarget(shape: Shape): undefined | ResourceShape {
-	return shape.kind === "resource" ? shape
-		: shape.kind === "reference" ? eager(shape.shape)
-			: undefined;
 }

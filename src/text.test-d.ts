@@ -23,11 +23,11 @@
  * @module
  */
 
-import { assert } from "@metreeca/core/report";
 import { isTagRange } from "@metreeca/core/language";
+import { assert } from "@metreeca/core/report";
 import { describe, expectTypeOf, test } from "vitest";
-import { text, type TextShape } from "./text.js";
 import { resource } from "./resource.js";
+import { text, type TextShape } from "./text.js";
 import { multiple, optional, repeatable, required, type State } from "./value.js";
 
 

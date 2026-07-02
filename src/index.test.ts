@@ -19,20 +19,20 @@ import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { collect, every, group, normalise, TraceError, wrap } from "./index.core.js";
 import { type Trace, validate } from "./index.js";
-import { text } from "./text.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { reference } from "./reference.js";
 import { id, resource, type ResourceShape, type } from "./resource.js";
 import { date, duration, instant, iri, string, time, timestamp, year } from "./string.js";
+import { text } from "./text.js";
+import { union } from "./union.js";
 import {
-	probeShape,
-	type NullShape,
-	type RangeShape,
 	multiple,
+	type NullShape,
 	optional,
+	effective,
+	type RangeShape,
 	repeatable,
 	required,
-	union,
 	type ValuesShape
 } from "./value.js";
 
@@ -52,7 +52,7 @@ describe("apply", () => {
 	// transform-focused helpers: wrap leaf shape in a resource property
 
 	function transformRange(pipe: readonly Transform[], s: ValuesShape): RangeShape | NullShape | Extract<Trace, string> {
-		return probeShape(resource({ _: required(s) }), probe(["_"], pipe));
+		return effective(resource({ _: required(s) }), probe(["_"], pipe));
 	}
 
 
@@ -338,7 +338,7 @@ describe("apply", () => {
 
 		it("preserves required cardinality through identity", async () => {
 
-			const result = probeShape(resource({ name: required(string()) }), probe(["name"]));
+			const result = effective(resource({ name: required(string()) }), probe(["name"]));
 
 			expect(range(result).minCount).toBe(1);
 			expect(range(result).maxCount).toBe(1);
@@ -347,7 +347,7 @@ describe("apply", () => {
 
 		it("preserves optional cardinality through identity", async () => {
 
-			const result = probeShape(resource({ name: optional(string()) }), probe(["name"]));
+			const result = effective(resource({ name: optional(string()) }), probe(["name"]));
 
 			expect(range(result).minCount).toBeUndefined();
 			expect(range(result).maxCount).toBe(1);
@@ -356,7 +356,7 @@ describe("apply", () => {
 
 		it("preserves repeatable cardinality through identity", async () => {
 
-			const result = probeShape(resource({ name: repeatable(string()) }), probe(["name"]));
+			const result = effective(resource({ name: repeatable(string()) }), probe(["name"]));
 
 			expect(range(result).minCount).toBe(1);
 			expect(range(result).maxCount).toBeUndefined();
@@ -365,7 +365,7 @@ describe("apply", () => {
 
 		it("scalar transform preserves maxCount and sets minCount to undefined", async () => {
 
-			const result = probeShape(resource({ count: required(integer()) }), probe(["count"], ["abs"]));
+			const result = effective(resource({ count: required(integer()) }), probe(["count"], ["abs"]));
 
 			// scalar preserves maxCount; minCount becomes undefined (domain violations → undefined)
 
@@ -376,7 +376,7 @@ describe("apply", () => {
 
 		it("scalar transform preserves undefined maxCount", async () => {
 
-			const result = probeShape(resource({ value: repeatable(integer()) }), probe(["value"], ["abs"]));
+			const result = effective(resource({ value: repeatable(integer()) }), probe(["value"], ["abs"]));
 
 			expect(range(result).minCount).toBeUndefined();
 			expect(range(result).maxCount).toBeUndefined();
@@ -388,7 +388,7 @@ describe("apply", () => {
 			["sum", ["sum"], repeatable(integer())]
 		] as const)("%s total aggregate sets maxCount and minCount to 1", async (_label, pipe, set) => {
 
-			const result = probeShape(resource({ value: set }), probe(["value"], [...pipe]));
+			const result = effective(resource({ value: set }), probe(["value"], [...pipe]));
 
 			// total aggregates always yield a value (0 on the empty set), so minCount is 1
 
@@ -404,7 +404,7 @@ describe("apply", () => {
 			["avg+floor", ["avg", "floor"], repeatable(decimal())]
 		] as const)("%s aggregate sets maxCount to 1 and minCount to undefined", async (_label, pipe, set) => {
 
-			const result = probeShape(resource({ value: set }), probe(["value"], [...pipe]));
+			const result = effective(resource({ value: set }), probe(["value"], [...pipe]));
 
 			// non-total aggregates yield undefined on the empty set, so minCount is undefined
 
@@ -418,7 +418,7 @@ describe("apply", () => {
 	describe("path cardinality accumulation", () => {
 
 		function pathRange(p: Probe, s: ResourceShape): RangeShape | NullShape | Extract<Trace, string> {
-			return probeShape(s, p);
+			return effective(s, p);
 		}
 
 
@@ -489,7 +489,7 @@ describe("apply", () => {
 	describe("path traversal", () => {
 
 		function probeRange(p: Probe, s: ResourceShape): RangeShape | NullShape | Extract<Trace, string> {
-			return probeShape(s, p);
+			return effective(s, p);
 		}
 
 
@@ -553,7 +553,7 @@ describe("apply", () => {
 				name: required(string())
 			});
 
-			expect(probeShape(s, probe(["missing"]))).toEqual("undefined property path");
+			expect(effective(s, probe(["missing"]))).toEqual("undefined property path");
 
 		});
 
@@ -567,7 +567,7 @@ describe("apply", () => {
 				child: required(Inner)
 			});
 
-			expect(probeShape(s, probe(["child", "missing"]))).toEqual("undefined property path");
+			expect(effective(s, probe(["child", "missing"]))).toEqual("undefined property path");
 
 		});
 
@@ -617,21 +617,21 @@ describe("apply", () => {
 
 			// neither variant defines "missing" — returns undefined range
 
-			expect(probeShape(s, probe(["value", "missing"]))).toEqual("undefined property path");
+			expect(effective(s, probe(["value", "missing"]))).toEqual("undefined property path");
 
 		});
 
-		it("resolves union pipe preserving per-variant shapes in range", async () => {
+		it("collapses an aggregate-piped union to a single variant", async () => {
 
 			const s = resource({
 				value: required(union(string(), integer()))
 			});
 
-			// "count" accepts "any" — result preserves per-variant output shapes
+			// "count" maps every branch to integer, so the union collapses to one distinct variant
 
 			const result = probeRange(probe(["value"], ["count"]), s);
 
-			expect(range(result).variants).toHaveLength(2);
+			expect(range(result).variants).toEqual([integer()]);
 
 		});
 
@@ -655,7 +655,7 @@ describe("apply", () => {
 
 			// "year" requires temporal strings — neither text nor num qualifies
 
-			expect(probeShape(s, probe(["value"], ["year"]))).toEqual({ kind: "null" });
+			expect(effective(s, probe(["value"], ["year"]))).toEqual({ kind: "null" });
 
 		});
 
@@ -675,7 +675,7 @@ describe("apply", () => {
 				name: required(string())
 			});
 
-			expect(probeShape(s, probe(["name"], ["floor"]))).toEqual({ kind: "null" });
+			expect(effective(s, probe(["name"], ["floor"]))).toEqual({ kind: "null" });
 
 		});
 
@@ -698,7 +698,7 @@ describe("apply", () => {
 	describe("id/type path resolution", () => {
 
 		function probeRange(p: Probe, s: ResourceShape): RangeShape | NullShape | Extract<Trace, string> {
-			return probeShape(s, p);
+			return effective(s, p);
 		}
 
 
@@ -751,7 +751,7 @@ describe("apply", () => {
 					name: required(string())
 				});
 
-				expect(probeShape(s, probe(["rid", "something"]))).toEqual("undefined property path");
+				expect(effective(s, probe(["rid", "something"]))).toEqual("undefined property path");
 
 			});
 
@@ -768,7 +768,7 @@ describe("apply", () => {
 					child: required(reference(Inner))
 				});
 
-				expect(probeShape(s, probe(["child", "rid", "value"]))).toEqual("undefined property path");
+				expect(effective(s, probe(["child", "rid", "value"]))).toEqual("undefined property path");
 
 			});
 
@@ -778,7 +778,7 @@ describe("apply", () => {
 
 			it("resolves single-segment path to type field", async () => {
 
-				const s = resource({
+				const s = resource({ class: "app:/types/T" }, {
 					kind: type(),
 					name: required(string())
 				});
@@ -789,7 +789,7 @@ describe("apply", () => {
 
 			it("resolves type field with optional cardinality", async () => {
 
-				const s = resource({
+				const s = resource({ class: "app:/types/T" }, {
 					kind: type(),
 					name: required(string())
 				});
@@ -803,7 +803,7 @@ describe("apply", () => {
 
 			it("resolves trailing path segment to type through reference", async () => {
 
-				const Inner = resource({
+				const Inner = resource({ class: "app:/types/T" }, {
 					kind: type(),
 					label: required(string())
 				});
@@ -818,18 +818,18 @@ describe("apply", () => {
 
 			it("rejects leading type with trailing segments", async () => {
 
-				const s = resource({
+				const s = resource({ class: "app:/types/T" }, {
 					kind: type(),
 					name: required(string())
 				});
 
-				expect(probeShape(s, probe(["kind", "something"]))).toEqual("undefined property path");
+				expect(effective(s, probe(["kind", "something"]))).toEqual("undefined property path");
 
 			});
 
 			it("rejects inner type in multi-segment path", async () => {
 
-				const Inner = resource({
+				const Inner = resource({ class: "app:/types/T" }, {
 					kind: type(),
 					nested: required(resource({
 						value: required(string())
@@ -840,7 +840,7 @@ describe("apply", () => {
 					child: required(reference(Inner))
 				});
 
-				expect(probeShape(s, probe(["child", "kind", "value"]))).toEqual("undefined property path");
+				expect(effective(s, probe(["child", "kind", "value"]))).toEqual("undefined property path");
 
 			});
 
@@ -854,7 +854,7 @@ describe("apply", () => {
 
 			const Inner = resource({ label: required(string()) });
 
-			const result = probeShape(reference(Inner), probe([]));
+			const result = effective(reference(Inner), probe([]));
 
 			expect(range(result).variants[0]).toBe(Inner);
 
@@ -864,7 +864,7 @@ describe("apply", () => {
 
 			const Inner = resource({ label: required(string()) });
 
-			const result = probeShape(reference(Inner), probe(["label"]));
+			const result = effective(reference(Inner), probe(["label"]));
 
 			expect(range(result).variants[0]).toEqual(string());
 
@@ -874,7 +874,7 @@ describe("apply", () => {
 
 			const Inner = resource({ label: optional(string()) });
 
-			const result = probeShape(reference(Inner), probe(["label"]));
+			const result = effective(reference(Inner), probe(["label"]));
 
 			expect(range(result).minCount).toBeUndefined();
 			expect(range(result).maxCount).toBe(1);
@@ -885,7 +885,7 @@ describe("apply", () => {
 
 			const Inner = resource({ value: required(integer()) });
 
-			const result = probeShape(reference(Inner), probe(["value"], ["abs"]));
+			const result = effective(reference(Inner), probe(["value"], ["abs"]));
 
 			expect(range(result).variants[0]).toEqual(integer());
 
@@ -895,7 +895,7 @@ describe("apply", () => {
 
 			const Inner = resource({ label: required(string()) });
 
-			expect(probeShape(reference(Inner), probe(["missing"]))).toEqual("undefined property path");
+			expect(effective(reference(Inner), probe(["missing"]))).toEqual("undefined property path");
 
 		});
 
@@ -910,7 +910,7 @@ describe("apply", () => {
 			["text", text()]
 		])("resolves empty path for %s shape", async (_label, s) => {
 
-			const result = probeShape(s, probe([]));
+			const result = effective(s, probe([]));
 
 			expect(range(result).variants[0]).toBe(s);
 
@@ -918,7 +918,7 @@ describe("apply", () => {
 
 		it("applies compatible transform pipe on empty path", async () => {
 
-			const result = probeShape(decimal(), probe([], ["floor"]));
+			const result = effective(decimal(), probe([], ["floor"]));
 
 			expect(range(result).variants[0]).toEqual(decimal());
 
@@ -926,7 +926,7 @@ describe("apply", () => {
 
 		it("applies aggregate transform on empty path", async () => {
 
-			const result = probeShape(integer(), probe([], ["count"]));
+			const result = effective(integer(), probe([], ["count"]));
 
 			expect(range(result).variants[0]).toEqual(integer());
 			expect(range(result).minCount).toBe(1);
@@ -940,19 +940,19 @@ describe("apply", () => {
 			["boolean", boolean()]
 		])("returns undefined range for non-empty path on %s shape", async (_label, s) => {
 
-			expect(probeShape(s, probe(["missing"]))).toEqual("undefined property path");
+			expect(effective(s, probe(["missing"]))).toEqual("undefined property path");
 
 		});
 
 		it("returns null sentinel for incompatible pipe on leaf shape", async () => {
 
-			expect(probeShape(string(), probe([], ["floor"]))).toEqual({ kind: "null" });
+			expect(effective(string(), probe([], ["floor"]))).toEqual({ kind: "null" });
 
 		});
 
 		it("chains transforms on leaf shape", async () => {
 
-			const result = probeShape(decimal(), probe([], ["avg", "floor"]));
+			const result = effective(decimal(), probe([], ["avg", "floor"]));
 
 			expect(range(result).variants[0]).toEqual(decimal());
 
@@ -999,7 +999,7 @@ describe("validation", () => {
 
 			it("returns value for resource with type", async () => {
 
-				const shape = resource({ type: type() });
+				const shape = resource({ class: "app:/types/Person" }, { type: type() });
 
 				const result = validate({ type: "app:/types/Person" }, { shape });
 				expect(result({ value: v => v })).toEqual({ type: "app:/types/Person" });
@@ -1127,7 +1127,7 @@ describe("validation", () => {
 				});
 
 				const shapeB = resource({
-					name: required(string({ minLength: 1 }))
+					name: required(string({ model: "x", minLength: 1 }))
 				});
 
 				const value = { name: "Alice" };
@@ -1408,7 +1408,7 @@ describe("validation", () => {
 				expect(validate(new Error("boom"), { shape })({ trace: t => t })).toBeDefined();
 				expect(validate(Object.create(null), { shape })({ trace: t => t })).toBeDefined();
 
-				class Custom { name = "Alice"; }
+				class Custom {name = "Alice";}
 
 				expect(validate(new Custom(), { shape })({ trace: t => t })).toBeDefined();
 
@@ -1506,7 +1506,7 @@ describe("validation", () => {
 
 					// JSON.parse creates __proto__ as an own property, not the prototype. It is a valid
 					// identifier, so it iterates like any other key and gets caught by closed-shape checks.
-					const parsed = JSON.parse('{"__proto__": "value"}');
+					const parsed = JSON.parse("{\"__proto__\": \"value\"}");
 
 					expect(validate(parsed, { shape })({ trace: t => t })).toBeDefined();
 
@@ -1591,7 +1591,7 @@ describe("validation", () => {
 			it("rejects projected field violating a value constraint", async () => {
 
 				const shape = resource({
-					name: required(string({ minLength: 2 }))
+					name: required(string({ model: "ab", minLength: 2 }))
 				});
 
 				const model = { name: "" };
@@ -1604,7 +1604,7 @@ describe("validation", () => {
 			it("accepts projected field satisfying a value constraint", async () => {
 
 				const shape = resource({
-					name: required(string({ minLength: 2 }))
+					name: required(string({ model: "ab", minLength: 2 }))
 				});
 
 				const model = { name: "" };
@@ -1925,7 +1925,7 @@ describe("validation", () => {
 			it("revalidates when shape changes", async () => {
 
 				const shapeA = resource({ name: required(string()) });
-				const shapeB = resource({ name: required(string({ minLength: 1 })) });
+				const shapeB = resource({ name: required(string({ model: "x", minLength: 1 })) });
 				const model = { name: "" };
 
 				const first = validate({ name: "Alice" }, { shape: shapeA, model });
@@ -2193,7 +2193,7 @@ describe("validation", () => {
 				});
 
 				const shapeB = resource({
-					name: required(string({ minLength: 1 }))
+					name: required(string({ model: "x", minLength: 1 }))
 				});
 
 				const value = { name: "Alice" };
@@ -2638,7 +2638,7 @@ describe("validation", () => {
 				expect(validate(new Error("boom"), { model: true, shape })({ trace: t => t })).toBeDefined();
 				expect(validate(Object.create(null), { model: true, shape })({ trace: t => t })).toBeDefined();
 
-				class Custom { name = ""; }
+				class Custom {name = "";}
 
 				expect(validate(new Custom(), { model: true, shape })({ trace: t => t })).toBeDefined();
 
@@ -2676,9 +2676,18 @@ describe("validation", () => {
 
 				const numShape = resource({ price: optional(integer()) });
 
-				expect(validate({ price: Number.NaN }, { model: true, shape: numShape })({ trace: t => t })).toBeDefined();
-				expect(validate({ price: Number.POSITIVE_INFINITY }, { model: true, shape: numShape })({ trace: t => t })).toBeDefined();
-				expect(validate({ price: Number.NEGATIVE_INFINITY }, { model: true, shape: numShape })({ trace: t => t })).toBeDefined();
+				expect(validate({ price: Number.NaN }, {
+					model: true,
+					shape: numShape
+				})({ trace: t => t })).toBeDefined();
+				expect(validate({ price: Number.POSITIVE_INFINITY }, {
+					model: true,
+					shape: numShape
+				})({ trace: t => t })).toBeDefined();
+				expect(validate({ price: Number.NEGATIVE_INFINITY }, {
+					model: true,
+					shape: numShape
+				})({ trace: t => t })).toBeDefined();
 
 			});
 
@@ -2704,8 +2713,14 @@ describe("validation", () => {
 
 				expect(validate({ tags: [null] }, { model: true, shape: arrShape })({ trace: t => t })).toBeDefined();
 				expect(validate({ tags: [] }, { model: true, shape: arrShape })({ trace: t => t })).toBeDefined();
-				expect(validate({ tags: ["a", "b"] }, { model: true, shape: arrShape })({ trace: t => t })).toBeDefined();
-				expect(validate({ tags: [new Date()] }, { model: true, shape: arrShape })({ trace: t => t })).toBeDefined();
+				expect(validate({ tags: ["a", "b"] }, {
+					model: true,
+					shape: arrShape
+				})({ trace: t => t })).toBeDefined();
+				expect(validate({ tags: [new Date()] }, {
+					model: true,
+					shape: arrShape
+				})({ trace: t => t })).toBeDefined();
 
 			});
 
@@ -2714,7 +2729,10 @@ describe("validation", () => {
 				const Inner = resource({ label: optional(string()) });
 				const nested = resource({ child: optional(reference(Inner)) });
 
-				expect(validate({ child: { "bad-key": "" } }, { model: true, shape: nested })({ trace: t => t })).toBeDefined();
+				expect(validate({ child: { "bad-key": "" } }, {
+					model: true,
+					shape: nested
+				})({ trace: t => t })).toBeDefined();
 
 			});
 
@@ -2723,7 +2741,11 @@ describe("validation", () => {
 				const Inner = resource({ label: required(string()) });
 				const parent = resource({ child: optional(reference(Inner)) });
 
-				expect(validate({ child: { label: "" } }, { model: true, shape: parent, depth: 0 })({ trace: t => t })).toBeDefined();
+				expect(validate({ child: { label: "" } }, {
+					model: true,
+					shape: parent,
+					depth: 0
+				})({ trace: t => t })).toBeDefined();
 
 			});
 
@@ -2742,7 +2764,11 @@ describe("validation", () => {
 				const Target = resource({ name: required(string()) });
 				const parent = resource({ items: multiple(reference(Target)) });
 
-				expect(validate({ items: [{ "#": 100 }] }, { model: true, shape: parent, limit: 50 })({ trace: t => t }))
+				expect(validate({ items: [{ "#": 100 }] }, {
+					model: true,
+					shape: parent,
+					limit: 50
+				})({ trace: t => t }))
 					.toBeDefined();
 
 			});
@@ -2752,7 +2778,11 @@ describe("validation", () => {
 				const Target = resource({ price: optional(integer()) });
 				const parent = resource({ items: multiple(reference(Target)) });
 
-				expect(validate({ items: [{ "total=count:": 0 }] }, { model: true, shape: parent, plain: true })({ trace: t => t }))
+				expect(validate({ items: [{ "total=count:": 0 }] }, {
+					model: true,
+					shape: parent,
+					plain: true
+				})({ trace: t => t }))
 					.toBeDefined();
 
 			});
@@ -2797,7 +2827,7 @@ describe("validation", () => {
 					// __proto__ is a valid ECMAScript identifier and iterates as an own property, so it
 					// must be handled uniformly with any other identifier rather than leaking into the
 					// shape prototype chain.
-					const parsed = JSON.parse('{"__proto__": ""}');
+					const parsed = JSON.parse("{\"__proto__\": \"\"}");
 
 					expect(() => validate(parsed, { model: true, shape })).not.toThrow();
 

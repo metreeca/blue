@@ -24,16 +24,8 @@ import { reference, type ReferenceShape } from "./reference.js";
 import { property, resource, type ResourceShape } from "./resource.js";
 import { string, type StringShape } from "./string.js";
 import { text, type TextShape } from "./text.js";
-import {
-	type Bounds,
-	cardinality,
-	multiple,
-	optional,
-	repeatable,
-	required,
-	type State,
-	union
-} from "./value.js";
+import { union } from "./union.js";
+import { type Bounds, cardinality, multiple, optional, repeatable, required, type State } from "./value.js";
 
 
 describe("State", () => {
@@ -613,17 +605,6 @@ describe("State", () => {
 
 		});
 
-	});
-
-});
-
-describe("union", () => {
-
-	test("rejects a text variant", () => {
-		// @ts-expect-error - localised text is a whole-property type, never a union variant
-		union(text());
-		// @ts-expect-error - localised text is a whole-property type, never a union variant
-		union(string(), text());
 	});
 
 });

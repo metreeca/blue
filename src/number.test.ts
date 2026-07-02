@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+import { xsd } from "@metreeca/core/datatype";
 import { describe, expect, it } from "vitest";
-import { checkNumber, mergeNumber, validateNumber } from "./number.core.js";
+import { TraceError } from "./index.core.js";
+import { checkNumber, deriveNumber, mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
-
 
 describe("factories", () => {
 
@@ -90,25 +91,112 @@ describe("factories", () => {
 
 			});
 
+			describe("datatype", () => {
+
+				it("omits datatype by default", async () => {
+
+					expect(number().datatype).toBeUndefined();
+
+				});
+
+				it("passes through an explicit datatype", async () => {
+
+					expect(number({ datatype: xsd.int }).datatype).toBe(xsd.int);
+
+				});
+
+			});
+
+		});
+
+	});
+
+	describe("model resolution", () => {
+
+		it("keeps the default model when it is legal", async () => {
+
+			expect(number().model).toBe(0);
+			expect(number({ minInclusive: 0, maxInclusive: 100 }).model).toBe(0);
+			expect(byte().model).toBe(0);
+
+		});
+
+		it("derives a one-sided inclusive bound", async () => {
+
+			expect(number({ minInclusive: 5 }).model).toBe(5);
+			expect(number({ maxInclusive: -3 }).model).toBe(-3);
+
+		});
+
+		it("derives just inside a one-sided exclusive bound", async () => {
+
+			expect(number({ minExclusive: 0 }).model).toBe(1);
+			expect(number({ maxExclusive: -3 }).model).toBe(-4);
+
+		});
+
+		it("steps inside a two-sided exclusive range, averaging when the step overshoots", async () => {
+
+			expect(number({ minExclusive: 0, maxExclusive: 10 }).model).toBe(1);
+			expect(number({ minExclusive: 0, maxExclusive: 0.5 }).model).toBe(0.25);
+
+		});
+
+		it("derives the lower bound of a two-sided range", async () => {
+
+			expect(number({ minInclusive: 10, maxInclusive: 20 }).model).toBe(10);
+			expect(integer({ minInclusive: 10, maxInclusive: 21 }).model).toBe(10);
+
+		});
+
+		it("derives the first in member when the default is illegal", async () => {
+
+			expect(number({ in: [2, 3] }).model).toBe(2);
+			expect(byte({ in: [1, 2, 3] }).model).toBe(1);
+
+		});
+
+		it("derives a bound when the default falls outside custom bounds", async () => {
+
+			expect(byte({ minInclusive: 10, maxInclusive: 20 }).model).toBe(10);
+
+		});
+
+		it("rejects an explicit illegal model", async () => {
+
+			expect(() => number({ model: 0, minInclusive: 5 })).toThrow(RangeError);
+
+		});
+
+		it("rejects an empty integral range", async () => {
+
+			expect(() => integer({ minExclusive: 0, maxExclusive: 1 })).toThrow(RangeError);
+
 		});
 
 	});
 
 	describe.each([
-		["byte", byte, 8],
-		["short", short, 16],
-		["int", int, 32],
-		["long", long, 64],
-		["float", float, 0.32],
-		["double", double, 0.64],
-		["integer", integer, 1],
-		["decimal", decimal, 1.1]
-	] as const)("%s", (_label, factory, expectedModel) => {
+		["byte", byte, 0, xsd.byte],
+		["short", short, 0, xsd.short],
+		["int", int, 0, xsd.int],
+		["long", long, 0, xsd.long],
+		["float", float, 0, xsd.float],
+		["double", double, 0, xsd.double],
+		["integer", integer, 0, xsd.integer],
+		["decimal", decimal, 0, xsd.decimal]
+	] as const)("%s", (_label, factory, expectedModel, expectedDatatype) => {
 
 		it("returns a shape with expected kind and model", async () => {
 
 			expect(factory().kind).toBe("number");
 			expect(factory().model).toBe(expectedModel);
+
+		});
+
+		it("sets the matching xsd datatype", async () => {
+
+			expect(factory().datatype).toBe(expectedDatatype);
 
 		});
 
@@ -127,7 +215,7 @@ describe("factories", () => {
 		["short", short, -32768, 32767],
 		["int", int, -2147483648, 2147483647],
 		["long", long, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
-		["float", float, -((2 - 2 ** -23) * 2 ** 127), (2 - 2 ** -23) * 2 ** 127]
+		["float", float, -((2-2** -23)*2**127), (2-2** -23)*2**127]
 	] as const)("%s range defaults", (_label, factory, expectedMin, expectedMax) => {
 
 		it("applies default range bounds", async () => {
@@ -162,6 +250,52 @@ describe("factories", () => {
 
 			expect(shape.minInclusive).toBeUndefined();
 			expect(shape.maxInclusive).toBeUndefined();
+
+		});
+
+	});
+
+	describe.each([
+		["byte", byte],
+		["short", short],
+		["int", int],
+		["long", long],
+		["integer", integer]
+	] as const)("%s integral default", (_label, factory) => {
+
+		it("marks the shape integral", async () => {
+
+			expect(factory().integral).toBe(true);
+
+		});
+
+	});
+
+	describe.each([
+		["float", float],
+		["double", double],
+		["decimal", decimal]
+	] as const)("%s fractional default", (_label, factory) => {
+
+		it("leaves the shape non-integral", async () => {
+
+			expect(factory().integral).toBeUndefined();
+
+		});
+
+	});
+
+	describe("integral consistency", () => {
+
+		it("rejects a fractional enumeration on an integer factory", async () => {
+
+			expect(() => integer({ in: [1.5] })).toThrow(RangeError);
+
+		});
+
+		it("rejects fractional bounds on an integer factory", async () => {
+
+			expect(() => integer({ minInclusive: 1.5 })).toThrow(RangeError);
 
 		});
 
@@ -235,7 +369,524 @@ describe("operators", () => {
 
 		});
 
+		it("returns undefined for integer bounds and sets when integral", async () => {
+
+			expect(checkNumber({
+				integral: true,
+				minInclusive: 0, maxInclusive: 10,
+				in: [1, 2, 3], hasValue: [1]
+			})).toBeUndefined();
+
+		});
+
+		it("returns trace for fractional bounds when integral", async () => {
+
+			expect(checkNumber({ integral: true, minInclusive: 1.5 })).toHaveProperty("{integral/minInclusive}");
+			expect(checkNumber({ integral: true, maxInclusive: 9.5 })).toHaveProperty("{integral/maxInclusive}");
+			expect(checkNumber({ integral: true, minExclusive: 0.5 })).toHaveProperty("{integral/minExclusive}");
+			expect(checkNumber({ integral: true, maxExclusive: 8.5 })).toHaveProperty("{integral/maxExclusive}");
+
+		});
+
+		it("returns trace for a fractional in member when integral", async () => {
+
+			expect(checkNumber({ integral: true, in: [1, 2.5] })).toHaveProperty("{integral/in}");
+
+		});
+
+		it("returns trace for a fractional hasValue member when integral", async () => {
+
+			expect(checkNumber({ integral: true, hasValue: [1.5] })).toHaveProperty("{integral/hasValue}");
+
+		});
+
+		it("ignores fractional bounds and sets when not integral", async () => {
+
+			expect(checkNumber({ minInclusive: 1.5, in: [1.5], hasValue: [1.5] })).toBeUndefined();
+
+		});
+
+		it("returns trace for an empty integral range", async () => {
+
+			expect(checkNumber({ integral: true, minExclusive: 0, maxExclusive: 1 })).toHaveProperty("{integral/range}");
+
+		});
+
+		it("returns undefined for a non-empty integral range", async () => {
+
+			expect(checkNumber({ integral: true, minInclusive: 0, maxInclusive: 0 })).toBeUndefined();
+
+		});
+
+		it("returns undefined for a narrow continuous range", async () => {
+
+			expect(checkNumber({ minExclusive: 0, maxExclusive: 1 })).toBeUndefined();
+
+		});
+
+		it("returns undefined for a legal model", async () => {
+
+			expect(checkNumber({ model: 5, minInclusive: 0, maxInclusive: 10 })).toBeUndefined();
+			expect(checkNumber({ model: 2, in: [1, 2, 3] })).toBeUndefined();
+
+		});
+
+		it("returns trace under {model} for a model below minInclusive", async () => {
+
+			expect(checkNumber({ model: -1, minInclusive: 0 })).toHaveProperty("{model}");
+
+		});
+
+		it("returns trace under {model} for a model above maxInclusive", async () => {
+
+			expect(checkNumber({ model: 11, maxInclusive: 10 })).toHaveProperty("{model}");
+
+		});
+
+		it("returns trace under {model} for a model at an exclusive bound", async () => {
+
+			expect(checkNumber({ model: 0, minExclusive: 0 })).toHaveProperty("{model}");
+			expect(checkNumber({ model: 10, maxExclusive: 10 })).toHaveProperty("{model}");
+
+		});
+
+		it("returns trace under {model} for a fractional model when integral", async () => {
+
+			expect(checkNumber({ model: 1.5, integral: true })).toHaveProperty("{model}");
+
+		});
+
+		it("returns trace under {model} for a model not in the in set", async () => {
+
+			expect(checkNumber({ model: 5, in: [1, 2, 3] })).toHaveProperty("{model}");
+
+		});
+
+		it("reports constraint inconsistency alongside model legality", async () => {
+
+			expect(checkNumber({ model: 5, minInclusive: 10, maxInclusive: 0 }))
+				.toHaveProperty("{minInclusive/maxInclusive}");
+
+		});
+
 	});
+
+	describe("narrowsNumber", () => {
+
+		it("accepts a child that tightens a bound", async () => {
+
+			expect(narrowsNumber(number({ minInclusive: 5 }), number())).toBeUndefined();
+
+		});
+
+		it("accepts an identical child", async () => {
+
+			expect(narrowsNumber(number(), number())).toBeUndefined();
+
+		});
+
+		it("rejects a child that widens a bound", async () => {
+
+			expect(narrowsNumber(number({ minInclusive: 0 }), number({ minInclusive: 5 }))).toBeDefined();
+
+		});
+
+		it("rejects a child with a disjoint enumeration", async () => {
+
+			expect(narrowsNumber(number({ in: [1] }), number({ in: [2] }))).toBeDefined();
+
+		});
+
+		it("accepts equal datatypes", async () => {
+
+			expect(narrowsNumber(int(), int())).toBeUndefined();
+
+		});
+
+		it("accepts a child datatype when the parent has none", async () => {
+
+			expect(narrowsNumber(number({ model: 32, datatype: xsd.int }), number({ model: 32 }))).toBeUndefined();
+
+		});
+
+		it("accepts a parent datatype when the child has none", async () => {
+
+			expect(narrowsNumber(number({ model: 32 }), number({ model: 32, datatype: xsd.int }))).toBeUndefined();
+
+		});
+
+		it("rejects mismatched datatypes", async () => {
+
+			expect(narrowsNumber(number({ datatype: xsd.int }), number({ datatype: xsd.long }))).toHaveProperty("{datatype}");
+
+		});
+
+		it("accepts a child that inherits an integral parent", async () => {
+
+			expect(narrowsNumber(number(), number({ integral: true }))).toBeUndefined();
+
+		});
+
+		it("accepts a child that adds an integral constraint", async () => {
+
+			expect(narrowsNumber(number({ integral: true }), number())).toBeUndefined();
+
+		});
+
+		it("rejects a child that drops an integral parent", async () => {
+
+			expect(narrowsNumber(number({ integral: false }), number({ integral: true }))).toHaveProperty("{integral}");
+
+		});
+
+		it("accepts differing models as compatible placeholders", async () => {
+
+			expect(narrowsNumber(number(32), number(64))).toBeUndefined();
+
+		});
+
+	});
+
+	describe("mergeNumber", () => {
+
+		describe("kind", () => {
+
+			it("preserves kind as 'number'", async () => {
+
+				const merged = mergeNumber(number(), number());
+
+				expect(merged.kind).toBe("number");
+
+			});
+
+		});
+
+		describe("model", () => {
+
+			it("merges shapes with equal models", async () => {
+
+				const merged = mergeNumber(number(), number());
+
+				expect(merged.model).toBe(0);
+
+			});
+
+			it("merges shapes with equal non-default models", async () => {
+
+				const merged = mergeNumber(number(42), number(42));
+
+				expect(merged.model).toBe(42);
+
+			});
+
+			it("merges shapes with different models, keeping the target model", async () => {
+
+				expect(mergeNumber(number(32), number(64)).model).toBe(32);
+
+			});
+
+		});
+
+		describe.each([
+			["minExclusive", "minExclusive", 0, 10, 5, 3] as const,
+			["maxExclusive", "maxExclusive", 100, 50, 100, 150] as const,
+			["minInclusive", "minInclusive", 0, 10, 5, 3] as const,
+			["maxInclusive", "maxInclusive", 100, 50, 100, 150] as const
+		])("%s", (_name, field, inheritValue, tighterTarget, tighterSource, rejectedTarget) => {
+
+			it(`inherits source ${field} when target has none`, async () => {
+
+				const merged = mergeNumber(number(), number({ [field]: inheritValue }));
+
+				expect((merged as any)[field]).toBe(inheritValue);
+
+			});
+
+			it(`keeps target ${field} when source has none`, async () => {
+
+				const merged = mergeNumber(number({ [field]: inheritValue }), number());
+
+				expect((merged as any)[field]).toBe(inheritValue);
+
+			});
+
+			it(`keeps tighter target ${field}`, async () => {
+
+				const merged = mergeNumber(number({ [field]: tighterTarget }), number({ [field]: tighterSource }));
+
+				expect((merged as any)[field]).toBe(tighterTarget);
+
+			});
+
+			it(`rejects incompatible target ${field}`, async () => {
+
+				expect(() => mergeNumber(number({ [field]: rejectedTarget }), number({ [field]: tighterSource }))).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("in", () => {
+
+			it("inherits source in when target has none", async () => {
+
+				const merged = mergeNumber(number(), number({ in: [1, 2, 3] }));
+
+				expect(merged.in).toEqual([1, 2, 3]);
+
+			});
+
+			it("keeps target in when source has none", async () => {
+
+				const merged = mergeNumber(number({ in: [1, 2] }), number());
+
+				expect(merged.in).toEqual([1, 2]);
+
+			});
+
+			it("intersects target and source in", async () => {
+
+				const merged = mergeNumber(
+					number({ in: [1, 2, 3] }),
+					number({ in: [2, 3, 4] })
+				);
+
+				expect(merged.in).toEqual([2, 3]);
+
+			});
+
+			it("rejects empty intersection", async () => {
+
+				expect(() => mergeNumber(
+					number({ in: [1, 2] }),
+					number({ in: [3, 4] })
+				)).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("hasValue", () => {
+
+			it("inherits source hasValue when target has none", async () => {
+
+				const merged = mergeNumber(number(), number({ hasValue: [1] }));
+
+				expect(merged.hasValue).toEqual([1]);
+
+			});
+
+			it("keeps target hasValue when source has none", async () => {
+
+				const merged = mergeNumber(number({ hasValue: [1] }), number());
+
+				expect(merged.hasValue).toEqual([1]);
+
+			});
+
+			it("unions target and source hasValue", async () => {
+
+				const merged = mergeNumber(
+					number({ hasValue: [1, 2] }),
+					number({ hasValue: [2, 3] })
+				);
+
+				expect(merged.hasValue).toEqual(expect.arrayContaining([1, 2, 3]));
+				expect(merged.hasValue).toHaveLength(3);
+
+			});
+
+		});
+
+		describe("datatype", () => {
+
+			it("inherits source datatype when target has none", async () => {
+
+				const merged = mergeNumber(number({ model: 32 }), number({ model: 32, datatype: xsd.int }));
+
+				expect(merged.datatype).toBe(xsd.int);
+
+			});
+
+			it("keeps target datatype when source has none", async () => {
+
+				const merged = mergeNumber(number({ model: 32, datatype: xsd.int }), number({ model: 32 }));
+
+				expect(merged.datatype).toBe(xsd.int);
+
+			});
+
+			it("keeps equal datatype", async () => {
+
+				const merged = mergeNumber(number({ datatype: xsd.int }), number({ datatype: xsd.int }));
+
+				expect(merged.datatype).toBe(xsd.int);
+
+			});
+
+			it("rejects mismatched datatype", async () => {
+
+				expect(() => mergeNumber(number({ datatype: xsd.int }), number({ datatype: xsd.long }))).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("integral", () => {
+
+			it("inherits an integral parent when the child omits it", async () => {
+
+				const merged = mergeNumber(number(), number({ integral: true }));
+
+				expect(merged.integral).toBe(true);
+
+			});
+
+			it("keeps the child integral when the parent omits it", async () => {
+
+				const merged = mergeNumber(number({ integral: true }), number());
+
+				expect(merged.integral).toBe(true);
+
+			});
+
+			it("rejects a child that drops an integral parent", async () => {
+
+				expect(() => mergeNumber(number({ integral: false }), number({ integral: true }))).toThrow(RangeError);
+
+			});
+
+			it("rejects a child whose fractional enumeration contradicts an integral parent", async () => {
+
+				expect(() => mergeNumber(number({ in: [1.5] }), number({ integral: true }))).toThrow(RangeError);
+
+			});
+
+		});
+
+		describe("post-merge validation", () => {
+
+			it("rejects merged minExclusive >= merged maxExclusive", async () => {
+
+				expect(() => mergeNumber(
+					number({ minExclusive: 10 }),
+					number({ maxExclusive: 10 })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects merged minInclusive > merged maxInclusive", async () => {
+
+				expect(() => mergeNumber(
+					number({ minInclusive: 10 }),
+					number({ maxInclusive: 5 })
+				)).toThrow(RangeError);
+
+			});
+
+			it("accepts merged minInclusive equal to merged maxInclusive", async () => {
+
+				const merged = mergeNumber(
+					number({ minInclusive: 5 }),
+					number({ maxInclusive: 5 })
+				);
+
+				expect(merged.minInclusive).toBe(5);
+				expect(merged.maxInclusive).toBe(5);
+
+			});
+
+			it("rejects merged minExclusive >= merged maxInclusive", async () => {
+
+				expect(() => mergeNumber(
+					number({ minExclusive: 10 }),
+					number({ maxInclusive: 10 })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects merged minInclusive >= merged maxExclusive", async () => {
+
+				expect(() => mergeNumber(
+					number({ minInclusive: 10 }),
+					number({ maxExclusive: 10 })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects hasValue entries not in merged in set", async () => {
+
+				expect(() => mergeNumber(
+					number({ hasValue: [5] }),
+					number({ in: [1, 2, 3] })
+				)).toThrow(RangeError);
+
+			});
+
+			it("accepts hasValue entries that are in merged in set", async () => {
+
+				const merged = mergeNumber(
+					number({ hasValue: [1] }),
+					number({ in: [1, 2, 3] })
+				);
+
+				expect(merged.hasValue).toEqual([1]);
+
+			});
+
+		});
+
+	});
+
+	describe("deriveNumber", () => {
+
+		it("derives 0 for an unconstrained shape", async () => {
+
+			expect(deriveNumber({})).toBe(0);
+
+		});
+
+		it("draws the smallest-magnitude in member", async () => {
+
+			expect(deriveNumber({ in: [3, 1, 2] })).toBe(1);
+
+		});
+
+		it("draws the smallest-magnitude hasValue member when no in is set", async () => {
+
+			expect(deriveNumber({ hasValue: [5, 2] })).toBe(2);
+
+		});
+
+		it("keeps the supplied model when no in or hasValue is set", async () => {
+
+			expect(deriveNumber({ model: 7 })).toBe(7);
+
+		});
+
+		it("steps inside an exclusive lower bound", async () => {
+
+			expect(deriveNumber({ minExclusive: 0, maxExclusive: 10 })).toBe(1);
+
+		});
+
+		it("draws the inclusive bound when 0 is out of range", async () => {
+
+			expect(deriveNumber({ minInclusive: 5 })).toBe(5);
+
+		});
+
+		it("throws when the drawn value is not legal", async () => {
+
+			expect(() => deriveNumber({ minInclusive: 5, maxInclusive: 1 })).toThrow(TraceError);
+
+		});
+
+	});
+
+});
+
+describe("validators", () => {
 
 	describe("validateNumber", () => {
 
@@ -500,7 +1151,7 @@ describe("operators", () => {
 
 			it("validates values against both enumeration and range", async () => {
 
-				const shape = number({ minInclusive: 5, in: [1, 2, 3, 7, 8, 9] });
+				const shape = number({ minInclusive: 5, in: [7, 8, 9] });
 
 				const result = validateNumber([4], shape);
 
@@ -527,6 +1178,29 @@ describe("operators", () => {
 
 		});
 
+		describe("integral constraint", () => {
+
+			it("accepts integers when integral", async () => {
+
+				expect(validateNumber([42], number({ integral: true }))).toBeUndefined();
+
+			});
+
+			it("rejects fractional values when integral", async () => {
+
+				expect(validateNumber([3.5], number({ integral: true }))).toHaveProperty("{integral}");
+
+			});
+
+			it("accepts fractional values when not integral", async () => {
+
+				expect(validateNumber([3.5], number({ integral: false }))).toBeUndefined();
+				expect(validateNumber([3.5], number())).toBeUndefined();
+
+			});
+
+		});
+
 		describe("per-value errors", () => {
 
 			it.each<[string, readonly number[], RegExp]>([
@@ -538,231 +1212,6 @@ describe("operators", () => {
 				const trace = validateNumber(values, number({ minInclusive: 0 }));
 
 				expect((trace as Record<string, string>)["{minInclusive}"]).toMatch(message);
-
-			});
-
-		});
-
-	});
-
-	describe("mergeNumber", () => {
-
-		describe("kind", () => {
-
-			it("preserves kind as 'number'", async () => {
-
-				const merged = mergeNumber(number(), number());
-
-				expect(merged.kind).toBe("number");
-
-			});
-
-		});
-
-		describe("model", () => {
-
-			it("merges shapes with equal models", async () => {
-
-				const merged = mergeNumber(number(), number());
-
-				expect(merged.model).toBe(0);
-
-			});
-
-			it("merges shapes with equal non-default models", async () => {
-
-				const merged = mergeNumber(number(42), number(42));
-
-				expect(merged.model).toBe(42);
-
-			});
-
-			it("rejects shapes with different models", async () => {
-
-				expect(() => mergeNumber(number(32), number(64))).toThrow(RangeError);
-
-			});
-
-		});
-
-		describe.each([
-			["minExclusive", "minExclusive", 0, 10, 5, 3] as const,
-			["maxExclusive", "maxExclusive", 100, 50, 100, 150] as const,
-			["minInclusive", "minInclusive", 0, 10, 5, 3] as const,
-			["maxInclusive", "maxInclusive", 100, 50, 100, 150] as const
-		])("%s", (_name, field, inheritValue, tighterTarget, tighterSource, rejectedTarget) => {
-
-			it(`inherits source ${field} when target has none`, async () => {
-
-				const merged = mergeNumber(number(), number({ [field]: inheritValue }));
-
-				expect((merged as any)[field]).toBe(inheritValue);
-
-			});
-
-			it(`keeps target ${field} when source has none`, async () => {
-
-				const merged = mergeNumber(number({ [field]: inheritValue }), number());
-
-				expect((merged as any)[field]).toBe(inheritValue);
-
-			});
-
-			it(`keeps tighter target ${field}`, async () => {
-
-				const merged = mergeNumber(number({ [field]: tighterTarget }), number({ [field]: tighterSource }));
-
-				expect((merged as any)[field]).toBe(tighterTarget);
-
-			});
-
-			it(`rejects incompatible target ${field}`, async () => {
-
-				expect(() => mergeNumber(number({ [field]: rejectedTarget }), number({ [field]: tighterSource }))).toThrow(RangeError);
-
-			});
-
-		});
-
-		describe("in", () => {
-
-			it("inherits source in when target has none", async () => {
-
-				const merged = mergeNumber(number(), number({ in: [1, 2, 3] }));
-
-				expect(merged.in).toEqual([1, 2, 3]);
-
-			});
-
-			it("keeps target in when source has none", async () => {
-
-				const merged = mergeNumber(number({ in: [1, 2] }), number());
-
-				expect(merged.in).toEqual([1, 2]);
-
-			});
-
-			it("intersects target and source in", async () => {
-
-				const merged = mergeNumber(
-					number({ in: [1, 2, 3] }),
-					number({ in: [2, 3, 4] })
-				);
-
-				expect(merged.in).toEqual([2, 3]);
-
-			});
-
-			it("rejects empty intersection", async () => {
-
-				expect(() => mergeNumber(
-					number({ in: [1, 2] }),
-					number({ in: [3, 4] })
-				)).toThrow(RangeError);
-
-			});
-
-		});
-
-		describe("hasValue", () => {
-
-			it("inherits source hasValue when target has none", async () => {
-
-				const merged = mergeNumber(number(), number({ hasValue: [1] }));
-
-				expect(merged.hasValue).toEqual([1]);
-
-			});
-
-			it("keeps target hasValue when source has none", async () => {
-
-				const merged = mergeNumber(number({ hasValue: [1] }), number());
-
-				expect(merged.hasValue).toEqual([1]);
-
-			});
-
-			it("unions target and source hasValue", async () => {
-
-				const merged = mergeNumber(
-					number({ hasValue: [1, 2] }),
-					number({ hasValue: [2, 3] })
-				);
-
-				expect(merged.hasValue).toEqual(expect.arrayContaining([1, 2, 3]));
-				expect(merged.hasValue).toHaveLength(3);
-
-			});
-
-		});
-
-		describe("post-merge validation", () => {
-
-			it("rejects merged minExclusive >= merged maxExclusive", async () => {
-
-				expect(() => mergeNumber(
-					number({ minExclusive: 10 }),
-					number({ maxExclusive: 10 })
-				)).toThrow(RangeError);
-
-			});
-
-			it("rejects merged minInclusive > merged maxInclusive", async () => {
-
-				expect(() => mergeNumber(
-					number({ minInclusive: 10 }),
-					number({ maxInclusive: 5 })
-				)).toThrow(RangeError);
-
-			});
-
-			it("accepts merged minInclusive equal to merged maxInclusive", async () => {
-
-				const merged = mergeNumber(
-					number({ minInclusive: 5 }),
-					number({ maxInclusive: 5 })
-				);
-
-				expect(merged.minInclusive).toBe(5);
-				expect(merged.maxInclusive).toBe(5);
-
-			});
-
-			it("rejects merged minExclusive >= merged maxInclusive", async () => {
-
-				expect(() => mergeNumber(
-					number({ minExclusive: 10 }),
-					number({ maxInclusive: 10 })
-				)).toThrow(RangeError);
-
-			});
-
-			it("rejects merged minInclusive >= merged maxExclusive", async () => {
-
-				expect(() => mergeNumber(
-					number({ minInclusive: 10 }),
-					number({ maxExclusive: 10 })
-				)).toThrow(RangeError);
-
-			});
-
-			it("rejects hasValue entries not in merged in set", async () => {
-
-				expect(() => mergeNumber(
-					number({ hasValue: [5] }),
-					number({ in: [1, 2, 3] })
-				)).toThrow(RangeError);
-
-			});
-
-			it("accepts hasValue entries that are in merged in set", async () => {
-
-				const merged = mergeNumber(
-					number({ hasValue: [1] }),
-					number({ in: [1, 2, 3] })
-				);
-
-				expect(merged.hasValue).toEqual([1]);
 
 			});
 

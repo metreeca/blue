@@ -16,12 +16,11 @@
 
 import { describe, expect, it } from "vitest";
 import { TraceError } from "./index.core.js";
-import { mergeReference, validateReferences } from "./reference.core.js";
+import { deriveReference, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import { reference, type ReferenceConstraints } from "./reference.js";
-import { resource } from "./resource.js";
+import { resource, type ResourceShape } from "./resource.js";
 import { string } from "./string.js";
 import { multiple, optional, repeatable, required } from "./value.js";
-
 
 describe("factories", () => {
 
@@ -115,95 +114,22 @@ describe("factories", () => {
 
 describe("operators", () => {
 
-	describe("validateReferences", () => {
+	describe("narrowsReference", () => {
 
-		describe("type filtering", () => {
+		it("accepts an identical child", async () => {
 
-			it.each<[string, readonly unknown[]]>([
-				["valid reference values", ["app:/users/123"]],
-				["empty values", []]
-			])("returns undefined for %s", async (_label, values) => {
+			const Target = resource({ name: required(string()) });
 
-				expect(validateReferences(values, reference(resource({})))).toBeUndefined();
-
-			});
-
-			it.each<[string, readonly unknown[], RegExp]>([
-				["a single non-reference value", [42], /expected <reference> values$/],
-				["mixed valid and non-reference values", ["app:/users/123", 42], /expected <reference> values$/],
-				["multiple non-reference values", [42, true], /expected <reference> values \(2\/2\)/],
-
-				// references MUST be absolute IRIs; a root-relative string carries no scheme
-
-				["a relative (non-absolute) IRI", ["/users/123"], /expected <reference> values$/]
-			])("returns a kind trace for %s", async (_label, values, message) => {
-
-				const trace = validateReferences(values, reference(resource({})));
-
-				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
-
-			});
+			expect(narrowsReference(reference(Target), reference(Target))).toBeUndefined();
 
 		});
 
-		describe.each([
+		it("rejects a child targeting a different shape", async () => {
 
-			{
-				constraint: "pattern",
-				options: { pattern: "/users/{id}" } as const,
-				valid: ["app:/users/123"],
-				invalid: ["app:/products/123"],
-				errorKey: "{pattern}"
-			},
+			const A = resource({ name: required(string()) });
+			const B = resource({ code: required(string()) });
 
-			{
-				constraint: "in",
-				options: { in: ["app:/users/1", "app:/users/2"] } as const,
-				valid: ["app:/users/1"],
-				invalid: ["app:/users/99"],
-				errorKey: "{in}"
-			},
-
-			{
-				constraint: "hasValue",
-				options: { hasValue: ["app:/users/1"] } as const,
-				valid: ["app:/users/1", "app:/users/2"],
-				invalid: ["app:/users/2"],
-				errorKey: "{hasValue}"
-			}
-
-		])("$constraint constraint", ({ options, valid, invalid, errorKey }) => {
-
-			it("accepts valid references", async () => {
-
-				const shape = reference(resource(options, {}));
-
-				expect(validateReferences(valid, shape)).toBeUndefined();
-
-			});
-
-			it("rejects invalid references", async () => {
-
-				const shape = reference(resource(options, {}));
-
-				expect(validateReferences(invalid, shape)).toHaveProperty(errorKey);
-
-			});
-
-		});
-
-		describe("lazy shape resolution", () => {
-
-			it("resolves lazy shape function before validation", async () => {
-
-				const target = resource({ pattern: "/users/{id}" }, {});
-				const shape = reference(() => target);
-
-				expect(validateReferences(["app:/users/123"], shape)).toBeUndefined();
-				expect(validateReferences(["app:/products/123"], shape)).toHaveProperty("{pattern}");
-
-			});
+			expect(narrowsReference(reference(A), reference(B))).toBeDefined();
 
 		});
 
@@ -288,6 +214,173 @@ describe("operators", () => {
 					reference(resource({ name: required(string()) })),
 					reference(resource({ label: required(string()) }))
 				)).toThrow(TraceError);
+
+			});
+
+		});
+
+	});
+
+	describe("deriveReference", () => {
+
+		it("draws the shortest in member", async () => {
+
+			expect(deriveReference(reference(resource({ in: ["app:/users/longer", "app:/u/1"] }, {})))).toBe("app:/u/1");
+
+		});
+
+		it("draws the shortest hasValue member when no in is set", async () => {
+
+			expect(deriveReference(reference(resource({ hasValue: ["app:/users/admin", "app:/u/1"] }, {})))).toBe("app:/u/1");
+
+		});
+
+		it("draws from in in preference to hasValue", async () => {
+
+			const target = resource({ in: ["app:/users/1"], hasValue: ["app:/users/1"] }, {});
+
+			expect(deriveReference(reference(target))).toBe("app:/users/1");
+
+		});
+
+		it("synthesises a root-relative pattern into an absolute identifier", async () => {
+
+			expect(deriveReference(reference(resource({ pattern: "/users/{id}" }, {})))).toBe("app:/users/0");
+
+		});
+
+		it("synthesises an absolute pattern", async () => {
+
+			expect(deriveReference(reference(resource({ pattern: "https://example.org/p/{x}" }, {})))).toBe("https://example.org/p/0");
+
+		});
+
+		it("synthesises a trailing wildcard", async () => {
+
+			expect(deriveReference(reference(resource({ pattern: "/cats/*" }, {})))).toBe("app:/cats/0");
+
+		});
+
+		it("draws from in in preference to pattern", async () => {
+
+			const target = resource({ pattern: "/users/{id}", in: ["app:/users/1"] }, {});
+
+			expect(deriveReference(reference(target))).toBe("app:/users/1");
+
+		});
+
+		it("falls back to app:/ with no identifier constraints", async () => {
+
+			expect(deriveReference(reference(resource({}, {})))).toBe("app:/");
+
+		});
+
+		it("throws when the drawn value is not a legal identifier", async () => {
+
+			// ;(cast) test mock: a hand-built target bypassing the resource() consistency checks
+
+			const target = {
+				kind: "resource", model: {}, properties: {},
+				pattern: "/users/{id}", in: ["app:/products/1"]
+			} as ResourceShape;
+
+			expect(() => deriveReference(reference(target))).toThrow(TraceError);
+
+		});
+
+	});
+
+});
+
+describe("validators", () => {
+
+	describe("validateReferences", () => {
+
+		describe("type filtering", () => {
+
+			it.each<[string, readonly unknown[]]>([
+				["valid reference values", ["app:/users/123"]],
+				["empty values", []]
+			])("returns undefined for %s", async (_label, values) => {
+
+				expect(validateReference(values, reference(resource({})))).toBeUndefined();
+
+			});
+
+			it.each<[string, readonly unknown[], RegExp]>([
+				["a single non-reference value", [42], /expected <reference> values$/],
+				["mixed valid and non-reference values", ["app:/users/123", 42], /expected <reference> values$/],
+				["multiple non-reference values", [42, true], /expected <reference> values \(2\/2\)/],
+
+				// references MUST be absolute IRIs; a root-relative string carries no scheme
+
+				["a relative (non-absolute) IRI", ["/users/123"], /expected <reference> values$/]
+			])("returns a kind trace for %s", async (_label, values, message) => {
+
+				const trace = validateReference(values, reference(resource({})));
+
+				expect(trace).toHaveProperty("{kind}");
+				expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
+
+			});
+
+		});
+
+		describe.each([
+
+			{
+				constraint: "pattern",
+				options: { pattern: "/users/{id}" } as const,
+				valid: ["app:/users/123"],
+				invalid: ["app:/products/123"],
+				errorKey: "{pattern}"
+			},
+
+			{
+				constraint: "in",
+				options: { in: ["app:/users/1", "app:/users/2"] } as const,
+				valid: ["app:/users/1"],
+				invalid: ["app:/users/99"],
+				errorKey: "{in}"
+			},
+
+			{
+				constraint: "hasValue",
+				options: { hasValue: ["app:/users/1"] } as const,
+				valid: ["app:/users/1", "app:/users/2"],
+				invalid: ["app:/users/2"],
+				errorKey: "{hasValue}"
+			}
+
+		])("$constraint constraint", ({ options, valid, invalid, errorKey }) => {
+
+			it("accepts valid references", async () => {
+
+				const shape = reference(resource(options, {}));
+
+				expect(validateReference(valid, shape)).toBeUndefined();
+
+			});
+
+			it("rejects invalid references", async () => {
+
+				const shape = reference(resource(options, {}));
+
+				expect(validateReference(invalid, shape)).toHaveProperty(errorKey);
+
+			});
+
+		});
+
+		describe("lazy shape resolution", () => {
+
+			it("resolves lazy shape function before validation", async () => {
+
+				const target = resource({ pattern: "/users/{id}" }, {});
+				const shape = reference(() => target);
+
+				expect(validateReference(["app:/users/123"], shape)).toBeUndefined();
+				expect(validateReference(["app:/products/123"], shape)).toHaveProperty("{pattern}");
 
 			});
 

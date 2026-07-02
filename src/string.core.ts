@@ -36,18 +36,26 @@ import type { StringShape } from "./string.js";
  */
 export function checkString({
 
+	model,
+
 	minLength,
 	maxLength,
+
+	pattern,
 
 	in: allowed,
 	hasValue
 
 }: {
 
+	readonly model?: string;
+
 	readonly minLength?: number;
 	readonly maxLength?: number;
 
-	readonly in?: readonly string[];
+	readonly pattern?: string;
+
+	readonly in?: readonly [string, ...string[]];
 	readonly hasValue?: readonly string[];
 
 }): undefined | Trace {
@@ -60,31 +68,31 @@ export function checkString({
 
 		"{hasValue/in}": hasValue === undefined || allowed === undefined
 			|| hasValue.every(v => allowed.includes(v))
-			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`
+			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`,
+
+		// model legality: probe the prototype with the regular validator, dropping the set-level hasValue
+
+		"{model}": model === undefined || validateString([model], {
+			kind: "string", model, minLength, maxLength, pattern, in: allowed
+		})
 
 	});
 
 }
 
 /**
- * Merges an overriding string shape with an inherited base shape.
+ * Reports whether an overriding string shape narrows an inherited base shape.
  *
- * Combines constraints from `source` into `target`, enforcing that overrides only narrow inherited definitions.
+ * Tests the override relation without building the merged shape: returns `undefined` when `target` only tightens
+ * `source` (matching `datatype` and `pattern`, lengths not widened, `in` intersection non-empty, merged
+ * constraints consistent), or a keyed {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
  *
- * @returns The merged shape with combined constraints
- *
- * @throws {TraceError} On incompatible overrides
+ * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function mergeString(target: StringShape, source: StringShape): StringShape {
-
-	// conjunctive: pattern — combined using lookaheads
-
-	const pattern = target.pattern !== undefined && source.pattern !== undefined
-		? `(?=${source.pattern})${target.pattern}`
-		: target.pattern ?? source.pattern;
+export function narrowsString(target: StringShape, source: StringShape): undefined | Trace {
 
 	// conjunctive: in — intersection
 
@@ -103,14 +111,19 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 	const minLength = target.minLength ?? source.minLength;
 	const maxLength = target.maxLength ?? source.maxLength;
 
-	// validate
+	return collect({
 
-	const trace = collect({
+		// structural: datatype must be strictly equal when both defined
 
-		// structural: model must be strictly equal
+		"{datatype}": target.datatype === undefined || source.datatype === undefined
+			|| target.datatype === source.datatype
+			|| `mismatched datatypes <${target.datatype}> and <${source.datatype}>`,
 
-		"{model}": target.model === source.model
-			|| `mismatched types <${target.model}> and <${source.model}>`,
+		// structural: pattern must be strictly equal when both defined
+
+		"{pattern}": target.pattern === undefined || source.pattern === undefined
+			|| target.pattern === source.pattern
+			|| `mismatched patterns <${target.pattern}> and <${source.pattern}>`,
 
 		// narrow: minLength — child >= parent
 
@@ -137,16 +150,57 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 			minLength,
 			maxLength,
 
-			in: allowed,
+			// ;(cast) the merge intersection is a plain array; its non-emptiness is reported by {in} above
+
+			in: allowed as StringShape["in"],
 			hasValue
 
 		}))
 
 	});
 
+}
+
+/**
+ * Merges an overriding string shape with an inherited base shape.
+ *
+ * Combines constraints from `source` into `target`, enforcing that overrides only narrow inherited definitions.
+ *
+ * @param target The overriding child shape
+ * @param source The inherited parent shape
+ *
+ * @returns The merged shape with combined constraints
+ *
+ * @throws {TraceError} On incompatible overrides
+ */
+export function mergeString(target: StringShape, source: StringShape): StringShape {
+
+	const trace = narrowsString(target, source);
+
 	if ( trace !== undefined ) {
 		throw new TraceError("incompatible string shape override", trace);
 	}
+
+	// structural: pattern — equal when both defined (enforced by narrowsString)
+
+	const pattern = target.pattern ?? source.pattern;
+
+	// conjunctive: in — intersection
+
+	const allowed = target.in !== undefined && source.in !== undefined
+		? target.in.filter(v => source.in!.includes(v))
+		: target.in ?? source.in;
+
+	// conjunctive: hasValue — union
+
+	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
+		? [...new Set([...target.hasValue, ...source.hasValue])]
+		: target.hasValue ?? source.hasValue;
+
+	// merged constraints
+
+	const minLength = target.minLength ?? source.minLength;
+	const maxLength = target.maxLength ?? source.maxLength;
 
 	// build shape — casts are safe: non-emptiness validated above
 
@@ -154,6 +208,7 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 
 		kind: target.kind,
 		model: target.model,
+		datatype: target.datatype ?? source.datatype,
 
 		pattern,
 		minLength,
@@ -163,6 +218,77 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 		hasValue: hasValue as StringShape["hasValue"]
 
 	});
+
+}
+
+/**
+ * Derives a legal prototype model for a string shape, throwing when none can be drawn.
+ *
+ * Draws the shortest `in` member, else the shortest `hasValue` member, else the supplied `model`, else a `*`-filled
+ * string of `minLength` characters (a string carries no magnitude to interpolate), falling back to the empty string.
+ * The drawn value is validated and a {@link TraceError} is thrown when it is not a legal member of the shape's value
+ * space (for example when a `pattern` rejects the synthesised string).
+ *
+ * @param constraints The shape constraints, including the optional `model`, the resolved value must satisfy
+ *
+ * @returns A legal prototype model
+ *
+ * @throws {TraceError} When the resolved model is not legal
+ */
+export function deriveString({
+
+	model,
+
+	minLength,
+	maxLength,
+
+	pattern,
+
+	in: allowed,
+	hasValue
+
+}: {
+
+	readonly model?: string;
+
+	readonly minLength?: number;
+	readonly maxLength?: number;
+
+	readonly pattern?: string;
+
+	readonly in?: readonly [string, ...string[]];
+	readonly hasValue?: readonly [string, ...string[]];
+
+}): string {
+
+	const value = allowed !== undefined ? minimal(allowed)
+		: hasValue !== undefined ? minimal(hasValue)
+			: model !== undefined ? model
+				: minLength !== undefined ? "*".repeat(minLength)
+					: "";
+
+	function minimal(values: readonly string[]): string {
+		return values.reduce((a, b) => b.length < a.length ? b : a);
+	}
+
+	const trace = validateString([value], {
+
+		kind: "string",
+		model: value,
+
+		minLength,
+		maxLength,
+		pattern,
+
+		in: allowed
+
+	});
+
+	if ( trace !== undefined ) {
+		throw new TraceError("inconsistent string shape constraints", trace);
+	}
+
+	return value;
 
 }
 
@@ -187,7 +313,15 @@ export function validateString(values: readonly unknown[], {
 	in: allowed,
 	hasValue
 
-}: StringShape): undefined | Trace {
+}: StringShape, {
+
+	placeholder = false
+
+}: {
+
+	placeholder?: boolean
+
+} = {}): undefined | Trace {
 
 	const matching = values.filter(isString);
 	const mistyped = values.length-matching.length;
@@ -217,7 +351,7 @@ export function validateString(values: readonly unknown[], {
 			|| `expected values in [${allowed.join(", ")}]`
 		),
 
-		"{hasValue}": group(matching, group =>
+		"{hasValue}": placeholder || group(matching, group =>
 			hasValue === undefined || hasValue.every(v => group.includes(v))
 			|| `expected values to include [${hasValue.join(", ")}]`
 		)
