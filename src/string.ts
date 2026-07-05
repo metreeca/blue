@@ -83,8 +83,8 @@
  * const status = string({ in: ["active", "inactive"] });                  // enumeration-constrained
  * ```
  *
- * > A constrained `model` placeholder must itself be a legal value for the shape; a `pattern` the synthesised
- * > placeholder cannot satisfy requires an explicit `model` (or an `in`/`hasValue` member to derive from).
+ * > The `model` is a retrieval placeholder matched by JSON type alone: its value is immaterial and need not be legal
+ * > for the shape's constraints, so an unspecified one defaults to the empty string regardless of any `pattern`.
  *
  * **Specialised String Factories**
  *
@@ -130,7 +130,7 @@ import { immutable } from "@metreeca/core/deep";
 import { type Variant } from "@metreeca/core/resource";
 import type { Reference } from "@metreeca/qest";
 import { TraceError } from "./index.core.js";
-import { checkString, deriveString } from "./string.core.js";
+import { checkString } from "./string.core.js";
 
 
 /**
@@ -148,7 +148,7 @@ import { checkString, deriveString } from "./string.core.js";
  * | Field       | Override Rule                                                                      |
  * | ----------- | ---------------------------------------------------------------------------------- |
  * | `kind`      | Cannot be overridden                                                               |
- * | `model`     | Taken from the child: a validated sample value                                     |
+ * | `model`     | Taken from the child: a retrieval placeholder                                      |
  * | `datatype`  | Must be strictly equal when both defined; the single defined value carries through |
  * | `pattern`   | Must be strictly equal when both defined; the single defined value carries through |
  * | `minLength` | Child ≥ parent, narrowing the minimum length                                       |
@@ -175,8 +175,9 @@ export interface StringShape extends StringConstraints {
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
-	 * A sample value drawn from the shape's value space: factories validate it against the value constraints at
-	 * construction, and a merge keeps the child's value.
+	 * A retrieval placeholder matched by JSON type alone: its value is immaterial and need not be legal for the value
+	 * constraints, so factories keep an explicit `model` verbatim and default an unspecified one to `""`. A merge keeps
+	 * the child's value.
 	 *
 	 * @defaultValue `""` (empty string)
 	 */
@@ -211,11 +212,10 @@ export interface StringConstraints extends TextualConstraints {
 	/**
 	 * Explicit prototype value for runtime model assembly.
 	 *
-	 * Seeds the prototype the factory validates against the value constraints. When omitted, the prototype is derived
-	 * from the value space: an `in` or `hasValue` member, else a `minLength`-long filler, else the empty string. When
-	 * supplied, it must itself be a legal value, which a restrictive `pattern` may otherwise require.
+	 * A retrieval placeholder matched by JSON type alone: kept verbatim, its value is immaterial and need not be
+	 * legal for the value constraints. When omitted, the prototype defaults to the empty string.
 	 *
-	 * @defaultValue `undefined` (the prototype is derived from the value constraints)
+	 * @defaultValue `undefined` (the prototype defaults to `""`)
 	 */
 	readonly model?: string;
 
@@ -364,7 +364,7 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 
 		...effective,
 
-		model: deriveString({ ...effective, pattern: source }),
+		model: effective.model ?? "",
 		pattern: source
 
 	});

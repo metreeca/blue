@@ -36,8 +36,6 @@ import type { StringShape } from "./string.js";
  */
 export function checkString({
 
-	model,
-
 	minLength,
 	maxLength,
 
@@ -68,13 +66,7 @@ export function checkString({
 
 		"{hasValue/in}": hasValue === undefined || allowed === undefined
 			|| hasValue.every(v => allowed.includes(v))
-			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`,
-
-		// model legality: probe the prototype with the regular validator, dropping the set-level hasValue
-
-		"{model}": model === undefined || validateString([model], {
-			kind: "string", model, minLength, maxLength, pattern, in: allowed
-		})
+			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`
 
 	});
 
@@ -221,85 +213,22 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 
 }
 
-/**
- * Derives a legal prototype model for a string shape, throwing when none can be drawn.
- *
- * Draws the shortest `in` member, else the shortest `hasValue` member, else the supplied `model`, else a `*`-filled
- * string of `minLength` characters (a string carries no magnitude to interpolate), falling back to the empty string.
- * The drawn value is validated and a {@link TraceError} is thrown when it is not a legal member of the shape's value
- * space (for example when a `pattern` rejects the synthesised string).
- *
- * @param constraints The shape constraints, including the optional `model`, the resolved value must satisfy
- *
- * @returns A legal prototype model
- *
- * @throws {TraceError} When the resolved model is not legal
- */
-export function deriveString({
-
-	model,
-
-	minLength,
-	maxLength,
-
-	pattern,
-
-	in: allowed,
-	hasValue
-
-}: {
-
-	readonly model?: string;
-
-	readonly minLength?: number;
-	readonly maxLength?: number;
-
-	readonly pattern?: string;
-
-	readonly in?: readonly [string, ...string[]];
-	readonly hasValue?: readonly [string, ...string[]];
-
-}): string {
-
-	const value = allowed !== undefined ? minimal(allowed)
-		: hasValue !== undefined ? minimal(hasValue)
-			: model !== undefined ? model
-				: minLength !== undefined ? "*".repeat(minLength)
-					: "";
-
-	function minimal(values: readonly string[]): string {
-		return values.reduce((a, b) => b.length < a.length ? b : a);
-	}
-
-	const trace = validateString([value], {
-
-		kind: "string",
-		model: value,
-
-		minLength,
-		maxLength,
-		pattern,
-
-		in: allowed
-
-	});
-
-	if ( trace !== undefined ) {
-		throw new TraceError("inconsistent string shape constraints", trace);
-	}
-
-	return value;
-
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Validates values against a string shape.
  *
- * Filters input values by type, reporting non-string values under the `kind` key, then enforces
- * string constraints on matched values.
+ * Filters input values by type, reporting non-string values under the `kind` key, then enforces the string
+ * value-domain constraints on the matching values.
+ *
+ * @param values The values to validate
+ * @param shape The string shape defining validation constraints
+ * @param opts Validation options
+ * @param opts.model Whether to validate `values` as retrieval placeholders rather than instances: the value-domain
+ *     constraints are skipped so the value need not be legal, matched by kind alone; defaults to `false`
+ *
+ * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
 export function validateString(values: readonly unknown[], {
 
@@ -331,22 +260,22 @@ export function validateString(values: readonly unknown[], {
 		"{kind}": mistyped === 0
 			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
-		"{minLength}": every(matching, value =>
+		"{minLength}": model || every(matching, value =>
 			minLength === undefined || value.length >= minLength
 			|| `expected string length >= <${minLength}>`
 		),
 
-		"{maxLength}": every(matching, value =>
+		"{maxLength}": model || every(matching, value =>
 			maxLength === undefined || value.length <= maxLength
 			|| `expected string length <= <${maxLength}>`
 		),
 
-		"{pattern}": every(matching, value =>
+		"{pattern}": model || every(matching, value =>
 			pattern === undefined || new RegExp(pattern).test(value)
 			|| `expected string matching </${pattern}/>`
 		),
 
-		"{in}": every(matching, value =>
+		"{in}": model || every(matching, value =>
 			allowed === undefined || allowed.includes(value)
 			|| `expected values in [${allowed.join(", ")}]`
 		),

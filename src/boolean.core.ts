@@ -80,17 +80,6 @@ export function mergeBoolean(target: BooleanShape, source: BooleanShape): Boolea
 
 }
 
-/**
- * Derives the default prototype model for a boolean shape.
- *
- * A boolean shape admits both truth values with no constraints to draw from, so the prototype is always `false`. The
- * {@link value!deriveValue | deriveValue} dispatcher prefers an explicit `model` and falls back to this default.
- *
- * @returns The default boolean prototype model `false`
- */
-export function deriveBoolean({}: BooleanShape) {
-	return false;
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

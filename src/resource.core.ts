@@ -66,7 +66,7 @@ import type { Property, ResourceShape } from "./resource.js";
 import { validateString } from "./string.core.js";
 import { validateLocaleString, validateLocaleStrings, validateText, validateTextSet } from "./text.core.js";
 import type { TextShape } from "./text.js";
-import { getShapeVariants, validateUnionMatch } from "./union.core.js";
+import { getShapeVariants, validateUnion } from "./union.core.js";
 import {
 	deriveValues,
 	eager,
@@ -288,7 +288,12 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
  * An embedded (inline `resource`-kind) range has no independent identity, so it must not declare a `kind: "id"`
  * property. A standalone resource or a reference target legitimately carries one and is not flagged; union ranges are
  * inspected per variant. Only the shape's own properties are examined, since every embedded resource is itself checked
- * when it is flattened.
+ * when {@link validateResource} recurses into it.
+ *
+ * This check runs in {@link validateResource} against an actual resource state, not in {@link flatten} at construction.
+ * At construction an id-bearing `resource`-kind range cannot be told apart from an expanded reference, whose target
+ * legitimately carries an id; the two are distinguishable only once a concrete state value is checked against the
+ * shape.
  *
  * @param shape The flattened resource shape to check
  *
@@ -633,12 +638,10 @@ export function mergeProperty(target: Property, source: Property): Property {
 /**
  * Derives the retrieval template for a resource shape.
  *
- * Projects each property to its retrieval placeholder, deriving the per-property value through {@link
- * value!deriveValue | deriveValue} so reference and union members carry derived identifiers; `id` and `type`
- * properties project the
- * {@link defaultBase}. Cardinality wrapping (a scalar for `maxCount === 1`, otherwise a singleton `[value]` tuple
- * carrying any selection) and the per-tag localised form mirror the {@link value!cardinality | cardinality}
- * projection.
+ * Projects each property to its retrieval placeholder, deriving the per-property value through
+ * {@link value!deriveValue | deriveValue}; `id` and `type` properties project the {@link defaultBase}. Cardinality
+ * wrapping (a scalar for `maxCount === 1`, otherwise a singleton `[value]` tuple carrying any selection) and the
+ * per-tag localised form mirror the {@link value!cardinality | cardinality} projection.
  *
  * @param shape The resource shape whose template to derive
  *
@@ -680,6 +683,11 @@ export function deriveResource(shape: ResourceShape) {
  * shape; the `depth` option bounds how many nesting levels may be expanded (`0` rejects all
  * expansion, accepting IRIs only; `undefined` imposes no limit). Plain (non-captive) references
  * accept the IRI form only. This applies uniformly to reference variants inside and outside unions.
+ *
+ * An embedded (inline, non-reference) resource state may not carry an `id`: embedded resources have
+ * no independent identity, so a nested state bearing an identifier is rejected here. This check is
+ * deferred to validation rather than shape construction because an id-bearing embedded range is
+ * indistinguishable from an expanded captive reference target until a state is checked against it.
  *
  * Property-value absence normalisation enforces qest's `Resource` / `Values` / `Text`
  * contract: canonical absent forms (`undefined`, `[]`, and, on slots that accept a nested
@@ -724,6 +732,10 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	const mistyped = values.length-matching.length;
 
 	return collect({
+
+		// embedded-resource id rejection runs here against the state, not in flatten (see checkId)
+
+		...wrap(checkId(shape)),
 
 		"{kind}": mistyped === 0
 			|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
@@ -864,13 +876,12 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 			case "union":
 
-				return collect(Object.fromEntries(values.map((value, index) => [`[${index}]`,
-					validateUnionMatch(shape.variants.filter(variant =>
+				return validateUnion(values, shape.variants, {
+					match: (value, variant) =>
 						variant.kind === "reference" ? validateReferenceElement(value, variant, depth) === undefined
 							: variant.kind === "resource" ? validateResource([value], variant, { depth }) === undefined
 								: validateValue([value], variant) === undefined
-					))
-				])));
+				});
 
 			default:
 
@@ -1045,8 +1056,8 @@ export function validateResult(values: readonly unknown[], {
 		// resource-nesting slot are property omission
 
 		const present = value === undefined
-			|| isArray(value) && value.length === 0
-			|| isObject(value) && Object.keys(value).length === 0 && nests
+		|| isArray(value) && value.length === 0
+		|| isObject(value) && Object.keys(value).length === 0 && nests
 			? undefined : value;
 
 		if ( present === undefined ) {
@@ -1147,19 +1158,19 @@ export function validateResult(values: readonly unknown[], {
 
 			} else {
 
-				// the value must single out exactly one (branch, variant) pairing across the listed branches
+				// the value must single out exactly one variant across the listed branches
 
-				return validateUnionMatch(keys.flatMap(key => shape.flatMap(variant =>
-					admits(value, variant, fields[key]) ? [key] : []
-				)));
+				return validateUnion(value, shape, {
+					match: (value, variant) => keys.some(key => admits(value, variant, fields[key]))
+				});
 
 			}
 
 		} else {
 
-			return validateUnionMatch(shape.filter(variant =>
-				admits(value, variant, nested)
-			));
+			return validateUnion(value, shape, {
+				match: (value, variant) => admits(value, variant, nested)
+			});
 
 		}
 
@@ -1203,8 +1214,8 @@ export function validateResult(values: readonly unknown[], {
 		// normalise absence (mirrors the state-side contract): `undefined`, `[]`, and an empty map `{}`
 
 		const present = value === undefined
-			|| isArray(value) && value.length === 0
-			|| isObject(value) && Object.keys(value).length === 0
+		|| isArray(value) && value.length === 0
+		|| isObject(value) && Object.keys(value).length === 0
 			? undefined : value;
 
 		// a coalesced model requests the coalesced label (a bare string, or a single-element string array
@@ -1351,7 +1362,7 @@ export function validateResult(values: readonly unknown[], {
 		});
 	}
 
-	
+
 	function nestedTemplate(nested: unknown): Template {
 
 		// unwrap the per-item element of a collection-shaped `Query` placeholder, then narrow to the nested
@@ -1592,7 +1603,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		const variants = getMultiVariants(shape);
 		const [variant] = variants;
 
-		return variants.length > 1 ? validateUnion(value, shape, depth, local)
+		return variants.length > 1 ? validateUnionValue(value, shape, depth, local)
 			: variant.kind === "text" ? validateLocale(value, shape)
 				: collect(wrap(validatePlaceholder(value, variant, depth)));
 
@@ -1678,7 +1689,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		} else if ( variants.length > 1 ) {
 
-			return validateUnion(value, shape, depth);
+			return validateUnionValue(value, shape, depth);
 
 		} else {
 
@@ -1722,7 +1733,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 	}
 
-	function validateUnion(
+	function validateUnionValue(
 		value: unknown,
 		shape: SetShape | RangeShape,
 		depth: undefined | number,
@@ -1735,10 +1746,12 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			return collect(Object.fromEntries(Object.entries(value).map(([key, branch]) => {
 
-				return [key, validateUnionMatch(variants.filter(variant => variant.kind === "text"
-					? local && validateLocaleString(branch) === undefined
-					: validatePlaceholder(branch, variant, depth) === undefined
-				))];
+				return [key, validateUnion(branch, variants, {
+					model: true,
+					match: (branch, variant) => variant.kind === "text"
+						? local && validateLocaleString(branch) === undefined
+						: validatePlaceholder(branch, variant, depth) === undefined
+				})];
 
 			})));
 
@@ -1946,9 +1959,9 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			} else if ( variants.length > 1 ) {
 
-				return validateUnionMatch(variants.filter(variant =>
-					validateBound(value, [variant]) === undefined
-				));
+				return validateUnion(value, variants, {
+					match: (value, variant) => validateBound(value, [variant]) === undefined
+				});
 
 			} else {
 
@@ -1995,9 +2008,12 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			} else if ( variants.length > 1 ) {
 
-				return validateUnionMatch(variants.filter(variant =>
-					validateKeywords(value, [variant]) === undefined
-				));
+				// `~` is a search string applied to every string branch at once, not a discriminating value
+
+				return validateUnion(value, variants, {
+					model: true,
+					match: (value, variant) => validateKeywords(value, [variant]) === undefined
+				});
 
 			} else {
 
@@ -2042,9 +2058,9 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 				// each option singles out exactly one variant (`sh:xone`); a null option is typeless and exempt
 
 				function validate(option: unknown): undefined | Trace {
-					return option === null ? undefined : validateUnionMatch(variants.filter(variant =>
-						validateOptions(option, [variant]) === undefined
-					));
+					return option === null ? undefined : validateUnion(option, variants, {
+						match: (option, variant) => validateOptions(option, [variant]) === undefined
+					});
 				}
 
 			} else {
@@ -2234,7 +2250,9 @@ export function flatten(shape: ResourceShape): ResourceShape {
 			...wrap(checkParents(shape, parents)),
 			...wrap(checkSingletons(Object.values(merged.properties))),
 			...wrap(checkPredicates(merged)),
-			...wrap(checkId(merged)),
+
+			// checkId is deferred to validateResource, not run here at construction (see checkId)
+
 			...wrap(checkType(merged))
 
 		});

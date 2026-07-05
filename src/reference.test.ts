@@ -16,9 +16,9 @@
 
 import { describe, expect, it } from "vitest";
 import { TraceError } from "./index.core.js";
-import { deriveReference, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
+import { mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import { reference, type ReferenceConstraints } from "./reference.js";
-import { resource, type ResourceShape } from "./resource.js";
+import { resource } from "./resource.js";
 import { string } from "./string.js";
 import { multiple, optional, repeatable, required } from "./value.js";
 
@@ -221,75 +221,6 @@ describe("operators", () => {
 
 	});
 
-	describe("deriveReference", () => {
-
-		it("draws the shortest in member", async () => {
-
-			expect(deriveReference(reference(resource({ in: ["app:/users/longer", "app:/u/1"] }, {})))).toBe("app:/u/1");
-
-		});
-
-		it("draws the shortest hasValue member when no in is set", async () => {
-
-			expect(deriveReference(reference(resource({ hasValue: ["app:/users/admin", "app:/u/1"] }, {})))).toBe("app:/u/1");
-
-		});
-
-		it("draws from in in preference to hasValue", async () => {
-
-			const target = resource({ in: ["app:/users/1"], hasValue: ["app:/users/1"] }, {});
-
-			expect(deriveReference(reference(target))).toBe("app:/users/1");
-
-		});
-
-		it("synthesises a root-relative pattern into an absolute identifier", async () => {
-
-			expect(deriveReference(reference(resource({ pattern: "/users/{id}" }, {})))).toBe("app:/users/0");
-
-		});
-
-		it("synthesises an absolute pattern", async () => {
-
-			expect(deriveReference(reference(resource({ pattern: "https://example.org/p/{x}" }, {})))).toBe("https://example.org/p/0");
-
-		});
-
-		it("synthesises a trailing wildcard", async () => {
-
-			expect(deriveReference(reference(resource({ pattern: "/cats/*" }, {})))).toBe("app:/cats/0");
-
-		});
-
-		it("draws from in in preference to pattern", async () => {
-
-			const target = resource({ pattern: "/users/{id}", in: ["app:/users/1"] }, {});
-
-			expect(deriveReference(reference(target))).toBe("app:/users/1");
-
-		});
-
-		it("falls back to app:/ with no identifier constraints", async () => {
-
-			expect(deriveReference(reference(resource({}, {})))).toBe("app:/");
-
-		});
-
-		it("throws when the drawn value is not a legal identifier", async () => {
-
-			// ;(cast) test mock: a hand-built target bypassing the resource() consistency checks
-
-			const target = {
-				kind: "resource", model: {}, properties: {},
-				pattern: "/users/{id}", in: ["app:/products/1"]
-			} as ResourceShape;
-
-			expect(() => deriveReference(reference(target))).toThrow(TraceError);
-
-		});
-
-	});
-
 });
 
 describe("validators", () => {
@@ -381,6 +312,42 @@ describe("validators", () => {
 
 				expect(validateReference(["app:/users/123"], shape)).toBeUndefined();
 				expect(validateReference(["app:/products/123"], shape)).toHaveProperty("{pattern}");
+
+			});
+
+		});
+
+		describe("placeholder mode", () => {
+
+			it("skips target value constraints for a placeholder", async () => {
+
+				const shape = reference(resource({ pattern: "/users/{id}" }, {}));
+
+				expect(validateReference(["app:/products/999"], shape, { model: true })).toBeUndefined();
+
+			});
+
+			// a reference placeholder matches the full IRI-reference production (qest §5.2): the empty string
+			// together with the relative, root-relative, and absolute forms, not the absolute-only instance form
+
+			it.each<[string, readonly unknown[]]>([
+				["an absolute IRI", ["app:/vendors/1"]],
+				["a root-relative IRI", ["/vendors/"]],
+				["a relative IRI", ["vendors/1"]],
+				["the empty string", [""]]
+			])("accepts %s placeholder", async (_label, values) => {
+
+				const shape = reference(resource({}));
+
+				expect(validateReference(values, shape, { model: true })).toBeUndefined();
+
+			});
+
+			it("still rejects a placeholder of the wrong kind", async () => {
+
+				const shape = reference(resource({}));
+
+				expect(validateReference([42], shape, { model: true })).toHaveProperty("{kind}");
 
 			});
 

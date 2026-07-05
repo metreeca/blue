@@ -23,8 +23,8 @@
 import type { Lazy } from "@metreeca/core";
 import { map } from "@metreeca/core/combo";
 import { equals, immutable } from "@metreeca/core/deep";
-import { resolve } from "@metreeca/core/resource";
-import { defaultBase, isReference, type Reference } from "@metreeca/qest";
+import { isIRI } from "@metreeca/core/resource";
+import { isReference } from "@metreeca/qest";
 import { collect, every, group, TraceError } from "./index.core.js";
 import type { Trace } from "./index.js";
 import type { ReferenceShape } from "./reference.js";
@@ -109,86 +109,44 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 
 }
 
-/**
- * Derives a legal prototype model for a reference shape, throwing when none can be drawn.
- *
- * Draws the shortest `in` member, else the shortest `hasValue` member, else an identifier synthesised from the target
- * `pattern` template (filling `{name}` placeholders and a trailing `/*` wildcard with a sample segment, prefixing
- * root-relative templates with the default `app:` scheme to make them absolute), falling back to `app:/`. The drawn
- * value is validated against the target `pattern` and `in` constraints (the set-level `hasValue` is dropped, as a
- * single sample cannot satisfy a multi-value requirement) and a {@link TraceError} is thrown when it is not a legal
- * member of the target's identifier space.
- *
- * @param shape The reference shape whose target identifier constraints the model must satisfy
- *
- * @returns A legal prototype model identifier
- *
- * @throws {TraceError} When the resolved model is not legal
- */
-export function deriveReference({ shape }: ReferenceShape): Reference {
-
-	return map(eager(shape), (target) => {
-
-		const { pattern, in: allowed, hasValue } = target;
-
-		const value: Reference = allowed !== undefined ? minimal(allowed)
-			: hasValue !== undefined ? minimal(hasValue)
-				: pattern !== undefined ? synthesise(pattern)
-					: "app:/";
-
-		function minimal(values: readonly Reference[]): Reference {
-			return values.reduce((a, b) => b.length < a.length ? b : a);
-		}
-
-		function synthesise(template: string): Reference {
-			return resolve(defaultBase, template.replace(/\{\w*}/g, "0").replace(/\/\*$/, "/0"));
-		}
-
-		// self-validate by reusing the regular validator, dropping the set-level hasValue (a single sample cannot
-		// satisfy a multi-value requirement)
-
-		const trace = validateReference([value], {
-			kind: "reference",
-			model: value,
-			shape: () => ({ ...target, hasValue: undefined })
-		});
-
-		if ( trace !== undefined ) {
-			throw new TraceError("inconsistent reference shape constraints", trace);
-		}
-
-		return value;
-
-	});
-
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Validates values against a {@link ReferenceShape}.
  *
- * Filters input values by type, reporting non-reference values under the `kind` key, then enforces
- * reference constraints on matched values.
+ * Filters input values by type, reporting non-reference values under the `kind` key, then enforces the reference
+ * value-domain constraints on the matching values.
+ *
+ * @param values The values to validate
+ * @param shape The reference shape defining validation constraints
+ * @param opts Validation options
+ * @param opts.model Whether to validate `values` as retrieval placeholders rather than instances: the value-domain
+ *     constraints are skipped so the value need not be legal, and the kind admits the full IRI-reference production
+ *     (empty, relative, root-relative, and absolute forms) rather than the absolute-only instance form; defaults to
+ *     `false`
+ *
+ * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
 export function validateReference(values: readonly unknown[], shape: ReferenceShape, {
 
-	model=false
+	model = false
 
 }: {
 
 	model?: boolean
 
-}={}): undefined | Trace {
+} = {}): undefined | Trace {
 
-	const matching = values.filter(isReference);
+	const matching = values.filter(model ? value => isIRI(value) : isReference);
 	const mistyped = values.length-matching.length;
 
 	const target = eager(shape.shape);
 
-	const patterns = target.pattern !== undefined ? [target.pattern] : [];
-	const allowed = target.in !== undefined ? [target.in] : [];
+	// a placeholder (model) is matched by kind alone: target value constraints are skipped, only {kind} applies
+
+	const patterns = model || target.pattern === undefined ? [] : [target.pattern];
+	const allowed = model || target.in === undefined ? [] : [target.in];
 	const required = model || target.hasValue === undefined ? [] : [target.hasValue];
 
 	return collect({

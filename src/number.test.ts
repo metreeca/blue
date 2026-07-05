@@ -16,8 +16,7 @@
 
 import { xsd } from "@metreeca/core/datatype";
 import { describe, expect, it } from "vitest";
-import { TraceError } from "./index.core.js";
-import { checkNumber, deriveNumber, mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
+import { checkNumber, mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 
 describe("factories", () => {
@@ -113,58 +112,26 @@ describe("factories", () => {
 
 	describe("model resolution", () => {
 
-		it("keeps the default model when it is legal", async () => {
+		it("defaults the model to 0", async () => {
 
 			expect(number().model).toBe(0);
-			expect(number({ minInclusive: 0, maxInclusive: 100 }).model).toBe(0);
 			expect(byte().model).toBe(0);
 
 		});
 
-		it("derives a one-sided inclusive bound", async () => {
+		it("keeps the default 0 regardless of value constraints", async () => {
 
-			expect(number({ minInclusive: 5 }).model).toBe(5);
-			expect(number({ maxInclusive: -3 }).model).toBe(-3);
-
-		});
-
-		it("derives just inside a one-sided exclusive bound", async () => {
-
-			expect(number({ minExclusive: 0 }).model).toBe(1);
-			expect(number({ maxExclusive: -3 }).model).toBe(-4);
+			expect(number({ minInclusive: 5 }).model).toBe(0);
+			expect(number({ minExclusive: 0, maxExclusive: 10 }).model).toBe(0);
+			expect(number({ in: [2, 3] }).model).toBe(0);
+			expect(byte({ minInclusive: 10, maxInclusive: 20 }).model).toBe(0);
 
 		});
 
-		it("steps inside a two-sided exclusive range, averaging when the step overshoots", async () => {
+		it("keeps an explicit model verbatim, even when illegal for the constraints", async () => {
 
-			expect(number({ minExclusive: 0, maxExclusive: 10 }).model).toBe(1);
-			expect(number({ minExclusive: 0, maxExclusive: 0.5 }).model).toBe(0.25);
-
-		});
-
-		it("derives the lower bound of a two-sided range", async () => {
-
-			expect(number({ minInclusive: 10, maxInclusive: 20 }).model).toBe(10);
-			expect(integer({ minInclusive: 10, maxInclusive: 21 }).model).toBe(10);
-
-		});
-
-		it("derives the first in member when the default is illegal", async () => {
-
-			expect(number({ in: [2, 3] }).model).toBe(2);
-			expect(byte({ in: [1, 2, 3] }).model).toBe(1);
-
-		});
-
-		it("derives a bound when the default falls outside custom bounds", async () => {
-
-			expect(byte({ minInclusive: 10, maxInclusive: 20 }).model).toBe(10);
-
-		});
-
-		it("rejects an explicit illegal model", async () => {
-
-			expect(() => number({ model: 0, minInclusive: 5 })).toThrow(RangeError);
+			expect(number({ model: 7 }).model).toBe(7);
+			expect(number({ model: 0, minInclusive: 5 }).model).toBe(0);
 
 		});
 
@@ -408,7 +375,11 @@ describe("operators", () => {
 
 		it("returns trace for an empty integral range", async () => {
 
-			expect(checkNumber({ integral: true, minExclusive: 0, maxExclusive: 1 })).toHaveProperty("{integral/range}");
+			expect(checkNumber({
+				integral: true,
+				minExclusive: 0,
+				maxExclusive: 1
+			})).toHaveProperty("{integral/range}");
 
 		});
 
@@ -431,38 +402,18 @@ describe("operators", () => {
 
 		});
 
-		it("returns trace under {model} for a model below minInclusive", async () => {
+		it("does not check model legality, as a model is a placeholder", async () => {
 
-			expect(checkNumber({ model: -1, minInclusive: 0 })).toHaveProperty("{model}");
-
-		});
-
-		it("returns trace under {model} for a model above maxInclusive", async () => {
-
-			expect(checkNumber({ model: 11, maxInclusive: 10 })).toHaveProperty("{model}");
-
-		});
-
-		it("returns trace under {model} for a model at an exclusive bound", async () => {
-
-			expect(checkNumber({ model: 0, minExclusive: 0 })).toHaveProperty("{model}");
-			expect(checkNumber({ model: 10, maxExclusive: 10 })).toHaveProperty("{model}");
+			expect(checkNumber({ model: -1, minInclusive: 0 })).toBeUndefined();
+			expect(checkNumber({ model: 11, maxInclusive: 10 })).toBeUndefined();
+			expect(checkNumber({ model: 0, minExclusive: 0 })).toBeUndefined();
+			expect(checkNumber({ model: 10, maxExclusive: 10 })).toBeUndefined();
+			expect(checkNumber({ model: 1.5, integral: true })).toBeUndefined();
+			expect(checkNumber({ model: 5, in: [1, 2, 3] })).toBeUndefined();
 
 		});
 
-		it("returns trace under {model} for a fractional model when integral", async () => {
-
-			expect(checkNumber({ model: 1.5, integral: true })).toHaveProperty("{model}");
-
-		});
-
-		it("returns trace under {model} for a model not in the in set", async () => {
-
-			expect(checkNumber({ model: 5, in: [1, 2, 3] })).toHaveProperty("{model}");
-
-		});
-
-		it("reports constraint inconsistency alongside model legality", async () => {
+		it("reports constraint inconsistency regardless of the model", async () => {
 
 			expect(checkNumber({ model: 5, minInclusive: 10, maxInclusive: 0 }))
 				.toHaveProperty("{minInclusive/maxInclusive}");
@@ -838,52 +789,6 @@ describe("operators", () => {
 
 	});
 
-	describe("deriveNumber", () => {
-
-		it("derives 0 for an unconstrained shape", async () => {
-
-			expect(deriveNumber({})).toBe(0);
-
-		});
-
-		it("draws the smallest-magnitude in member", async () => {
-
-			expect(deriveNumber({ in: [3, 1, 2] })).toBe(1);
-
-		});
-
-		it("draws the smallest-magnitude hasValue member when no in is set", async () => {
-
-			expect(deriveNumber({ hasValue: [5, 2] })).toBe(2);
-
-		});
-
-		it("keeps the supplied model when no in or hasValue is set", async () => {
-
-			expect(deriveNumber({ model: 7 })).toBe(7);
-
-		});
-
-		it("steps inside an exclusive lower bound", async () => {
-
-			expect(deriveNumber({ minExclusive: 0, maxExclusive: 10 })).toBe(1);
-
-		});
-
-		it("draws the inclusive bound when 0 is out of range", async () => {
-
-			expect(deriveNumber({ minInclusive: 5 })).toBe(5);
-
-		});
-
-		it("throws when the drawn value is not legal", async () => {
-
-			expect(() => deriveNumber({ minInclusive: 5, maxInclusive: 1 })).toThrow(TraceError);
-
-		});
-
-	});
-
 });
 
 describe("validators", () => {
@@ -929,6 +834,25 @@ describe("validators", () => {
 
 				expect(trace).toHaveProperty("{kind}");
 				expect(trace).not.toHaveProperty("{minInclusive}");
+
+			});
+
+		});
+
+		describe("placeholder mode", () => {
+
+			it("skips value-domain constraints for a placeholder", async () => {
+
+				expect(validateNumber([500], number({ maxInclusive: 100 }), { model: true })).toBeUndefined();
+				expect(validateNumber([-1], number({ minInclusive: 0 }), { model: true })).toBeUndefined();
+				expect(validateNumber([5], number({ in: [1, 2, 3] }), { model: true })).toBeUndefined();
+				expect(validateNumber([1.5], number({ integral: true }), { model: true })).toBeUndefined();
+
+			});
+
+			it("still rejects a placeholder of the wrong kind", async () => {
+
+				expect(validateNumber(["nope"], number(), { model: true })).toHaveProperty("{kind}");
 
 			});
 

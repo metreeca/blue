@@ -2192,7 +2192,12 @@ describe("utilities", () => {
 
 			it("accepts an embedded resource declaring a type", async () => {
 
-				const shape = resource({ child: optional(resource({ class: "app:/types/T" }, { rtype: type(), label: required(string()) })) });
+				const shape = resource({
+					child: optional(resource({ class: "app:/types/T" }, {
+						rtype: type(),
+						label: required(string())
+					}))
+				});
 
 				expect(checkId(shape)).toBeUndefined();
 
@@ -2200,7 +2205,12 @@ describe("utilities", () => {
 
 			it("ignores an id on a reference target", async () => {
 
-				const shape = resource({ link: required(reference(resource({ rid: id(), name: required(string()) }))) });
+				const shape = resource({
+					link: required(reference(resource({
+						rid: id(),
+						name: required(string())
+					})))
+				});
 
 				expect(checkId(shape)).toBeUndefined();
 
@@ -2214,7 +2224,11 @@ describe("utilities", () => {
 					...base,
 					properties: {
 						...base.properties,
-						child: { kind: "property", forward: "http://example.org/child", range: optional(resource({ rid: id() })) }
+						child: {
+							kind: "property",
+							forward: "http://example.org/child",
+							range: optional(resource({ rid: id() }))
+						}
 					}
 				};
 
@@ -3515,11 +3529,11 @@ describe("operators", () => {
 
 		});
 
-		it("derives reference property identifiers from the target", async () => {
+		it("projects reference properties to the stored model", async () => {
 
 			const shape = resource({ ref: required(reference(resource({ pattern: "/things/{id}" }, {}))) });
 
-			expect(deriveResource(shape)).toEqual({ ref: "app:/things/0" });
+			expect(deriveResource(shape)).toEqual({ ref: "app:/" });
 
 		});
 
@@ -3884,6 +3898,12 @@ describe("validators", () => {
 
 			});
 
+			// The embedded-resource id rejection is enforced by validateResource against the state, not at
+			// shape construction: a resource-kind range bearing an id is a genuine embedded resource only
+			// when a resource state is validated against the shape. At construction it is indistinguishable
+			// from an expanded captive reference (a legal retrieval model), so the shape MUST construct
+			// without error and the violation surfaces only against an actual state value.
+
 			it("rejects embedded resource containing id entry", async () => {
 
 				const Nested = resource({
@@ -3891,9 +3911,12 @@ describe("validators", () => {
 					label: required(string())
 				});
 
-				expect(() => resource({
+				const shape = resource({
 					child: optional(Nested)
-				})).toThrow(TraceError);
+				});
+
+				expect(validateResource([{ child: { rid: "app:/n/1", label: "x" } }], shape))
+					.toHaveProperty(["{child}"]);
 
 			});
 
@@ -3920,9 +3943,12 @@ describe("validators", () => {
 					label: required(string())
 				});
 
-				expect(() => resource({
+				const shape = resource({
 					child: optional(Nested)
-				})).toThrow(TraceError);
+				});
+
+				expect(validateResource([{ child: { rid: "app:/n/1", rtype: "app:/types/T", label: "x" } }], shape))
+					.toHaveProperty(["{child}"]);
 
 			});
 
@@ -3937,9 +3963,12 @@ describe("validators", () => {
 					value: required(integer())
 				});
 
-				expect(() => resource({
+				const shape = resource({
 					child: optional(union(Nested, Other))
-				})).toThrow(TraceError);
+				});
+
+				expect(validateResource([{ child: { rid: "app:/n/1", label: "x" } }], shape))
+					.toHaveProperty(["{child}"]);
 
 			});
 
@@ -6319,9 +6348,9 @@ describe("validators", () => {
 
 				});
 
-				it("rejects two templates singling out the same variant", async () => {
+				it("accepts two templates singling out the same variant", async () => {
 
-					// both `""` templates single out the string variant — a split (Section 5.4)
+					// several placeholders MAY resolve to the same union branch — injectivity is not required (Section 5.4)
 					const stringOrInt = resource({
 						value: required(union(string(), integer()))
 					});
@@ -6329,7 +6358,7 @@ describe("validators", () => {
 					expect(validateResult([{ value: "literal" }], {
 						shape: stringOrInt,
 						model: { value: { "0": "", "1": "" } }
-					})).toBeDefined();
+					})).toBeUndefined();
 
 				});
 
@@ -7673,13 +7702,13 @@ describe("validators", () => {
 
 			});
 
-			it("enforces value constraints", async () => {
+			it("skips value constraints, as query values are placeholders", async () => {
 
 				const shape = resource({
 					age: required(integer({ minInclusive: 0 }))
 				});
 
-				expect(validateTemplate([{ age: -5 }], shape, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ age: -5 }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -7689,7 +7718,7 @@ describe("validators", () => {
 				// constraint a placeholder is excused from (see validatePlaceholder)
 
 				const shape = resource({
-					age: required(integer({ hasValue: [ 1 ] }))
+					age: required(integer({ hasValue: [1] }))
 				});
 
 				expect(validateTemplate([{ age: 0 }], shape, { depth: 0 })).toBeUndefined();
@@ -8372,10 +8401,11 @@ describe("validators", () => {
 
 			});
 
-			it("requires absolute IRIs as reference placeholders", async () => {
+			it("admits the full IRI-reference production as reference placeholders", async () => {
 
-				// a reference placeholder is a legal reference value: an absolute IRI, never an empty
-				// or relative form
+				// a reference placeholder matches by kind the full IRI-reference production (qest §5.2): the empty
+				// string together with the relative, root-relative, and absolute forms, never the absolute-only
+				// instance form
 
 				const Target = resource({ id: id(), name: required(string()) });
 
@@ -8385,9 +8415,9 @@ describe("validators", () => {
 				});
 
 				expect(validateTemplate([{ supervisor: "app:/users/1" }], shape, { depth: 0 })).toBeUndefined();
-				expect(validateTemplate([{ supervisor: "" }], shape, { depth: 0 })).toBeDefined();
-				expect(validateTemplate([{ supervisor: "/users/1" }], shape, { depth: 0 })).toBeDefined();
-				expect(validateTemplate([{ members: [""] }], shape, { depth: 0 })).toBeDefined();
+				expect(validateTemplate([{ supervisor: "" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ supervisor: "/users/1" }], shape, { depth: 0 })).toBeUndefined();
+				expect(validateTemplate([{ members: [""] }], shape, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -8405,9 +8435,8 @@ describe("validators", () => {
 
 			describe("union of reference variants", () => {
 
-				// two reference variants discriminated by their target IRI pattern: a bare-IRI
-				// placeholder must be a legal value of one target to single out its variant, since
-				// mere IRI well-formedness fits every reference variant
+				// a reference placeholder is matched by kind: any well-formed IRI reference fits every reference
+				// variant, its value immaterial and not required to be legal for any target
 
 				const Person = resource({ pattern: "/people/{id}" }, { name: required(string()) });
 				const Org = resource({ pattern: "/orgs/{id}" }, { title: required(string()) });
@@ -8416,23 +8445,23 @@ describe("validators", () => {
 					link: required(union(reference(Person), reference(Org)))
 				});
 
-				it("discriminates a legal IRI to the matching reference variant", async () => {
+				it("accepts a well-formed IRI reference placeholder", async () => {
 
 					expect(validateTemplate([{ link: { "0": "app:/people/1" } }], shape, { depth: 0 }))
 						.toBeUndefined();
 
 				});
 
-				it("discriminates by legality regardless of variant key", async () => {
+				it("accepts an IRI legal for no reference target", async () => {
 
-					expect(validateTemplate([{ link: { "0": "app:/orgs/2" } }], shape, { depth: 0 }))
+					expect(validateTemplate([{ link: { "0": "app:/widgets/3" } }], shape, { depth: 0 }))
 						.toBeUndefined();
 
 				});
 
-				it("rejects an IRI legal for no reference variant", async () => {
+				it("rejects a placeholder of the wrong kind", async () => {
 
-					expect(validateTemplate([{ link: { "0": "app:/widgets/3" } }], shape, { depth: 0 }))
+					expect(validateTemplate([{ link: { "0": 42 } }], shape, { depth: 0 }))
 						.toBeDefined();
 
 				});
@@ -8441,26 +8470,40 @@ describe("validators", () => {
 
 			describe("union of same-kind literal variants", () => {
 
-				// date and email are both string-kind, disjoint by pattern: a bare placeholder must be a
-				// legal value of one variant to single it out, kind alone fits both
+				// date and email are both string-kind: a string placeholder is matched by kind and fits every
+				// string variant, its value immaterial
 
 				const shape = resource({ when: required(union(date(), email())) });
 
-				it("singles out the date variant for a legal date placeholder", async () => {
+				it("accepts a string placeholder over same-kind variants", async () => {
 
 					expect(validateTemplate([{ when: { "0": "2020-01-01" } }], shape, {})).toBeUndefined();
 
 				});
 
-				it("singles out the email variant for a legal email placeholder", async () => {
+				it("accepts a string placeholder legal for neither variant", async () => {
 
-					expect(validateTemplate([{ when: { "0": "a@b.com" } }], shape, {})).toBeUndefined();
+					expect(validateTemplate([{ when: { "0": "neither" } }], shape, {})).toBeUndefined();
 
 				});
 
-				it("rejects a placeholder legal for neither variant", async () => {
+				it("rejects a placeholder of the wrong kind", async () => {
 
-					expect(validateTemplate([{ when: { "0": "neither" } }], shape, {})).toBeDefined();
+					expect(validateTemplate([{ when: { "0": 42 } }], shape, {})).toBeDefined();
+
+				});
+
+			});
+
+			describe("keyword search over a union", () => {
+
+				// `~` is a search string applied to every string branch at once, not a discriminating placeholder
+
+				const shape = resource({ contacts: multiple(union(string(), string())) });
+
+				it("accepts a ~ filter matching several string variants", async () => {
+
+					expect(validateTemplate([{ contacts: [{}, { "~": "foo" }] }], shape, {})).toBeUndefined();
 
 				});
 
@@ -9147,7 +9190,11 @@ describe("validators", () => {
 
 			describe("type projection", () => {
 
-				const Target = resource({ class: "app:/types/Target" }, { type: type(), name: required(string()), age: optional(integer()) });
+				const Target = resource({ class: "app:/types/Target" }, {
+					type: type(),
+					name: required(string()),
+					age: optional(integer())
+				});
 				const Wrapper = resource({ items: multiple(reference(Target)) });
 
 				it.each([

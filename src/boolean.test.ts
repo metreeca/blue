@@ -15,25 +15,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { deriveBoolean, mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
+import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
 import { boolean } from "./boolean.js";
-import { TraceError } from "./index.core.js";
-import { decimal, integer, number } from "./number.js";
-import { reference } from "./reference.js";
-import { resource } from "./resource.js";
-import { date, string, time } from "./string.js";
-import { text } from "./text.js";
-import { union, type UnionShape } from "./union.js";
-import {
-	checkValues,
-	deriveValue,
-	deriveValues,
-	mergeValue,
-	mergeValues,
-	narrowsValue,
-	narrowsValues
-} from "./value.core.js";
-import { cardinality, multiple, optional, required, type SetShape } from "./value.js";
+import { string } from "./string.js";
 
 describe("factories", () => {
 
@@ -122,17 +106,6 @@ describe("operators", () => {
 		it("rejects shapes with different models", async () => {
 
 			expect(() => mergeBoolean(boolean(true), boolean(false))).toThrow(RangeError);
-
-		});
-
-	});
-
-	describe("deriveBoolean", () => {
-
-		it("derives false regardless of the shape model", async () => {
-
-			expect(deriveBoolean(boolean())).toBe(false);
-			expect(deriveBoolean(boolean(true))).toBe(false);
 
 		});
 

@@ -286,11 +286,11 @@ describe("operators", () => {
 
 		});
 
-		it("derives reference variant identifiers", async () => {
+		it("indexes reference variant models", async () => {
 
 			const target = resource({ pattern: "/things/{id}" }, {});
 
-			expect(deriveUnion(union(reference(target), string()))).toEqual({ "0": "app:/things/0", "1": "" });
+			expect(deriveUnion(union(reference(target), string()))).toEqual({ "0": "app:/", "1": "" });
 
 		});
 

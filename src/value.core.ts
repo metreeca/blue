@@ -24,18 +24,31 @@ import { type Identifier, isArray, isFunction, isString, type Lazy } from "@metr
 import { xsd } from "@metreeca/core/datatype";
 import { equals, immutable } from "@metreeca/core/deep";
 import { assert, error } from "@metreeca/core/report";
+import { defaultBase } from "@metreeca/qest";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/template";
-import { deriveBoolean, mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
+import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
 import type { BooleanShape } from "./boolean.js";
 import { collect, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
-import { deriveNumber, mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
+import { mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
 import { decimal, integer, type NumberShape } from "./number.js";
-import { deriveReference, getShapeTarget, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
+import {
+	getShapeTarget,
+	mergeReference,
+	narrowsReference,
+	validateReference
+} from "./reference.core.js";
 import type { ReferenceShape } from "./reference.js";
-import { deriveResource, flatten, mergeResource, narrowsResource, validateResource, validateTemplate } from "./resource.core.js";
+import {
+	deriveResource,
+	flatten,
+	mergeResource,
+	narrowsResource,
+	validateResource,
+	validateTemplate
+} from "./resource.core.js";
 import { type ResourceShape } from "./resource.js";
-import { deriveString, mergeString, narrowsString, validateString } from "./string.core.js";
+import { mergeString, narrowsString, validateString } from "./string.core.js";
 import { iri, string, type StringShape } from "./string.js";
 import { deriveText, mergeText, narrowsText, validateLocale, validateText } from "./text.core.js";
 import type { TextShape } from "./text.js";
@@ -415,10 +428,10 @@ export function mergeValues(target: SetShape, source: SetShape): SetShape {
 /**
  * Derives the retrieval model for a value shape.
  *
- * Dispatches on the shape kind to the matching per-kind derivation, returning an explicit `model` in preference to a
- * derived default where the shape carries one (boolean, number, string, text). Reference, resource, and union shapes
- * are always derived: a reference yields a sample identifier from its target constraints, a resource its property
- * template, and a union its per-variant model map.
+ * Dispatches on the shape kind. Scalar shapes (boolean, number, string, reference) return their stored `model`
+ * placeholder, defaulting an unspecified one to the kind's trivial value (`false`, `0`, `""`, the default base IRI).
+ * Text, resource, and union shapes derive a structural placeholder: text a per-language placeholder map, a resource its
+ * property template, and a union its per-variant model map.
  *
  * @typeParam S The value {@link Shape} to derive from
  *
@@ -426,8 +439,6 @@ export function mergeValues(target: SetShape, source: SetShape): SetShape {
  *
  * @returns The derived model, typed by {@link Schema} to preserve cardinality-driven optionality, nested resource
  *     models, and union variants
- *
- * @throws {TraceError} When a derived literal or reference model is not legal for its shape
  */
 export function deriveValue<S extends Shape>(shape: S): Schema<S> {
 
@@ -435,15 +446,15 @@ export function deriveValue<S extends Shape>(shape: S): Schema<S> {
 
 		case "boolean":
 
-			return shape.model ?? deriveBoolean(shape);
+			return shape.model ?? false;
 
 		case "number":
 
-			return shape.model ?? deriveNumber(shape);
+			return shape.model ?? 0;
 
 		case "string":
 
-			return shape.model ?? deriveString(shape);
+			return shape.model ?? "";
 
 		case "text":
 
@@ -451,7 +462,7 @@ export function deriveValue<S extends Shape>(shape: S): Schema<S> {
 
 		case "reference":
 
-			return deriveReference(shape);
+			return shape.model ?? defaultBase;
 
 		case "resource":
 
@@ -502,9 +513,9 @@ export function deriveValues({ shape, model, maxCount }: SetShape): unknown {
  * @param values The values to validate
  * @param shape The shape defining validation constraints
  * @param opts Validation options
- * @param opts.model Whether to validate `values` as retrieval placeholders rather than instances: `hasValue`
- *     constraints are skipped, localised text is validated as a `Locale` placeholder, and nested resources as
- *     retrieval templates; defaults to `false`
+ * @param opts.model Whether to validate `values` as retrieval placeholders rather than instances: value-domain
+ *     constraints are skipped so the value need not be legal, matched by kind alone; localised text is validated
+ *     as a `Locale` placeholder, and nested resources as retrieval templates; defaults to `false`
  *
  * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
@@ -625,20 +636,19 @@ export function eager<S extends Lazy<Shape>>(shape: S): Resolved<S> {
  * nested resource models, and union variants in full structural detail. For a lazy factory the model is derived once
  * on first request and memoised, so repeated calls reuse it.
  *
- * A {@link reference!ReferenceShape | reference} model is derived from the resolved target's identifier constraints,
- * yielding a legal sample identifier rather than the stored placeholder, with the target resolved on access to support
- * the circular and self-referential definitions the {@link reference!reference | reference} factory admits. A
- * {@link union!UnionShape | union} model is rebuilt from its per-variant models, so reference variants likewise carry
- * derived identifiers. Literal, text, and resource models are returned as stored, already validated at construction.
+ * Scalar and {@link reference!ReferenceShape | reference} models are returned as the stored placeholder; a
+ * {@link union!UnionShape | union} model is rebuilt from its per-variant models, and text and resource models are
+ * likewise returned as stored. A resource template is derived by recursing through its properties, resolving the target
+ * on access to support the circular and self-referential definitions the {@link resource!resource | resource} factory
+ * admits.
  *
  * @typeParam S The lazy {@link Shape} to extract from
  *
  * @param shape The shape (or lazy factory) whose model to extract
  *
- * @returns The shape's model, with reference identifiers derived from their target constraints
+ * @returns The shape's model
  *
  * @throws {TraceError} When a lazy factory transitively references itself, producing a circular extends chain
- * @throws {TraceError} When a reference target's derived model is not a legal identifier
  */
 export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
 

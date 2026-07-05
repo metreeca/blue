@@ -35,3 +35,16 @@ retrieves a resource: its keys are plain property names, validated against `shap
 Projection bindings (`"alias=year:released"`) key a `Projection`, and selection operators (`"<price"`, `"#"`) key a
 `Selection`; both appear only inside a collection `Query` and are decoded through `decodeProbe()` / `effective()` by
 `validateTemplate`, not by `validateResult`.
+
+**Two validation regimes.** Union matching (a non-union is a degenerate single-variant union) runs in two regimes,
+mirroring qest §3.1/§5.2/§5.4:
+
+- **state** (`sh:xone`) — a data value (a resource instance on ingress; a selection bound or option) MUST match
+  **exactly one** variant against **all** constraints. It is a legal value fixing the branch that drives storage; no
+  match is unsatisfiable, several is ambiguous, both rejected.
+- **model** (`sh:or`) — a retrieval placeholder MUST match **at least one** variant by **JSON type alone**, ignoring
+  every other constraint. Its value is immaterial and need not be legal; it may match several (retrieving each) and is
+  rejected only when it matches none.
+
+A `~` text search is neither regime: a plain search string applied to every string branch at once. See `src/union.md`
+for the design rationale.

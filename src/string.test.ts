@@ -16,8 +16,7 @@
 
 import { xsd } from "@metreeca/core/datatype";
 import { describe, expect, it } from "vitest";
-import { TraceError } from "./index.core.js";
-import { checkString, deriveString, mergeString, narrowsString, validateString } from "./string.core.js";
+import { checkString, mergeString, narrowsString, validateString } from "./string.core.js";
 import { date, duration, email, instant, iri, phone, string, time, timestamp, url, year } from "./string.js";
 
 
@@ -135,47 +134,26 @@ describe("factories", () => {
 
 	describe("model resolution", () => {
 
-		it("keeps the default model when it is legal", async () => {
+		it("defaults the model to the empty string", async () => {
 
 			expect(string().model).toBe("");
 			expect(string({ maxLength: 5 }).model).toBe("");
 
 		});
 
-		it("derives the first in member when the default is illegal", async () => {
+		it("keeps the default empty string regardless of value constraints", async () => {
 
-			expect(string({ in: ["ab", "cd"] }).model).toBe("ab");
-			expect(email({ in: ["a@b.co"] }).model).toBe("a@b.co");
-
-		});
-
-		it("derives the shortest hasValue member when no in is set", async () => {
-
-			expect(string({ hasValue: ["req", "x"] }).model).toBe("x");
+			expect(string({ in: ["ab", "cd"] }).model).toBe("");
+			expect(string({ hasValue: ["req", "x"] }).model).toBe("");
+			expect(string({ minLength: 3 }).model).toBe("");
+			expect(string({ pattern: /^[a-z]+$/ }).model).toBe("");
 
 		});
 
-		it("synthesises a padded string for a minLength with no other source", async () => {
-
-			expect(string({ minLength: 3 }).model).toBe("***");
-
-		});
-
-		it("throws when no legal model can be derived", async () => {
-
-			expect(() => string({ pattern: /^[a-z]+$/ })).toThrow(RangeError);
-
-		});
-
-		it("accepts an explicit legal model", async () => {
+		it("keeps an explicit model verbatim, even when illegal for the constraints", async () => {
 
 			expect(string({ model: "abc", minLength: 3 }).model).toBe("abc");
-
-		});
-
-		it("rejects an explicit illegal model", async () => {
-
-			expect(() => string({ model: "ab", minLength: 3 })).toThrow(RangeError);
+			expect(string({ model: "ab", minLength: 3 }).model).toBe("ab");
 
 		});
 
@@ -423,33 +401,12 @@ describe("operators", () => {
 
 		});
 
-		it("returns trace for a model shorter than minLength", async () => {
+		it("does not check model legality, as a model is a placeholder", async () => {
 
-			expect(checkString({ model: "ab", minLength: 3 })).toHaveProperty("{model}");
-
-		});
-
-		it("returns trace for a model longer than maxLength", async () => {
-
-			expect(checkString({ model: "abcd", maxLength: 3 })).toHaveProperty("{model}");
-
-		});
-
-		it("returns trace for a model not matching pattern", async () => {
-
-			expect(checkString({ model: "A1", pattern: "^[a-z]+$" })).toHaveProperty("{model}");
-
-		});
-
-		it("returns trace for a model not in the in set", async () => {
-
-			expect(checkString({ model: "x", in: ["a", "b"] })).toHaveProperty("{model}");
-
-		});
-
-		it("skips the model check when the model is absent", async () => {
-
-			expect(checkString({ minLength: 3 })).toBeUndefined();
+			expect(checkString({ model: "ab", minLength: 3 })).toBeUndefined();
+			expect(checkString({ model: "abcd", maxLength: 3 })).toBeUndefined();
+			expect(checkString({ model: "A1", pattern: "^[a-z]+$" })).toBeUndefined();
+			expect(checkString({ model: "x", in: ["a", "b"] })).toBeUndefined();
 
 		});
 
@@ -471,7 +428,10 @@ describe("operators", () => {
 
 		it("rejects a child that widens minLength", async () => {
 
-			expect(narrowsString(string({ model: "x", minLength: 1 }), string({ model: "hello", minLength: 5 }))).toBeDefined();
+			expect(narrowsString(string({ model: "x", minLength: 1 }), string({
+				model: "hello",
+				minLength: 5
+			}))).toBeDefined();
 
 		});
 
@@ -513,7 +473,10 @@ describe("operators", () => {
 
 		it("accepts equal patterns", async () => {
 
-			expect(narrowsString(string({ model: "abc", pattern: "^[a-z]+$" }), string({ model: "abc", pattern: "^[a-z]+$" }))).toBeUndefined();
+			expect(narrowsString(string({ model: "abc", pattern: "^[a-z]+$" }), string({
+				model: "abc",
+				pattern: "^[a-z]+$"
+			}))).toBeUndefined();
 
 		});
 
@@ -531,7 +494,10 @@ describe("operators", () => {
 
 		it("rejects mismatched patterns", async () => {
 
-			expect(narrowsString(string({ model: "abc", pattern: "^[a-z]+$" }), string({ model: "123", pattern: "^[0-9]+$" }))).toHaveProperty("{pattern}");
+			expect(narrowsString(string({ model: "abc", pattern: "^[a-z]+$" }), string({
+				model: "123",
+				pattern: "^[0-9]+$"
+			}))).toHaveProperty("{pattern}");
 
 		});
 
@@ -656,7 +622,10 @@ describe("operators", () => {
 
 			it("keeps tighter target value", async () => {
 
-				const merged = mergeString(string({ model, [constraint]: tighterValue }), string({ model, [constraint]: sourceValue }));
+				const merged = mergeString(string({ model, [constraint]: tighterValue }), string({
+					model,
+					[constraint]: sourceValue
+				}));
 
 				expect((merged as any)[constraint]).toBe(tighterValue);
 
@@ -664,7 +633,10 @@ describe("operators", () => {
 
 			it("rejects incompatible target value", async () => {
 
-				expect(() => mergeString(string({ model, [constraint]: incompatibleValue }), string({ model, [constraint]: sourceValue }))).toThrow(RangeError);
+				expect(() => mergeString(string({ model, [constraint]: incompatibleValue }), string({
+					model,
+					[constraint]: sourceValue
+				}))).toThrow(RangeError);
 
 			});
 
@@ -746,7 +718,10 @@ describe("operators", () => {
 
 			it("inherits source datatype when target has none", async () => {
 
-				const merged = mergeString(string({ model: "1970-01-01" }), string({ model: "1970-01-01", datatype: xsd.date }));
+				const merged = mergeString(string({ model: "1970-01-01" }), string({
+					model: "1970-01-01",
+					datatype: xsd.date
+				}));
 
 				expect(merged.datatype).toBe(xsd.date);
 
@@ -754,7 +729,10 @@ describe("operators", () => {
 
 			it("keeps target datatype when source has none", async () => {
 
-				const merged = mergeString(string({ model: "1970-01-01", datatype: xsd.date }), string({ model: "1970-01-01" }));
+				const merged = mergeString(string({
+					model: "1970-01-01",
+					datatype: xsd.date
+				}), string({ model: "1970-01-01" }));
 
 				expect(merged.datatype).toBe(xsd.date);
 
@@ -823,46 +801,6 @@ describe("operators", () => {
 
 	});
 
-	describe("deriveString", () => {
-
-		it("derives the empty string for an unconstrained shape", async () => {
-
-			expect(deriveString({})).toBe("");
-
-		});
-
-		it("draws the shortest in member", async () => {
-
-			expect(deriveString({ in: ["abc", "a"] })).toBe("a");
-
-		});
-
-		it("draws the shortest hasValue member when no in is set", async () => {
-
-			expect(deriveString({ hasValue: ["xx", "y"] })).toBe("y");
-
-		});
-
-		it("keeps the supplied model when no in or hasValue is set", async () => {
-
-			expect(deriveString({ model: "z" })).toBe("z");
-
-		});
-
-		it("fills a minLength-long placeholder", async () => {
-
-			expect(deriveString({ minLength: 3 })).toBe("***");
-
-		});
-
-		it("throws when the drawn value fails the pattern", async () => {
-
-			expect(() => deriveString({ pattern: "^[A-Z]+$" })).toThrow(TraceError);
-
-		});
-
-	});
-
 });
 
 describe("validators", () => {
@@ -913,6 +851,25 @@ describe("validators", () => {
 
 		});
 
+		describe("placeholder mode", () => {
+
+			it("skips value-domain constraints for a placeholder", async () => {
+
+				expect(validateString(["ab"], string({ minLength: 3 }), { model: true })).toBeUndefined();
+				expect(validateString(["abcdef"], string({ maxLength: 3 }), { model: true })).toBeUndefined();
+				expect(validateString(["A1"], string({ pattern: "^[a-z]*$" }), { model: true })).toBeUndefined();
+				expect(validateString(["x"], string({ in: ["a", "b"] }), { model: true })).toBeUndefined();
+
+			});
+
+			it("still rejects a placeholder of the wrong kind", async () => {
+
+				expect(validateString([42], string(), { model: true })).toHaveProperty("{kind}");
+
+			});
+
+		});
+
 		describe.each([
 
 			["minLength", "minLength", 3, "abc", "abcdef", "ab"] as const,
@@ -928,7 +885,10 @@ describe("validators", () => {
 
 			it("returns undefined for strings within boundary", async () => {
 
-				expect(validateString([withinBoundary], string({ model: "abcd", [constraint]: limit }))).toBeUndefined();
+				expect(validateString([withinBoundary], string({
+					model: "abcd",
+					[constraint]: limit
+				}))).toBeUndefined();
 
 			});
 
@@ -1037,13 +997,19 @@ describe("validators", () => {
 
 			it("returns undefined for strings matching email pattern", async () => {
 
-				expect(validateString(["user@example.com"], string({ model: "a@b.co", pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }))).toBeUndefined();
+				expect(validateString(["user@example.com"], string({
+					model: "a@b.co",
+					pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+				}))).toBeUndefined();
 
 			});
 
 			it("returns keyed trace for invalid email pattern", async () => {
 
-				const trace = validateString(["invalid-email"], string({ model: "a@b.co", pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }));
+				const trace = validateString(["invalid-email"], string({
+					model: "a@b.co",
+					pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+				}));
 
 				expect(trace).toBeDefined();
 				expect(trace).toHaveProperty("{pattern}");
@@ -1244,7 +1210,11 @@ describe("validators", () => {
 
 			it("counts unicode characters correctly for length constraints", async () => {
 
-				expect(validateString(["héllo"], string({ model: "hello", minLength: 5, maxLength: 10 }))).toBeUndefined();
+				expect(validateString(["héllo"], string({
+					model: "hello",
+					minLength: 5,
+					maxLength: 10
+				}))).toBeUndefined();
 
 			});
 

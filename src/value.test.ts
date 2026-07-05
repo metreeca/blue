@@ -363,29 +363,11 @@ describe("utilities", () => {
 
 		});
 
-		it("derives a reference model from the target's in constraint", async () => {
-
-			expect(model(reference(resource({ in: ["app:/users/1"] }, {})))).toBe("app:/users/1");
-
-		});
-
-		it("derives a reference model from the target's pattern", async () => {
-
-			expect(model(reference(resource({ pattern: "/users/{id}" }, {})))).toBe("app:/users/0");
-
-		});
-
-		it("derives a reference model from a lazy target", async () => {
-
-			const target = resource({ pattern: "/things/{id}" }, {});
-
-			expect(model(reference(() => target))).toBe("app:/things/0");
-
-		});
-
-		it("falls back to app:/ for an unconstrained reference target", async () => {
+		it("returns the default app:/ model for a reference shape regardless of target constraints", async () => {
 
 			expect(model(reference(resource({}, {})))).toBe("app:/");
+			expect(model(reference(resource({ in: ["app:/users/1"] }, {})))).toBe("app:/");
+			expect(model(reference(resource({ pattern: "/users/{id}" }, {})))).toBe("app:/");
 
 		});
 
@@ -414,24 +396,11 @@ describe("utilities", () => {
 
 		});
 
-		it("derives reference variant models for a union shape", async () => {
+		it("indexes reference variant models for a union shape", async () => {
 
 			const target = resource({ pattern: "/things/{id}" }, {});
 
-			expect(model(union(reference(target), string()))).toEqual({ "0": "app:/things/0", "1": "" });
-
-		});
-
-		it("throws when a union reference variant draws an illegal identifier", async () => {
-
-			// ;(cast) test mock: a hand-built target bypassing the resource() consistency checks
-
-			const target = {
-				kind: "resource", model: {}, properties: {},
-				pattern: "/users/{id}", in: ["app:/products/1"]
-			} as ResourceShape;
-
-			expect(() => model(union(reference(target), string()))).toThrow(TraceError);
+			expect(model(union(reference(target), string()))).toEqual({ "0": "app:/", "1": "" });
 
 		});
 
@@ -2383,9 +2352,10 @@ describe("internals", () => {
 
 		});
 
-		it("derives a number model", async () => {
+		it("returns the stored number model", async () => {
 
-			expect(deriveValue(number({ in: [2, 1] }))).toBe(1);
+			expect(deriveValue(number(5))).toBe(5);
+			expect(deriveValue(number({ in: [2, 1] }))).toBe(0);
 
 		});
 
@@ -2401,9 +2371,9 @@ describe("internals", () => {
 
 		});
 
-		it("derives a reference identifier from the target", async () => {
+		it("returns the stored reference model", async () => {
 
-			expect(deriveValue(reference(resource({ in: ["app:/users/1"] }, {})))).toBe("app:/users/1");
+			expect(deriveValue(reference(resource({ in: ["app:/users/1"] }, {})))).toBe("app:/");
 
 		});
 

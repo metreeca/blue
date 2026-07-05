@@ -85,10 +85,10 @@
 
 import type { Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
-import type { Reference } from "@metreeca/qest";
+import { defaultBase, type Reference } from "@metreeca/qest";
 import type { ResourceShape } from "./resource.js";
 
-export { getShapeTarget } from "./reference.core.js"
+export { getShapeTarget } from "./reference.core.js";
 
 
 /**
@@ -122,10 +122,9 @@ export interface ReferenceShape extends ReferenceConstraints {
 	/**
 	 * Placeholder prototype identifier.
 	 *
-	 * A generic placeholder retained on the stored shape; the legal sample identifier is produced lazily from the
-	 * resolved target's identifier constraints by {@link value!model | model}, resolving the target on
-	 * access rather than at construction so the lazy target the {@link reference} factory admits stays unresolved until
-	 * read.
+	 * A retrieval placeholder matched by JSON type alone: its value is immaterial and need not be a legal identifier for
+	 * the target, so the {@link reference} factory always stores the generic default base IRI (`app:/`) without resolving
+	 * the target.
 	 *
 	 * **Inheritance** — must be strictly equal between parent and child.
 	 *
@@ -251,7 +250,7 @@ export function reference(shape: Lazy<ResourceShape>, constraints?: ReferenceCon
 	return immutable({
 
 		kind: "reference",
-		model: "app:/",
+		model: defaultBase,
 
 		...constraints,
 

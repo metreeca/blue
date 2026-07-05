@@ -97,10 +97,11 @@
  * together with its parent.
  *
  * > [!NOTE]
- * > An embedded resource shape may not declare an {@link id} entry: embedded resources have no
- * > independent identity, so the rejection is enforced when the enclosing shape is built and such a
- * > shape cannot be constructed. A {@link type} entry is accepted and validated in both state and
- * > template retrieval.
+ * > An embedded resource shape may not carry an {@link id} entry: embedded resources have no
+ * > independent identity, so a nested resource state bearing an identifier is rejected during state
+ * > validation rather than at shape construction, since an id-bearing embedded range is
+ * > indistinguishable from an expanded captive reference until a state is checked against it. A
+ * > {@link type} entry is accepted and validated in both state and template retrieval.
  *
  * ```typescript
  * import { required, optional } from '@metreeca/blue/value';
@@ -161,9 +162,11 @@
  * **Embedded versus Captive Resources**
  *
  * **Embedded resources** have no independent identity or lifecycle and are always managed as part
- * of their parent. An embedded resource shape may not declare an {@link id} entry: the rejection is
- * enforced when the enclosing shape is built, so such a shape cannot be constructed. A {@link type}
- * entry is accepted and validated in both state and template retrieval. Embedded resources are
+ * of their parent. An embedded resource shape may not carry an {@link id} entry: the rejection is
+ * enforced during state validation rather than at shape construction, since an id-bearing embedded
+ * range is indistinguishable from an expanded captive reference until a resource state is checked
+ * against it. A {@link type} entry is accepted and validated in both state and template retrieval.
+ * Embedded resources are
  * defined by directly including a resource shape without a {@link reference!reference | reference}
  * wrapper.
  *
@@ -245,8 +248,9 @@
  * **Polymorphic Properties**
  *
  * Use {@link union!union | union} for properties accepting multiple value types. Variants are
- * supplied as positional arguments and act as mutually exclusive alternatives (`sh:xone`): a `state` or `model`
- * value is expected to single out exactly one variant. Cardinality constraints belong on the enclosing
+ * supplied as positional arguments and act as mutually exclusive alternatives (`sh:xone`): a `state` value singles out
+ * exactly one variant (`sh:xone`) on write, while a `model` placeholder matches at least one by kind (`sh:or`) on read.
+ * Cardinality constraints belong on the enclosing
  * {@link SetShape}, not on individual variants. At runtime, values are stored directly with no
  * variant wrapping:
  *
@@ -339,7 +343,7 @@ export {
 	getShapeId,
 	getShapeProperties,
 	getShapeType
-} from "./resource.core.js"
+} from "./resource.core.js";
 
 
 /**
@@ -604,9 +608,11 @@ export interface ResourceConstraints {
  * most one `id` entry is allowed per resource shape and per inheritance hierarchy.
  *
  * > [!IMPORTANT]
- * > Rejected on embedded resource shapes when the enclosing shape is built, as embedded resources
- * > have no independent identity; such a shape cannot be constructed. A standalone
- * > {@link reference!reference | reference} target carries its own identifier and is unaffected.
+ * > Rejected on embedded resource shapes during state validation, as embedded resources have no
+ * > independent identity; the rejection surfaces when a nested resource state is checked, not at
+ * > shape construction, since an id-bearing embedded range is indistinguishable from an expanded
+ * > captive reference until then. A standalone {@link reference!reference | reference} target carries
+ * > its own identifier and is unaffected.
  *
  * **Inheritance**
  *

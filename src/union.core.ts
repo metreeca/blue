@@ -20,11 +20,12 @@
  * @module
  */
 
-import { type Lazy } from "@metreeca/core";
+import { isArray, isObject, type Lazy } from "@metreeca/core";
 import { map } from "@metreeca/core/combo";
 import { immutable } from "@metreeca/core/deep";
 import { collect, TraceError } from "./index.core.js";
-import type { Trace } from "./index.js";
+import { type Trace } from "./index.js";
+import { getShapeTarget } from "./reference.js";
 import type { UnionShape } from "./union.js";
 import { deriveValue, eager, mergeValue, narrowsValue, validateValue } from "./value.core.js";
 import type { Shape, ValuesShape } from "./value.js";
@@ -101,13 +102,11 @@ export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
  *
  * Projects each variant to its derived value through {@link value!deriveValue | deriveValue}, keyed by the variant's
  * positional index. Variant keys carry no meaning beyond naming the branch: discrimination matches a supplied value
- * against the variants by structure rather than by key (see {@link validateUnionMatch}).
+ * against the variants by structure rather than by key (see {@link validateUnion}).
  *
  * @param shape The union shape whose variants supply the per-branch models
  *
  * @returns The derived union model, an immutable map from variant index to derived variant value
- *
- * @throws {TraceError} When a variant's model cannot be legally derived
  */
 export function deriveUnion(shape: UnionShape) {
 
@@ -121,21 +120,50 @@ export function deriveUnion(shape: UnionShape) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Reduces the matches that admitted a value to its `sh:xone` disjointness verdict.
+ * Validates one value, or a set of values, against the variants of a union.
  *
- * Callers filter the alternatives by their own admission rule and pass the survivors here for the exactly-one
- * check `sh:xone` requires; only the count is consulted, so any admitted-match collection is accepted.
+ * Matches each value against the `variants` by the caller's `match` rule and checks how many admit it: a **state**
+ * value must be admitted by exactly one variant (`sh:xone`), while a **model** placeholder need only be admitted by at
+ * least one (`sh:or`). A bare value is checked directly; an array of values yields a per-element trace keyed by each
+ * value's `[index]`, so a set composes with its enclosing trace like any other per-element report.
  *
- * @param matches The alternatives that admitted the value (variants, or the keys pairing them)
+ * @param values A single value, or an array of values, to match against the union
+ * @param variants The union variants to match against
+ * @param opts Match options
+ * @param opts.model Whether the values are retrieval placeholders, applying the `sh:or` at-least-one rule; defaults
+ *     to `false`, applying the `sh:xone` exactly-one rule for data values
+ * @param opts.match Admission predicate reporting whether a value is admitted by a variant under the given `model`
  *
- * @returns `undefined` when exactly one match survived; `"no union variant matched"` when none did;
- *     `"multiple union variants matched"` when more than one did
+ * @returns For a bare value, `undefined` when it matches admissibly, else `"no union variant matched"` when none
+ *     admit it or `"multiple union variants matched"` when several do; for an array, a `[index]`-keyed {@link Trace},
+ *     or `undefined` when every value matches admissibly
  */
-export function validateUnionMatch(matches: readonly unknown[]): undefined | Trace {
+export function validateUnion(values: unknown | readonly unknown[], variants: readonly ValuesShape[], {
 
-	return matches.length === 0 ? "no union variant matched"
-		: matches.length > 1 ? "multiple union variants matched"
-			: undefined;
+	model = false,
+	match
+
+}: {
+
+	model?: boolean
+	match: (value: unknown, variant: ValuesShape, model: boolean) => boolean
+
+}): undefined | Trace {
+
+	return isArray(values)
+		? collect(Object.fromEntries(values.map((value, index) => [`[${index}]`, validate(value)])))
+		: validate(values);
+
+
+	function validate(value: unknown): undefined | Trace {
+
+		const matches = variants.filter(variant => match(value, variant, model));
+
+		return matches.length === 0 ? "no union variant matched"
+			: !model && matches.length > 1 ? "multiple union variants matched"
+				: undefined;
+
+	}
 
 }
 
@@ -143,32 +171,85 @@ export function validateUnionMatch(matches: readonly unknown[]): undefined | Tra
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Resolves a union range to its variants.
+ * Resolves a union range to its concrete value-shape variants.
  *
- * Flattens a union range to its variants in declaration order; takes any other range to the singleton `[shape]`.
+ * Flattens a union range to its {@link value!ValuesShape | value-shape} variants in declaration order; takes any other
+ * range to the singleton `[shape]`. Every returned variant is a concrete value shape, never a nested union, so callers
+ * route each branch without flattening again.
  *
  * @param shape The range shape to enumerate
  *
- * @returns The variants in declaration order, or the singleton `[shape]` for a non-union range
+ * @returns The value-shape variants in declaration order, or the singleton `[shape]` for a non-union range
  */
-export function getShapeVariants(shape: Lazy<Shape>): readonly Shape[] {
+export function getShapeVariants(shape: Lazy<Shape>): readonly ValuesShape[] {
 	return map(eager(shape), shape =>
 		shape.kind === "union" ? shape.variants : [shape]
 	);
 }
 
+
 /**
- * Selects the sole variant a value matched, returning the branch to route on.
+ * Picks the single variant a state value fits.
  *
- * Callers filter the variant alternatives by their own admission rule and pass the survivors here to recover the
- * single matched branch: the identity a caller routes on, in place of the bare match verdict.
+ * Routes a state value to the one variant that admits it, so callers ingesting a value against a polymorphic union
+ * can settle it on a definite branch for persistence. Because persistence must commit to a single branch, a value
+ * admitted by several variants is ambiguous and a value admitted by none is unsatisfiable; both are reported as
+ * no match rather than resolved by guessing. A state value is a resource instance on ingress, or a bound or
+ * option within a selection.
  *
- * @param matches The variants that admitted the value
+ * @typeParam V The variant shape type, preserved from the input array to the returned variant
  *
- * @returns The sole matched variant when exactly one survived; otherwise the flat {@link Trace} naming the failure
+ * @param variants The union variants to choose among
+ * @param value The state value to route
+ *
+ * @returns The sole variant the value fits, or `undefined` when it fits none (unsatisfiable) or several (ambiguous)
+ *
+ * @see [Unions — Design § State](./union.md#state-exactly-one-branch-by-value-)
+ * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.7.4 sh:xone}
  */
-export function getUnionMatch(matches: ValuesShape[]): ValuesShape | Trace {
-	return validateUnionMatch(matches) ?? matches[0];
+export function getUnionVariant<V extends ValuesShape>(
+	variants: readonly V[],
+	value: unknown
+): undefined | V {
+
+	const matches = variants.filter(variant => validateValue(
+		[value], variant
+	) === undefined);
+
+	return matches.length === 1 ? matches[0] : undefined;
+
+}
+
+/**
+ * Picks every variant a retrieval placeholder fits.
+ *
+ * Routes a retrieval placeholder to all variants it can draw from, so callers retrieving against a polymorphic
+ * union need not know which branch was persisted. A placeholder is matched by kind alone, its value immaterial, so
+ * it may span several variants and retrieve each; only a placeholder matching no variant is unsatisfiable and
+ * reported as no match. An IRI placeholder addresses the reference variants; a structure-expanded resource
+ * template addresses the variants whose target resource it shapes.
+ *
+ * @typeParam V The variant shape type, preserved from the input array to the returned variants
+ *
+ * @param variants The union variants to choose among
+ * @param value The retrieval placeholder to route
+ *
+ * @returns Every variant the placeholder fits, or `undefined` when it fits none (unsatisfiable)
+ *
+ * @see [Unions — Design § Model](./union.md#model-at-least-one-branch-by-kind-)
+ * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.3 sh:or}
+ */
+export function getUnionVariants<V extends ValuesShape>(
+	variants: readonly V[],
+	value: unknown
+): undefined | readonly V[] {
+
+	const matches = variants.filter(variant => validateValue(
+		[value], isObject(value) ? getShapeTarget(variant) ?? variant : variant, { model: true }
+	) === undefined);
+
+	return matches.length > 0 ? matches : undefined;
+
 }
 
 

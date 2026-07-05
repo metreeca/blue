@@ -95,20 +95,6 @@
  * > When exposing endpoints to untrusted clients, restrict query complexity as required by setting `plain`
  * > to `true`, `depth` to `0` or a positive value, and/or `limit` to a maximum result set size.
  *
- * **Validating Values**
- *
- * Validate an individual value against a value {@link Shape} by passing `shape` alone, without `model`. Leaf
- * constraints (datatype, numeric range, string length, pattern, language) are enforced against the single value;
- * cardinality is not checked, as it belongs to the enclosing {@link SetShape}. A {@link union!UnionShape | union}
- * shape requires the value to match exactly one variant. The success value is the input narrowed to `State<S>`:
- *
- * ```typescript
- * validate(price, { shape: integer({ minInclusive: 0 }) })({
- *   value: amount => console.log(amount),   // typed as number
- *   trace: trace => console.error(trace)
- * });
- * ```
- *
  * @module index
  *
  * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
@@ -124,9 +110,9 @@ import { TraceError } from "./index.core.js";
 import type { ReferenceShape } from "./reference.js";
 import { enforce, validateResource, validateResult, validateTemplate } from "./resource.core.js";
 import type { ResourceShape } from "./resource.js";
-import { validateUnionMatch } from "./union.core.js";
+import { validateUnion } from "./union.core.js";
 import { eager, validateValue } from "./value.core.js";
-import type { SetShape, Shape, State } from "./value.js";
+import type { Shape } from "./value.js";
 
 export { TraceError };
 
@@ -358,47 +344,7 @@ export function validate<T extends Template>(value: unknown, opts: {
 }>;
 
 /**
- * Validates a value against a value shape.
- *
- * Enforces the leaf constraints of a {@link Shape} (datatype, numeric range, string length, pattern, language) against
- * a single value. Cardinality is not checked: it is a property of the enclosing {@link SetShape}, not of the
- * bare value shape. For a {@link union!UnionShape | union} shape, the value must match exactly one variant, as
- * required by `sh:xone`. Intended for call sites that validate an individual property value or a standalone literal
- * against a shape resolved independently of any resource envelope.
- *
- * > [!TIP]
- * > To validate a whole resource instance or a retrieval template, use the {@link ResourceShape}-form overloads that
- * > take an options object with `model`; this overload covers scalar and union value shapes only, without captive
- * > reference expansion.
- *
- * @typeParam S The {@link Lazy} {@link Shape} inferred from `shape`
- *
- * @param value The value to validate against the shape
- * @param opts Validation options
- * @param opts.shape The {@link Lazy} {@link Shape} defining the leaf constraints
- * @param opts.model Whether to validate `value` as a retrieval placeholder rather than an instance, skipping `hasValue`
- *     value constraints on the matched value; defaults to `false`
- *
- * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the value
- *     is the input value narrowed to `State<S>`; on failure, the trace describes the constraint violations
- *
- * @throws {TraceError} If the `shape` is malformed
- */
-export function validate<S extends Lazy<Shape>>(value: unknown, opts: {
-
-	readonly shape: S
-
-	readonly model?: boolean
-
-}): Relay<{
-
-	readonly value: State<S>,
-	readonly trace: Trace
-
-}>;
-
-/**
- * Validates resources, templates, and values against shapes.
+ * Validates resources and templates against shapes.
  */
 export function validate(value: unknown, {
 
@@ -433,9 +379,10 @@ export function validate(value: unknown, {
 
 		if ( shape.kind === "union" ) {
 
-			const trace = validateUnionMatch(
-				shape.variants.filter(variant => validateValue([value], variant, { model: model === true }) === undefined)
-			);
+			const trace = validateUnion(value, shape.variants, {
+				model: model === true,
+				match: (value, variant, model) => validateValue([value], variant, { model }) === undefined
+			});
 
 			return trace !== undefined ? createRelay({ trace }) : createRelay({ value });
 

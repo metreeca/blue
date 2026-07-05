@@ -36,8 +36,6 @@ import type { NumberConstraints, NumberShape } from "./number.js";
  */
 export function checkNumber({
 
-	model,
-
 	integral,
 
 	minExclusive,
@@ -115,25 +113,7 @@ export function checkNumber({
 			|| `fractional values [${hasValue.filter(v => !Number.isInteger(v))}] on integral shape`,
 
 		"{integral/range}": !integral || lower === undefined || upper === undefined || lower <= upper
-			|| `no integer within bounds <[${lower}, ${upper}]>`,
-
-		// model legality: probe the prototype with the regular validator, dropping the set-level hasValue
-
-		"{model}": model === undefined || validateNumber([model], {
-
-			kind: "number",
-			model,
-
-			integral,
-
-			minExclusive,
-			maxExclusive,
-			minInclusive,
-			maxInclusive,
-
-			in: allowed
-
-		})
+			|| `no integer within bounds <[${lower}, ${upper}]>`
 
 	});
 
@@ -299,91 +279,22 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 
 }
 
-/**
- * Resolves a legal prototype model for a number shape, throwing when none is legal.
- *
- * Draws the `in` member of smallest magnitude, else the `hasValue` member of smallest magnitude, else the supplied
- * `model`, else `0` when it sits within the bounds, else a bound (stepping inside an exclusive limit, averaging a
- * two-sided exclusive range). The resolved value is validated and a {@link TraceError} is thrown when it is not a
- * legal member of the shape's value space.
- *
- * @param constraints The shape constraints, including the optional explicit `model`, the resolved value must satisfy
- *
- * @returns A legal prototype model
- *
- * @throws {TraceError} When the supplied or drawn model is not legal
- */
-export function deriveNumber({
-
-	model,
-
-	integral,
-
-	minExclusive,
-	maxExclusive,
-	minInclusive,
-	maxInclusive,
-
-	in: allowed,
-	hasValue
-
-}: NumberConstraints): number {
-
-	const value = allowed !== undefined ? minimal(allowed)
-		: hasValue !== undefined ? minimal(hasValue)
-			: model !== undefined ? model
-				: nullable() ? 0
-					: minInclusive !== undefined ? minInclusive
-						: maxInclusive !== undefined ? maxInclusive
-							: minExclusive === undefined ? (maxExclusive !== undefined ? maxExclusive-1 : 0)
-								: maxExclusive === undefined || minExclusive+1 < maxExclusive ? minExclusive+1
-									: (minExclusive+maxExclusive)/2;
-
-
-	function nullable() {
-		return (minInclusive === undefined || minInclusive <= 0)
-			&& (maxInclusive === undefined || maxInclusive >= 0)
-			&& (minExclusive === undefined || minExclusive < 0)
-			&& (maxExclusive === undefined || maxExclusive > 0);
-	}
-
-	function minimal(values: readonly  number[]) : number{
-		return values.reduce((a, b) => Math.abs(b) < Math.abs(a) ? b : a);
-	}
-
-
-	const trace = validateNumber([value], {
-
-		kind: "number",
-		model: value,
-
-		integral,
-
-		minExclusive,
-		maxExclusive,
-		minInclusive,
-		maxInclusive,
-
-		in: allowed
-
-	});
-
-	if ( trace !== undefined ) {
-		throw new TraceError("inconsistent number shape constraints", trace);
-	}
-
-	return value;
-
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Validates values against a number shape.
  *
- * Filters input values by type, reporting non-numeric values under the `kind` key, then enforces
- * numeric constraints on matching values.
+ * Filters input values by type, reporting non-numeric values under the `kind` key, then enforces the numeric
+ * value-domain constraints on the matching values.
+ *
+ * @param values The values to validate
+ * @param shape The number shape defining validation constraints
+ * @param opts Validation options
+ * @param opts.model Whether to validate `values` as retrieval placeholders rather than instances: the value-domain
+ *     constraints are skipped so the value need not be legal, matched by kind alone; defaults to `false`
+ *
+ * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
 export function validateNumber(values: readonly unknown[], {
 
@@ -401,48 +312,50 @@ export function validateNumber(values: readonly unknown[], {
 
 }: NumberShape, {
 
-	model=false
+	model = false
 
 }: {
 
 	model?: boolean
 
-}={}): undefined | Trace {
+} = {}): undefined | Trace {
 
 	const matching = values.filter(isNumber);
 	const mistyped = values.length-matching.length;
+
+	// a placeholder (model) is matched by kind alone: value-domain constraints are skipped, only {kind} applies
 
 	return collect({
 
 		"{kind}": mistyped === 0
 			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
-		"{integral}": every(matching, value =>
+		"{integral}": model || every(matching, value =>
 			!integral || Number.isInteger(value)
 			|| `expected integral values`
 		),
 
-		"{minExclusive}": every(matching, value =>
+		"{minExclusive}": model || every(matching, value =>
 			minExclusive === undefined || value > minExclusive
 			|| `expected values > <${minExclusive}>`
 		),
 
-		"{maxExclusive}": every(matching, value =>
+		"{maxExclusive}": model || every(matching, value =>
 			maxExclusive === undefined || value < maxExclusive
 			|| `expected values < <${maxExclusive}>`
 		),
 
-		"{minInclusive}": every(matching, value =>
+		"{minInclusive}": model || every(matching, value =>
 			minInclusive === undefined || value >= minInclusive
 			|| `expected values >= <${minInclusive}>`
 		),
 
-		"{maxInclusive}": every(matching, value =>
+		"{maxInclusive}": model || every(matching, value =>
 			maxInclusive === undefined || value <= maxInclusive
 			|| `expected values <= <${maxInclusive}>`
 		),
 
-		"{in}": every(matching, value =>
+		"{in}": model || every(matching, value =>
 			allowed === undefined || allowed.includes(value)
 			|| `expected values in [${allowed.join(", ")}]`
 		),

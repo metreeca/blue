@@ -14,8 +14,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `{ fetch: true, shape }`; returns a `Relay` resolving to `{ value }` on success or `{ trace }` on failure; idempotent
   on a specific shape, skipping re-validation when the same shape and compatible options are presented again
 - Add `validate()` value-shape overload — validates an individual value against a non-resource value `Shape` with
-  `{ shape }` and no `model`; enforces leaf constraints only (cardinality belongs to the enclosing `SetShape`) and
-  requires a `union` shape to match exactly one variant; returns the input value narrowed to `State<S>`
+  `{ shape }`; enforces leaf constraints only (cardinality belongs to the enclosing `SetShape`) and matches a `union`
+  by regime — a value against exactly one variant, a `model: true` placeholder against at least one by JSON type;
+  returns the input value narrowed to `State<S>`
 - Add `plain` option to template validation for rejecting aggregate transforms (count, sum, min, max, avg); defaults to
   `false`
 - Add `entry` option to resource validation for matching the resource's `id` entry against an expected reference;
@@ -43,6 +44,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add shape introspection accessors — `model` (retrieval template), `getShapeVariants` (union variants),
   `getShapeTarget` (reference target resource shape), `getShapeProperties` (resolved properties), `getShapeClass` /
   `getShapeClasses` (own / inherited classes), and `getShapeId` / `getShapeType` (identifier / type field names)
+- Add `getUnionVariant` / `getUnionVariants` union pickers — `getUnionVariant` routes a state value to the sole variant
+  it fits (ambiguous or unsatisfiable matches yield `undefined`), while `getUnionVariants` routes a retrieval
+  placeholder to every variant it fits by kind alone
 - Reject `id`/`type` entries in embedded resource shapes during state validation
 
 ### Changed

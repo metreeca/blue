@@ -112,7 +112,7 @@ import { xsd } from "@metreeca/core/datatype";
 import { immutable } from "@metreeca/core/deep";
 import type { Reference } from "@metreeca/qest";
 import { TraceError } from "./index.core.js";
-import { checkNumber, deriveNumber } from "./number.core.js";
+import { checkNumber } from "./number.core.js";
 
 
 const BYTE_MAX = 2**7-1;
@@ -138,7 +138,7 @@ const FLOAT_MAX = (2-2** -23)*2**127;
  * | Field          | Override Rule                                                                               |
  * | -------------- | ------------------------------------------------------------------------------------------- |
  * | `kind`         | Cannot be overridden                                                                        |
- * | `model`        | Taken from the child: a validated sample value                                              |
+ * | `model`        | Taken from the child: a retrieval placeholder                                               |
  * | `datatype`     | Must be strictly equal when both defined; the single defined value carries through          |
  * | `integral`     | Child may add but not drop; an integral parent cannot be overridden by a non-integral child |
  * | `minExclusive` | Child ≥ parent, narrowing the exclusive lower bound                                         |
@@ -172,8 +172,9 @@ export interface NumberShape extends NumberConstraints {
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
-	 * A sample value drawn from the shape's value space: factories validate it against the value constraints at
-	 * construction, and a merge keeps the child's value.
+	 * A retrieval placeholder matched by JSON type alone: its value is immaterial and need not be legal for the value
+	 * constraints, so factories keep an explicit `model` verbatim and default an unspecified one to `0`. A merge keeps
+	 * the child's value.
 	 *
 	 * @defaultValue `0`
 	 */
@@ -192,10 +193,10 @@ export interface NumberConstraints extends NumericConstraints {
 	/**
 	 * Explicit prototype value for runtime model assembly.
 	 *
-	 * Seeds the prototype the factory validates against the value constraints. When omitted, the prototype is derived
-	 * from the value space: an `in` or `hasValue` member, else a bound. When supplied, it must itself be a legal value.
+	 * A retrieval placeholder matched by JSON type alone: kept verbatim, its value is immaterial and need not be
+	 * legal for the value constraints. When omitted, the prototype defaults to `0`.
 	 *
-	 * @defaultValue `undefined` (the prototype is derived from the value constraints)
+	 * @defaultValue `undefined` (the prototype defaults to `0`)
 	 */
 	readonly model?: number;
 
@@ -361,7 +362,7 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
 
 		...effective,
 
-		model: deriveNumber(effective)
+		model: effective.model ?? 0
 
 	});
 

@@ -141,11 +141,14 @@ Resource properties link to other resources in two ways. A `reference()` wrapper
 independently identified and managed entity like `Vendor`. A direct shape inclusion defines an **embedded resource**, a
 nested object with no independent identity, created and managed together with its parent like `Rating`.
 
-Properties that accept multiple types are modelled as unions of positional variants (`sh:xone`). Each value must single
-out **exactly one** variant and is rejected when it fits several (ambiguous) or none (unsatisfiable); a multi-valued
-property discriminates each of its values independently. At runtime, values are stored directly with no variant
-wrapping. Each variant is a literal, reference, or resource shape; localised `text()` is a whole-property type and is
-never a union variant, so `union()` rejects a text shape. Either of the following representations is accepted at the same `address` position:
+Properties that accept multiple types are modelled as unions of positional variants. Matching splits by regime: a
+stored **value** must single out **exactly one** variant (`sh:xone`), tested against all constraints, and is rejected
+when it fits several (ambiguous) or none (unsatisfiable); a retrieval **placeholder** is tested by JSON type alone and
+must fit **at least one** variant (`sh:or`), may fit several, and is rejected only when it fits none (see
+[Validating Templates](#validating-templates)). A multi-valued property matches each of its values independently. At
+runtime, values are stored directly with no variant wrapping. Each variant is a literal, reference, or resource shape;
+localised `text()` is a whole-property type and is never a union variant, so `union()` rejects a text shape. Either of
+the following representations is accepted at the same `address` position:
 
 ```json
 { "address": "12 Harbour Street, Copenhagen" }
@@ -305,10 +308,14 @@ IRI reference placeholder, retrieving only the identifier, or a nested template 
 reference placeholder is never resolved on decoding, so it accepts any IRI reference (the empty string, a root-relative
 or relative reference, or an absolute IRI); reference values in selection operands, by contrast, are resolved against
 the base IRI and absolute. A union-typed property is addressed only through the indexed form (`{"0": ..., "1": ...}`),
-one placeholder per branch; a plain placeholder over it is rejected. Projection cells over a localised property carry a
-complete localised value whose per-language-tag shape is pinned to the property's per-tag cardinality (a single string
-for single-string-per-tag, a singleton array for array-per-tag); the localised value is assembled once per row rather
-than fanned out per tag.
+one placeholder per branch; a plain placeholder over it is rejected. Each branch placeholder is matched by JSON type
+alone, its value immaterial: it need not be legal, matches every type-compatible branch (so a literal or reference
+placeholder retrieves all same-kind branches, while a nested template discriminates the resource branches its structure
+fits), and is rejected only when it matches no branch. Selection operands (comparison bounds and set-matching options)
+are values, not placeholders, so they take the exactly-one rule; a `~` text search is a plain string applied to every
+string branch at once. Projection cells over a localised property carry a complete localised value whose
+per-language-tag shape is pinned to the property's per-tag cardinality (a single string for single-string-per-tag, a
+singleton array for array-per-tag); the localised value is assembled once per row rather than fanned out per tag.
 
 A localised property additionally coalesces under language negotiation, at its per-tag cardinality: its template slot
 also accepts a coalesced placeholder for the negotiated value (a bare string for single-string-per-tag, a single-element
@@ -347,7 +354,7 @@ validate(price, { shape: integer({ minInclusive: 0 }) })({
 
 Only the leaf constraints (datatype, numeric range, string length, pattern, language) are enforced against the single
 value; cardinality is not checked, as it belongs to the enclosing set shape. A union shape requires the value to match
-exactly one variant. On success, the value is the input narrowed to `State<S>`.
+**exactly one** variant (`sh:xone`), as a state value does. On success, the value is the input narrowed to `State<S>`.
 
 # SHACL Foundations
 
@@ -371,8 +378,9 @@ This controlled subset is specified by:
   expected type of resource instances; limited to a single class
 - [value constraints](https://www.w3.org/TR/shacl/#InConstraintComponent) (`sh:in`, `sh:hasValue`) for enumerations and
   required values
-- [logical constraints](https://www.w3.org/TR/shacl/#core-components-logical) limited to `sh:xone` as typed unions on
-  properties; `sh:not`, `sh:and`, and `sh:or` are not supported
+- [logical constraints](https://www.w3.org/TR/shacl/#core-components-logical) limited to `sh:xone` typed unions on
+  properties, matched exactly-one on write and relaxed to at-least-one (`sh:or`) on read; the `sh:not`, `sh:and`, and
+  `sh:or` shape combinators are not supported for authoring
 - [closed shapes](https://www.w3.org/TR/shacl/#ClosedConstraintComponent) enforced by default on all resource shapes;
   unknown properties are always rejected
 

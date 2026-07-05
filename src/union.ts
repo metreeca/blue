@@ -19,15 +19,15 @@
  *
  * Defines {@link UnionShape} and the {@link union} factory used to declare a polymorphic property that accepts more
  * than one value type, as an *exclusive* disjunction (`sh:xone`) of value-shape variants. The variants are mutually
- * exclusive alternatives: every value-bearing operation discriminates the union to exactly one variant — the one its
- * input singles out — so persistence, retrieval, and extends-time narrowing each commit to a single variant rather
- * than treating the union as an open set. Variant order is preserved for deterministic error reporting and drives the
- * indexed {@link @metreeca/qest!Union | Union} form through which union-typed slots are addressed in retrieval
- * templates.
+ * exclusive alternatives, matched in two regimes: a **state** value on persistence singles out **exactly one** variant
+ * (`sh:xone`) by value, while a **model** placeholder on retrieval matches **at least one** by kind (`sh:or`),
+ * requesting each it fits; extends-time narrowing pairs each child variant with a single parent variant. Variant order
+ * is preserved for deterministic error reporting and drives the indexed {@link @metreeca/qest!Union | Union} form
+ * through which union-typed slots are addressed in retrieval templates.
  *
  * > [!NOTE]
- * > The [union design note](./union.md) covers how Blue drives full CRUD from `sh:xone` union shapes by exactly-one
- * > branch discrimination.
+ * > The [union design note](./union.md) covers how Blue drives full CRUD from union shapes, matched as `sh:xone` on
+ * > write and `sh:or` on read.
  *
  * **Inheritance**
  *
@@ -65,7 +65,7 @@ import type { Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { eager, type ValueShape } from "./value.js";
 
-export { getShapeVariants, getUnionMatch } from "./union.core.js"
+export { getShapeVariants, getUnionVariant, getUnionVariants } from "./union.core.js";
 
 
 /**
@@ -73,9 +73,10 @@ export { getShapeVariants, getUnionMatch } from "./union.core.js"
  *
  * Variants are mutually exclusive alternatives (`sh:xone`). The union is not validated for exclusivity at
  * construction: branches may overlap, and the design proves nothing about their distinguishability. Discrimination is
- * instead data-driven against caller-supplied values: a `state` value (persistence) and a `model` value (retrieval)
- * are each expected to single out exactly one variant, and the operation is rejected when the value fits several
- * (ambiguous) or none (unsatisfiable). Order is preserved for deterministic error reporting but does not imply
+ * instead data-driven against caller-supplied values: a `state` value (persistence) must single out exactly one variant
+ * (`sh:xone`), rejected when it fits several (ambiguous) or none (unsatisfiable); a `model` placeholder (retrieval) need
+ * only match at least one variant by kind (`sh:or`), requesting each it fits and rejected only when it fits none.
+ * Order is preserved for deterministic error reporting but does not imply
  * priority. Each variant is a {@link ValueShape} (a literal, reference, or resource); localised {@link text!text |
  * text} is a whole-property type and is not a {@link ValueShape}, so a text variant is a compile-time type error. In a
  * retrieval template a union-typed slot is addressed only through the indexed {@link @metreeca/qest!Union | Union}
@@ -173,7 +174,8 @@ export type Variants<V extends readonly Lazy<ValueShape>[]> = {
  * Creates a union of value shapes.
  *
  * Variants are mutually exclusive alternatives (`sh:xone`): the union is not validated for exclusivity ex-ante, but a
- * `state` or `model` value is expected to single out exactly one variant at operation time. Variant order is preserved
+ * `state` value singles out exactly one variant (`sh:xone`) at write time while a `model` placeholder matches at least
+ * one by kind (`sh:or`) at read time. Variant order is preserved
  * deterministically: it drives indexed `model` keys (`{"0": ..., "1": ...}`), positional trace-error reporting, and the
  * order of the merged result when an extending shape narrows the union (see {@link UnionShape} for the full inheritance
  * contract).

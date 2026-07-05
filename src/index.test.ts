@@ -26,10 +26,10 @@ import { date, duration, instant, iri, string, time, timestamp, year } from "./s
 import { text } from "./text.js";
 import { union } from "./union.js";
 import {
+	effective,
 	multiple,
 	type NullShape,
 	optional,
-	effective,
 	type RangeShape,
 	repeatable,
 	required,
@@ -1288,6 +1288,16 @@ describe("validation", () => {
 
 				const result = validate({}, { shape: Contact });
 				expect(result({ value: v => v })).toEqual({});
+
+			});
+
+			it("accepts a keyed union placeholder matching several branches", async () => {
+
+				const Coded = resource({ code: required(union(string(), string())) });
+
+				const result = validate({ code: { "0": "" } }, { model: true, shape: Coded });
+
+				expect(result({ value: () => "ok", trace: () => "err" })).toBe("ok");
 
 			});
 
@@ -2831,122 +2841,6 @@ describe("validation", () => {
 
 					expect(() => validate(parsed, { model: true, shape })).not.toThrow();
 
-				});
-
-			});
-
-		});
-
-	});
-
-	describe("validate (value)", () => {
-
-		describe("scalar validation", () => {
-
-			it("returns value for a string matching the shape", async () => {
-
-				const result = validate("Alice", { shape: string() });
-
-				expect(result({ value: v => v })).toBe("Alice");
-
-			});
-
-			it("returns value for a number matching the shape", async () => {
-
-				const result = validate(7, { shape: integer({ minInclusive: 0 }) });
-
-				expect(result({ value: v => v })).toBe(7);
-
-			});
-
-			it("returns value for a boolean matching the shape", async () => {
-
-				const result = validate(true, { shape: boolean() });
-
-				expect(result({ value: v => v })).toBe(true);
-
-			});
-
-			it("returns value for a reference matching the shape", async () => {
-
-				const result = validate("app:/users/1", { shape: reference(resource({ id: id() })) });
-
-				expect(result({ value: v => v })).toBe("app:/users/1");
-
-			});
-
-			it("returns value for a text value matching the shape", async () => {
-
-				const result = validate({ en: "hello" }, { shape: text() });
-
-				expect(result({ value: v => v })).toEqual({ en: "hello" });
-
-			});
-
-		});
-
-		describe("constraint enforcement", () => {
-
-			it("returns trace when the value violates the shape datatype", async () => {
-
-				const result = validate(42, { shape: string() });
-
-				expect(result({ trace: t => t })).toBeDefined();
-
-			});
-
-			it("returns trace when the value violates a leaf constraint", async () => {
-
-				const result = validate("", { shape: string({ minLength: 1 }) });
-
-				expect(result({ trace: t => t })).toBeDefined();
-
-			});
-
-			it("returns trace when the value violates a numeric range", async () => {
-
-				const result = validate(-1, { shape: integer({ minInclusive: 0 }) });
-
-				expect(result({ trace: t => t })).toBeDefined();
-
-			});
-
-		});
-
-		describe("union", () => {
-
-			it("returns value when it matches exactly one variant", async () => {
-
-				const result = validate(7, { shape: union(integer(), string()) });
-
-				expect(result({ value: v => v })).toBe(7);
-
-			});
-
-			it("returns trace when no variant matches", async () => {
-
-				const result = validate(true, { shape: union(integer(), string()) });
-
-				expect(result({ trace: t => t })).toBeDefined();
-
-			});
-
-			it("returns trace when more than one variant matches", async () => {
-
-				const result = validate("shared", { shape: union(string({ maxLength: 10 }), string({ minLength: 1 })) });
-
-				expect(result({ trace: t => t })).toBeDefined();
-
-			});
-
-		});
-
-		describe("return typing", () => {
-
-			it("narrows the success value to the shape value type", async () => {
-
-				validate("Alice", { shape: string() })({
-					value: v => expectTypeOf(v).toEqualTypeOf<string>()
 				});
 
 			});
