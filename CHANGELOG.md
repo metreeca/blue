@@ -110,6 +110,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Enforce class-level constraints conjunctively across the inheritance chain in resource validation
 - Reject IRI strings for embedded `ResourceShape` properties — only nested models are accepted
 - Enforce string type validation on `id`/`type` template values
+- Detect query grouping from projection aggregates alone in template validation (qest §5.8.2.1), and govern focus (`+`)
+  keys by the same grouping-key rule as ordering (`^`) keys; a selection-only aggregate is a per-item reduction, not
+  grouping
 - Align property-value absence with qest's documented contract in resource validation: `undefined` and `[]` are absent
   on any slot; `{}` is absent on slots accepting a nested Resource (`reference` / `resource` kinds, or unions containing
   one) and remains a `{kind}` type mismatch on literal slots; `{}`, `{ und: [] }`, and language maps with

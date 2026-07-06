@@ -9440,8 +9440,9 @@ describe("validators", () => {
 
 			describe("grouped-semantics ordering", () => {
 
-				// under grouping (any aggregate in the projection or selection), a non-aggregate sort key
-				// must reference an existing grouping key (a non-aggregate projection binding)
+				// under grouping (an aggregate in the projection alone, per qest §5.8.2.1), a non-aggregate
+				// ordering or focus key must reference an existing grouping key (a non-aggregate projection
+				// binding); an aggregate in the selection alone does not group
 
 				const Target = resource({ name: required(string()), category: optional(string()) });
 				const Wrapper = resource({ items: multiple(reference(Target)) });
@@ -9470,6 +9471,67 @@ describe("validators", () => {
 
 				it("accepts a non-aggregate sort key when the query is not grouped", async () => {
 					expect(validateTemplate([{ items: [{ "name": "" }, { "^name": "asc" }] }], Wrapper, {})).toBeUndefined();
+				});
+
+				// focus keys (`+`) are governed by the same grouping rule as ordering keys (`^`)
+
+				it("rejects a non-aggregate focus key with no grouping key under grouping", async () => {
+					expect(validateTemplate([{ items: [{ "c=count:": 0 }, { "+name": "x" }] }], Wrapper, {})).toBeDefined();
+				});
+
+				it("rejects a non-aggregate focus key not among the grouping keys", async () => {
+					expect(validateTemplate([{
+						items: [{ "category": "", "c=count:": 0 }, { "+name": "x" }]
+					}], Wrapper, {})).toBeDefined();
+				});
+
+				it("accepts a non-aggregate focus key matching a grouping key", async () => {
+					expect(validateTemplate([{
+						items: [{ "category": "", "c=count:": 0 }, { "+category": "rock" }]
+					}], Wrapper, {})).toBeUndefined();
+				});
+
+				it("accepts an aggregate focus key under grouping", async () => {
+					expect(validateTemplate([{
+						items: [{ "category": "", "c=count:": 0 }, { "+count:": 1 }]
+					}], Wrapper, {})).toBeUndefined();
+				});
+
+				it("accepts a non-aggregate focus key when the query is not grouped", async () => {
+					expect(validateTemplate([{ items: [{ "name": "" }, { "+name": "x" }] }], Wrapper, {})).toBeUndefined();
+				});
+
+				// an aggregate in the selection alone is a per-item reduction (qest §5.8.2.1), not grouping,
+				// so a non-key ordering or focus key remains admissible
+
+				it("accepts a non-key sort key with a selection-only aggregate filter", async () => {
+					expect(validateTemplate([{
+						items: [{ "name": "" }, { ">=count:category": 1, "^category": "asc" }]
+					}], Wrapper, {})).toBeUndefined();
+				});
+
+				it("accepts a non-key focus key with a selection-only aggregate filter", async () => {
+					expect(validateTemplate([{
+						items: [{ "name": "" }, { ">=count:category": 1, "+category": "rock" }]
+					}], Wrapper, {})).toBeUndefined();
+				});
+
+				// the grouping rule runs at any nesting depth: a grouped collection query nested under a
+				// set-valued property is checked by the same rule as a top-level one
+
+				const Outer = resource({ tags: multiple(reference(Target)) });
+				const Root = resource({ groups: multiple(reference(Outer)) });
+
+				it("rejects a non-key sort key in a grouped query nested under a set-valued property", async () => {
+					expect(validateTemplate([{
+						groups: [{ tags: [{ "category": "", "c=count:": 0 }, { "^name": "asc" }] }]
+					}], Root, {})).toBeDefined();
+				});
+
+				it("accepts a grouping-key sort key in a grouped query nested under a set-valued property", async () => {
+					expect(validateTemplate([{
+						groups: [{ tags: [{ "category": "", "c=count:": 0 }, { "^category": "asc" }] }]
+					}], Root, {})).toBeUndefined();
 				});
 
 			});

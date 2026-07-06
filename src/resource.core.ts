@@ -1655,18 +1655,21 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			const bindings = isObject(element) ? Object.keys(element).filter(isBinding).map(decodeProbe) : [];
 			const selectors = Object.keys(selection).map((k): [string, Probe] => [k, decodeProbe(k)]);
 
-			// grouping is triggered by any aggregate in the projection or the selection (qest §Selection); the
-			// grouping keys are then the non-aggregate projection bindings, fixed by the projection alone
+			// grouping is fixed by the projection alone (qest §5.8.2.1): an aggregate binding groups the query,
+			// and the non-aggregate bindings are then the grouping keys; an aggregate in the selection alone is
+			// a per-item reduction, not grouping
 
-			const grouped = bindings.some(aggregate) || selectors.some(([, probe]) => aggregate(probe));
+			const grouped = bindings.some(aggregate);
 			const groupingKeys = new Set(bindings.filter(probe => !aggregate(probe)).map(signature));
 
-			// a non-aggregate `^` ordering must reference a grouping key; an aggregate `^` sorts by its
-			// post-aggregation value and is always admissible
+			// a non-aggregate `^` ordering or `+` focus must reference a grouping key; an aggregate one ranks
+			// by its post-aggregation value and is always admissible
 
 			return !grouped ? undefined : collect(Object.fromEntries(selectors
-				.filter(([, probe]) => probe.target === "^" && !aggregate(probe) && !groupingKeys.has(signature(probe)))
-				.map(([k]) => [k, "expected a grouping-key or aggregate sort expression under grouping"])
+				.filter(([, probe]) =>
+					(probe.target === "^" || probe.target === "+") && !aggregate(probe) && !groupingKeys.has(signature(probe))
+				)
+				.map(([k]) => [k, "expected a grouping-key or aggregate ordering/focus expression under grouping"])
 			));
 
 		}
