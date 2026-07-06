@@ -122,9 +122,9 @@ export interface ReferenceShape extends ReferenceConstraints {
 	/**
 	 * Placeholder prototype identifier.
 	 *
-	 * A retrieval placeholder matched by JSON type alone: its value is immaterial and need not be a legal identifier for
-	 * the target, so the {@link reference} factory always stores the generic default base IRI (`app:/`) without resolving
-	 * the target.
+	 * A retrieval placeholder matched by JSON type alone: its value is immaterial and need not be a legal identifier
+	 * for the target, so the {@link reference} factory always stores the generic default base IRI (`app:/`) without
+	 * resolving the target.
 	 *
 	 * **Inheritance** — must be strictly equal between parent and child.
 	 *
