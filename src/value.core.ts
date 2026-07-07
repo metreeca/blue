@@ -721,6 +721,10 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  * temporal); the remaining transforms accept their declared processing type only. `avg` always yields a `decimal`: the
  * specification narrows its range to `float` for `float` input and `double` for `double` input, but that
  * processing-space distinction is not preserved on egress, so the effective type is reported uniformly as `decimal`.
+ * A transform declaring `returns: "same"` reproduces the input's processing type: `min` and `max`, which keep the value
+ * within the element domain, preserve the input shape verbatim (value-domain facets included), whereas `sum` combines
+ * values and escapes the element domain and datatype range, so it widens to the bare `integer` type for integral input
+ * or the bare `decimal` type otherwise, carrying no value-domain facets.
  *
  * **Cardinality** — per-step constraints combine multiplicatively within a branch and by envelope
  * across sibling branches:
@@ -1011,18 +1015,24 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extrac
 
 			const transform = Transforms[transformType];
 
-			return accepts(transform.accepts, state) ? produce(transform.returns, state) : undefined;
+			return accepts(transform.accepts, state) ? produce(transform, state) : undefined;
 
 		}
 
 	}
 
 	/**
-	 * Resolve a transform's output shape from its declared return type.
+	 * Resolve a transform's output shape from its declared signature.
+	 *
+	 * The qest {@link Transforms} table types outputs, not value domains: `returns: "same"` promises the same
+	 * processing type, not the same shape. A scalar or partial-aggregate transform (`min`, `max`) keeps the input
+	 * within the element domain, so its shape carries through verbatim; a total aggregate (`sum`) combines values and
+	 * escapes the element domain and datatype range, so it widens to the bare `integer` type for integral input or the
+	 * bare `decimal` type otherwise, dropping every value-domain facet as immaterial to the aggregate result.
 	 */
-	function produce(returns: (typeof Transforms)[Transform]["returns"], state: ValuesShape): ValuesShape {
+	function produce({ aggregate, returns }: (typeof Transforms)[Transform], state: ValuesShape): ValuesShape {
 
-		return returns === "same" ? state
+		return returns === "same" ? (aggregate === "total" ? widen(state) : state)
 			: returns === "integer" ? integer()
 				: returns === "decimal" ? decimal()
 					: returns === "string" ? string()
@@ -1049,6 +1059,13 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extrac
 						: domain === "temporal" ? isTemporal(shape)
 							: false;
 
+	}
+
+	/**
+	 * Widen a combined numeric aggregate to its bare processing type, dropping value-domain facets.
+	 */
+	function widen(state: ValuesShape): ValuesShape {
+		return state.kind === "number" && state.integral ? integer() : decimal();
 	}
 
 

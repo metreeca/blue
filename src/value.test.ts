@@ -537,18 +537,30 @@ describe("utilities", () => {
 			describe("numeric input", () => {
 
 				it.each([
-					["number", number()],
 					["byte", byte()],
 					["short", short()],
 					["int", int()],
 					["long", long()],
+					["integer", integer()]
+				])("widens integral %s shape to bare integer for sum", async (_label, s) => {
+
+					// a sum combines values and escapes the element domain and datatype range,
+					// so its result carries only the bare integer type, no value-domain facets
+
+					expect(range(transformRange(["sum"], s)).variants[0]).toEqual(integer());
+
+				});
+
+				it.each([
+					["number", number()],
 					["float", float()],
 					["double", double()],
-					["integer", integer()],
 					["decimal", decimal()]
-				])("accepts %s shape for sum and preserves it", async (_label, s) => {
+				])("widens fractional %s shape to bare decimal for sum", async (_label, s) => {
 
-					expect(range(transformRange(["sum"], s)).variants[0]).toBe(s);
+					// a fractional or unconstrained numeric sum widens to the bare decimal type
+
+					expect(range(transformRange(["sum"], s)).variants[0]).toEqual(decimal());
 
 				});
 

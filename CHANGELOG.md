@@ -118,6 +118,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   one) and remains a `{kind}` type mismatch on literal slots; `{}`, `{ und: [] }`, and language maps with
   all-empty-array entries are absent on `localised` slots; `{}` elements are dropped from a multi-valued Resource-
   accepting slot's array before per-element validation and cardinality checks
+- Widen the `sum` transform's effective type to the bare `integer` / `decimal` datatype — a summation escapes the
+  element domain and datatype range (qest), so its result no longer carries the input's value-domain facets; integral
+  input widens to `integer`, fractional or unconstrained numeric input to `decimal`, while `min`/`max` continue to
+  preserve the input shape verbatim
 
 ## [0.9.1](https://github.com/metreeca/blue/releases/tag/v0.9.1)
 
