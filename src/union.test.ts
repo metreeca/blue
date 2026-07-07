@@ -16,12 +16,12 @@
 
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
-import { decimal, integer } from "./number.js";
+import { byte, decimal, integer } from "./number.js";
 import { reference } from "./reference.js";
 import { resource } from "./resource.js";
-import { date, email, string } from "./string.js";
+import { date, email, string, year } from "./string.js";
 import { text } from "./text.js";
-import { deriveUnion, mergeUnion, narrowsUnion } from "./union.core.js";
+import { deriveUnion, getBoundVariant, mergeUnion, narrowsUnion } from "./union.core.js";
 import { union } from "./union.js";
 import { required } from "./value.js";
 
@@ -291,6 +291,43 @@ describe("operators", () => {
 			const target = resource({ pattern: "/things/{id}" }, {});
 
 			expect(deriveUnion(union(reference(target), string()))).toEqual({ "0": "app:/", "1": "" });
+
+		});
+
+	});
+
+	describe("getBoundVariant", () => {
+
+		it("routes a bound outside the value domain, relaxing the datatype's magnitude facets", async () => {
+
+			// 200 lies past byte's maxInclusive, but a bound filters by order and need not be a legal element value
+
+			const shape = byte();
+
+			expect(getBoundVariant(200, [shape])).toBe(shape);
+
+		});
+
+		it("discriminates same-kind literals by pattern", async () => {
+
+			const variants = [date(), year()];
+
+			expect(getBoundVariant("2025-01-01", variants)).toBe(variants[0]);
+			expect(getBoundVariant("2025", variants)).toBe(variants[1]);
+
+		});
+
+		it("returns undefined when no variant matches", async () => {
+
+			expect(getBoundVariant(true, [integer(), string()])).toBeUndefined();
+
+		});
+
+		it("returns undefined when several variants match, absent literal disjointness", async () => {
+
+			// plain string subsumes email, so the two branches are not literally disjoint and a matching bound is ambiguous
+
+			expect(getBoundVariant("user@example.com", [string(), email()])).toBeUndefined();
 
 		});
 

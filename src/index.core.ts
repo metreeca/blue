@@ -28,6 +28,24 @@ import type { Trace, Validator } from "./index.js";
 
 
 /**
+ * Validation strictness for matching a value against a shape.
+ *
+ * Selects how much of a shape the value validators enforce, so a caller can match the same shape against a stored
+ * value, a relational bound, or a retrieval model:
+ *
+ * - `"state"` enforces **every** constraint: the value must be a legal element of the shape's domain.
+ * - `"bound"` keeps the syntactic discriminators (`kind`, and a literal branch's `pattern`) but skips the value-domain
+ *   magnitude constraints, so a relational bound lying outside the domain still matches by form alone.
+ * - `"model"` matches by `kind` alone, ignoring every other constraint, so a retrieval placeholder need not be legal.
+ *
+ * @see [Unions — Design](./union.md)
+ */
+export type Scope=
+	| "state"
+	| "bound"
+	| "model"
+
+/**
  * Error carrying a structured validation {@link Trace}.
  *
  * Extends `RangeError` with a typed {@link Trace} as `cause` and includes a pretty-printed trace in the message

@@ -843,16 +843,38 @@ describe("validators", () => {
 
 			it("skips value-domain constraints for a placeholder", async () => {
 
-				expect(validateNumber([500], number({ maxInclusive: 100 }), { model: true })).toBeUndefined();
-				expect(validateNumber([-1], number({ minInclusive: 0 }), { model: true })).toBeUndefined();
-				expect(validateNumber([5], number({ in: [1, 2, 3] }), { model: true })).toBeUndefined();
-				expect(validateNumber([1.5], number({ integral: true }), { model: true })).toBeUndefined();
+				expect(validateNumber([500], number({ maxInclusive: 100 }), { scope: "model" })).toBeUndefined();
+				expect(validateNumber([-1], number({ minInclusive: 0 }), { scope: "model" })).toBeUndefined();
+				expect(validateNumber([5], number({ in: [1, 2, 3] }), { scope: "model" })).toBeUndefined();
+				expect(validateNumber([1.5], number({ integral: true }), { scope: "model" })).toBeUndefined();
 
 			});
 
 			it("still rejects a placeholder of the wrong kind", async () => {
 
-				expect(validateNumber(["nope"], number(), { model: true })).toHaveProperty("{kind}");
+				expect(validateNumber(["nope"], number(), { scope: "model" })).toHaveProperty("{kind}");
+
+			});
+
+		});
+
+		describe("bound scope", () => {
+
+			// a number carries no pattern, so the bound scope has nothing between kind and the full domain to keep:
+			// it skips every value-domain constraint, exactly as the model scope does
+
+			it("skips value-domain constraints for a bound", async () => {
+
+				expect(validateNumber([500], number({ maxInclusive: 100 }), { scope: "bound" })).toBeUndefined();
+				expect(validateNumber([-1], number({ minInclusive: 0 }), { scope: "bound" })).toBeUndefined();
+				expect(validateNumber([5], number({ in: [1, 2, 3] }), { scope: "bound" })).toBeUndefined();
+				expect(validateNumber([1.5], number({ integral: true }), { scope: "bound" })).toBeUndefined();
+
+			});
+
+			it("still rejects a bound of the wrong kind", async () => {
+
+				expect(validateNumber(["nope"], number(), { scope: "bound" })).toHaveProperty("{kind}");
 
 			});
 

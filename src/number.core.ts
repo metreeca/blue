@@ -22,7 +22,7 @@
 
 import { isNumber } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
-import { collect, every, group, TraceError, wrap } from "./index.core.js";
+import { collect, every, group, type Scope, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
 import type { NumberConstraints, NumberShape } from "./number.js";
 
@@ -291,8 +291,9 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
  * @param values The values to validate
  * @param shape The number shape defining validation constraints
  * @param opts Validation options
- * @param opts.model Whether to validate `values` as retrieval placeholders rather than instances: the value-domain
- *     constraints are skipped so the value need not be legal, matched by kind alone; defaults to `false`
+ * @param opts.scope The validation scope: `"state"` enforces every constraint, while `"bound"` and `"model"` skip the
+ *     value-domain constraints and match by kind alone, so the value need not be legal. A number carries no `pattern`,
+ *     so `"bound"` coincides with `"model"` here. Defaults to `"state"`
  *
  * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
@@ -312,55 +313,56 @@ export function validateNumber(values: readonly unknown[], {
 
 }: NumberShape, {
 
-	model = false
+	scope = "state"
 
 }: {
 
-	model?: boolean
+	scope?: Scope
 
 } = {}): undefined | Trace {
 
 	const matching = values.filter(isNumber);
 	const mistyped = values.length-matching.length;
 
-	// a placeholder (model) is matched by kind alone: value-domain constraints are skipped, only {kind} applies
+	// only {kind} is enforced outside the state scope: bound and model skip the value-domain constraints (a number
+	// carries no pattern, so there is nothing between kind and the full domain for bound to keep)
 
 	return collect({
 
 		"{kind}": mistyped === 0
 			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
-		"{integral}": model || every(matching, value =>
+		"{integral}": scope !== "state" || every(matching, value =>
 			!integral || Number.isInteger(value)
 			|| `expected integral values`
 		),
 
-		"{minExclusive}": model || every(matching, value =>
+		"{minExclusive}": scope !== "state" || every(matching, value =>
 			minExclusive === undefined || value > minExclusive
 			|| `expected values > <${minExclusive}>`
 		),
 
-		"{maxExclusive}": model || every(matching, value =>
+		"{maxExclusive}": scope !== "state" || every(matching, value =>
 			maxExclusive === undefined || value < maxExclusive
 			|| `expected values < <${maxExclusive}>`
 		),
 
-		"{minInclusive}": model || every(matching, value =>
+		"{minInclusive}": scope !== "state" || every(matching, value =>
 			minInclusive === undefined || value >= minInclusive
 			|| `expected values >= <${minInclusive}>`
 		),
 
-		"{maxInclusive}": model || every(matching, value =>
+		"{maxInclusive}": scope !== "state" || every(matching, value =>
 			maxInclusive === undefined || value <= maxInclusive
 			|| `expected values <= <${maxInclusive}>`
 		),
 
-		"{in}": model || every(matching, value =>
+		"{in}": scope !== "state" || every(matching, value =>
 			allowed === undefined || allowed.includes(value)
 			|| `expected values in [${allowed.join(", ")}]`
 		),
 
-		"{hasValue}": model || group(matching, group =>
+		"{hasValue}": scope !== "state" || group(matching, group =>
 			hasValue === undefined || hasValue.every(v => group.includes(v))
 			|| `expected values to include [${hasValue.join(", ")}]`
 		)

@@ -28,7 +28,7 @@ import { defaultBase } from "@metreeca/qest";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/template";
 import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
 import type { BooleanShape } from "./boolean.js";
-import { collect, TraceError, wrap } from "./index.core.js";
+import { collect, type Scope, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
 import { mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
 import { decimal, integer, type NumberShape } from "./number.js";
@@ -501,19 +501,20 @@ export function deriveValues({ shape, model, maxCount }: SetShape): unknown {
  * @param values The values to validate
  * @param shape The shape defining validation constraints
  * @param opts Validation options
- * @param opts.model Whether to validate `values` as retrieval placeholders rather than instances: value-domain
- *     constraints are skipped so the value need not be legal, matched by kind alone; localised text is validated
- *     as a `Locale` placeholder, and nested resources as retrieval templates; defaults to `false`
+ * @param opts.scope The validation scope: `"state"` enforces every constraint; `"bound"` keeps the syntactic
+ *     discriminators (`kind`, `pattern`) but skips the value-domain magnitude constraints, so a relational bound that
+ *     lies outside the domain still routes; `"model"` matches by kind alone, validating localised text as a `Locale`
+ *     placeholder and nested resources as retrieval templates. Defaults to `"state"`
  *
  * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
 export function validateValue(values: readonly unknown[], shape: ValuesShape, {
 
-	model = false
+	scope = "state"
 
 }: {
 
-	model?: boolean
+	scope?: Scope
 
 } = {}): undefined | Trace {
 
@@ -525,27 +526,27 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape, {
 
 		case "number":
 
-			return validateNumber(values, shape, { model });
+			return validateNumber(values, shape, { scope });
 
 		case "string":
 
-			return validateString(values, shape, { model });
+			return validateString(values, shape, { scope });
 
 		case "text":
 
-			return model
-				? validateLocale(values)
-				: validateText(values, shape);
+			return scope === "state"
+				? validateText(values, shape)
+				: validateLocale(values);
 
 		case "reference":
 
-			return validateReference(values, shape, { model });
+			return validateReference(values, shape, { scope });
 
 		case "resource":
 
-			return model
-				? validateTemplate(values, shape, {})
-				: validateResource(values, shape);
+			return scope === "state"
+				? validateResource(values, shape)
+				: validateTemplate(values, shape, {});
 
 	}
 

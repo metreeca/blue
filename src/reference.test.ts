@@ -323,7 +323,7 @@ describe("validators", () => {
 
 				const shape = reference(resource({ pattern: "/users/{id}" }, {}));
 
-				expect(validateReference(["app:/products/999"], shape, { model: true })).toBeUndefined();
+				expect(validateReference(["app:/products/999"], shape, { scope: "model" })).toBeUndefined();
 
 			});
 
@@ -339,7 +339,7 @@ describe("validators", () => {
 
 				const shape = reference(resource({}));
 
-				expect(validateReference(values, shape, { model: true })).toBeUndefined();
+				expect(validateReference(values, shape, { scope: "model" })).toBeUndefined();
 
 			});
 
@@ -347,7 +347,38 @@ describe("validators", () => {
 
 				const shape = reference(resource({}));
 
-				expect(validateReference([42], shape, { model: true })).toHaveProperty("{kind}");
+				expect(validateReference([42], shape, { scope: "model" })).toHaveProperty("{kind}");
+
+			});
+
+		});
+
+		describe("bound scope", () => {
+
+			// the bound scope keeps the target IRI pattern (the syntactic discriminator) but drops the in and hasValue
+			// value-domain constraints
+
+			it("skips the target in constraint for a bound", async () => {
+
+				const shape = reference(resource({ in: ["app:/users/1", "app:/users/2"] }, {}));
+
+				expect(validateReference(["app:/users/99"], shape, { scope: "bound" })).toBeUndefined();
+
+			});
+
+			it("still enforces the target pattern for a bound", async () => {
+
+				const shape = reference(resource({ pattern: "/users/{id}" }, {}));
+
+				expect(validateReference(["app:/products/999"], shape, { scope: "bound" })).toHaveProperty("{pattern}");
+
+			});
+
+			it("still rejects a bound of the wrong kind", async () => {
+
+				const shape = reference(resource({}));
+
+				expect(validateReference([42], shape, { scope: "bound" })).toHaveProperty("{kind}");
 
 			});
 

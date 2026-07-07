@@ -855,16 +855,44 @@ describe("validators", () => {
 
 			it("skips value-domain constraints for a placeholder", async () => {
 
-				expect(validateString(["ab"], string({ minLength: 3 }), { model: true })).toBeUndefined();
-				expect(validateString(["abcdef"], string({ maxLength: 3 }), { model: true })).toBeUndefined();
-				expect(validateString(["A1"], string({ pattern: "^[a-z]*$" }), { model: true })).toBeUndefined();
-				expect(validateString(["x"], string({ in: ["a", "b"] }), { model: true })).toBeUndefined();
+				expect(validateString(["ab"], string({ minLength: 3 }), { scope: "model" })).toBeUndefined();
+				expect(validateString(["abcdef"], string({ maxLength: 3 }), { scope: "model" })).toBeUndefined();
+				expect(validateString(["A1"], string({ pattern: "^[a-z]*$" }), { scope: "model" })).toBeUndefined();
+				expect(validateString(["x"], string({ in: ["a", "b"] }), { scope: "model" })).toBeUndefined();
 
 			});
 
 			it("still rejects a placeholder of the wrong kind", async () => {
 
-				expect(validateString([42], string(), { model: true })).toHaveProperty("{kind}");
+				expect(validateString([42], string(), { scope: "model" })).toHaveProperty("{kind}");
+
+			});
+
+		});
+
+		describe("bound scope", () => {
+
+			// the bound scope keeps pattern (the sole lexical discriminator over an open datatype set) but drops the
+			// magnitude constraints, so a bound outside the value domain still routes
+
+			it("skips the magnitude constraints for a bound", async () => {
+
+				expect(validateString(["ab"], string({ minLength: 3 }), { scope: "bound" })).toBeUndefined();
+				expect(validateString(["abcdef"], string({ maxLength: 3 }), { scope: "bound" })).toBeUndefined();
+				expect(validateString(["x"], string({ in: ["a", "b"] }), { scope: "bound" })).toBeUndefined();
+
+			});
+
+			it("still enforces the pattern for a bound", async () => {
+
+				expect(validateString(["A1"], string({ pattern: "^[a-z]*$" }), { scope: "bound" }))
+					.toHaveProperty("{pattern}");
+
+			});
+
+			it("still rejects a bound of the wrong kind", async () => {
+
+				expect(validateString([42], string(), { scope: "bound" })).toHaveProperty("{kind}");
 
 			});
 

@@ -25,7 +25,7 @@ import { map } from "@metreeca/core/combo";
 import { equals, immutable } from "@metreeca/core/deep";
 import { isIRI } from "@metreeca/core/resource";
 import { isReference } from "@metreeca/qest";
-import { collect, every, group, TraceError } from "./index.core.js";
+import { collect, every, group, type Scope, TraceError } from "./index.core.js";
 import type { Trace } from "./index.js";
 import type { ReferenceShape } from "./reference.js";
 import { match } from "./resource.core.js";
@@ -121,33 +121,34 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
  * @param values The values to validate
  * @param shape The reference shape defining validation constraints
  * @param opts Validation options
- * @param opts.model Whether to validate `values` as retrieval placeholders rather than instances: the value-domain
- *     constraints are skipped so the value need not be legal, and the kind admits the full IRI-reference production
- *     (empty, relative, root-relative, and absolute forms) rather than the absolute-only instance form; defaults to
- *     `false`
+ * @param opts.scope The validation scope: `"state"` enforces every constraint; `"bound"` keeps the target IRI
+ *     `pattern` (the syntactic discriminator) but skips the `in` and `hasValue` value-domain constraints; `"model"`
+ *     skips every target constraint, matches by kind alone, and admits the full IRI-reference production (empty,
+ *     relative, root-relative, and absolute forms) rather than the absolute-only instance form. Defaults to `"state"`
  *
  * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
 export function validateReference(values: readonly unknown[], shape: ReferenceShape, {
 
-	model = false
+	scope = "state"
 
 }: {
 
-	model?: boolean
+	scope?: Scope
 
 } = {}): undefined | Trace {
 
-	const matching = values.filter(model ? value => isIRI(value) : isReference);
+	const matching = values.filter(scope === "model" ? value => isIRI(value) : isReference);
 	const mistyped = values.length-matching.length;
 
 	const target = eager(shape.shape);
 
-	// a placeholder (model) is matched by kind alone: target value constraints are skipped, only {kind} applies
+	// {pattern} is kept through the bound scope as the target's lexical discriminator; {in} and {hasValue} apply only
+	// in the state scope, and the model scope matches by {kind} alone
 
-	const patterns = model || target.pattern === undefined ? [] : [target.pattern];
-	const allowed = model || target.in === undefined ? [] : [target.in];
-	const required = model || target.hasValue === undefined ? [] : [target.hasValue];
+	const patterns = scope === "model" || target.pattern === undefined ? [] : [target.pattern];
+	const allowed = scope !== "state" || target.in === undefined ? [] : [target.in];
+	const required = scope !== "state" || target.hasValue === undefined ? [] : [target.hasValue];
 
 	return collect({
 

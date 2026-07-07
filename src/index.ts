@@ -381,14 +381,16 @@ export function validate(value: unknown, {
 
 			const trace = validateUnion(value, shape.variants, {
 				model: model === true,
-				match: (value, variant, model) => validateValue([value], variant, { model }) === undefined
+				match: (value, variant, model) => validateValue([value], variant, {
+					scope: model ? "model" : "state"
+				}) === undefined
 			});
 
 			return trace !== undefined ? createRelay({ trace }) : createRelay({ value });
 
 		} else if ( shape.kind !== "resource" ) {
 
-			const trace = validateValue([value], shape, { model: model === true });
+			const trace = validateValue([value], shape, { scope: model === true ? "model" : "state" });
 
 			return trace !== undefined ? createRelay({ trace }) : createRelay({ value });
 

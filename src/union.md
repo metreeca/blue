@@ -84,6 +84,15 @@ discriminating traits, so a legal value fits exactly one branch and an ambiguous
 than refused at construction. The modeller owns disjointness; the writer, in turn, must carry enough data to single out
 one branch.
 
+A stronger grade, **literal disjointness**, admits only **syntactic** discriminators. Two literal branches are literally
+disjoint when `kind` and `pattern` tell them apart with no reference to any value-domain facet, so no well-formed
+literal satisfies both: a numeric or boolean branch carries no `pattern`, so a union admits **at most one**
+literal branch of each such kind, and string branches may coexist only when their patterns are mutually exclusive
+(`date` versus `gYear`, never `date` versus an unconstrained `string`). It is stronger than the disjointness a state
+value needs, which may also lean on value-domain traits such as an `integral` flag or disjoint `in` sets; a value
+carrying no legal-membership guarantee and matched by syntactic form alone, such as a relational bound (see
+*Selection operands*, below), requires it.
+
 ## Model — at least one branch, by kind (`sh:or`)
 
 A retrieval model addresses a union through two kinds of slot, matched by different rules: the **retrieval templates**
@@ -91,13 +100,12 @@ that project the property, and, inside a collection query, the **operands** of a
 
 ### Retrieval templates
 
-A model placeholder MUST match **at least one** branch (`sh:or`), but no more is required. Matching
-tests **kind (type compatibility) alone** and ignores every other constraint: a literal placeholder matches every branch
-of its processing kind, a reference placeholder every reference branch, and a template placeholder every nested-resource
-branch whose type its properties fit. The placeholder's value is **immaterial** and need not be a legal value of any
-branch, so it selects nothing on its own; it only names, by kind, the branches to project. A placeholder matching
-several branches retrieves each; one matching **no** branch is **unsatisfiable** and rejected, exactly as a state value
-is.
+A model placeholder MUST match **at least one** branch (`sh:or`), but no more is required. Matching tests **kind (type
+compatibility) alone** and ignores every other constraint: a literal placeholder matches every branch of its processing
+kind, a reference placeholder every reference branch, and a template placeholder every nested-resource branch whose type
+its properties fit. The placeholder's value is **immaterial** and need not be a legal value of any branch, so it selects
+nothing on its own; it only names, by kind, the branches to project. A placeholder matching several branches retrieves
+each; one matching **no** branch is **unsatisfiable** and rejected, exactly as a state value is.
 
 The keyed union form supplies one alternative placeholder per branch, keyed by opaque non-negative integer strings that
 carry no positional meaning. Each alternative is matched independently, so several alternatives may resolve to
@@ -114,13 +122,24 @@ values: a read is well-formed as long as the store could hold a compatible value
 A retrieval selection is part of the model, but two of its slots carry content rather than placeholders, and match by
 their own rules.
 
-A relational **bound** or a set-matching **option** is a data value, not a placeholder, so it follows the **state**
-rule: it MUST match **exactly one** branch against all constraints, since it must resolve to a concrete stored value to
-filter on. A bound or option matching several branches is ambiguous and one matching none is unsatisfiable, both
-rejected; a `null` option is typeless and exempt.
+A relational **bound** must single out **exactly one** branch, since a processor needs a single branch to convert the
+value against, but it is **not** a legal element value: a comparison filters by order, so `>= 8` over a
+`[1, 5]` domain is a legal query returning nothing, not an error. Testing a bound against all constraints would wrongly
+reject it, so a bound relaxes the **value-domain facets** (numeric bounds `minInclusive` … `maxExclusive`, `integral`,
+string length, `languageIn`, `in`, `hasValue`) and keys **only on the syntactic traits** that pin a branch: the value's
+processing `kind` and, where literal branches share a kind, their lexical `pattern`. A bound matching several branches
+is ambiguous and one matching none unsatisfiable, both rejected. Because it is matched by syntactic form alone, a bound
+requires the union to be **literally disjoint** (see *State*, above); a union that is not is rejected at runtime by the
+ambiguous-match rule.
 
-A text-search operand (`~`) is neither a placeholder nor a data value but a plain search string. It is not matched
-against the branches at all: it applies to **every** string branch of the union at once, filtering their values
+A set-matching **option** must likewise single out **exactly one** branch, but it is a data value, not a placeholder, so
+it follows the **state** rule: it MUST match against all constraints, since it is a legal stored value the filter tests
+membership against. This holds for every option-bearing operator alike: the disjunctive `?`, the conjunctive `!`, and
+the sort-focus `+`, each carrying option values matched by equality against the branch type. An option matching several
+branches is ambiguous and one matching none is unsatisfiable, both rejected; a `null` option is typeless and exempt.
+
+A text-search **keywords** operand (`~`) is neither a placeholder nor a data value but a plain search string. It is not
+matched against the branches at all: it applies to **every** string branch of the union at once, filtering their values
 existentially, and the non-string branches simply do not support it.
 
 ## Traversal — one effective union range
@@ -129,8 +148,8 @@ A probe (path plus pipe) flattens every union its path crosses into one effectiv
 retrieval, but the range still meets **both** regimes, according to the probe's role:
 
 - a **projection binding** carries a placeholder, matched by the model rule: at least one branch, by kind;
-- a **selection operator** carries a bound or option, validated as a state value: exactly one branch, against all
-  constraints.
+- a **selection operator** carries an option or a bound: an option validates as a state value (exactly one branch,
+  against all constraints), a bound by the relaxed rule (exactly one branch, by `kind` and `pattern` alone).
 
-Either input matches the flattened range exactly as it would a root union, so traversal needs no per-crossing
-reasoning: the rule stays flat across the whole path.
+Either input matches the flattened range exactly as it would a root union, so traversal needs no per-crossing reasoning:
+the rule stays flat across the whole path.

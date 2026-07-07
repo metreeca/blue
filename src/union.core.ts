@@ -189,31 +189,36 @@ export function getShapeVariants(shape: Lazy<Shape>): readonly ValuesShape[] {
 
 
 /**
- * Picks the single variant a state value fits.
+ * Picks the single variant compatible with a state value.
  *
- * Routes a state value to the one variant that admits it, so callers ingesting a value against a polymorphic union
- * can settle it on a definite branch for persistence. Because persistence must commit to a single branch, a value
- * admitted by several variants is ambiguous and a value admitted by none is unsatisfiable; both are reported as
- * no match rather than resolved by guessing. A state value is a resource instance on ingress, or a bound or
- * option within a selection.
+ * Routes a state value to the one variant that admits it against **all** constraints, so a caller ingesting a value
+ * against a polymorphic union can settle it on a definite branch for persistence. Because persistence must commit to a
+ * single branch, a value admitted by several variants is ambiguous and a value admitted by none is unsatisfiable; both
+ * are reported as no match rather than resolved by guessing. A state value is a resource instance on ingress, or a
+ * set-matching **option** within a selection.
+ *
+ * A relational **bound** is not a state value: it need not be a legal element value (a `>= 8` bound over a `[1, 5]`
+ * domain is a legal query, not an error), so it routes by a relaxed rule keyed on syntactic traits alone under the
+ * union design's literal-disjointness rule, not through this entry point.
  *
  * @typeParam V The variant shape type, preserved from the input array to the returned variant
  *
+ * @param state The state value to route
  * @param variants The union variants to choose among
- * @param value The state value to route
  *
  * @returns The sole variant the value fits, or `undefined` when it fits none (unsatisfiable) or several (ambiguous)
  *
  * @see [Unions — Design § State](./union.md#state-exactly-one-branch-by-value-)
+ * @see [Unions — Design § Selection operands](./union.md#selection-operands-and-text-search)
  * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.7.4 sh:xone}
  */
-export function getUnionVariant<V extends ValuesShape>(
-	variants: readonly V[],
-	value: unknown
+export function getStateVariant<V extends ValuesShape>(
+	state: unknown,
+	variants: readonly V[]
 ): undefined | V {
 
 	const matches = variants.filter(variant => validateValue(
-		[value], variant
+		[state], variant, { scope: "state" }
 	) === undefined);
 
 	return matches.length === 1 ? matches[0] : undefined;
@@ -221,31 +226,69 @@ export function getUnionVariant<V extends ValuesShape>(
 }
 
 /**
- * Picks every variant a retrieval placeholder fits.
+ * Picks the single variant compatible with a relational bound.
  *
- * Routes a retrieval placeholder to all variants it can draw from, so callers retrieving against a polymorphic
- * union need not know which branch was persisted. A placeholder is matched by kind alone, its value immaterial, so
- * it may span several variants and retrieve each; only a placeholder matching no variant is unsatisfiable and
- * reported as no match. An IRI placeholder addresses the reference variants; a structure-expanded resource
+ * Routes a comparison **bound** (a `<`, `>`, `<=`, `>=` selection operand) to the one variant it filters against, so a
+ * caller can type the bound by the resolved branch. Unlike a state value, a bound need not be a legal element value: a
+ * comparison filters by order, so a `>= 8` bound over a `[1, 5]` domain is a legal query returning nothing, not an
+ * error. Matching therefore relaxes the value-domain **magnitude** facets (`min*`/`max*`, `integral`, string length,
+ * `languageIn`, `in`, `hasValue`) and keys only on the **syntactic** traits that pin a branch: the value's `kind` and,
+ * where literal branches share a kind, their lexical `pattern`.
+ *
+ * The match stays **exactly one**: a processor needs a single branch to convert the bound against, so a bound admitted
+ * by several variants is ambiguous and one admitted by none unsatisfiable, both reported as no match. This relies on
+ * the union being **literally disjoint** (`kind` and `pattern` separate the literal branches with no value-domain
+ * facet); a union that is not is rejected at runtime by the ambiguous-match rule rather than at construction.
+ *
+ * @typeParam V The variant shape type, preserved from the input array to the returned variant
+ *
+ * @param bound The relational bound to route
+ * @param variants The union variants to choose among
+ *
+ * @returns The sole variant the bound fits, or `undefined` when it fits none (unsatisfiable) or several (ambiguous)
+ *
+ * @see [Unions — Design § Selection operands](./union.md#selection-operands-and-text-search)
+ * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.7.4 sh:xone}
+ */
+export function getBoundVariant<V extends ValuesShape>(
+	bound: unknown,
+	variants: readonly V[]
+): undefined | V {
+
+	const matches = variants.filter(variant => validateValue(
+		[bound], variant, { scope: "bound" }
+	) === undefined);
+
+	return matches.length === 1 ? matches[0] : undefined;
+
+}
+
+/**
+ * Picks every variant compatible with a retrieval model.
+ *
+ * Routes a retrieval model to all variants it can draw from, so callers retrieving against a polymorphic
+ * union need not know which branch was persisted. A model is matched by kind alone, its value immaterial, so
+ * it may span several variants and retrieve each; only a model matching no variant is unsatisfiable and
+ * reported as no match. An IRI model addresses the reference variants; a structure-expanded resource
  * template addresses the variants whose target resource it shapes.
  *
  * @typeParam V The variant shape type, preserved from the input array to the returned variants
  *
+ * @param model The retrieval model to route
  * @param variants The union variants to choose among
- * @param value The retrieval placeholder to route
  *
- * @returns Every variant the placeholder fits, or `undefined` when it fits none (unsatisfiable)
+ * @returns Every variant the model fits, or `undefined` when it fits none (unsatisfiable)
  *
  * @see [Unions — Design § Model](./union.md#model-at-least-one-branch-by-kind-)
  * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.7.3 sh:or}
  */
-export function getUnionVariants<V extends ValuesShape>(
-	variants: readonly V[],
-	value: unknown
-): undefined | readonly V[] {
+export function getModelVariants<V extends ValuesShape>(
+	model: unknown,
+	variants: readonly V[]
+): | undefined | readonly V[] {
 
 	const matches = variants.filter(variant => validateValue(
-		[value], isObject(value) ? getShapeTarget(variant) ?? variant : variant, { model: true }
+		[model], isObject(model) ? getShapeTarget(variant) ?? variant : variant, { scope: "model" }
 	) === undefined);
 
 	return matches.length > 0 ? matches : undefined;

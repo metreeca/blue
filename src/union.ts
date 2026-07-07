@@ -65,7 +65,7 @@ import type { Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { eager, type ValueShape } from "./value.js";
 
-export { getShapeVariants, getUnionVariant, getUnionVariants } from "./union.core.js";
+export { getShapeVariants, getStateVariant, getBoundVariant, getModelVariants } from "./union.core.js";
 
 
 /**
@@ -73,14 +73,14 @@ export { getShapeVariants, getUnionVariant, getUnionVariants } from "./union.cor
  *
  * Variants are mutually exclusive alternatives (`sh:xone`). The union is not validated for exclusivity at
  * construction: branches may overlap, and the design proves nothing about their distinguishability. Discrimination is
- * instead data-driven against caller-supplied values: a `state` value (persistence) must single out exactly one variant
- * (`sh:xone`), rejected when it fits several (ambiguous) or none (unsatisfiable); a `model` placeholder (retrieval) need
- * only match at least one variant by kind (`sh:or`), requesting each it fits and rejected only when it fits none.
- * Order is preserved for deterministic error reporting but does not imply
- * priority. Each variant is a {@link ValueShape} (a literal, reference, or resource); localised {@link text!text |
- * text} is a whole-property type and is not a {@link ValueShape}, so a text variant is a compile-time type error. In a
- * retrieval template a union-typed slot is addressed only through the indexed {@link @metreeca/qest!Union | Union}
- * form (`{"0": ..., "1": ...}`); a plain placeholder over it is rejected.
+ * instead data-driven against caller-supplied values: a `state` value (persistence) must single out exactly one
+ * variant (`sh:xone`), rejected when it fits several (ambiguous) or none (unsatisfiable); a `model` placeholder
+ * (retrieval) need only match at least one variant by kind (`sh:or`), requesting each it fits and rejected only when
+ * it fits none. Order is preserved for deterministic error reporting but does not imply priority. Each variant is a
+ * {@link ValueShape} (a literal, reference, or resource); localised {@link text!text | text} is a whole-property type
+ * and is not a {@link ValueShape}, so a text variant is a compile-time type error. In a retrieval template a
+ * union-typed slot is addressed only through the indexed {@link @metreeca/qest!Union | Union} form (`{"0": ..., "1":
+ * ...}`); a plain placeholder over it is rejected.
  *
  * > [!IMPORTANT]
  * > Variants are expected to be **disjoint**: a well-formed union declares branches that no single legal value can

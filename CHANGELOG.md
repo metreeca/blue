@@ -44,9 +44,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add shape introspection accessors — `model` (retrieval template), `getShapeVariants` (union variants),
   `getShapeTarget` (reference target resource shape), `getShapeProperties` (resolved properties), `getShapeClass` /
   `getShapeClasses` (own / inherited classes), and `getShapeId` / `getShapeType` (identifier / type field names)
-- Add `getUnionVariant` / `getUnionVariants` union pickers — `getUnionVariant` routes a state value to the sole variant
-  it fits (ambiguous or unsatisfiable matches yield `undefined`), while `getUnionVariants` routes a retrieval
-  placeholder to every variant it fits by kind alone
+- Add `getStateVariant` / `getBoundVariant` / `getModelVariants` union pickers — `getStateVariant` routes a state value
+  to the sole variant it fits against all constraints, `getBoundVariant` routes a relational bound to the sole variant
+  it fits by syntactic form alone (relaxing the value-domain facets), and `getModelVariants` routes a retrieval model to
+  every variant it fits by kind alone; ambiguous or unsatisfiable single-variant matches yield `undefined`
 - Reject `id`/`type` entries in embedded resource shapes during state validation
 
 ### Changed

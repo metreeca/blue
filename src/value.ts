@@ -88,9 +88,9 @@ import type { ResourceShape } from "./resource.js";
 import { type StringShape } from "./string.js";
 import type { TextShape } from "./text.js";
 import type { UnionShape } from "./union.js";
-import { eager, effective, model, validateValue } from "./value.core.js";
+import { eager, effective, model } from "./value.core.js";
 
-export { eager, effective, model, validateValue };
+export { eager, effective, model };
 
 
 /**

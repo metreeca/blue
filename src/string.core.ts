@@ -22,7 +22,7 @@
 
 import { isString } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
-import { collect, every, group, TraceError, wrap } from "./index.core.js";
+import { collect, every, group, type Scope, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
 import type { StringShape } from "./string.js";
 
@@ -225,8 +225,9 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
  * @param values The values to validate
  * @param shape The string shape defining validation constraints
  * @param opts Validation options
- * @param opts.model Whether to validate `values` as retrieval placeholders rather than instances: the value-domain
- *     constraints are skipped so the value need not be legal, matched by kind alone; defaults to `false`
+ * @param opts.scope The validation scope: `"state"` enforces every constraint; `"bound"` keeps `pattern` (the syntactic
+ *     discriminator over an open datatype set) but skips the value-domain magnitude constraints (length, `in`,
+ *     `hasValue`); `"model"` skips every constraint and matches by kind alone. Defaults to `"state"`
  *
  * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
@@ -244,43 +245,46 @@ export function validateString(values: readonly unknown[], {
 
 }: StringShape, {
 
-	model = false
+	scope = "state"
 
 }: {
 
-	model?: boolean
+	scope?: Scope
 
 } = {}): undefined | Trace {
 
 	const matching = values.filter(isString);
 	const mistyped = values.length-matching.length;
 
+	// {pattern} is kept through the bound scope as the sole lexical discriminator; the magnitude constraints apply
+	// only in the state scope, and the model scope matches by {kind} alone
+
 	return collect({
 
 		"{kind}": mistyped === 0
 			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
 
-		"{minLength}": model || every(matching, value =>
+		"{minLength}": scope !== "state" || every(matching, value =>
 			minLength === undefined || value.length >= minLength
 			|| `expected string length >= <${minLength}>`
 		),
 
-		"{maxLength}": model || every(matching, value =>
+		"{maxLength}": scope !== "state" || every(matching, value =>
 			maxLength === undefined || value.length <= maxLength
 			|| `expected string length <= <${maxLength}>`
 		),
 
-		"{pattern}": model || every(matching, value =>
+		"{pattern}": scope === "model" || every(matching, value =>
 			pattern === undefined || new RegExp(pattern).test(value)
 			|| `expected string matching </${pattern}/>`
 		),
 
-		"{in}": model || every(matching, value =>
+		"{in}": scope !== "state" || every(matching, value =>
 			allowed === undefined || allowed.includes(value)
 			|| `expected values in [${allowed.join(", ")}]`
 		),
 
-		"{hasValue}": model || group(matching, group =>
+		"{hasValue}": scope !== "state" || group(matching, group =>
 			hasValue === undefined || hasValue.every(v => group.includes(v))
 			|| `expected values to include [${hasValue.join(", ")}]`
 		)
