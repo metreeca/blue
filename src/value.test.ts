@@ -41,7 +41,6 @@ import {
 	eager,
 	effective,
 	multiple,
-	type NullShape,
 	optional,
 	type RangeShape,
 	repeatable,
@@ -412,15 +411,14 @@ describe("utilities", () => {
 			return { target: path[path.length-1] ?? "_", pipe, path };
 		}
 
-		function range(r: RangeShape | NullShape | Extract<Trace, string>): RangeShape {
+		function range(r: RangeShape | Extract<Trace, string>): RangeShape {
 			if ( typeof r === "string" ) { throw new Error(`expected RangeShape, got trace <${r}>`); }
-			if ( r.kind === "null" ) { throw new Error("expected RangeShape, got absent value"); }
 			return r;
 		}
 
 		// transform-focused helpers: wrap leaf shape in a resource property
 
-		function transformRange(pipe: readonly Transform[], s: ValuesShape): RangeShape | NullShape | Extract<Trace, string> {
+		function transformRange(pipe: readonly Transform[], s: ValuesShape): RangeShape | Extract<Trace, string> {
 			return effective(resource({ _: required(s) }), probe(["_"], pipe));
 		}
 
@@ -522,9 +520,9 @@ describe("utilities", () => {
 
 				});
 
-				it("yields null sentinel for reference shape (out of processing space)", async () => {
+				it("reports incompatible transform input for reference shape (out of processing space)", async () => {
 
-					expect(transformRange(["min"], reference(resource({ id: id() })))).toEqual({ kind: "null" });
+					expect(transformRange(["min"], reference(resource({ id: id() })))).toEqual("incompatible transform input");
 
 				});
 
@@ -554,23 +552,15 @@ describe("utilities", () => {
 
 				});
 
-				it("yields integer zero for plain string shape with sum (empty in-domain set)", async () => {
+				it("reports incompatible transform input for plain string shape with sum", async () => {
 
-					const r = range(transformRange(["sum"], string()));
-
-					expect(r.variants[0]).toEqual(integer());
-					expect(r.minCount).toBe(1);
-					expect(r.maxCount).toBe(1);
+					expect(transformRange(["sum"], string())).toEqual("incompatible transform input");
 
 				});
 
-				it("yields integer zero for temporal string shape with sum (empty in-domain set)", async () => {
+				it("reports incompatible transform input for temporal string shape with sum", async () => {
 
-					const r = range(transformRange(["sum"], date()));
-
-					expect(r.variants[0]).toEqual(integer());
-					expect(r.minCount).toBe(1);
-					expect(r.maxCount).toBe(1);
+					expect(transformRange(["sum"], date())).toEqual("incompatible transform input");
 
 				});
 
@@ -596,15 +586,15 @@ describe("utilities", () => {
 
 				});
 
-				it("returns null sentinel for temporal shape with lower", async () => {
+				it("reports incompatible transform input for temporal shape with lower", async () => {
 
-					expect(transformRange(["lower"], date())).toEqual({ kind: "null" });
+					expect(transformRange(["lower"], date())).toEqual("incompatible transform input");
 
 				});
 
-				it("returns null sentinel for number shape with lower", async () => {
+				it("reports incompatible transform input for number shape with lower", async () => {
 
-					expect(transformRange(["lower"], integer())).toEqual({ kind: "null" });
+					expect(transformRange(["lower"], integer())).toEqual("incompatible transform input");
 
 				});
 
@@ -623,15 +613,15 @@ describe("utilities", () => {
 
 				});
 
-				it("returns null sentinel for plain string shape with year", async () => {
+				it("reports incompatible transform input for plain string shape with year", async () => {
 
-					expect(transformRange(["year"], string())).toEqual({ kind: "null" });
+					expect(transformRange(["year"], string())).toEqual("incompatible transform input");
 
 				});
 
-				it("returns null sentinel for number shape with year", async () => {
+				it("reports incompatible transform input for number shape with year", async () => {
 
-					expect(transformRange(["year"], integer())).toEqual({ kind: "null" });
+					expect(transformRange(["year"], integer())).toEqual("incompatible transform input");
 
 				});
 
@@ -645,9 +635,9 @@ describe("utilities", () => {
 				it.each([
 					["year", year()],
 					["duration", duration()]
-				])("returns null sentinel for %s shape with a temporal transform", async (_label, s) => {
+				])("reports incompatible transform input for %s shape with a temporal transform", async (_label, s) => {
 
-					expect(transformRange(["year"], s)).toEqual({ kind: "null" });
+					expect(transformRange(["year"], s)).toEqual("incompatible transform input");
 
 				});
 
@@ -681,13 +671,13 @@ describe("utilities", () => {
 
 			});
 
-			it("degrades out-of-domain transforms on coalesced localised text to undefined", async () => {
+			it("reports incompatible transform input for out-of-domain transforms on coalesced localised text", async () => {
 
 				const s = text();
 
-				expect(transformRange(["year"], s)).toEqual({ kind: "null" });    // temporal
-				expect(transformRange(["abs"], s)).toEqual({ kind: "null" });     // numeric
-				expect(range(transformRange(["sum"], s)).variants[0]).toEqual(integer()); // numeric total → empty-set 0
+				expect(transformRange(["year"], s)).toEqual("incompatible transform input");    // temporal
+				expect(transformRange(["abs"], s)).toEqual("incompatible transform input");     // numeric
+				expect(transformRange(["sum"], s)).toEqual("incompatible transform input");     // numeric total
 
 			});
 
@@ -701,7 +691,7 @@ describe("utilities", () => {
 
 			it("coalesces array-per-tag localised text to a multi-valued string set", async () => {
 
-				function arrayPerTagRange(pipe: readonly Transform[]): RangeShape | NullShape | Extract<Trace, string> {
+				function arrayPerTagRange(pipe: readonly Transform[]): RangeShape | Extract<Trace, string> {
 					return effective(resource({ _: repeatable(text()) }), probe(["_"], pipe));
 				}
 
@@ -787,15 +777,15 @@ describe("utilities", () => {
 
 			});
 
-			it("returns null sentinel for incompatible first-stage input", async () => {
+			it("reports incompatible transform input for incompatible first-stage input", async () => {
 
-				expect(transformRange(["floor"], string())).toEqual({ kind: "null" });
+				expect(transformRange(["floor"], string())).toEqual("incompatible transform input");
 
 			});
 
-			it("returns null sentinel for incompatible inter-stage types (year then lower)", async () => {
+			it("reports incompatible transform input for incompatible inter-stage types (year then lower)", async () => {
 
-				expect(transformRange(["year", "lower"], date())).toEqual({ kind: "null" });
+				expect(transformRange(["year", "lower"], date())).toEqual("incompatible transform input");
 
 			});
 
@@ -910,7 +900,7 @@ describe("utilities", () => {
 
 		describe("path cardinality accumulation", () => {
 
-			function pathRange(p: Probe, s: ResourceShape): RangeShape | NullShape | Extract<Trace, string> {
+			function pathRange(p: Probe, s: ResourceShape): RangeShape | Extract<Trace, string> {
 				return effective(s, p);
 			}
 
@@ -1011,7 +1001,7 @@ describe("utilities", () => {
 
 		describe("path traversal", () => {
 
-			function probeRange(p: Probe, s: ResourceShape): RangeShape | NullShape | Extract<Trace, string> {
+			function probeRange(p: Probe, s: ResourceShape): RangeShape | Extract<Trace, string> {
 				return effective(s, p);
 			}
 
@@ -1247,7 +1237,7 @@ describe("utilities", () => {
 
 			});
 
-			it("returns null sentinel for union when no variant is compatible with pipe", async () => {
+			it("reports incompatible transform input for union when no variant is compatible with pipe", async () => {
 
 				const s = resource({
 					value: required(union(string(), integer()))
@@ -1255,7 +1245,7 @@ describe("utilities", () => {
 
 				// "year" requires temporal strings — neither text nor num qualifies
 
-				expect(effective(s, probe(["value"], ["year"]))).toEqual({ kind: "null" });
+				expect(effective(s, probe(["value"], ["year"]))).toEqual("incompatible transform input");
 
 			});
 
@@ -1293,7 +1283,7 @@ describe("utilities", () => {
 
 				// "year" rejects every variant at the first stage; "lower" never applies
 
-				expect(effective(s, probe(["value"], ["lower", "year"]))).toEqual({ kind: "null" });
+				expect(effective(s, probe(["value"], ["lower", "year"]))).toEqual("incompatible transform input");
 
 			});
 
@@ -1321,13 +1311,13 @@ describe("utilities", () => {
 
 			});
 
-			it("returns null sentinel for incompatible pipe on resolved path", async () => {
+			it("reports incompatible transform input for incompatible pipe on resolved path", async () => {
 
 				const s = resource({
 					name: required(string())
 				});
 
-				expect(effective(s, probe(["name"], ["floor"]))).toEqual({ kind: "null" });
+				expect(effective(s, probe(["name"], ["floor"]))).toEqual("incompatible transform input");
 
 			});
 
@@ -1349,7 +1339,7 @@ describe("utilities", () => {
 
 		describe("id/type path resolution", () => {
 
-			function probeRange(p: Probe, s: ResourceShape): RangeShape | NullShape | Extract<Trace, string> {
+			function probeRange(p: Probe, s: ResourceShape): RangeShape | Extract<Trace, string> {
 				return effective(s, p);
 			}
 
@@ -1739,13 +1729,13 @@ describe("utilities", () => {
 
 			});
 
-			it("returns null sentinel when no variant is compatible with pipe", async () => {
+			it("reports incompatible transform input when no variant is compatible with pipe", async () => {
 
 				const s = union(string(), integer());
 
 				// year requires temporal strings — neither variant qualifies
 
-				expect(effective(s, probe([], ["year"]))).toEqual({ kind: "null" });
+				expect(effective(s, probe([], ["year"]))).toEqual("incompatible transform input");
 
 			});
 
@@ -1777,7 +1767,7 @@ describe("utilities", () => {
 
 				// "year" rejects every variant at the first stage; "lower" never applies
 
-				expect(effective(s, probe([], ["lower", "year"]))).toEqual({ kind: "null" });
+				expect(effective(s, probe([], ["lower", "year"]))).toEqual("incompatible transform input");
 
 			});
 
@@ -1885,9 +1875,9 @@ describe("utilities", () => {
 
 			});
 
-			it("returns null sentinel for incompatible pipe on leaf shape", async () => {
+			it("reports incompatible transform input for incompatible pipe on leaf shape", async () => {
 
-				expect(effective(string(), probe([], ["floor"]))).toEqual({ kind: "null" });
+				expect(effective(string(), probe([], ["floor"]))).toEqual("incompatible transform input");
 
 			});
 

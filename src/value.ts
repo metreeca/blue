@@ -33,7 +33,6 @@
  * - {@link UnionShape} — a disjunction of value-shape variants for a polymorphic value
  * - {@link SetShape} — a cardinality-constrained value set
  * - {@link RangeShape} — value range a {@link Probe} resolves to via {@link effective}: bounds and variants
- * - {@link NullShape} — a provably absent value a {@link Probe} resolves to via {@link effective}
  *
  * <img src="value.svg" alt="Shape hierarchy" style="width: 100%" />
  *
@@ -69,9 +68,8 @@
  * - {@link effective} resolves the effective {@link RangeShape} type for a {@link Probe} against a
  *   {@link Shape}, walking property paths through nested resources, branching across
  *   {@link UnionShape} variants at the entry or at any property range, and applying each
- *   transform pipe stage. It yields a {@link NullShape} when the probe is accepted
- *   but provably resolves to no value, or an atomic {@link Trace} string when the probe cannot
- *   be resolved or its transform pipe cannot be applied.
+ *   transform pipe stage. It yields an atomic {@link Trace} string when the probe cannot
+ *   be resolved or its transform pipe cannot be applied to any resolved variant.
  *
  * @module
  *
@@ -283,7 +281,8 @@ export type SetSelection<
  * Carries the cardinality bounds ({@link RangeShape.minCount | minCount} / {@link RangeShape.maxCount | maxCount})
  * accumulated across the traversed steps, and {@link RangeShape.variants | variants}: the value shapes the path can
  * reach, a never-empty disjunction over the text-including {@link ValuesShape} alphabet. The `"range"`
- * {@link RangeShape.kind | kind} discriminates it from an absent {@link NullShape} in an {@link effective} result.
+ * {@link RangeShape.kind | kind} distinguishes a resolved range from the atomic {@link Trace} string an
+ * {@link effective} result otherwise carries.
  *
  * > [!NOTE]
  * > A path can reach a mix no declared shape expresses: for `creator.name` with `creator: union(Person,
@@ -291,8 +290,6 @@ export type SetSelection<
  * > declared property cannot hold (a value-variant union and whole-property text never combine).
  *
  * @see {@link effective}
- *
- * @see {@link NullShape}
  */
 export type RangeShape = {
 
@@ -317,27 +314,6 @@ export type RangeShape = {
 	 * Reachable value shapes in branch order; never empty.
 	 */
 	readonly variants: readonly ValuesShape[];
-
-};
-
-/**
- * Empty resolution of a {@link Probe}.
- *
- * Produced when static analysis proves the path carries no value, rather than when a runtime constraint fails. An
- * accepted outcome, not a failure, and therefore distinct from the {@link Trace} strings reported when the probe
- * cannot be resolved or its transform pipe cannot be applied. The `"null"` {@link NullShape.kind | kind} discriminates
- * it from a resolved {@link RangeShape} in an {@link effective} result.
- *
- * @see {@link effective}
- *
- * @see {@link RangeShape}
- */
-export type NullShape = {
-
-	/**
-	 * Discriminator identifying this as an absent value.
-	 */
-	readonly kind: "null";
 
 };
 

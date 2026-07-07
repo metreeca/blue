@@ -32,12 +32,7 @@ import { collect, TraceError, wrap } from "./index.core.js";
 import type { Trace } from "./index.js";
 import { mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
 import { decimal, integer, type NumberShape } from "./number.js";
-import {
-	getShapeTarget,
-	mergeReference,
-	narrowsReference,
-	validateReference
-} from "./reference.core.js";
+import { getShapeTarget, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import type { ReferenceShape } from "./reference.js";
 import {
 	deriveResource,
@@ -54,15 +49,7 @@ import { deriveText, mergeText, narrowsText, validateLocale, validateText } from
 import type { TextShape } from "./text.js";
 import { deriveUnion, mergeUnion, narrowsUnion } from "./union.core.js";
 import type { UnionShape } from "./union.js";
-import {
-	type NullShape,
-	type RangeShape,
-	type Resolved,
-	type Schema,
-	type SetShape,
-	type Shape,
-	type ValuesShape
-} from "./value.js";
+import { type RangeShape, type Resolved, type Schema, type SetShape, type Shape, type ValuesShape } from "./value.js";
 
 
 /**
@@ -723,18 +710,16 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  * `"multiple aggregate transforms"`, independently of the resolved shape. A non-empty pipe is coalesced access to a
  * localised leaf: a text shape contributes the winning tag's value(s) as an ordinary `xsd:string` for domain matching
  * and effective typing, at the leaf's per-tag cardinality (one value for single-string-per-tag, the winning tag's set
- * for array-per-tag). Among processing-space literals (boolean,
- * numeric, plain or temporal string), type compatibility is not a well-formedness condition: a transform applied to a
- * literal outside its declared domain is never an error, it simply drops the offending variant, and when no variant
- * survives the probe resolves to a {@link NullShape} (a known absent value), or, for a total
- * aggregate, to its empty-set value (`0`). The same leniency extends to values outside the processing space
- * (references and resources) which no transform other than `count` can act on, so they too drop
- * rather than erroring. The `count` aggregate accepts any
- * value, references included; `min` and `max` accept the literal processing types (boolean,
- * numeric, string, temporal); the remaining transforms accept their declared processing type only. `avg` always yields
- * a `decimal`: the specification narrows its range to `float` for `float` input and `double` for `double` input, but
- * that processing-space distinction is not preserved on egress, so the effective type is reported uniformly as
- * `decimal`.
+ * for array-per-tag). Among processing-space literals (boolean, numeric, plain or temporal string), a transform
+ * applied to a literal outside its declared domain drops the offending variant from the effective set: within a union
+ * this retains only the compatible branches, so the pipe is well-typed as long as at least one variant survives. The
+ * same dropping extends to values outside the processing space (references and resources), which no transform other
+ * than `count` can act on. When no variant survives, including a single non-union shape whose sole variant falls
+ * outside the pipe's domain, the probe reports `"incompatible transform input"`. The `count` aggregate accepts any
+ * value, references included; `min` and `max` accept the literal processing types (boolean, numeric, string,
+ * temporal); the remaining transforms accept their declared processing type only. `avg` always yields a `decimal`: the
+ * specification narrows its range to `float` for `float` input and `double` for `double` input, but that
+ * processing-space distinction is not preserved on egress, so the effective type is reported uniformly as `decimal`.
  *
  * **Cardinality** — per-step constraints combine multiplicatively within a branch and by envelope
  * across sibling branches:
@@ -766,19 +751,18 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  *
  * @returns A {@link RangeShape} effective type carrying the accumulated cardinality and the reachable value-shape
  *     variants when the probe resolves, deduplicated to distinct shapes so an aggregate or
- *     path that collapses the union onto one type yields a single variant; a {@link NullShape} when the probe is
- *     accepted but provably resolves to no
- *     value (every surviving variant falling outside its transforms' declared domains). Returns an atomic
+ *     path that collapses the union onto one type yields a single variant. Returns an atomic
  *     {@link Trace} string when the probe cannot be resolved against the shape: `"undefined property path"` if the
- *     path fails to resolve (including a step past a non-traversable `id` / `type` field), or `"multiple aggregate
- *     transforms"` if the pipe composes more than one aggregate transform
+ *     path fails to resolve (including a step past a non-traversable `id` / `type` field), `"multiple aggregate
+ *     transforms"` if the pipe composes more than one aggregate transform, or `"incompatible transform input"` if no
+ *     resolved variant lies within the transform pipe's declared domain
  *
  * @throws {TypeError} If `probe` is not a well-formed {@link Probe} (a malformed `path`/`pipe`, or a `pipe`
  *     referencing an unknown transform)
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | NullShape | Extract<Trace, string> {
+export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extract<Trace, string> {
 
 	type Branch = {
 
@@ -805,7 +789,8 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | NullSh
 
 	const resolved = transform(traverse(seeds));
 
-	return isString(resolved) || resolved.kind !== "range" ? resolved
+	return isString(resolved)
+		? resolved
 		: { ...resolved, variants: distinct(resolved.variants) };
 
 
@@ -977,11 +962,10 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | NullSh
 	 * Forwards atomic traces from the upstream traversal unchanged; rejects a pipe composing more than one aggregate
 	 * transform as `"multiple aggregate transforms"`. A non-empty pipe coalesces localised variants first: a text
 	 * variant is replaced by its coalesced `xsd:string` view (the winning tag's value(s)) at its per-tag cardinality.
-	 * When no variant resolves to a value set, yields the total aggregate's empty-set value (`0`) if the pipe applies
-	 * one, otherwise a {@link NullShape}: every surviving variant having fallen outside its transforms' declared
-	 * domains.
+	 * When no variant survives the pipe, every one having fallen outside its transforms' declared domains, reports
+	 * `"incompatible transform input"`.
 	 */
-	function transform(focus: RangeShape | Extract<Trace, string>): RangeShape | NullShape | Extract<Trace, string> {
+	function transform(focus: RangeShape | Extract<Trace, string>): RangeShape | Extract<Trace, string> {
 
 		if ( isString(focus) ) {
 
@@ -1020,21 +1004,9 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | NullSh
 
 				};
 
-			} else if ( pipe.some(name => Transforms[name].aggregate === "total") ) {
-
-				// a total aggregate over an all-out-of-domain input still yields its empty-set value
-				// (`0`); the scalar transforms wrapping the aggregate then apply to that integer base
-
-				const wrapping = pipe.slice(0, pipe.findIndex(name => Transforms[name].aggregate !== false));
-				const result = wrapping.reduceRight(stage, integer());
-
-				return result !== undefined
-					? { kind: "range", minCount: 1, maxCount: 1, variants: [result] }
-					: { kind: "null" };
-
 			} else {
 
-				return { kind: "null" };
+				return "incompatible transform input";
 
 			}
 		}

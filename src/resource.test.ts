@@ -10290,39 +10290,45 @@ describe("validators", () => {
 
 				});
 
-				it("accepts sum transform on empty path yielding zero (resource outside the processing space)", async () => {
+				it("reports incompatible transform input for sum on empty path (resource outside the processing space)", async () => {
 
 					// the empty path resolves to the resource shape, which is not in the processing space →
-					// the transform drops it; the total aggregate `sum` still yields its empty-set 0
+					// no variant survives the numeric `sum` domain, so the binding is reported
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "total=sum:": 0 }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "total=sum:": 0 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "total=sum:": "incompatible transform input" } }
+					});
 
 				});
 
-				it("accepts lower transform on empty path as undefined (resource outside the processing space)", async () => {
+				it("reports incompatible transform input for lower on empty path (resource outside the processing space)", async () => {
 
 					// the empty path resolves to the resource shape, which is not in the processing space →
-					// the transform drops it to undefined, leaving a vacuously valid binding
+					// no variant survives the string `lower` domain, so the binding is reported
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "alias=lower:": "" }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=lower:": "" }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "alias=lower:": "incompatible transform input" } }
+					});
 
 				});
 
-				it("accepts aggregate binding over an empty path as undefined (resource outside the processing space)", async () => {
+				it("reports incompatible transform input for aggregate over an empty path (resource outside the processing space)", async () => {
 
 					// min over an empty path resolves to the resource shape, which is not in the processing
-					// space → the transform drops it to undefined, leaving a vacuously valid binding
+					// space → no variant survives the literal `min` domain, so the binding is reported
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "alias=min:": "incompatible transform input" } }
+					});
 
 				});
 
@@ -10401,12 +10407,14 @@ describe("validators", () => {
 
 					});
 
-					it("accepts aggregate binding on embedded resource as undefined (resource outside the processing space)", async () => {
+					it("reports incompatible transform input for aggregate on embedded resource (resource outside the processing space)", async () => {
 
-						// min over a reference/resource child drops to undefined → vacuously valid, so the
-						// projected model is immaterial
+						// min over a reference/resource child has no variant in the literal domain, so the
+						// binding is reported and the projected model is never reached
 
-						expect(validateTemplate([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, {})).toBeUndefined();
+						expect(validateTemplate([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, {})).toEqual({
+							"[0]": { "items": { "alias=min:child": "incompatible transform input" } }
+						});
 
 					});
 
@@ -10463,10 +10471,10 @@ describe("validators", () => {
 
 					});
 
-					it("accepts aggregate reference binding as undefined, leaving its nested template unchecked", async () => {
+					it("reports incompatible transform input for aggregate reference binding, leaving its nested template unchecked", async () => {
 
-						// min over a reference drops to undefined → vacuously valid, so the nested template
-						// (and any operator key within it) is never reached
+						// min over a reference has no variant in the literal domain, so the binding is reported
+						// and the nested template (and any operator key within it) is never reached
 
 						expect(validateTemplate([{
 							items: [{
@@ -10475,11 +10483,13 @@ describe("validators", () => {
 									">=label": "a"
 								}
 							}]
-						}], Wrapper, {})).toBeUndefined();
+						}], Wrapper, {})).toEqual({
+							"[0]": { "items": { "alias=min:link": "incompatible transform input" } }
+						});
 
 					});
 
-					it("accepts aggregate resource binding as undefined, leaving its nested template unchecked", async () => {
+					it("reports incompatible transform input for aggregate resource binding, leaving its nested template unchecked", async () => {
 
 						expect(validateTemplate([{
 							items: [{
@@ -10488,7 +10498,9 @@ describe("validators", () => {
 									">=label": "a"
 								}
 							}]
-						}], Wrapper, {})).toBeUndefined();
+						}], Wrapper, {})).toEqual({
+							"[0]": { "items": { "alias=min:child": "incompatible transform input" } }
+						});
 
 					});
 
@@ -10498,20 +10510,22 @@ describe("validators", () => {
 
 			describe("transform domain violations", () => {
 
-				// a transform applied outside its domain is never an error: apply() resolves it to the null
-				// sentinel (or, for a total aggregate, its empty-set 0), so the binding is vacuously valid.
+				// a transform applied outside its domain drops the offending variant; when no variant survives,
+				// effective reports `"incompatible transform input"` and the binding surfaces it.
 				// This holds equally for values outside the processing space (reference, resource, localised map)
 
-				it("accepts sum transform on string property (out of domain, vacuously valid)", async () => {
+				it("reports incompatible transform input for sum on string property (out of domain)", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "total=sum:name": 0 }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "total=sum:name": 0 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "total=sum:name": "incompatible transform input" } }
+					});
 
 				});
 
-				it("accepts abs transform on reference property (out of processing space, vacuously valid)", async () => {
+				it("reports incompatible transform input for abs on reference property (out of processing space)", async () => {
 
 					const Target = resource({
 						name: required(string()),
@@ -10520,25 +10534,31 @@ describe("validators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "v=abs:link": 0 }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "v=abs:link": 0 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "v=abs:link": "incompatible transform input" } }
+					});
 
 				});
 
-				it("accepts year transform on number property (out of domain, vacuously valid)", async () => {
+				it("reports incompatible transform input for year on number property (out of domain)", async () => {
 
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "y=year:price": 0 }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "y=year:price": 0 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "y=year:price": "incompatible transform input" } }
+					});
 
 				});
 
-				it("accepts temporal transform on plain string property (out of domain, vacuously valid)", async () => {
+				it("reports incompatible transform input for temporal transform on plain string property (out of domain)", async () => {
 
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "m=month:name": 0 }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "m=month:name": 0 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "m=month:name": "incompatible transform input" } }
+					});
 
 				});
 
@@ -10575,8 +10595,8 @@ describe("validators", () => {
 
 				// a transform pipe is coalesced access: a localised property contributes the winning
 				// tag's value(s) as an ordinary xsd:string of its per-tag cardinality, so string-domain
-				// transforms apply under ordinary string semantics; an out-of-domain transform drops it to
-				// undefined (vacuously valid). After a transform the range is a plain string, not a Locale,
+				// transforms apply under ordinary string semantics; an out-of-domain transform, having no
+				// surviving variant, is reported. After a transform the range is a plain string, not a Locale,
 				// so a transform-derived array-per-tag binding takes the ordinary string placeholder
 
 				it("accepts string placeholder for lower transform on coalesced localised property", async () => {
@@ -10624,12 +10644,14 @@ describe("validators", () => {
 
 				});
 
-				it("accepts abs transform on coalesced localised property (out of domain, vacuously valid)", async () => {
+				it("reports incompatible transform input for abs on coalesced localised property (out of domain)", async () => {
 
 					const Target = resource({ label: required(text()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "alias=abs:label": "incompatible transform input" } }
+					});
 
 				});
 
@@ -10699,17 +10721,19 @@ describe("validators", () => {
 
 				});
 
-				it("accepts transform on union where no variant matches domain (vacuously valid)", async () => {
+				it("reports incompatible transform input for union where no variant matches domain", async () => {
 
 					// year: temporal domain — neither boolean nor integer is temporal → every variant
-					// out of domain → null sentinel → the binding is vacuously valid
+					// out of domain → no variant survives → the binding is reported
 
 					const Target = resource({
 						value: required(union(boolean(), integer()))
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, {})).toBeUndefined();
+					expect(validateTemplate([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, {})).toEqual({
+						"[0]": { "items": { "alias=year:value": "incompatible transform input" } }
+					});
 
 				});
 
@@ -11659,15 +11683,17 @@ describe("validators", () => {
 						expect(validateTemplate([{ items: [{}, { "~lower:name": "alice" }] }], W, {})).toBeUndefined();
 					});
 
-					it("accepts operator when transform resolves out of domain (vacuously valid)", async () => {
+					it("reports incompatible transform input when operator transform resolves out of domain", async () => {
 
-						// floor (scalar, numeric domain) on a string property → out of domain → null sentinel
-						// → the operator is vacuously valid, with no shape to constrain
+						// floor (scalar, numeric domain) on a string property → out of domain → no variant
+						// survives → the operator is reported
 
 						const T = resource({ name: required(string()) });
 						const W = resource({ items: multiple(reference(T)) });
 
-						expect(validateTemplate([{ items: [{}, { "~floor:name": "x" }] }], W, {})).toBeUndefined();
+						expect(validateTemplate([{ items: [{}, { "~floor:name": "x" }] }], W, {})).toEqual({
+							"[0]": { "items": { "~floor:name": "incompatible transform input" } }
+						});
 					});
 
 				});

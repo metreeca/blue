@@ -1817,10 +1817,6 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 							return [binding, range]; // error trace
 
-						} else if ( range.kind === "null" ) {
-
-							return [binding, undefined]; // accepted probe resolving to a known undefined value
-
 						} else {
 
 							// the coalesced array placeholder `[""]` over an array-per-tag localised target is the
@@ -1893,10 +1889,6 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 					} else if ( isString(range) ) { // error trace
 
 						return [k, range];
-
-					} else if ( range.kind === "null" ) { // no shape to constrain: every check is vacuously valid
-
-						return [k, undefined];
 
 					} else {
 
@@ -2393,9 +2385,9 @@ export function enforce(value: unknown, shape: ResourceShape, {
 
 				const range = effective(shape, decodeProbe(k));
 
-				// only a resolved RangeShape carries something to walk; a trace or absent range leaves the value as-is
+				// only a resolved RangeShape carries something to walk; a trace string leaves the value as-is
 
-				return [k, isObject(range) && range.kind === "range" ? walkRange(v, range) : v];
+				return [k, isObject(range) ? walkRange(v, range) : v];
 
 			}));
 
