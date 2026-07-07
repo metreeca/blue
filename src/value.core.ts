@@ -21,6 +21,7 @@
  */
 
 import { type Identifier, isArray, isFunction, isString, type Lazy } from "@metreeca/core";
+import { unique } from "@metreeca/core/combo";
 import { xsd } from "@metreeca/core/datatype";
 import { equals, immutable } from "@metreeca/core/deep";
 import { assert, error } from "@metreeca/core/report";
@@ -28,8 +29,8 @@ import { defaultBase } from "@metreeca/qest";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/template";
 import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
 import type { BooleanShape } from "./boolean.js";
-import { collect, type Scope, TraceError, wrap } from "./index.core.js";
-import type { Trace } from "./index.js";
+import { collect, type Scope, sh, TraceError, wrap } from "./index.core.js";
+import { type Trace } from "./index.js";
 import { mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
 import { decimal, integer, type NumberShape } from "./number.js";
 import { getShapeTarget, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
@@ -44,13 +45,12 @@ import {
 } from "./resource.core.js";
 import { type ResourceShape } from "./resource.js";
 import { mergeString, narrowsString, validateString } from "./string.core.js";
-import { iri, string, type StringShape } from "./string.js";
+import { string, type StringShape } from "./string.js";
 import { deriveText, mergeText, narrowsText, validateLocale, validateText } from "./text.core.js";
 import type { TextShape } from "./text.js";
 import { deriveUnion, mergeUnion, narrowsUnion } from "./union.core.js";
 import type { UnionShape } from "./union.js";
 import { type RangeShape, type Resolved, type Schema, type SetShape, type Shape, type ValuesShape } from "./value.js";
-import { unique } from "@metreeca/core/combo";
 
 
 /**
@@ -68,6 +68,30 @@ const Temporal: ReadonlySet<string> = new Set([
 	xsd.time,
 	xsd.dateTime
 ]);
+
+/**
+ * Effective range for an `id` / `type` field.
+ *
+ * The scalar absolute IRI that an `id` or `type` property resolves to during {@link effective} path traversal: a
+ * single-valued {@link RangeShape} whose sole variant is a string carrying the `sh:IRI` datatype marker, so downstream
+ * processors map the value to an RDF IRI rather than a typed literal. Shared as a module constant since every `id` /
+ * `type` step resolves to the same shape.
+ */
+const IRIShape: RangeShape = immutable({
+
+	kind: "range",
+
+	maxCount: 1,
+
+	variants: [string({
+
+		model: "https://example.net/",
+		datatype: sh.IRI,
+		pattern: /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/
+
+	})]
+
+});
 
 
 /**
@@ -755,8 +779,8 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  *
  * @param probe The probe containing property path and transform pipe
  *
- * @returns A {@link RangeShape} effective type carrying the accumulated cardinality and the reachable value-shape
- *     variants when the probe resolves, deduplicated to distinct shapes so an aggregate or
+ * @returns An immutable {@link RangeShape} effective type carrying the accumulated cardinality and the reachable
+ *     value-shape variants when the probe resolves, deduplicated to distinct shapes so an aggregate or
  *     path that collapses the union onto one type yields a single variant. Returns an atomic
  *     {@link Trace} string when the probe cannot be resolved against the shape: `"undefined property path"` if the
  *     path fails to resolve (including a step past a non-traversable `id` / `type` field), `"multiple aggregate
@@ -795,9 +819,8 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extrac
 
 	const resolved = transform(traverse(seeds));
 
-	return isString(resolved)
-		? resolved
-		: { ...resolved, variants: unique(resolved.variants, equals) };
+	return isString(resolved) ? resolved
+		: immutable({ ...resolved, variants: unique(resolved.variants, equals) });
 
 
 	/**
@@ -876,17 +899,7 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extrac
 
 			} else if ( entry.kind === "id" || entry.kind === "type" ) {
 
-				// id / type fields resolve to a scalar absolute IRI with no traversable structure
-
-				return {
-
-					kind: "range",
-
-					maxCount: 1,
-
-					variants: [iri({ variant: "absolute" })]
-
-				};
+				return IRIShape;
 
 			} else {
 

@@ -106,7 +106,7 @@ import { equals, seal } from "@metreeca/core/deep";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { type Reference } from "@metreeca/qest";
 import type { Instance, Template } from "@metreeca/qest/template";
-import { TraceError } from "./index.core.js";
+import { sh, TraceError } from "./index.core.js";
 import type { ReferenceShape } from "./reference.js";
 import { enforce, validateResource, validateResult, validateTemplate } from "./resource.core.js";
 import type { ResourceShape } from "./resource.js";
@@ -114,7 +114,7 @@ import { validateUnion } from "./union.core.js";
 import { eager, validateValue } from "./value.core.js";
 import type { Shape } from "./value.js";
 
-export { TraceError };
+export { sh, TraceError };
 
 
 /**

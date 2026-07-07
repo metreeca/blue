@@ -17,12 +17,12 @@
 import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { boolean } from "./boolean.js";
-import { collect, every, group, normalise, TraceError, wrap } from "./index.core.js";
+import { collect, every, group, normalise, sh, TraceError, wrap } from "./index.core.js";
 import { type Trace, validate } from "./index.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { reference } from "./reference.js";
 import { id, resource, type ResourceShape, type } from "./resource.js";
-import { date, duration, instant, iri, string, time, timestamp, year } from "./string.js";
+import { date, duration, instant, string, time, timestamp, year } from "./string.js";
 import { text } from "./text.js";
 import { union } from "./union.js";
 import {
@@ -713,7 +713,7 @@ describe("apply", () => {
 					name: required(string())
 				});
 
-				expect(range(probeRange(probe(["rid"]), s)).variants[0]).toEqual(iri({ variant: "absolute" }));
+				expect(range(probeRange(probe(["rid"]), s)).variants[0]).toHaveProperty("datatype", sh.IRI);
 
 			});
 
@@ -742,7 +742,7 @@ describe("apply", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(range(probeRange(probe(["child", "rid"]), s)).variants[0]).toEqual(iri({ variant: "absolute" }));
+				expect(range(probeRange(probe(["child", "rid"]), s)).variants[0]).toHaveProperty("datatype", sh.IRI);
 
 			});
 
@@ -785,7 +785,7 @@ describe("apply", () => {
 					name: required(string())
 				});
 
-				expect(range(probeRange(probe(["kind"]), s)).variants[0]).toEqual(iri({ variant: "absolute" }));
+				expect(range(probeRange(probe(["kind"]), s)).variants[0]).toHaveProperty("datatype", sh.IRI);
 
 			});
 
@@ -814,7 +814,7 @@ describe("apply", () => {
 					child: optional(reference(Inner))
 				});
 
-				expect(range(probeRange(probe(["child", "kind"]), s)).variants[0]).toEqual(iri({ variant: "absolute" }));
+				expect(range(probeRange(probe(["child", "kind"]), s)).variants[0]).toHaveProperty("datatype", sh.IRI);
 
 			});
 

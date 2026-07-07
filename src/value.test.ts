@@ -17,12 +17,12 @@
 import type { Probe, Selection, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
-import { TraceError } from "./index.core.js";
-import type { Trace } from "./index.js";
+import { sh, TraceError } from "./index.core.js";
+import { type Trace } from "./index.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { reference } from "./reference.js";
 import { id, resource, type ResourceShape, type } from "./resource.js";
-import { date, duration, instant, iri, string, time, timestamp, year } from "./string.js";
+import { date, duration, instant, string, time, timestamp, year } from "./string.js";
 import { text } from "./text.js";
 import { union, type UnionShape } from "./union.js";
 import {
@@ -1355,6 +1355,14 @@ describe("utilities", () => {
 				return effective(s, p);
 			}
 
+			// id / type fields resolve to a scalar absolute IRI marked with the sh:IRI datatype
+
+			const idType = string({
+				model: "https://example.net/",
+				datatype: sh.IRI,
+				pattern: /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/
+			});
+
 
 			describe("id field", () => {
 
@@ -1365,7 +1373,7 @@ describe("utilities", () => {
 						name: required(string())
 					});
 
-					expect(range(probeRange(probe(["rid"]), s)).variants[0]).toEqual(iri({ variant: "absolute" }));
+					expect(range(probeRange(probe(["rid"]), s)).variants[0]).toEqual(idType);
 
 				});
 
@@ -1394,7 +1402,7 @@ describe("utilities", () => {
 						child: optional(reference(Inner))
 					});
 
-					expect(range(probeRange(probe(["child", "rid"]), s)).variants[0]).toEqual(iri({ variant: "absolute" }));
+					expect(range(probeRange(probe(["child", "rid"]), s)).variants[0]).toEqual(idType);
 
 				});
 
@@ -1437,7 +1445,7 @@ describe("utilities", () => {
 						name: required(string())
 					});
 
-					expect(range(probeRange(probe(["kind"]), s)).variants[0]).toEqual(iri({ variant: "absolute" }));
+					expect(range(probeRange(probe(["kind"]), s)).variants[0]).toEqual(idType);
 
 				});
 
@@ -1466,7 +1474,7 @@ describe("utilities", () => {
 						child: optional(reference(Inner))
 					});
 
-					expect(range(probeRange(probe(["child", "kind"]), s)).variants[0]).toEqual(iri({ variant: "absolute" }));
+					expect(range(probeRange(probe(["child", "kind"]), s)).variants[0]).toEqual(idType);
 
 				});
 

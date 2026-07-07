@@ -24,8 +24,21 @@
  */
 
 import { isObject, isString } from "@metreeca/core";
+import { createNamespace, type Namespace } from "@metreeca/core/resource";
 import type { Trace, Validator } from "./index.js";
 
+
+/**
+ * SHACL vocabulary namespace.
+ *
+ * An open {@link Namespace} over `http://www.w3.org/ns/shacl#`, resolving any SHACL term as a named property.
+ *
+ * @see {@link https://www.w3.org/TR/shacl/ Shapes Constraint Language (SHACL)}
+ */
+export const sh: Namespace = createNamespace("http://www.w3.org/ns/shacl#");
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Validation strictness for matching a value against a shape.

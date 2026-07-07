@@ -36,6 +36,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Eager`, `Declared`, `Cardinality`, `Variants`)
 - Add `TraceError` class extending `RangeError` with a typed `cause: Trace` and pretty-printed trace in the error
   message
+- Add `sh` SHACL vocabulary namespace — an open `Namespace` over `http://www.w3.org/ns/shacl#` resolving any SHACL term
+  as a named property
 - Add `classes` constraint on `ResourceShape` for accumulating parent class IRIs across inheritance
 - Add `url()` string factory as a convenience alias for `iri({ variant: "hierarchical" })`
 - Add `const` type parameters to `localised()`, `number()`, and `string()` constraint overloads — non-empty array
