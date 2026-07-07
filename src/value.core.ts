@@ -50,6 +50,7 @@ import type { TextShape } from "./text.js";
 import { deriveUnion, mergeUnion, narrowsUnion } from "./union.core.js";
 import type { UnionShape } from "./union.js";
 import { type RangeShape, type Resolved, type Schema, type SetShape, type Shape, type ValuesShape } from "./value.js";
+import { unique } from "@metreeca/core/combo";
 
 
 /**
@@ -791,7 +792,7 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extrac
 
 	return isString(resolved)
 		? resolved
-		: { ...resolved, variants: distinct(resolved.variants) };
+		: { ...resolved, variants: unique(resolved.variants, equals) };
 
 
 	/**
@@ -940,19 +941,6 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extrac
 		return entry.kind === "union" ? entry.variants.map(variant => eager(variant))
 			: entry.kind === "reference" ? [eager(entry.shape)]
 				: [entry];
-	}
-
-	/**
-	 * Drops structurally identical variants, preserving first-seen order.
-	 *
-	 * Aggregate collapse (a fixed-return transform mapping every branch to one type) and path convergence (distinct
-	 * branches resolving to the same leaf, including `id` / `type` steps to an absolute IRI) can fold a union onto
-	 * repeated shapes; deduping keeps the returned range's variants distinct so discrimination stays exact.
-	 */
-	function distinct(variants: readonly ValuesShape[]): readonly ValuesShape[] {
-		return variants.filter((variant, index) =>
-			variants.findIndex(other => equals(other, variant)) === index
-		);
 	}
 
 
