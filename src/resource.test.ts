@@ -9453,19 +9453,19 @@ describe("validators", () => {
 
 				it("rejects a non-aggregate sort key not among the grouping keys", async () => {
 					expect(validateTemplate([{
-						items: [{ "category": "", "c=count:": 0 }, { "^name": "asc" }]
+						items: [{ "category=category": "", "c=count:": 0 }, { "^name": "asc" }]
 					}], Wrapper, {})).toBeDefined();
 				});
 
 				it("accepts a non-aggregate sort key matching a grouping key", async () => {
 					expect(validateTemplate([{
-						items: [{ "category": "", "c=count:": 0 }, { "^category": "asc" }]
+						items: [{ "category=category": "", "c=count:": 0 }, { "^category": "asc" }]
 					}], Wrapper, {})).toBeUndefined();
 				});
 
 				it("accepts an aggregate sort key under grouping", async () => {
 					expect(validateTemplate([{
-						items: [{ "category": "", "c=count:": 0 }, { "^count:": "desc" }]
+						items: [{ "category=category": "", "c=count:": 0 }, { "^count:": "desc" }]
 					}], Wrapper, {})).toBeUndefined();
 				});
 
@@ -9481,19 +9481,19 @@ describe("validators", () => {
 
 				it("rejects a non-aggregate focus key not among the grouping keys", async () => {
 					expect(validateTemplate([{
-						items: [{ "category": "", "c=count:": 0 }, { "+name": "x" }]
+						items: [{ "category=category": "", "c=count:": 0 }, { "+name": "x" }]
 					}], Wrapper, {})).toBeDefined();
 				});
 
 				it("accepts a non-aggregate focus key matching a grouping key", async () => {
 					expect(validateTemplate([{
-						items: [{ "category": "", "c=count:": 0 }, { "+category": "rock" }]
+						items: [{ "category=category": "", "c=count:": 0 }, { "+category": "rock" }]
 					}], Wrapper, {})).toBeUndefined();
 				});
 
 				it("accepts an aggregate focus key under grouping", async () => {
 					expect(validateTemplate([{
-						items: [{ "category": "", "c=count:": 0 }, { "+count:": 1 }]
+						items: [{ "category=category": "", "c=count:": 0 }, { "+count:": 1 }]
 					}], Wrapper, {})).toBeUndefined();
 				});
 
@@ -9524,13 +9524,13 @@ describe("validators", () => {
 
 				it("rejects a non-key sort key in a grouped query nested under a set-valued property", async () => {
 					expect(validateTemplate([{
-						groups: [{ tags: [{ "category": "", "c=count:": 0 }, { "^name": "asc" }] }]
+						groups: [{ tags: [{ "category=category": "", "c=count:": 0 }, { "^name": "asc" }] }]
 					}], Root, {})).toBeDefined();
 				});
 
 				it("accepts a grouping-key sort key in a grouped query nested under a set-valued property", async () => {
 					expect(validateTemplate([{
-						groups: [{ tags: [{ "category": "", "c=count:": 0 }, { "^category": "asc" }] }]
+						groups: [{ tags: [{ "category=category": "", "c=count:": 0 }, { "^category": "asc" }] }]
 					}], Root, {})).toBeUndefined();
 				});
 
@@ -9953,20 +9953,20 @@ describe("validators", () => {
 
 				});
 
-				it("accepts mixed identifier and binding entries in singleton tuple", async () => {
+				it("accepts multiple binding entries in singleton tuple", async () => {
 
 					const Target = resource({ name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
-						items: [{ name: "", "alias=age": 0 }]
+						items: [{ "name=name": "", "alias=age": 0 }]
 					}], Wrapper, {})).toBeUndefined();
 
 				});
 
-				it("rejects duplicate projection identifier across plain and computed bindings", async () => {
+				it("rejects duplicate projection identifier across self and computed bindings", async () => {
 
-					// `name` (plain identifier) and `name=other` (computed binding) collide on the
+					// `name=name` (self binding) and `name=other` (computed binding) collide on the
 					// projection identifier `name`; per qest's Projection contract bindings must be
 					// unique within an entry
 
@@ -9978,7 +9978,7 @@ describe("validators", () => {
 
 					expect(validateTemplate([{
 						items: [{
-							"name": "",
+							"name=name": "",
 							"name=other": ""
 						}]
 					}], Wrapper, {})).toBeDefined();
@@ -10568,7 +10568,7 @@ describe("validators", () => {
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {})).toEqual({
-						"[0]": { "items": { "x=sum:count:price": "expected template identifier or projection binding" } }
+						"[0]": { "items": { "x=sum:count:price": "expected projection binding" } }
 					});
 
 				});

@@ -63,6 +63,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Breaking:** Restrict nested scalar references to template recursion only
 - **Breaking:** Restrict top-level query keys to plain identifiers — computed values, filtering constraints, sorting
   criteria, and pagination limits are now only permitted inside singleton template tuples for collection properties
+- **Breaking:** Require projection keys to be explicit `name=expression` bindings — a bare identifier is a template
+  identifier, not a projection binding, so a projected property must name its source expression (for example
+  `category=category`); a key that is neither a valid binding nor an identifier is rejected under its own key
 - **Breaking:** Rename `ValuesShape` to `SetShape` and change `kind` discriminator from `"values"` to `"set"` (Closes
   #17)
 - **Breaking:** Split `ValueShape` into `ValueShape` (scalar-or-set shapes) and `ValuesShape` (all concrete value shapes

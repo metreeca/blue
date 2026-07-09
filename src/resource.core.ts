@@ -1418,17 +1418,16 @@ export function validateResult(values: readonly unknown[], {
  *
  * - if every key is a plain `Identifier`, the element is validated as a {@link Template} (each key
  *   resolves to a {@link Placeholders} value)
- * - else if every key is a `Binding` (a plain identifier or `name=expression`), the element is
- *   validated as a {@link Projection}
- * - otherwise (a key that is neither, such as a stray selection operator) the element is rejected
+ * - otherwise (some key is not a bare identifier), the element is validated as a {@link Projection};
+ *   every key must be an explicit `name=expression` {@link Binding}, and any key that is not a valid
+ *   binding (a bare identifier or a stray selection operator) is rejected under its own key
  *
- * Within the projection arm, binding identifiers (the part before `=` for computed bindings, or
- * the whole key for plain identifiers) must be unique within the element; collisions on the same
- * projected property are rejected with a `duplicate projection identifier` trace. Projection cells
- * over a localised property carry a `Locale` map whose per-tag value is pinned to the property's
- * per-tag cardinality (single strings for single-string-per-tag, singleton tuples for array-per-tag),
- * or the matching coalesced placeholder; the structural map is one cell, fanning out at the row level
- * rather than per tag (qest §5.3, §5.6).
+ * Within the projection arm, binding identifiers (the part before `=`) must be unique within the
+ * element; collisions on the same projected property are rejected with a `duplicate projection
+ * identifier` trace. Projection cells over a localised property carry a `Locale` map whose per-tag
+ * value is pinned to the property's per-tag cardinality (single strings for single-string-per-tag,
+ * singleton tuples for array-per-tag), or the matching coalesced placeholder; the structural map is
+ * one cell, fanning out at the row level rather than per tag (qest §5.3, §5.6).
  *
  * **Selection slot dispatch** — the optional second tuple element is validated as a
  * {@link Selection}: every key must be a selection operator, dispatched by prefix into filtering
@@ -1768,12 +1767,16 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 
 	function validateProjection(
-		value: Record<string, unknown>,
+		value: unknown,
 		shape: ResourceShape,
 		depth: undefined | number
 	): undefined | Trace {
 
-		if ( depth !== undefined && depth < 0 ) {
+		if ( !isObject(value) ) {
+
+			return "expected <projection> value";
+
+		} else if ( depth !== undefined && depth < 0 ) {
 
 			return "exceeded maximum nesting depth";
 
@@ -1787,11 +1790,11 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			return collect(Object.fromEntries(Object.entries(value).map(([binding, model]) => {
 
-					const probe = probes.get(binding);
+					const probe = isBinding(binding) ? probes.get(binding) : undefined;
 
 					if ( probe === undefined ) {
 
-						return [binding, "expected template identifier or projection binding"];
+						return [binding, "expected projection binding"];
 
 					} else if ( depth !== undefined && probe.path.length > depth ) {
 
@@ -2383,7 +2386,14 @@ export function enforce(value: unknown, shape: ResourceShape, {
 
 			return Object.fromEntries(Object.entries(value).map(([k, v]) => {
 
-				const range = effective(shape, decodeProbe(k));
+				// a projection binding decodes through the grammar; a bare template identifier resolves as a
+				// self-probe, since bindings now require an explicit `name=expression` form and no longer decode
+
+				const probe = isBinding(k) ? decodeProbe(k)
+					: isIdentifier(k) ? { target: k, pipe: [], path: [k] }
+						: undefined;
+
+				const range = probe && effective(shape, probe);
 
 				// only a resolved RangeShape carries something to walk; a trace string leaves the value as-is
 
