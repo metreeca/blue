@@ -97,11 +97,11 @@ const IRIShape: RangeShape = immutable({
 /**
  * Cache for eager shapes resolved from lazy factories.
  *
- * Maps each factory to its eager {@link Shape}, so {@link eager} resolves it once and reuses it across calls. Uses
- * WeakMap so entries are released when the factory is no longer referenced. A `null` entry signals a shape currently
- * being resolved, enabling circular dependency detection.
+ * Maps each factory to its eager {@link Shape} or resolved {@link RangeShape}, so {@link eager} resolves it once and
+ * reuses it across calls. Uses WeakMap so entries are released when the factory is no longer referenced. A `null` entry
+ * signals a shape currently being resolved, enabling circular dependency detection.
  */
-const shapes = new WeakMap<() => Shape, null | Shape>();
+const shapes = new WeakMap<() => Shape | RangeShape, null | Shape | RangeShape>();
 
 /**
  * Cache for retrieval models derived from lazy factories.
@@ -584,9 +584,9 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape, {
  *
  * When given a factory, evaluates it on first call and caches the outcome; subsequent calls
  * return the cached shape. {@link ResourceShape | Resource} shapes are flattened during
- * resolution; other shapes pass through unchanged.
+ * resolution; other shapes, including a resolved {@link RangeShape}, pass through unchanged.
  *
- * @typeParam S The {@link Lazy} {@link Shape} type
+ * @typeParam S The {@link Lazy} {@link Shape} or {@link RangeShape} type
  *
  * @param shape A shape value or no-arg factory returning one
  *
@@ -594,7 +594,7 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape, {
  *
  * @throws {TraceError} If the factory transitively references itself, producing a circular extends chain
  */
-export function eager<S extends Lazy<Shape>>(shape: S): Resolved<S> {
+export function eager<S extends Lazy<Shape | RangeShape>>(shape: S): Resolved<S> {
 
 	if ( isFunction(shape) ) {
 
@@ -723,6 +723,8 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  * - {@link ResourceShape}: traverses path segments through nested properties
  * - {@link ReferenceShape}: eagerly resolves the lazy target shape, then proceeds as for {@link ResourceShape}
  * - {@link UnionShape}: seeds traversal with each variant, then proceeds as for the per-variant shape
+ * - {@link RangeShape}: re-probes a previously resolved range, seeding traversal with each variant carrying the
+ *   range's own accumulated cardinality, then proceeds as for the per-variant shape
  * - Other shapes: any non-empty path fails resolution; the empty path applies the transform pipe directly
  *
  * **Path traversal** — at each step, flattens inheritance and looks up the next property. Unknown properties cause
@@ -775,7 +777,7 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  *   yield a value (`0` on the empty set), and to `undefined` for every other transform; scalar transforms
  *   preserve `maxCount`; aggregate transforms set `maxCount` to `1`.
  *
- * @param shape The {@link Shape} to inspect
+ * @param shape The {@link Shape} to inspect, or a resolved {@link RangeShape} to re-probe
  *
  * @param probe The probe containing property path and transform pipe
  *
@@ -792,7 +794,7 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extract<Trace, string> {
+export function effective(shape: Lazy<Shape | RangeShape>, probe: Probe): RangeShape | Extract<Trace, string> {
 
 	type Branch = {
 
@@ -812,7 +814,7 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extrac
 	// a union shape seeds one traversal per branch; a reference unwraps to its target; any other shape
 	// is its own single seed
 
-	const seeds: readonly ValuesShape[] = expand(eager(shape));
+	const seeds: readonly Branch[] = expand(eager(shape));
 
 	// dedupe as late as possible: aggregate collapse and path convergence may fold the union onto
 	// repeated shapes, so a single pass at the boundary keeps the returned range's variants distinct
@@ -826,15 +828,17 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extrac
 	/**
 	 * Traverse the property path, enveloping per-branch cumulative cardinalities.
 	 *
-	 * Folds the path into a cohort of single-variant branches — each one carrying its own path
-	 * cumulative `{min,max}` — by flat-mapping each branch's resolved variants at every segment.
+	 * Folds the path into a cohort of single-variant branches, each one carrying its own path
+	 * cumulative `{min,max}`, by flat-mapping each branch's resolved variants at every segment. The seed branches
+	 * enter at unit cardinality for a shape input, or at the input {@link RangeShape}'s own bounds when re-probing a
+	 * resolved range, so a range's cumulative cardinality composes into the traversal product.
 	 * Branches that lack the next property are dropped; `id` / `type` fields resolve to scalar IRIs
 	 * with no traversable structure, so a path stepping past them drops as well. A localised step
 	 * multiplies its per-tag bounds into the branch product like any other step (see the cardinality
 	 * rules on {@link effective}). The surviving cohort is then enveloped across all reachable branches into a
 	 * single focus; an exhausted cohort yields `"undefined property path"`.
 	 */
-	function traverse(seed: readonly ValuesShape[]): RangeShape | Extract<Trace, string> {
+	function traverse(seed: readonly Branch[]): RangeShape | Extract<Trace, string> {
 
 		const branches = path.reduce<readonly Branch[]>((branches, segment) =>
 
@@ -855,7 +859,7 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extrac
 
 				}),
 
-			seed.map(variant => ({ minCount: 1, maxCount: 1, variant }))
+			seed
 		);
 
 		return branches.length === 0 ? "undefined property path" : {
@@ -953,12 +957,45 @@ export function effective(shape: Lazy<Shape>, probe: Probe): RangeShape | Extrac
 	}
 
 	/**
-	 * Expands a shape into its seed variants: a union's branches, a reference's target, or the shape itself.
+	 * Expands a shape into its seed branches: a union's branches, a reference's target, or the shape itself, each
+	 * seeded at unit cardinality; a resolved {@link RangeShape} seeds one branch per variant, each carrying the
+	 * range's own cumulative `{min,max}` so a re-probed range composes its bounds into the traversal.
 	 */
-	function expand(entry: Shape): readonly ValuesShape[] {
-		return entry.kind === "union" ? entry.variants.map(variant => eager(variant))
-			: entry.kind === "reference" ? [eager(entry.shape)]
-				: [entry];
+	function expand(shape: Shape | RangeShape): readonly Branch[] {
+		if ( shape.kind === "range" ) {
+
+			return shape.variants.map(variant => ({
+				minCount: shape.minCount,
+				maxCount: shape.maxCount,
+				variant
+			}));
+
+		} else if ( shape.kind === "union" ) {
+
+			return shape.variants.map(variant => ({
+				minCount: 1,
+				maxCount: 1,
+				variant: eager(variant)
+			}));
+
+		} else if ( shape.kind === "reference" ) {
+
+			return [{
+				minCount: 1,
+				maxCount: 1,
+				variant: eager(shape.shape)
+			}];
+
+		} else {
+
+			return [{
+				minCount: 1,
+				maxCount: 1,
+				variant: shape
+
+			}];
+
+		}
 	}
 
 

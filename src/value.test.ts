@@ -1911,6 +1911,69 @@ describe("utilities", () => {
 
 		});
 
+		describe("range input", () => {
+
+			it("roundtrips a range on empty path and empty pipe", async () => {
+
+				const input: RangeShape = { kind: "range", minCount: 2, maxCount: 5, variants: [integer()] };
+
+				const result = range(effective(input, probe([])));
+
+				expect(result.variants).toEqual([integer()]);
+				expect(result.minCount).toBe(2);
+				expect(result.maxCount).toBe(5);
+
+			});
+
+			it("seeds one branch per range variant", async () => {
+
+				const input: RangeShape = { kind: "range", variants: [integer(), string()] };
+
+				const result = range(effective(input, probe([])));
+
+				expect(result.variants).toEqual([integer(), string()]);
+				expect(result.minCount).toBeUndefined();
+				expect(result.maxCount).toBeUndefined();
+
+			});
+
+			it("multiplies range cardinality through a traversed step", async () => {
+
+				const input: RangeShape = {
+					kind: "range", minCount: 2, maxCount: 3,
+					variants: [resource({ name: required(string()) })]
+				};
+
+				const result = range(effective(input, probe(["name"])));
+
+				expect(result.variants).toEqual([string()]);
+				expect(result.minCount).toBe(2);
+				expect(result.maxCount).toBe(3);
+
+			});
+
+			it("applies a transform pipe to range variants", async () => {
+
+				const input: RangeShape = { kind: "range", minCount: 1, maxCount: 1, variants: [decimal()] };
+
+				const result = range(effective(input, probe([], ["floor"])));
+
+				expect(result.variants).toEqual([decimal()]);
+
+			});
+
+			it("resolves a lazy range factory", async () => {
+
+				const input: RangeShape = { kind: "range", minCount: 1, maxCount: 1, variants: [integer()] };
+
+				const result = range(effective(() => input, probe([])));
+
+				expect(result.variants).toEqual([integer()]);
+
+			});
+
+		});
+
 	});
 
 });

@@ -47,7 +47,7 @@
  *
  * Ancillary helpers {@link Resolved}, {@link Bounds}, and {@link Boxed}
  * factor the internal projections (narrowing the eager unwrap of a {@link Lazy} shape to the
- * {@link Shape} bound, resolving union branches, conditioning a shape's model on cardinality,
+ * {@link Shape} or {@link RangeShape} bound, resolving union branches, conditioning a shape's model on cardinality,
  * and boxing values into singleton tuples for multi-valued ranges) and are exported for tests
  * and downstream shape extensions.
  *
@@ -62,11 +62,13 @@
  * **Utilities**
  *
  * - {@link eager} resolves a {@link Lazy} shape factory to its concrete {@link Shape}, caching
- *   results and flattening {@link ResourceShape} entries.
+ *   results and flattening {@link ResourceShape} entries; a resolved {@link RangeShape} passes
+ *   through unchanged.
  * - {@link model} extracts the runtime {@link Schema} of a shape, an ergonomic shortcut for
  *   `eager(shape).model`.
  * - {@link effective} resolves the effective {@link RangeShape} type for a {@link Probe} against a
- *   {@link Shape}, walking property paths through nested resources, branching across
+ *   {@link Shape}, or re-probes a previously resolved {@link RangeShape} whose bounds compose into
+ *   the traversal, walking property paths through nested resources, branching across
  *   {@link UnionShape} variants at the entry or at any property range, and applying each
  *   transform pipe stage. It yields an atomic {@link Trace} string when the probe cannot
  *   be resolved or its transform pipe cannot be applied to any resolved variant.
@@ -348,13 +350,13 @@ export type State<S extends Lazy<Shape>> =
 
 
 /**
- * Narrows the {@link Eager} unwrap of a {@link Lazy} shape to the {@link Shape} constraint, so
+ * Narrows the {@link Eager} unwrap of a {@link Lazy} shape to the {@link Shape} or {@link RangeShape} constraint, so
  * downstream indexed access stays sound.
  *
- * @typeParam S The lazy {@link Shape} to resolve
+ * @typeParam S The lazy {@link Shape} or {@link RangeShape} to resolve
  */
-export type Resolved<S extends Lazy<Shape>> =
-	Eager<S> extends Shape ? Eager<S> : never;
+export type Resolved<S extends Lazy<Shape | RangeShape>> =
+	Eager<S> extends Shape | RangeShape ? Eager<S> : never;
 
 /**
  * Conditions a shape's model on cardinality bounds to produce the template-side value type.

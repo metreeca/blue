@@ -51,6 +51,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it fits by syntactic form alone (relaxing the value-domain facets), and `getModelVariants` routes a retrieval model to
   every variant it fits by kind alone; ambiguous or unsatisfiable single-variant matches yield `undefined`
 - Reject `id`/`type` entries in embedded resource shapes during state validation
+- Accept a resolved `RangeShape` as input to `effective`, `eager`, and `Resolved` — re-probing a previously resolved
+  range seeds one branch per variant carrying the range's own cumulative `{min,max}`, so its bounds compose into the
+  traversal product; a plain `Shape` still enters at unit cardinality
 
 ### Changed
 
