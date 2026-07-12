@@ -23,7 +23,7 @@
  * @module
  */
 
-import type { IRI } from "@metreeca/core/resource";
+import type { IRI, Namespace } from "@metreeca/core/resource";
 import { type Reference } from "@metreeca/qest";
 import { describe, expectTypeOf, test } from "vitest";
 import type { BooleanShape } from "./boolean.js";
@@ -32,13 +32,12 @@ import type { NumberShape } from "./number.js";
 import {
 	type Content,
 	type Declared,
-	type Entry,
+	type Member,
 	type Id,
 	id,
 	type Inheritance,
 	type Intersection,
 	type Override,
-	type Predicate,
 	property,
 	type Property,
 	type PropertyConstraints,
@@ -501,7 +500,7 @@ describe("resource()", () => {
 		resource({ hasValue: [] }, {});
 	});
 
-	test("child accepts optional properties with inherited parent", () => {
+	test("child accepts optional entries with inherited parent", () => {
 
 		function Parent() {
 			return resource({ name: required(string()) });
@@ -527,8 +526,8 @@ describe("markers", () => {
 	});
 
 	test("Id and Type are assignable to Entry", () => {
-		expectTypeOf<Id>().toExtend<Entry>();
-		expectTypeOf<Type>().toExtend<Entry>();
+		expectTypeOf<Id>().toExtend<Member>();
+		expectTypeOf<Type>().toExtend<Member>();
 	});
 
 });
@@ -537,7 +536,7 @@ describe("markers", () => {
 describe("Range", () => {
 
 	test("extracts SetShape from a Property entry", () => {
-		type E = Property<Predicate, ReturnType<typeof required<StringShape>>>;
+		type E = Property<ReturnType<typeof required<StringShape>>>;
 		expectTypeOf<Range<E>>().toEqualTypeOf<ReturnType<typeof required<StringShape>>>();
 	});
 
@@ -704,15 +703,19 @@ describe("Property generics", () => {
 		}>();
 	});
 
-	test("PropertyConstraints<P> threads predicate type into forward/reverse", () => {
-		type PC = PropertyConstraints<Reference>;
-		expectTypeOf<PC["forward"]>().toEqualTypeOf<undefined | Reference>();
-		expectTypeOf<PC["reverse"]>().toEqualTypeOf<undefined | Reference>();
+	test("PropertyConstraints widens forward/reverse to accept a Namespace", () => {
+		expectTypeOf<PropertyConstraints["forward"]>().toEqualTypeOf<undefined | Reference | Namespace>();
+		expectTypeOf<PropertyConstraints["reverse"]>().toEqualTypeOf<undefined | Reference | Namespace>();
 	});
 
-	test("Property<P, R> narrows range to R", () => {
+	test("Property tightens forward/reverse to a resolved Reference", () => {
+		expectTypeOf<Property["forward"]>().toEqualTypeOf<undefined | Reference>();
+		expectTypeOf<Property["reverse"]>().toEqualTypeOf<undefined | Reference>();
+	});
+
+	test("Property<R> narrows range to R", () => {
 		type R = ReturnType<typeof required<StringShape>>;
-		expectTypeOf<Property<Reference, R>["range"]>().toEqualTypeOf<R>();
+		expectTypeOf<Property<R>["range"]>().toEqualTypeOf<R>();
 	});
 
 });

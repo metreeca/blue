@@ -141,7 +141,7 @@ describe("factories", () => {
 
 			});
 
-			it("includes only provided properties", async () => {
+			it("includes only provided entries", async () => {
 
 				expect(Object.keys(factory()).sort()).toEqual(["kind", "model"]);
 
@@ -306,7 +306,7 @@ describe("operators", () => {
 
 			describe("selection operator keys rejected", () => {
 
-				// localised properties carry no inline Selection — Locale is its own Placeholders
+				// localised entries carry no inline Selection — Locale is its own Placeholders
 				// arm, not a Locale & Selection branch — so an operator-prefixed key is just an
 				// invalid tag range
 
@@ -1258,7 +1258,7 @@ describe("validators", () => {
 
 		describe("selection operator keys rejected", () => {
 
-			// localised properties carry no inline Selection — Locale is its own Placeholders
+			// localised entries carry no inline Selection — Locale is its own Placeholders
 			// arm, not a Locale & Selection branch — so an operator-prefixed key is just an
 			// invalid tag range
 

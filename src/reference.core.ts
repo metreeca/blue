@@ -182,13 +182,13 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
  * Resolves a reference range to its target {@link ResourceShape | resource shape}.
  *
  * Crosses a reference range to its eagerly-resolved target, and takes a resource range to itself, generalising a
- * resource shape as an already-resolved reference. Yields `undefined` for any range that admits no properties
+ * resource shape as an already-resolved reference. Yields `undefined` for any range that admits no entries
  * (scalar, localised). It takes a single variant: flatten a union range through {@link union!getShapeVariants} first,
  * so colliding variant property names stay distinct rather than merging.
  *
  * @param shape One of the range {@link union!getShapeVariants | variants}
  *
- * @returns The target resource shape, or `undefined` when `shape` admits no properties
+ * @returns The target resource shape, or `undefined` when `shape` admits no entries
  */
 export function getShapeTarget(shape: Lazy<Shape>): undefined | ResourceShape {
 	return map(eager(shape), shape =>

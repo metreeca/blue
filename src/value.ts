@@ -338,7 +338,7 @@ export type Schema<S extends Lazy<Shape>> =
 /**
  * Projects a shape to the runtime value type its values satisfy.
  *
- * Required properties are present on every value; optional and multi-valued properties may be
+ * Required entries are present on every value; optional and multi-valued entries may be
  * `undefined`. Use to annotate retrieved resources, mutation payloads, and any runtime instance
  * the shape constrains. Pair with {@link Schema} when both the template and the values
  * satisfying it are needed.

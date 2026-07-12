@@ -25,8 +25,8 @@
  * stored on a resource shape.
  *
  * > [!IMPORTANT]
- * > Resource shapes are **closed**: validated resources may only contain properties explicitly
- * > defined in the shape. Any additional properties will cause validation to fail.
+ * > Resource shapes are **closed**: validated resources may only contain entries explicitly
+ * > defined in the shape. Any additional entries will cause validation to fail.
  *
  * > [!IMPORTANT]
  * > All IRI values in validated resources must be absolute. When decoding client input, relative
@@ -90,7 +90,7 @@
  *
  * **Resource References and Embedding**
  *
- * Resource properties link to other resources in two ways. A
+ * Resource entries link to other resources in two ways. A
  * {@link reference!reference | reference} wrapper links to a **standalone resource**, an
  * independently identified and managed entity. A direct shape inclusion defines an
  * **embedded resource**, a nested object with no independent identity, created and managed
@@ -156,7 +156,7 @@
  * values are persisted — both write actual property mappings. The
  * {@link reference!ReferenceConstraints.foreign | foreign} flag on a reference shape is an
  * independent concept: a read-only view over mappings owned by another property that does not
- * write any mappings on insert. During resource validation, foreign reference properties are
+ * write any mappings on insert. During resource validation, foreign reference entries are
  * rejected; during template validation they are accepted for data retrieval.
  *
  * **Embedded versus Captive Resources**
@@ -177,7 +177,7 @@
  *
  * **Inheritance**
  *
- * Extend parent shapes to inherit properties and constraints:
+ * Extend parent shapes to inherit entries and constraints:
  *
  * ```typescript
  * import { required } from '@metreeca/blue/value';
@@ -247,7 +247,7 @@
  *
  * **Polymorphic Properties**
  *
- * Use {@link union!union | union} for properties accepting multiple value types. Variants are
+ * Use {@link union!union | union} for entries accepting multiple value types. Variants are
  * supplied as positional arguments and act as mutually exclusive alternatives (`sh:xone`): a `state` value singles out
  * exactly one variant (`sh:xone`) on write, while a `model` placeholder matches at least one by kind (`sh:or`) on read.
  * Cardinality constraints belong on the enclosing
@@ -367,8 +367,8 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * type inference for property values.
  *
  * > [!IMPORTANT]
- * > Resource shapes are **closed**: validated resources may only contain properties explicitly defined in the shape.
- * > Any additional properties will cause validation to fail.
+ * > Resource shapes are **closed**: validated resources may only contain entries explicitly defined in the shape.
+ * > Any additional entries will cause validation to fail.
  *
  * **Inheritance**
  *
@@ -378,7 +378,7 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | Field         | Override Rule                                                                           |
  * | ------------- | --------------------------------------------------------------------------------------- |
  * | `kind`        | Cannot be overridden                                                                    |
- * | `model`       | Computed from properties, not user-defined                                              |
+ * | `model`       | Computed from entries, not user-defined                                              |
  * | `virtual`     | Inherited; conflicting parents without child override are reported as an error          |
  * | `name`        | Always from child; not inherited                                                        |
  * | `description` | Always from child; not inherited                                                        |
@@ -390,13 +390,13 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | `in`          | Intersection of parent and child sets; empty result is reported as an error             |
  * | `hasValue`    | Union of parent and child required values; child must require all parent values         |
  * | `validators`  | Union of parent and child validators; all apply                                         |
- * | `properties`  | Union; clashing keys merged per property rules; `kind` mismatch is reported as an error |
+ * | `entries`  | Union; clashing keys merged per property rules; `kind` mismatch is reported as an error |
  *
  * **Cross-Field Validation**
  *
  * - all merged `hasValue` entries must be members of the merged `in` set (if defined)
- * - `forward` predicate IRIs must be unique across all properties
- * - `reverse` predicate IRIs must be unique across all properties
+ * - `forward` predicate IRIs must be unique across all entries
+ * - `reverse` predicate IRIs must be unique across all entries
  * - `forward` and `reverse` are independent sets: the same IRI may appear in both
  *
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
@@ -415,10 +415,10 @@ export interface ResourceShape extends ResourceConstraints {
 	 * Prototype value for runtime model assembly.
 	 *
 	 * Provides an immutable retrieval template matching this shape. When a shape extends parent shapes, inherited
-	 * properties are merged into the template; local definitions override inherited ones. The runtime state type
+	 * entries are merged into the template; local definitions override inherited ones. The runtime state type
 	 * may be recovered via {@link @metreeca/qest!Instance | Instance}.
 	 *
-	 * **Inheritance** — computed from properties, not user-defined.
+	 * **Inheritance** — computed from entries, not user-defined.
 	 */
 	readonly model: Template;
 
@@ -439,15 +439,17 @@ export interface ResourceShape extends ResourceConstraints {
 	readonly validators?: readonly [Validator<Resource>, ...Validator<Resource>[]];
 
 	/**
-	 * Property shapes defining the expected structure.
+	 * The {@link Entry | entries} constraining the resource.
 	 *
-	 * At most one {@link Id} and one {@link Type} entry are allowed.
+	 * Each entry constrains one field of the JSON-LD node object the shape describes: its `@id` (an {@link Id}), its
+	 * `@type` (a {@link Type}), or a data or object {@link Property} keyed by a predicate IRI. At most one {@link Id}
+	 * and one {@link Type} entry are allowed.
 	 *
-	 * **Inheritance** — parent and child properties are merged; clashing keys are merged per property rules.
+	 * **Inheritance** — parent and child entries are merged; clashing keys are merged per property rules.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
 	 */
-	readonly properties: { readonly [property: Identifier]: Id | Type | Property };
+	readonly entries: { readonly [entry: Identifier]: Entry };
 
 }
 
@@ -511,7 +513,7 @@ export interface ResourceConstraints {
 	/**
 	 * Parent shape(s) this shape inherits from.
 	 *
-	 * Inherited properties and constraints are merged into the derived shape. When a child overrides an inherited
+	 * Inherited entries and constraints are merged into the derived shape. When a child overrides an inherited
 	 * property, constraints are enforced conjunctively: values must satisfy both the child's and all inherited
 	 * constraints. This ensures overrides can only restrict, never relax, inherited definitions.
 	 *
@@ -602,6 +604,18 @@ export interface ResourceConstraints {
 
 
 /**
+ * A {@link ResourceShape} entry.
+ *
+ * Constrains a single field of the JSON-LD node object the shape describes: its `@id` (an
+ * {@link Id}), its `@type` (a {@link Type}), or a data or object {@link Property} identified by a
+ * predicate IRI.
+ */
+export type Entry =
+	| Id
+	| Type
+	| Property;
+
+/**
  * Shape definition for the resource identifier property.
  *
  * Tags a resource property as mapping to JSON-LD `@id`. Created by the {@link id} factory. At
@@ -617,7 +631,7 @@ export interface ResourceConstraints {
  * **Inheritance**
  *
  * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends},
- * identifier properties are subject to the following rules.
+ * identifier entries are subject to the following rules.
  *
  * | Field    | Override Rule                                                 |
  * | -------- | ------------------------------------------------------------- |
@@ -664,7 +678,7 @@ export interface Id {
  * **Inheritance**
  *
  * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends},
- * type properties are subject to the following rules.
+ * type entries are subject to the following rules.
  *
  * | Field    | Override Rule                                                 |
  * | -------- | ------------------------------------------------------------- |
@@ -694,7 +708,6 @@ export interface Type {
 
 }
 
-
 /**
  * Shape definition for a resource property.
  *
@@ -705,7 +718,7 @@ export interface Type {
  * **Inheritance**
  *
  * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends},
- * properties with matching keys are merged according to the following rules.
+ * entries with matching keys are merged according to the following rules.
  *
  * | Field         | Override Rule                                                                          |
  * | ------------- | -------------------------------------------------------------------------------------- |
@@ -718,12 +731,11 @@ export interface Type {
  * | `forward`     | Cannot be overridden                                                                   |
  * | `reverse`     | Cannot be overridden                                                                   |
  *
- * @typeParam P The predicate type for IRI mappings, defaulting to a resolved {@link Reference}
  * @typeParam R The value range type, defaulting to an unconstrained {@link SetShape}
  *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
  */
-export interface Property<P extends Predicate = Reference, R extends SetShape = SetShape> extends PropertyConstraints<P> {
+export interface Property<R extends SetShape = SetShape> extends PropertyConstraints<R> {
 
 	/**
 	 * Discriminator identifying this as a property shape.
@@ -731,6 +743,37 @@ export interface Property<P extends Predicate = Reference, R extends SetShape = 
 	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "property";
+
+
+	/**
+	 * The absolute IRI identifying the property for direct mapping.
+	 *
+	 * > [!IMPORTANT]
+	 * > Both `forward` and {@link reverse} mappings write actual property values. This is independent from
+	 * > {@link reference!ReferenceConstraints.foreign | foreign}, which marks a reference as a read-only view over
+	 * > mappings owned by another property.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @see {@link https://www.w3.org/TR/json-ld11/#iris JSON-LD 1.1 § 3.2 IRIs}
+	 */
+	readonly forward?: Reference;
+
+	/**
+	 * The absolute IRI identifying the property for inverse mapping.
+	 *
+	 * > [!IMPORTANT]
+	 * > Both {@link forward} and `reverse` mappings write actual property values. This is independent from
+	 * > {@link reference!ReferenceConstraints.foreign | foreign}, which marks a reference as a read-only view over
+	 * > mappings owned by another property.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @defaultValue `undefined` (no inverse mapping)
+	 *
+	 * @see {@link https://www.w3.org/TR/json-ld11/#reverse-properties JSON-LD 1.1 § 4.8 Reverse Properties}
+	 */
+	readonly reverse?: Reference;
 
 
 	/**
@@ -752,11 +795,29 @@ export interface Property<P extends Predicate = Reference, R extends SetShape = 
  * 2. The common inherited namespace from parent shapes
  * 3. The default {@link defaultNamespace} namespace
  *
- * @typeParam P The predicate type for IRI mappings, defaulting to resolved {@link Reference}
+ * @typeParam R The value range type threaded from the {@link property} factory, defaulting to an
+ *   unconstrained {@link SetShape}
  *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
  */
-export interface PropertyConstraints<P extends Predicate = Reference> {
+export interface PropertyConstraints<R extends SetShape = SetShape> {
+
+	/**
+	 * Discriminator identifying the value produced by the {@link property} factory.
+	 *
+	 * Absent from a bare constraints argument; set to `"property"` on the factory's result so
+	 * {@link Range} can tell a property entry from a naked {@link SetShape}.
+	 */
+	readonly kind?: "property";
+
+	/**
+	 * Value range for this property.
+	 *
+	 * Absent from a bare constraints argument; carried on the factory's result to thread the range
+	 * type. Computed by the {@link resource} factory from the entries. **Inheritance** — delegated
+	 * to {@link SetShape} merge rules.
+	 */
+	readonly range?: R;
 
 	/**
 	 * Excludes the property from default serialisation.
@@ -771,7 +832,7 @@ export interface PropertyConstraints<P extends Predicate = Reference> {
 	 * Marks the property as system-managed.
 	 *
 	 * > [!IMPORTANT]
-	 * > Computed properties are populated by the system and may be silently overwritten on mutation operations.
+	 * > Computed entries are populated by the system and may be silently overwritten on mutation operations.
 	 * > Client-supplied values must still be present in mutation payloads but carry no guarantees of being preserved.
 	 *
 	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
@@ -819,7 +880,7 @@ export interface PropertyConstraints<P extends Predicate = Reference> {
 	 *
 	 * @see {@link https://www.w3.org/TR/json-ld11/#iris JSON-LD 1.1 § 3.2 IRIs}
 	 */
-	readonly forward?: P;
+	readonly forward?: Reference | Namespace;
 
 	/**
 	 * The absolute IRI identifying the property for inverse mapping.
@@ -838,52 +899,41 @@ export interface PropertyConstraints<P extends Predicate = Reference> {
 	 *
 	 * @see {@link https://www.w3.org/TR/json-ld11/#reverse-properties JSON-LD 1.1 § 4.8 Reverse Properties}
 	 */
-	readonly reverse?: P;
+	readonly reverse?: Reference | Namespace;
 
 }
-
-
-/**
- * Predicate type for property IRI mappings.
- *
- * Accepts either a resolved absolute IRI ({@link Reference}) or a {@link Namespace} function that
- * resolves property names to absolute IRIs. Namespace predicates are resolved to concrete IRIs
- * by the {@link resource} factory before the shape is exposed to consumers.
- */
-export type Predicate =
-	| Reference
-	| Namespace;
 
 
 //// Factory Arguments /////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Property definitions for a {@link ResourceShape}.
+ * Member definitions for a {@link ResourceShape} factory.
  *
- * Maps property names to their {@link Entry} definitions. Property names must be valid
+ * Maps property names to their {@link Member} definitions. Property names must be valid
  * {@link @metreeca/core!Identifier | identifiers}; their effective IRIs are derived from the
  * enclosing shape's namespace unless explicit {@link PropertyConstraints.forward | forward} or
  * {@link PropertyConstraints.reverse | reverse} mappings are declared.
  */
-export type Entries = {
+export type Members = {
 
-	readonly [property: Identifier]: Entry
+	readonly [member: Identifier]: Member
 
 };
 
 /**
- * A property definition entry.
+ * Member definition accepted by the {@link resource} factory.
  *
- * Accepts {@link Id} and {@link Type} markers for the resource identifier and type properties,
- * naked {@link SetShape} values for the concise property syntax, or full {@link Property}
- * definitions when additional constraints such as IRI mappings or labels are needed. Naked
- * ranges are automatically wrapped into a {@link Property} by the {@link resource} factory.
+ * Accepts {@link Id} and {@link Type} markers for the resource identifier and type entries,
+ * naked {@link SetShape} values for the concise property syntax, or {@link PropertyConstraints}
+ * produced by the {@link property} factory when additional constraints such as IRI mappings or
+ * labels are needed. The factory resolves each into the stored {@link Entry} form, tightening any
+ * {@link Namespace} `forward`/`reverse` mapping to an absolute IRI.
  */
-export type Entry =
+export type Member =
 	| Id
 	| Type
 	| SetShape
-	| Property<Predicate>;
+	| PropertyConstraints;
 
 
 //// Type Inference ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -891,13 +941,13 @@ export type Entry =
 /**
  * Assembles the per-key template prototype backing a {@link ResourceShape.model | resource's model}.
  *
- * Maps every declared {@link Entry} to its template-side {@link Slot} projection, producing the
+ * Maps every declared {@link Member} to its template-side {@link Slot} projection, producing the
  * complete template stored on the shape at runtime. Surfaces in the {@link resource} factory's
  * return type as the full, authoritative template.
  *
  * @typeParam E The entries record type
  */
-export type Prototype<E extends Entries> = {
+export type Prototype<E extends Members> = {
 
 	readonly [K in keyof E]: Slot<E[K]>
 
@@ -921,7 +971,7 @@ export type Prototype<E extends Entries> = {
  * @typeParam E The local entries record type
  * @typeParam I The inherited template model type produced by {@link Inheritance}
  */
-export type Override<E extends Entries, I> = {
+export type Override<E extends Members, I> = {
 
 	[K in keyof E]: K & string extends keyof I
 		? Slot<E[K]> extends Narrowings<I[K & string]> ? E[K] : never
@@ -966,7 +1016,7 @@ export type Narrowings<T> =
 				: T;
 
 /**
- * Projects an {@link Entry} to the template-side value type it contributes to {@link Prototype}.
+ * Projects a {@link Member} to the template-side value type it contributes to {@link Prototype}.
  *
  * Routes {@link Id} and {@link Type} markers to {@link @metreeca/qest!Reference | Reference} and ranged entries to
  * their range's template model, which already carries cardinality-driven optionality and the scalar-versus-tuple
@@ -976,7 +1026,7 @@ export type Narrowings<T> =
  *
  * @typeParam E The entry type
  */
-export type Slot<E extends Entry> =
+export type Slot<E extends Member> =
 	E extends Id | Type ? Reference
 		: Range<E> extends SetShape ? Range<E>["model"]
 			: never;
@@ -986,7 +1036,7 @@ export type Slot<E extends Entry> =
  *
  * Reads each parent shape's complete template via {@link Schema}, merges the contributions
  * across multiple parents, and strips index signatures via {@link Declared} so that
- * {@link Override} checks against concrete inherited properties only. Yields `{}` when
+ * {@link Override} checks against concrete inherited entries only. Yields `{}` when
  * `extends` is not declared.
  *
  * @typeParam C The constraints type to inspect
@@ -1004,7 +1054,7 @@ export type Inheritance<C> =
  * Strips index signatures from a record type, keeping only explicitly declared entries.
  *
  * Retains entries with literal string or symbol keys and drops broad `string` or `number` index
- * signatures, isolating the concrete properties a type actually declares. Used by
+ * signatures, isolating the concrete entries a type actually declares. Used by
  * {@link Inheritance} to expose only the inherited keys that {@link Override} is expected to
  * assign against.
  *
@@ -1045,13 +1095,13 @@ export type Intersection<U> =
  * @typeParam E The local entries record type
  * @typeParam C The constraints type providing the inherited template via {@link Inheritance}
  */
-export type Composition<E extends Entries, C> =
+export type Composition<E extends Members, C> =
 		Prototype<E> & Omit<Inheritance<C>, keyof E> extends infer T
 	? { readonly [K in keyof T]: T[K] }
 	: never;
 
 /**
- * Projects an {@link Entry} to its state-side runtime value type.
+ * Projects a {@link Member} to its state-side runtime value type.
  *
  * Routes {@link Id} and {@link Type} markers to {@link @metreeca/qest!Reference | Reference}
  * and ranged entries to the range's value type conditioned on cardinality: a scalar when
@@ -1060,14 +1110,14 @@ export type Composition<E extends Entries, C> =
  *
  * @typeParam E The entry type
  */
-export type Content<E extends Entry> =
+export type Content<E extends Member> =
 	E extends Id | Type ? Reference
 		: Range<E> extends SetShape<infer S, infer L, infer U>
 			? (L extends undefined | 0 ? undefined : never) | (U extends 1 ? State<S> : readonly State<S>[])
 			: never;
 
 /**
- * Extracts the {@link SetShape} range carried by an {@link Entry}.
+ * Extracts the {@link SetShape} range carried by a {@link Member}.
  *
  * Returns the declared range for {@link Property} entries and the shape itself for naked
  * {@link SetShape} entries; resolves to `never` for marker entries ({@link Id}, {@link Type}),
@@ -1075,8 +1125,8 @@ export type Content<E extends Entry> =
  *
  * @typeParam E The entry type
  */
-export type Range<E extends Entry> =
-	E extends Property<Predicate, infer R> ? R
+export type Range<E extends Member> =
+	E extends PropertyConstraints<infer R> ? R
 		: E extends SetShape ? E
 			: never;
 
@@ -1086,7 +1136,7 @@ export type Range<E extends Entry> =
 /**
  * Creates a resource shape from property definitions.
  *
- * Accepts {@link Entry} values including full {@link Property} definitions, naked
+ * Accepts {@link Member} values including full {@link Property} definitions, naked
  * {@link SetShape} values for the concise syntax, and {@link Id}/{@link Type} markers. Property
  * IRIs are resolved against {@link defaultNamespace}; use the constraints overload to declare a
  * different default namespace or to inherit from parent shapes.
@@ -1098,7 +1148,7 @@ export type Range<E extends Entry> =
  *
  * @param entries The property definitions, mapping property names to entries
  *
- * @returns An immutable resource shape with the specified properties
+ * @returns An immutable resource shape with the specified entries
  *
  * @throws {TraceError} If entry definitions are invalid (for example, duplicate `id`/`type` markers)
  *
@@ -1111,14 +1161,14 @@ export type Range<E extends Entry> =
  * });
  * ```
  */
-export function resource<E extends Entries>(
+export function resource<E extends Members>(
 	entries: E
 ): Omit<ResourceShape, "model"> & { readonly model: Prototype<E> };
 
 /**
  * Creates a resource shape from constraints and property definitions.
  *
- * Accepts {@link Entry} values including full {@link Property} definitions, naked
+ * Accepts {@link Member} values including full {@link Property} definitions, naked
  * {@link SetShape} values for the concise syntax, and {@link Id}/{@link Type} markers. The
  * `constraints` argument may declare a custom namespace, target classes, identifier patterns,
  * resource-level validators, or parent shapes via {@link ResourceConstraints.extends | extends}.
@@ -1135,12 +1185,12 @@ export function resource<E extends Entries>(
  *
  * @typeParam C The constraints type, used to infer the inherited model
  * @typeParam E The entries record type
- * @typeParam M The composed model type, combining local entries with inherited properties
+ * @typeParam M The composed model type, combining local entries with inherited entries
  *
  * @param constraints Shape constraints including namespace, name, validators, and optionally `extends`
  * @param entries The property definitions, mapping property names to entries
  *
- * @returns An immutable resource shape with inherited constraints and properties flattened and merged
+ * @returns An immutable resource shape with inherited constraints and entries flattened and merged
  *
  * @throws {TraceError} If entry definitions are invalid or inherited constraints are incompatible
  *
@@ -1160,7 +1210,7 @@ export function resource<E extends Entries>(
  */
 export function resource<
 	const C extends ResourceConstraints,
-	E extends Entries,
+	E extends Members,
 	M extends Composition<E, C> = Composition<E, C>
 >(
 	constraints: C & { readonly validators?: readonly [Validator<M>, ...Validator<M>[]] },
@@ -1171,17 +1221,18 @@ export function resource<
  * Creates resource shapes.
  */
 export function resource(
-	a: Entries | ResourceConstraints,
-	b?: Entries
+	a: Members | ResourceConstraints,
+	b?: Members
 ): ResourceShape {
 
 	type Parents = ResourceConstraints["extends"];
-	type Properties<P extends Predicate> = { readonly [property: Identifier]: Id | Type | Property<P> };
+	type Sources = { readonly [entry: Identifier]: Id | Type | PropertyConstraints };
+	type Properties = { readonly [entry: Identifier]: Entry };
 
 
 	if ( b === undefined ) {
 
-		const properties = a as Entries;
+		const properties = a as Members;
 		const namespace = locate({});
 		const resolved = resolve(normalize(properties), namespace);
 
@@ -1190,7 +1241,7 @@ export function resource(
 			kind: "resource",
 			model: build(resolved),
 
-			properties: resolved
+			entries: resolved
 
 		});
 
@@ -1209,7 +1260,7 @@ export function resource(
 
 			...constraints,
 
-			properties: resolved
+			entries: resolved
 
 		});
 
@@ -1253,13 +1304,13 @@ export function resource(
 	 * @param entries The property definitions to normalise
 	 * @param parents Optional parent shapes for inheritance-aware duplicate detection
 	 *
-	 * @returns Normalised properties with range wrapped
+	 * @returns Normalised entries with range wrapped
 	 */
-	function normalize(entries: Entries, parents?: Parents): Properties<Predicate> {
+	function normalize(entries: Members, parents?: Parents): Sources {
 
-		const bases: Properties<Reference>[] = parents === undefined ? []
+		const bases: Properties[] = parents === undefined ? []
 			: (Array.isArray(parents) ? parents : [parents])
-				.map(parent => eager(parent).properties);
+				.map(parent => eager(parent).entries);
 
 		const properties = [
 			...bases.flatMap(base => Object.values(base)),
@@ -1278,7 +1329,7 @@ export function resource(
 
 				// inherit forward/reverse from parent when wrapping naked range
 
-				const base = bases.reduce<Entry | undefined>((found, b) => found ?? b[name], undefined);
+				const base = bases.reduce<Member | undefined>((found, b) => found ?? b[name], undefined);
 
 				if ( base !== undefined && base.kind === "property"
 					&& (base.forward !== undefined || base.reverse !== undefined)
@@ -1297,7 +1348,7 @@ export function resource(
 
 			} else {
 
-				return [name, entry]; // pass-through Id | Type | Property
+				return [name, entry];
 
 			}
 
@@ -1309,12 +1360,13 @@ export function resource(
 	 *
 	 * When neither `forward` nor `reverse` is defined, generates a default forward IRI using the effective namespace.
 	 *
-	 * @param properties The properties to resolve
+	 * @param properties The entries to resolve
 	 * @param namespace The effective namespace for default forward resolution
 	 *
 	 * @returns Properties with `forward` and `reverse` resolved to IRIs
 	 */
-	function resolve(properties: Properties<Predicate>, namespace: Namespace): Properties<Reference> {
+	function resolve(properties: Sources, namespace: Namespace): Properties {
+
 		return Object.fromEntries(Object.entries(properties).map(([name, property]) => {
 
 			if ( property.kind === "id" || property.kind === "type" ) {
@@ -1348,7 +1400,7 @@ export function resource(
 
 			}
 
-		}));
+		})) as Properties;
 	}
 
 	/**
@@ -1357,15 +1409,15 @@ export function resource(
 	 * Constructs an immutable object where each property contains a model value derived from its range:
 	 * scalar if `maxCount === 1`, array otherwise; unions produce records mapping each variant's index to its model.
 	 *
-	 * When parent shapes are provided, their models are merged before applying local properties, so local
-	 * definitions override inherited ones. Parent models already contain transitive inherited properties.
+	 * When parent shapes are provided, their models are merged before applying local entries, so local
+	 * definitions override inherited ones. Parent models already contain transitive inherited entries.
 	 *
 	 * @param properties The resolved property definitions
 	 * @param constraints Optional constraints containing parent shapes whose models should be inherited
 	 *
 	 * @returns An immutable resource model
 	 */
-	function build(properties: Properties<Reference>, { extends: parents }: ResourceConstraints = {}): Template {
+	function build(properties: Properties, { extends: parents }: ResourceConstraints = {}): Template {
 
 		const inherited = parents === undefined ? {} : (Array.isArray(parents) ? parents : [parents])
 			.map(parent => eager(parent).model)
@@ -1461,7 +1513,7 @@ export function type(constraints: {
  */
 export function property<R extends SetShape>(
 	range: R
-): Property<Predicate, R>;
+): PropertyConstraints<R> & { readonly range: R };
 
 /**
  * Creates a property shape with constraints from a value range.
@@ -1484,19 +1536,19 @@ export function property<R extends SetShape>(
  * @returns An immutable {@link Property} wrapping the supplied range and constraints
  */
 export function property<R extends SetShape>(
-	constraints: PropertyConstraints<Predicate>,
+	constraints: PropertyConstraints,
 	range: R
-): Property<Predicate, R>;
+): PropertyConstraints<R> & { readonly range: R };
 
 /**
  * Creates property shapes.
  */
 export function property<R extends SetShape>(
-	a: SetShape | PropertyConstraints<Predicate>,
+	a: SetShape | PropertyConstraints,
 	b?: SetShape
-): Property<Predicate, R> {
+): PropertyConstraints<R> & { readonly range: R } {
 
-	const constraints = (b !== undefined ? a : {}) as PropertyConstraints<Predicate>;
+	const constraints = (b !== undefined ? a : {}) as PropertyConstraints;
 	const range = (b !== undefined ? b : a) as R;
 
 	return immutable({

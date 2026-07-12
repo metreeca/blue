@@ -132,7 +132,7 @@ export function checkResource({
 /**
  * Checks for conflicting inherit-strategy fields across sibling parents.
  *
- * Inherit fields (`virtual`, `namespace` on resources; `hidden`, `computed` on properties) require all sibling
+ * Inherit fields (`virtual`, `namespace` on resources; `hidden`, `computed` on entries) require all sibling
  * parents to agree on the value. When any two flattened parents define different values (including `undefined` vs
  * defined) and the child shape does not provide an override, a trace entry is produced.
  *
@@ -164,16 +164,16 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 
 		// property-level inherit fields
 
-		...Object.fromEntries([...new Set(parents.flatMap(p => Object.keys(p.properties)))]
+		...Object.fromEntries([...new Set(parents.flatMap(p => Object.keys(p.entries)))]
 
-			// skip properties defined by a single parent: no conflict possible
+			// skip entries defined by a single parent: no conflict possible
 
-			.filter(key => parents.filter(p => p.properties[key]?.kind === "property").length > 1)
+			.filter(key => parents.filter(p => p.entries[key]?.kind === "property").length > 1)
 
 			.flatMap(key => {
 
-				const override = shape.properties[key]?.kind === "property" ? shape.properties[key] : undefined;
-				const inherited = parents.map(p => p.properties[key]).filter(e => e?.kind === "property");
+				const override = shape.entries[key]?.kind === "property" ? shape.entries[key] : undefined;
+				const inherited = parents.map(p => p.entries[key]).filter(e => e?.kind === "property");
 
 				return [
 
@@ -205,16 +205,16 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 }
 
 /**
- * Checks that at most one `id` entry and at most one `type` entry exist across all properties.
+ * Checks that at most one `id` entry and at most one `type` entry exist across all entries.
  *
- * This check applies to the full set of properties after inheritance merging, ensuring that
+ * This check applies to the full set of entries after inheritance merging, ensuring that
  * singleton entries are not duplicated across the inheritance hierarchy.
  *
  * @param properties The merged property entries to check
  *
  * @returns A keyed trace of violations, or `undefined` if no duplicates exist
  */
-export function checkSingletons(properties: readonly { readonly kind: string }[]): undefined | Trace {
+export function checkSingletons(properties: readonly { readonly kind?: string }[]): undefined | Trace {
 
 	return collect({
 
@@ -229,10 +229,10 @@ export function checkSingletons(properties: readonly { readonly kind: string }[]
 }
 
 /**
- * Checks for duplicate predicate IRIs across properties in a flattened resource shape.
+ * Checks for duplicate predicate IRIs across entries in a flattened resource shape.
  *
  * Forward and reverse predicates are checked independently: the same IRI may appear in both sets without conflict,
- * but no two properties may share the same forward IRI, and no two may share the same reverse IRI.
+ * but no two entries may share the same forward IRI, and no two may share the same reverse IRI.
  *
  * @param shape The flattened resource shape to check
  *
@@ -240,7 +240,7 @@ export function checkSingletons(properties: readonly { readonly kind: string }[]
  */
 export function checkPredicates(shape: ResourceShape): undefined | Trace {
 
-	const properties = Object.entries(shape.properties)
+	const properties = Object.entries(shape.entries)
 		.filter((e): e is [string, Property] => e[1].kind === "property");
 
 
@@ -287,7 +287,7 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
  *
  * An embedded (inline `resource`-kind) range has no independent identity, so it must not declare a `kind: "id"`
  * property. A standalone resource or a reference target legitimately carries one and is not flagged; union ranges are
- * inspected per variant. Only the shape's own properties are examined, since every embedded resource is itself checked
+ * inspected per variant. Only the shape's own entries are examined, since every embedded resource is itself checked
  * when {@link validateResource} recurses into it.
  *
  * This check runs in {@link validateResource} against an actual resource state, not in {@link flatten} at construction.
@@ -301,7 +301,7 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
  */
 export function checkId(shape: ResourceShape): undefined | Trace {
 
-	return collect(Object.fromEntries(Object.entries(shape.properties)
+	return collect(Object.fromEntries(Object.entries(shape.entries)
 		.filter((e): e is [string, Property] => e[1].kind === "property")
 		.flatMap(([name, { range }]) => getShapeVariants(range.shape)
 			.filter(s => s.kind === "resource")
@@ -328,7 +328,7 @@ export function checkType(shape: ResourceShape): undefined | Trace {
 	return collect({
 
 		"{class}": shape.class !== undefined
-			|| !Object.values(shape.properties).some(p => p.kind === "type")
+			|| !Object.values(shape.entries).some(p => p.kind === "type")
 			|| `<type> property without a declared class`
 
 	});
@@ -384,8 +384,8 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): u
 
 	const keys = [...new Set([
 
-		...Object.keys(target.properties),
-		...Object.keys(source.properties)
+		...Object.keys(target.entries),
+		...Object.keys(source.entries)
 
 	])];
 
@@ -407,8 +407,8 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): u
 
 		...Object.fromEntries(keys.flatMap((key): (readonly [string, undefined | Trace])[] => {
 
-			const t = target.properties[key];
-			const s = source.properties[key];
+			const t = target.entries[key];
+			const s = source.entries[key];
 
 			return t === undefined || s === undefined ? []
 				: t.kind !== s.kind ? [[`{${key}}`, `mismatched entry kinds <${t.kind}> vs <${s.kind}>`]]
@@ -519,19 +519,19 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 		? [...new Set([...target.validators, ...source.validators])]
 		: target.validators ?? source.validators;
 
-	// conjunctive: properties — union with per-key merge
+	// conjunctive: entries — union with per-key merge
 
 	const keys = [...new Set([
 
-		...Object.keys(target.properties),
-		...Object.keys(source.properties)
+		...Object.keys(target.entries),
+		...Object.keys(source.entries)
 
 	])];
 
 	const properties = Object.fromEntries(keys.map(key => {
 
-		const t = target.properties[key];
-		const s = source.properties[key];
+		const t = target.entries[key];
+		const s = source.entries[key];
 
 		if ( t === undefined || s === undefined ) {
 
@@ -582,7 +582,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 		hasValue: hasValue as ResourceShape["hasValue"],
 		validators: validators as ResourceShape["validators"],
 
-		properties
+		entries: properties
 
 	});
 
@@ -639,7 +639,7 @@ export function mergeProperty(target: Property, source: Property): Property {
  * Derives the retrieval template for a resource shape.
  *
  * Projects each property to its retrieval placeholder, deriving the per-property value through
- * {@link value!deriveValue | deriveValue}; `id` and `type` properties project the {@link defaultBase}. Cardinality
+ * {@link value!deriveValue | deriveValue}; `id` and `type` entries project the {@link defaultBase}. Cardinality
  * wrapping (a scalar for `maxCount === 1`, otherwise a singleton `[value]` tuple carrying any selection) and the
  * per-tag localised form mirror the {@link value!cardinality | cardinality} projection.
  *
@@ -649,7 +649,7 @@ export function mergeProperty(target: Property, source: Property): Property {
  */
 export function deriveResource(shape: ResourceShape) {
 
-	return immutable(Object.fromEntries(Object.entries(shape.properties).map(([name, entry]) =>
+	return immutable(Object.fromEntries(Object.entries(shape.entries).map(([name, entry]) =>
 		[name, entry.kind === "id" || entry.kind === "type" ? defaultBase : deriveValues(entry.range)]
 	)));
 
@@ -673,7 +673,7 @@ export function deriveResource(shape: ResourceShape) {
  * Localised text values are language-tagged maps (`{ tag: string }` or `{ tag: string[] }`);
  * within a single map, all values must be uniformly scalar or uniformly array.
  *
- * Foreign reference properties (and unions whose variants are *all* foreign references)
+ * Foreign reference entries (and unions whose variants are *all* foreign references)
  * must be absent: foreign links are managed by the target resource and are not part of the
  * source state. Unions mixing owned and foreign variants are validated against the owned
  * arm only, with foreign variants pruned.
@@ -744,19 +744,19 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 			collect(Object.fromEntries([
 
-				// property validation — validate merged shape properties
+				// property validation — validate merged shape entries
 
-				...Object.entries(shape.properties).map(([name, declared]) => [name,
+				...Object.entries(shape.entries).map(([name, declared]) => [name,
 					declared.kind === "id" ? validateId(resource[name], shape, entry)
 						: declared.kind === "type" ? validateType(resource[name], shape)
 							: declared.kind === "property" ? validateProperty(resource[name], declared, depth)
 								: undefined
 				]),
 
-				// envelope validation — reject unknown properties
+				// envelope validation — reject unknown entries
 
 				...Object.keys(resource)
-					.filter(key => !Object.hasOwn(shape.properties, key))
+					.filter(key => !Object.hasOwn(shape.entries, key))
 					.map(key => [key, "unexpected property"]),
 
 				// custom validators // ;(cast) object confirmed by isObject; the validator owns its own shape checks
@@ -948,7 +948,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  * - **Expanded nested references** — reference slots accept an expanded nested resource in addition to
  *   a bare IRI, validated against the target shape narrowed by the nested sub-model in `model`.
  * - **Client expectations** — closed-shape enforcement is run against the narrowed surface (the
- *   intersection of `shape` and `model`): properties present in the response but absent from `model`
+ *   intersection of `shape` and `model`): entries present in the response but absent from `model`
  *   are rejected as `unexpected property`, even when declared in the full `shape`.
  *
  * Custom {@link ResourceConstraints.validators | validators} declared on the shape run after the
@@ -1002,7 +1002,7 @@ export function validateResult(values: readonly unknown[], {
 					.map(k => {
 
 						const value = resource[k];
-						const property = shape.properties[k];
+						const property = shape.entries[k];
 						const nested = model[k];
 
 						return [k, property === undefined ? "undefined property"
@@ -1437,7 +1437,7 @@ export function validateResult(values: readonly unknown[], {
  * Value constraints, cardinality bounds, and custom validators are skipped, since a template
  * describes a retrieval projection rather than actual data. Bindings whose probe (`path` and
  * `pipe`) fails to resolve against the shape are rejected with the atomic trace surfaced by
- * {@link effective}; missing properties are accepted as not requested. Property entries may map to
+ * {@link effective}; missing entries are accepted as not requested. Property entries may map to
  * `undefined` to mark optional template / projection slots elided at construction time.
  *
  * Where a property specifies a linked resource, the accepted retrieval forms depend on the
@@ -1518,13 +1518,13 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 					return [k, undefined];
 
-				} else if ( !Object.hasOwn(shape.properties, k) ) {
+				} else if ( !Object.hasOwn(shape.entries, k) ) {
 
 					return [k, "undefined property path"];
 
 				} else {
 
-					const entry = shape.properties[k];
+					const entry = shape.entries[k];
 
 					return [k, entry.kind === "property"
 						? validatePlaceholders(v, entry.range, depth)
@@ -2239,14 +2239,14 @@ export function flatten(shape: ResourceShape): ResourceShape {
 			kind: "resource",
 			model: {},
 
-			properties: {}
+			entries: {}
 
 		}));
 
 		const trace = collect({
 
 			...wrap(checkParents(shape, parents)),
-			...wrap(checkSingletons(Object.values(merged.properties))),
+			...wrap(checkSingletons(Object.values(merged.entries))),
 			...wrap(checkPredicates(merged)),
 
 			// checkId is deferred to validateResource, not run here at construction (see checkId)
@@ -2261,7 +2261,7 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 		// recursively flatten nested resource shapes within property ranges
 
-		const properties = Object.fromEntries(Object.entries(merged.properties).map(([name, entry]) => {
+		const entries = Object.fromEntries(Object.entries(merged.entries).map(([name, entry]) => {
 
 			if ( entry.kind === "property" ) {
 
@@ -2309,7 +2309,7 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 		}));
 
-		return seal({ ...merged, properties }, Flattened, null);
+		return seal({ ...merged, entries }, Flattened, null);
 
 	}
 
@@ -2536,17 +2536,17 @@ export function getShapeType(shape: Lazy<Shape>): undefined | Identifier {
 }
 
 /**
- * Resolves a shape's properties.
+ * Resolves a shape's entries.
  *
  * Resolves `shape` to its {@link getShapeTarget | target} {@link ResourceShape | resource shape}, then takes its
- * properties keyed by name. Yields an empty record when `shape` resolves to no resource shape.
+ * entries keyed by name. Yields an empty record when `shape` resolves to no resource shape.
  *
  * @param shape One of the range {@link union!getShapeVariants | variants}
  *
- * @returns The properties keyed by name, or an empty record when absent
+ * @returns The entries keyed by name, or an empty record when absent
  */
-export function getShapeProperties(shape: Lazy<Shape>): ResourceShape["properties"] {
-	return getShapeTarget(shape)?.properties ?? {};
+export function getShapeProperties(shape: Lazy<Shape>): ResourceShape["entries"] {
+	return getShapeTarget(shape)?.entries ?? {};
 }
 
 

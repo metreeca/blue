@@ -282,7 +282,7 @@ describe("State", () => {
 				});
 			}
 
-			test("includes inherited properties", () => {
+			test("includes inherited entries", () => {
 				expectTypeOf<State<typeof Derived>>().toHaveProperty("name").toEqualTypeOf<string>();
 				expectTypeOf<State<typeof Derived>>().toHaveProperty("code").toEqualTypeOf<string>();
 			});
@@ -314,7 +314,7 @@ describe("State", () => {
 				});
 			}
 
-			test("includes properties from all parents", () => {
+			test("includes entries from all parents", () => {
 				expectTypeOf<State<typeof Multi>>().toHaveProperty("name").toEqualTypeOf<string>();
 				expectTypeOf<State<typeof Multi>>().toHaveProperty("label").toEqualTypeOf<string | undefined>();
 				expectTypeOf<State<typeof Multi>>().toHaveProperty("id").toEqualTypeOf<string>();
@@ -347,7 +347,7 @@ describe("State", () => {
 				});
 			}
 
-			test("includes properties from all ancestors", () => {
+			test("includes entries from all ancestors", () => {
 				expectTypeOf<State<typeof Child>>().toHaveProperty("a").toEqualTypeOf<string>();
 				expectTypeOf<State<typeof Child>>().toHaveProperty("b").toEqualTypeOf<string>();
 				expectTypeOf<State<typeof Child>>().toHaveProperty("c").toEqualTypeOf<string>();
@@ -386,7 +386,7 @@ describe("State", () => {
 				});
 			}
 
-			test("includes properties from all paths", () => {
+			test("includes entries from all paths", () => {
 				expectTypeOf<State<typeof Diamond>>().toHaveProperty("id").toEqualTypeOf<string>();
 				expectTypeOf<State<typeof Diamond>>().toHaveProperty("left").toEqualTypeOf<string>();
 				expectTypeOf<State<typeof Diamond>>().toHaveProperty("right").toEqualTypeOf<string>();
@@ -418,7 +418,7 @@ describe("State", () => {
 				expectTypeOf<State<typeof Derived>>().toHaveProperty("optOwn").toEqualTypeOf<number | undefined>();
 			});
 
-			test("allows undefined for optional properties", () => {
+			test("allows undefined for optional entries", () => {
 				assertType<State<typeof Derived>>({ reqBase: "x", reqOwn: 1, optBase: undefined, optOwn: undefined });
 			});
 
@@ -494,13 +494,13 @@ describe("State", () => {
 
 		});
 
-		test("rejects extra properties (closed-shape semantics)", () => {
+		test("rejects extra entries (closed-shape semantics)", () => {
 
 			const shape = resource({
 				name: required(string())
 			});
 
-			// @ts-expect-error - extra properties not allowed on closed resource shapes
+			// @ts-expect-error - extra entries not allowed on closed resource shapes
 			assertType<State<typeof shape>>({ name: "test", extra: "unexpected" });
 
 		});

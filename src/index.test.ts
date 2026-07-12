@@ -681,7 +681,7 @@ describe("apply", () => {
 
 		});
 
-		it("resolves path through inherited properties", async () => {
+		it("resolves path through inherited entries", async () => {
 
 			const Base = resource({
 				label: required(string())
@@ -862,7 +862,7 @@ describe("apply", () => {
 
 		});
 
-		it("resolves path through resolved resource properties", async () => {
+		it("resolves path through resolved resource entries", async () => {
 
 			const Inner = resource({ label: required(string()) });
 
@@ -979,7 +979,7 @@ describe("validation", () => {
 
 			});
 
-			it("returns value for resource with properties", async () => {
+			it("returns value for resource with entries", async () => {
 
 				const shape = resource({
 					name: required(string())

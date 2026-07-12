@@ -51,7 +51,7 @@ describe("factories", () => {
 
 		});
 
-		it("includes only expected properties", async () => {
+		it("includes only expected entries", async () => {
 
 			const range = factory(string());
 

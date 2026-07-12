@@ -89,7 +89,7 @@ describe("factories", () => {
 
 			});
 
-			it("includes only expected properties", async () => {
+			it("includes only expected entries", async () => {
 
 				const range = required(string());
 
@@ -1333,7 +1333,7 @@ describe("utilities", () => {
 
 			});
 
-			it("resolves path through inherited properties", async () => {
+			it("resolves path through inherited entries", async () => {
 
 				const Base = resource({
 					label: required(string())
@@ -1580,7 +1580,7 @@ describe("utilities", () => {
 
 			});
 
-			it("resolves path through resolved resource properties", async () => {
+			it("resolves path through resolved resource entries", async () => {
 
 				const Inner = resource({ label: required(string()) });
 
@@ -2450,7 +2450,7 @@ describe("internals", () => {
 
 		});
 
-		it("derives a resource template from its properties", async () => {
+		it("derives a resource template from its entries", async () => {
 
 			expect(deriveValue(resource({ name: required(string()) }))).toEqual({ name: "" });
 

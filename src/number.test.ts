@@ -82,7 +82,7 @@ describe("factories", () => {
 
 				});
 
-				it("includes only provided properties", async () => {
+				it("includes only provided entries", async () => {
 
 					expect(Object.keys(number()).sort()).toEqual(["kind", "model"]);
 

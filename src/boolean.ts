@@ -79,7 +79,7 @@ import { immutable } from "@metreeca/core/deep";
  * **Inheritance**
  *
  * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
- * boolean-valued properties are merged according to the following rules. The *child* is the extending shape; the
+ * boolean-valued entries are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
  * | Field   | Override Rule                                                    |

@@ -167,7 +167,7 @@ export type Validator<T = unknown> =
  * Validates a resource against a shape.
  *
  * Enforces all shape constraints including type, cardinality, closed-shape checks, and custom validators.
- * Unknown and missing properties are both rejected; all declared properties are required unless marked optional
+ * Unknown and missing entries are both rejected; all declared entries are required unless marked optional
  * by the shape. The return value is narrowed to `Instance<T>` where `T` is the projection {@link Template} bonded
  * to the shape's `model` slot.
  *
@@ -279,7 +279,7 @@ export function validate<T extends Template>(value: unknown, opts: {
  *
  * Enforces type and structural constraints; value constraints are skipped as query values are placeholders.
  * Cardinality is checked for shape consistency (scalar if `maxCount` is 1, singleton tuple otherwise);
- * missing properties are accepted as not requested. Bindings whose probe — `path` and `pipe` — fails to resolve
+ * missing entries are accepted as not requested. Bindings whose probe — `path` and `pipe` — fails to resolve
  * against the shape are rejected with an atomic trace under the binding key.
  *
  * > [!CAUTION]

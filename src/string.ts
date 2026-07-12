@@ -142,7 +142,7 @@ import { checkString } from "./string.core.js";
  * **Inheritance**
  *
  * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
- * string-valued properties are merged according to the following rules. The *child* is the extending shape; the
+ * string-valued entries are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
  * | Field       | Override Rule                                                                      |
@@ -356,8 +356,6 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 
 	const effective = isString(constraints) ? { model: constraints } : constraints;
 
-	const source = isRegExp(effective.pattern) ? effective.pattern.source : effective.pattern;
-
 	const shape: StringShape = immutable({
 
 		kind: "string",
@@ -365,7 +363,10 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 		...effective,
 
 		model: effective.model ?? "",
-		pattern: source
+
+		pattern: isRegExp(effective.pattern)
+			? effective.pattern.source
+			: effective.pattern
 
 	});
 

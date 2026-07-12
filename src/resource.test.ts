@@ -61,9 +61,9 @@ describe("factories", () => {
 					name: required(string())
 				});
 
-				expect(shape.properties.name).toBeDefined();
-				expect((shape.properties.name as Property).range.kind).toBe("set");
-				expect(((shape.properties.name as Property).range as SetShape).shape.kind).toBe("string");
+				expect(shape.entries.name).toBeDefined();
+				expect((shape.entries.name as Property).range.kind).toBe("set");
+				expect(((shape.entries.name as Property).range as SetShape).shape.kind).toBe("string");
 
 			});
 
@@ -73,10 +73,10 @@ describe("factories", () => {
 					value: optional(union(string(), integer()))
 				});
 
-				expect(shape.properties.value).toBeDefined();
-				expect((shape.properties.value as Property).range.kind).toBe("set");
+				expect(shape.entries.value).toBeDefined();
+				expect((shape.entries.value as Property).range.kind).toBe("set");
 
-				const rangeShape = ((shape.properties.value as Property).range as SetShape).shape;
+				const rangeShape = ((shape.entries.value as Property).range as SetShape).shape;
 				expect(rangeShape.kind).toBe("union");
 				expect((rangeShape as UnionShape).variants[0].kind).toBe("string");
 				expect((rangeShape as UnionShape).variants[1].kind).toBe("number");
@@ -90,8 +90,8 @@ describe("factories", () => {
 					age: optional(integer())
 				});
 
-				expect(((shape.properties.name as Property).range as SetShape).shape.kind).toBe("string");
-				expect(((shape.properties.age as Property).range as SetShape).shape.kind).toBe("number");
+				expect(((shape.entries.name as Property).range as SetShape).shape.kind).toBe("string");
+				expect(((shape.entries.age as Property).range as SetShape).shape.kind).toBe("number");
 
 			});
 
@@ -103,15 +103,15 @@ describe("factories", () => {
 					name: required(string())
 				});
 
-				expect(shape.properties.name).toBeDefined();
-				expect((shape.properties.name as Property).range.kind).toBe("set");
-				expect(((shape.properties.name as Property).range as SetShape).shape.kind).toBe("string");
+				expect(shape.entries.name).toBeDefined();
+				expect((shape.entries.name as Property).range.kind).toBe("set");
+				expect(((shape.entries.name as Property).range as SetShape).shape.kind).toBe("string");
 
 			});
 
 		});
 
-		describe("properties only", () => {
+		describe("entries only", () => {
 
 			it("returns a shape with kind 'resource'", async () => {
 
@@ -135,16 +135,16 @@ describe("factories", () => {
 
 			});
 
-			it("includes properties in the shape", async () => {
+			it("includes entries in the shape", async () => {
 
 				const shape = resource({
 					name: property(required(string())),
 					age: property(optional(integer()))
 				});
 
-				expect(shape.properties).toBeDefined();
-				expect(shape.properties.name).toBeDefined();
-				expect(shape.properties.age).toBeDefined();
+				expect(shape.entries).toBeDefined();
+				expect(shape.entries.name).toBeDefined();
+				expect(shape.entries.age).toBeDefined();
 
 			});
 
@@ -152,14 +152,14 @@ describe("factories", () => {
 
 		describe("with specs", () => {
 
-			it("accepts specs and properties", async () => {
+			it("accepts specs and entries", async () => {
 
 				const shape = resource({}, {
 					name: property(required(string()))
 				});
 
 				expect(shape.kind).toBe("resource");
-				expect(shape.properties.name).toBeDefined();
+				expect(shape.entries.name).toBeDefined();
 
 			});
 
@@ -179,7 +179,7 @@ describe("factories", () => {
 					kind: "resource",
 					model: {},
 					extends: Parent,
-					properties: {
+					entries: {
 						age: property(optional(integer()))
 					}
 				} as ResourceShape;
@@ -188,10 +188,10 @@ describe("factories", () => {
 					person: required(Unflattened)
 				});
 
-				const nested = ((Outer.properties.person as Property).range as SetShape).shape as ResourceShape;
+				const nested = ((Outer.entries.person as Property).range as SetShape).shape as ResourceShape;
 
-				expect(nested.properties.name).toBeDefined();
-				expect(nested.properties.age).toBeDefined();
+				expect(nested.entries.name).toBeDefined();
+				expect(nested.entries.age).toBeDefined();
 
 			});
 
@@ -205,7 +205,7 @@ describe("factories", () => {
 					kind: "resource",
 					model: {},
 					extends: Parent,
-					properties: {
+					entries: {
 						age: property(optional(integer()))
 					}
 				} as ResourceShape;
@@ -214,12 +214,12 @@ describe("factories", () => {
 					contact: required(union(Unflattened, string()))
 				});
 
-				const range = (Outer.properties.contact as Property).range as SetShape;
+				const range = (Outer.entries.contact as Property).range as SetShape;
 				const variants = (range.shape as UnionShape).variants;
 				const nested = variants[0] as ResourceShape;
 
-				expect(nested.properties.name).toBeDefined();
-				expect(nested.properties.age).toBeDefined();
+				expect(nested.entries.name).toBeDefined();
+				expect(nested.entries.age).toBeDefined();
 
 			});
 
@@ -233,7 +233,7 @@ describe("factories", () => {
 					kind: "resource",
 					model: {},
 					extends: Parent,
-					properties: {
+					entries: {
 						age: property(optional(integer()))
 					}
 				} as ResourceShape;
@@ -242,14 +242,14 @@ describe("factories", () => {
 					ref: required(reference(() => Unflattened))
 				});
 
-				const ref = ((Outer.properties.ref as Property).range as SetShape).shape;
+				const ref = ((Outer.entries.ref as Property).range as SetShape).shape;
 
 				expect(ref.kind).toBe("reference");
 
 				const target = eager((ref as { shape: () => ResourceShape }).shape);
 
-				expect(target.properties.name).toBeDefined();
-				expect(target.properties.age).toBeDefined();
+				expect(target.entries.name).toBeDefined();
+				expect(target.entries.age).toBeDefined();
 
 			});
 
@@ -263,7 +263,7 @@ describe("factories", () => {
 					kind: "resource",
 					model: {},
 					extends: Parent,
-					properties: {
+					entries: {
 						age: property(optional(integer()))
 					}
 				} as ResourceShape;
@@ -274,10 +274,10 @@ describe("factories", () => {
 					person: required(Unflattened)
 				});
 
-				const nested = ((Outer.properties.person as Property).range as SetShape).shape as ResourceShape;
+				const nested = ((Outer.entries.person as Property).range as SetShape).shape as ResourceShape;
 
-				expect(nested.properties.name).toBeDefined();
-				expect(nested.properties.age).toBeDefined();
+				expect(nested.entries.name).toBeDefined();
+				expect(nested.entries.age).toBeDefined();
 
 			});
 
@@ -294,7 +294,7 @@ describe("factories", () => {
 					person: required(reference(Person))
 				});
 
-				const ref = ((shape.properties.person as Property).range as SetShape).shape;
+				const ref = ((shape.entries.person as Property).range as SetShape).shape;
 
 				expect(ref.kind).toBe("reference");
 
@@ -312,7 +312,7 @@ describe("factories", () => {
 					label: property({ forward: rdfs }, required(string()))
 				});
 
-				expect((shape.properties.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
+				expect((shape.entries.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
 
 			});
 
@@ -324,7 +324,7 @@ describe("factories", () => {
 					owner: property({ reverse: ex }, required(string()))
 				});
 
-				expect((shape.properties.owner as Property).reverse).toBe("http://example.org/owner");
+				expect((shape.entries.owner as Property).reverse).toBe("http://example.org/owner");
 
 			});
 
@@ -334,7 +334,7 @@ describe("factories", () => {
 					name: property({ forward: "http://example.org/name" }, required(string()))
 				});
 
-				expect((shape.properties.name as Property).forward).toBe("http://example.org/name");
+				expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
 
 			});
 
@@ -344,20 +344,20 @@ describe("factories", () => {
 					owner: property({ reverse: "http://example.org/owner" }, required(string()))
 				});
 
-				expect((shape.properties.owner as Property).reverse).toBe("http://example.org/owner");
+				expect((shape.entries.owner as Property).reverse).toBe("http://example.org/owner");
 
 			});
 
 			describe("default forward resolution", () => {
 
-				it("uses app namespace when no namespace is defined (properties only)", async () => {
+				it("uses app namespace when no namespace is defined (entries only)", async () => {
 
 					const shape = resource({
 						name: required(string())
 					});
 
-					expect((shape.properties.name as Property).forward).toBe("app:/#name");
-					expect((shape.properties.name as Property).reverse).toBeUndefined();
+					expect((shape.entries.name as Property).forward).toBe("app:/#name");
+					expect((shape.entries.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -367,8 +367,8 @@ describe("factories", () => {
 						name: required(string())
 					});
 
-					expect((shape.properties.name as Property).forward).toBe("app:/#name");
-					expect((shape.properties.name as Property).reverse).toBeUndefined();
+					expect((shape.entries.name as Property).forward).toBe("app:/#name");
+					expect((shape.entries.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -380,8 +380,8 @@ describe("factories", () => {
 						name: required(string())
 					});
 
-					expect((shape.properties.name as Property).forward).toBe("http://example.org/name");
-					expect((shape.properties.name as Property).reverse).toBeUndefined();
+					expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
+					expect((shape.entries.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -397,8 +397,8 @@ describe("factories", () => {
 						name: required(string())
 					});
 
-					expect((Child.properties.name as Property).forward).toBe("http://example.org/name");
-					expect((Child.properties.name as Property).reverse).toBeUndefined();
+					expect((Child.entries.name as Property).forward).toBe("http://example.org/name");
+					expect((Child.entries.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -418,8 +418,8 @@ describe("factories", () => {
 						name: required(string())
 					});
 
-					expect((Child.properties.name as Property).forward).toBe("http://example.org/name");
-					expect((Child.properties.name as Property).reverse).toBeUndefined();
+					expect((Child.entries.name as Property).forward).toBe("http://example.org/name");
+					expect((Child.entries.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -433,8 +433,8 @@ describe("factories", () => {
 						name: required(string())
 					});
 
-					expect((Child.properties.name as Property).forward).toBe("app:/#name");
-					expect((Child.properties.name as Property).reverse).toBeUndefined();
+					expect((Child.entries.name as Property).forward).toBe("app:/#name");
+					expect((Child.entries.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -444,8 +444,8 @@ describe("factories", () => {
 						owner: property({ reverse: "http://example.org/owns" }, required(string()))
 					});
 
-					expect((shape.properties.owner as Property).forward).toBeUndefined();
-					expect((shape.properties.owner as Property).reverse).toBe("http://example.org/owns");
+					expect((shape.entries.owner as Property).forward).toBeUndefined();
+					expect((shape.entries.owner as Property).reverse).toBe("http://example.org/owns");
 
 				});
 
@@ -457,11 +457,11 @@ describe("factories", () => {
 						name: property({ forward: "http://custom.org/name" }, required(string()))
 					});
 
-					expect((shape.properties.name as Property).forward).toBe("http://custom.org/name");
+					expect((shape.entries.name as Property).forward).toBe("http://custom.org/name");
 
 				});
 
-				it("resolves multiple properties with default forward", async () => {
+				it("resolves multiple entries with default forward", async () => {
 
 					const ns = createNamespace("http://example.org/");
 
@@ -471,9 +471,9 @@ describe("factories", () => {
 						email: required(string())
 					});
 
-					expect((shape.properties.name as Property).forward).toBe("http://example.org/name");
-					expect((shape.properties.age as Property).forward).toBe("http://example.org/age");
-					expect((shape.properties.email as Property).forward).toBe("http://example.org/email");
+					expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
+					expect((shape.entries.age as Property).forward).toBe("http://example.org/age");
+					expect((shape.entries.email as Property).forward).toBe("http://example.org/email");
 
 				});
 
@@ -506,13 +506,13 @@ describe("factories", () => {
 
 			});
 
-			it("includes only provided properties", async () => {
+			it("includes only provided entries", async () => {
 
 				const shape = resource({
 					name: property(required(string()))
 				});
 
-				expect(shape).toMatchObject({ kind: "resource", properties: { name: expect.anything() } });
+				expect(shape).toMatchObject({ kind: "resource", entries: { name: expect.anything() } });
 
 			});
 
@@ -672,7 +672,7 @@ describe("factories", () => {
 
 			});
 
-			it("throws on invalid property (properties only)", async () => {
+			it("throws on invalid property (entries only)", async () => {
 
 				expect(() => resource({
 					name: "not-a-property" as any
@@ -853,7 +853,7 @@ describe("factories", () => {
 
 				});
 
-				it("combines multiple properties with correct cardinality models", async () => {
+				it("combines multiple entries with correct cardinality models", async () => {
 
 					const shape = resource({
 						name: required(string()),
@@ -953,7 +953,7 @@ describe("factories", () => {
 
 				});
 
-				it("includes id and type alongside regular properties", async () => {
+				it("includes id and type alongside regular entries", async () => {
 
 					const shape = resource({ class: "app:/types/T" }, {
 						id: id(),
@@ -1033,7 +1033,7 @@ describe("factories", () => {
 
 			describe("model with inheritance", () => {
 
-				it("includes properties from single parent", async () => {
+				it("includes entries from single parent", async () => {
 
 					const Parent = resource({ name: required(string()) });
 					const Child = resource({ extends: Parent }, { age: optional(integer()) });
@@ -1042,7 +1042,7 @@ describe("factories", () => {
 
 				});
 
-				it("includes properties from multiple parents", async () => {
+				it("includes entries from multiple parents", async () => {
 
 					const Named = resource({ name: required(string()) });
 					const Aged = resource({ age: required(integer()) });
@@ -1078,7 +1078,7 @@ describe("factories", () => {
 						label: required(string({ model: "x", minLength: 1 }))
 					});
 
-					expect((Child.properties.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
+					expect((Child.entries.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
 
 				});
 
@@ -1094,7 +1094,7 @@ describe("factories", () => {
 						owner: required(string({ model: "x", minLength: 1 }))
 					});
 
-					expect((Child.properties.owner as Property).reverse).toBe("http://example.org/owner");
+					expect((Child.entries.owner as Property).reverse).toBe("http://example.org/owner");
 
 				});
 
@@ -1107,7 +1107,7 @@ describe("factories", () => {
 
 				});
 
-				it("includes transitive inherited properties", async () => {
+				it("includes transitive inherited entries", async () => {
 
 					const GrandParent = resource({ id: required(string()) });
 					const Parent = resource({ extends: GrandParent }, { name: required(string()) });
@@ -1246,7 +1246,7 @@ describe("factories", () => {
 
 			});
 
-			it("includes only provided properties", async () => {
+			it("includes only provided entries", async () => {
 
 				const prop = property({ hidden: true }, required(string()));
 
@@ -1340,8 +1340,8 @@ describe("utilities", () => {
 				const flat = flatten(shape);
 
 				expect(flat.kind).toBe("resource");
-				expect(flat.properties).toHaveProperty("name");
-				expect(flat.properties).toHaveProperty("age");
+				expect(flat.entries).toHaveProperty("name");
+				expect(flat.entries).toHaveProperty("age");
 
 			});
 
@@ -1358,15 +1358,15 @@ describe("utilities", () => {
 
 		describe("single parent", () => {
 
-			it("merges parent properties into child", async () => {
+			it("merges parent entries into child", async () => {
 
 				const parent = resource({ age: optional(integer()) });
 				const child = resource({ extends: parent }, { name: required(string()) });
 
 				const flat = flatten(child);
 
-				expect(flat.properties).toHaveProperty("name");
-				expect(flat.properties).toHaveProperty("age");
+				expect(flat.entries).toHaveProperty("name");
+				expect(flat.entries).toHaveProperty("age");
 
 			});
 
@@ -1382,7 +1382,7 @@ describe("utilities", () => {
 
 				const flat = flatten(child);
 
-				const prop = flat.properties["name"] as Property;
+				const prop = flat.entries["name"] as Property;
 
 				expect((prop.range.shape as any).minLength).toBe(5);
 				expect((prop.range.shape as any).maxLength).toBe(100);
@@ -1404,7 +1404,7 @@ describe("utilities", () => {
 
 		describe("multi-level inheritance", () => {
 
-			it("merges grandparent properties through chain", async () => {
+			it("merges grandparent entries through chain", async () => {
 
 				const grandparent = resource({ code: required(string()) });
 				const parent = resource({ extends: grandparent }, { age: optional(integer()) });
@@ -1412,9 +1412,9 @@ describe("utilities", () => {
 
 				const flat = flatten(child);
 
-				expect(flat.properties).toHaveProperty("code");
-				expect(flat.properties).toHaveProperty("age");
-				expect(flat.properties).toHaveProperty("name");
+				expect(flat.entries).toHaveProperty("code");
+				expect(flat.entries).toHaveProperty("age");
+				expect(flat.entries).toHaveProperty("name");
 
 			});
 
@@ -1736,7 +1736,7 @@ describe("utilities", () => {
 
 						const flat = flatten(child);
 
-						expect((flat.properties.field as Property)[field]).toBe(true);
+						expect((flat.entries.field as Property)[field]).toBe(true);
 
 					});
 
@@ -1747,7 +1747,7 @@ describe("utilities", () => {
 
 						const flat = flatten(child);
 
-						expect((flat.properties.field as Property)[field]).toBe(false);
+						expect((flat.entries.field as Property)[field]).toBe(false);
 
 					});
 
@@ -1759,7 +1759,7 @@ describe("utilities", () => {
 
 						const flat = flatten(child);
 
-						expect((flat.properties.field as Property)[field]).toBe(false);
+						expect((flat.entries.field as Property)[field]).toBe(false);
 
 					});
 
@@ -1775,7 +1775,7 @@ describe("utilities", () => {
 
 						const flat = flatten(child);
 
-						expect((flat.properties.field as Property)[field]).toBe(true);
+						expect((flat.entries.field as Property)[field]).toBe(true);
 
 					});
 
@@ -1787,7 +1787,7 @@ describe("utilities", () => {
 
 						const flat = flatten(child);
 
-						expect((flat.properties.field as Property)[field]).toBe(true);
+						expect((flat.entries.field as Property)[field]).toBe(true);
 
 					});
 
@@ -1831,7 +1831,7 @@ describe("utilities", () => {
 
 			describe("checkSingletons", () => {
 
-				it("accepts properties with no id or type", async () => {
+				it("accepts entries with no id or type", async () => {
 
 					expect(checkSingletons([
 						{ kind: "property" },
@@ -1918,8 +1918,8 @@ describe("utilities", () => {
 					// manually assemble a shape with duplicate id — bypassing factory check
 					const manual: ResourceShape = {
 						...child,
-						properties: {
-							...child.properties,
+						entries: {
+							...child.entries,
 							rid2: id()
 						}
 					};
@@ -1942,8 +1942,8 @@ describe("utilities", () => {
 					// manually assemble a shape with duplicate type — bypassing factory check
 					const manual: ResourceShape = {
 						...child,
-						properties: {
-							...child.properties,
+						entries: {
+							...child.entries,
 							rtype2: type()
 						}
 					};
@@ -2110,8 +2110,8 @@ describe("utilities", () => {
 
 				const manual: ResourceShape = {
 					...base,
-					properties: {
-						...base.properties,
+					entries: {
+						...base.entries,
 						label: { kind: "property", forward: "http://example.org/name", range: required(string()) }
 					}
 				};
@@ -2137,8 +2137,8 @@ describe("utilities", () => {
 
 				const manual: ResourceShape = {
 					...base,
-					properties: {
-						...base.properties,
+					entries: {
+						...base.entries,
 						creator: { kind: "property", reverse: "http://example.org/owns", range: required(string()) }
 					}
 				};
@@ -2222,8 +2222,8 @@ describe("utilities", () => {
 
 				const manual: ResourceShape = {
 					...base,
-					properties: {
-						...base.properties,
+					entries: {
+						...base.entries,
 						child: {
 							kind: "property",
 							forward: "http://example.org/child",
@@ -2242,8 +2242,8 @@ describe("utilities", () => {
 
 				const manual: ResourceShape = {
 					...base,
-					properties: {
-						...base.properties,
+					entries: {
+						...base.entries,
 						child: {
 							kind: "property",
 							forward: "http://example.org/child",
@@ -2323,7 +2323,7 @@ describe("utilities", () => {
 
 		describe("model", () => {
 
-			it("computes model from merged properties", async () => {
+			it("computes model from merged entries", async () => {
 
 				const parent = resource({ age: optional(integer()) });
 				const child = resource({ extends: parent }, { name: required(string()) });
@@ -2873,7 +2873,7 @@ describe("operators", () => {
 
 		describe("model", () => {
 
-			it("computes model from merged properties", async () => {
+			it("computes model from merged entries", async () => {
 
 				const merged = mergeResource(
 					resource({ name: required(string()) }),
@@ -2884,7 +2884,7 @@ describe("operators", () => {
 
 			});
 
-			it("uses merged range models for overlapping properties", async () => {
+			it("uses merged range models for overlapping entries", async () => {
 
 				const merged = mergeResource(
 					resource({ name: required(string()) }),
@@ -2895,7 +2895,7 @@ describe("operators", () => {
 
 			});
 
-			it("inherits base model for properties not in target", async () => {
+			it("inherits base model for entries not in target", async () => {
 
 				const base = resource({
 					extends: resource({ inherited: optional(integer()) })
@@ -3262,17 +3262,17 @@ describe("operators", () => {
 
 		});
 
-		describe("properties", () => {
+		describe("entries", () => {
 
-			it("merges properties from both shapes", async () => {
+			it("merges entries from both shapes", async () => {
 
 				const merged = mergeResource(
 					resource({ name: required(string()) }),
 					resource({ age: optional(integer()) })
 				);
 
-				expect(merged.properties).toHaveProperty("name");
-				expect(merged.properties).toHaveProperty("age");
+				expect(merged.entries).toHaveProperty("name");
+				expect(merged.entries).toHaveProperty("age");
 
 			});
 
@@ -3283,7 +3283,7 @@ describe("operators", () => {
 					resource({ name: required(string({ maxLength: 20 })) })
 				);
 
-				const prop = merged.properties["name"] as Property;
+				const prop = merged.entries["name"] as Property;
 
 				expect(prop.kind).toBe("property");
 				expect((prop.range.shape as any).minLength).toBe(5);
@@ -3298,7 +3298,7 @@ describe("operators", () => {
 					resource({ iri: id() })
 				);
 
-				expect(merged.properties["iri"].kind).toBe("id");
+				expect(merged.entries["iri"].kind).toBe("id");
 
 			});
 
@@ -3309,7 +3309,7 @@ describe("operators", () => {
 					resource({ class: "app:/types/T" }, { rdfType: type() })
 				);
 
-				expect(merged.properties["rdfType"].kind).toBe("type");
+				expect(merged.entries["rdfType"].kind).toBe("type");
 
 			});
 
@@ -3522,14 +3522,14 @@ describe("operators", () => {
 
 		});
 
-		it("projects id properties to the default base", async () => {
+		it("projects id entries to the default base", async () => {
 
 			expect(deriveResource(resource({ id: id(), name: required(string()) })))
 				.toEqual({ id: defaultBase, name: "" });
 
 		});
 
-		it("projects reference properties to the stored model", async () => {
+		it("projects reference entries to the stored model", async () => {
 
 			const shape = resource({ ref: required(reference(resource({ pattern: "/things/{id}" }, {}))) });
 
@@ -3555,13 +3555,13 @@ describe("validators", () => {
 				});
 
 
-				it("accepts empty resource with no properties", async () => {
+				it("accepts empty resource with no entries", async () => {
 
 					expect(validateResource([{}], resource({}))).toBeUndefined();
 
 				});
 
-				it("accepts resource with subset of defined properties", async () => {
+				it("accepts resource with subset of defined entries", async () => {
 
 					expect(validateResource([{ name: "Alice" }], named)).toBeUndefined();
 
@@ -3592,7 +3592,7 @@ describe("validators", () => {
 
 				});
 
-				it("accepts properties from inherited shape", async () => {
+				it("accepts entries from inherited shape", async () => {
 
 					const Base = resource({
 						code: required(integer())
@@ -4728,7 +4728,7 @@ describe("validators", () => {
 
 			});
 
-			it("enforces inherited constraints on overridden properties", async () => {
+			it("enforces inherited constraints on overridden entries", async () => {
 
 				const Base = resource({
 					name: required(string({ model: "abc", minLength: 3 }))
@@ -4752,7 +4752,7 @@ describe("validators", () => {
 
 			});
 
-			it("prevents relaxing inherited constraints on overridden properties", async () => {
+			it("prevents relaxing inherited constraints on overridden entries", async () => {
 
 				const Base = resource({
 					name: required(string({ model: "abc", minLength: 3, maxLength: 50 }))
@@ -6503,7 +6503,7 @@ describe("validators", () => {
 
 		describe("inheritance", () => {
 
-			it("validates properties inherited from parent shape", async () => {
+			it("validates entries inherited from parent shape", async () => {
 
 				const Base = resource({
 					code: required(integer())
@@ -6520,7 +6520,7 @@ describe("validators", () => {
 
 			});
 
-			it("applies partial projection to inherited properties", async () => {
+			it("applies partial projection to inherited entries", async () => {
 
 				const Base = resource({
 					code: required(integer()),
@@ -6940,7 +6940,7 @@ describe("validators", () => {
 
 				});
 
-				it("accepts model with only defined properties", async () => {
+				it("accepts model with only defined entries", async () => {
 
 					const shape = resource({
 						name: required(string()),
@@ -6965,7 +6965,7 @@ describe("validators", () => {
 
 				});
 
-				it("accepts properties from inherited shape", async () => {
+				it("accepts entries from inherited shape", async () => {
 
 					const Base = resource({
 						id: required(integer())
@@ -7249,7 +7249,7 @@ describe("validators", () => {
 
 		describe("property constraints", () => {
 
-			describe("missing properties accepted", () => {
+			describe("missing entries accepted", () => {
 
 				it("accepts absent required property", async () => {
 
@@ -7365,7 +7365,7 @@ describe("validators", () => {
 
 				describe("localised selection keys rejected", () => {
 
-					// localised properties carry no inline Selection — filtering or ordering by a
+					// localised entries carry no inline Selection — filtering or ordering by a
 					// localised value attaches at the enclosing collection's Selection through an
 					// Expression, never inside the tag-range map — so an operator-prefixed key is an
 					// invalid tag range
@@ -7639,7 +7639,7 @@ describe("validators", () => {
 
 				});
 
-				it("enforces shape on inherited properties from multiple parents", async () => {
+				it("enforces shape on inherited entries from multiple parents", async () => {
 
 					const Named = resource({
 						name: required(string())
@@ -8375,7 +8375,7 @@ describe("validators", () => {
 
 		});
 
-		describe("reference properties", () => {
+		describe("reference entries", () => {
 
 			it("accepts IRI string for scalar reference", async () => {
 
@@ -8631,7 +8631,7 @@ describe("validators", () => {
 
 		});
 
-		describe("resource properties", () => {
+		describe("resource entries", () => {
 
 			it("rejects IRI reference for inline resource property", async () => {
 
@@ -9134,9 +9134,9 @@ describe("validators", () => {
 
 		describe("nested query criteria", () => {
 
-			describe("projection properties", () => {
+			describe("projection entries", () => {
 
-				it("accepts query with only projection properties", async () => {
+				it("accepts query with only projection entries", async () => {
 
 					const Target = resource({ id: id(), name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });

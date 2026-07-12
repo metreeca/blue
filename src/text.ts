@@ -95,7 +95,7 @@ import { checkText, deriveText } from "./text.core.js";
  * **Inheritance**
  *
  * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
- * language-tagged properties are merged according to the following rules. The *child* is the extending shape; the
+ * language-tagged entries are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
  * | Field        | Override Rule                                                               |

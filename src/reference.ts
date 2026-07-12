@@ -54,7 +54,7 @@
  * In a retrieval template, a reference-valued property accepts either form:
  *
  * 1. **IRI reference** — a bare IRI reference placeholder retrieves only the identifier of the
- *    linked resource, without inspecting any of its properties. As a placeholder it is never
+ *    linked resource, without inspecting any of its entries. As a placeholder it is never
  *    resolved on decoding, so it admits any IRI reference: the empty string, a root-relative or
  *    relative reference, or an absolute IRI. Reference values proper (the operands of a selection)
  *    are resolved against the base IRI and absolute by validation time.
@@ -72,7 +72,7 @@
  * {@link ReferenceConstraints.captive | captive} flags refine the link semantics:
  *
  * - `foreign` marks the reference as a read-only view over data owned by the target resource;
- *   foreign properties are accepted in retrieval templates but rejected in resource state
+ *   foreign entries are accepted in retrieval templates but rejected in resource state
  * - `captive` marks the referenced resource as existentially dependent on the source resource:
  *   it has its own identity and lifecycle but is cascade-removed when the source is deleted
  *
@@ -97,7 +97,7 @@ export { getShapeTarget } from "./reference.core.js";
  * **Inheritance**
  *
  * When a {@link ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
- * reference-valued properties are merged according to the following rules. The *child* is the extending shape; the
+ * reference-valued entries are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
  * | Field      | Override Rule                                                             |
@@ -148,7 +148,7 @@ export interface ReferenceShape extends ReferenceConstraints {
  * Constraints for the {@link reference} shape factory.
  *
  * The `foreign` and `captive` flags are independent and may be combined. Their interaction determines how insert and
- * remove operations behave on properties backed by the reference shape:
+ * remove operations behave on entries backed by the reference shape:
  *
  * | `foreign` | `captive` | Insert                    | Remove                              |
  * |:---------:|:---------:|---------------------------|-------------------------------------|
@@ -178,8 +178,8 @@ export interface ReferenceConstraints {
 	 * rejected during resource validation. The link is owned by the target resource, not by the source resource
 	 * declaring the foreign reference.
 	 *
-	 * During resource validation, properties backed by a foreign reference shape are rejected if present in the input.
-	 * During template validation, foreign properties are accepted normally, since templates describe data retrieval
+	 * During resource validation, entries backed by a foreign reference shape are rejected if present in the input.
+	 * During template validation, foreign entries are accepted normally, since templates describe data retrieval
 	 * rather than state updates.
 	 *
 	 * > [!IMPORTANT]
