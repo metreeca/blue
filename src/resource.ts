@@ -379,7 +379,6 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | ------------- | --------------------------------------------------------------------------------------- |
  * | `kind`        | Cannot be overridden                                                                    |
  * | `model`       | Computed from entries, not user-defined                                              |
- * | `virtual`     | Inherited; conflicting parents without child override are reported as an error          |
  * | `name`        | Always from child; not inherited                                                        |
  * | `description` | Always from child; not inherited                                                        |
  * | `namespace`   | Inherited; conflicting parents without child override are reported as an error          |
@@ -459,18 +458,6 @@ export interface ResourceShape extends ResourceConstraints {
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
  */
 export interface ResourceConstraints {
-
-	/**
-	 * Marks the resource as dynamically generated.
-	 *
-	 * When `true`, indicates the resource is at least partially computed rather than stored.
-	 *
-	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
-	 *
-	 * @defaultValue `undefined` (`false`)
-	 */
-	readonly virtual?: boolean;
-
 
 	/**
 	 * Human-readable name for the shape.

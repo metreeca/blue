@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns:xl="http://www.w3.org/1999/xlink" version="1.1" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns="http://www.w3.org/2000/svg" viewBox="0 137 488 713" width="488" height="713">
+<svg xmlns:xl="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" version="1.1" viewBox="0 137 488 713" width="488" height="713">
   <defs>
     <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="StickArrow_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -10 26 20" markerWidth="26" markerHeight="20" color="black">
       <g>
@@ -18,7 +18,7 @@
       </g>
     </marker>
   </defs>
-  <g id="shape" stroke-opacity="1" stroke-dasharray="none" fill="none" stroke="none" fill-opacity="1">
+  <g id="shape" fill-opacity="1" stroke-opacity="1" stroke="none" stroke-dasharray="none" fill="none">
     <title>shape</title>
     <g id="shape_Layer_1">
       <title>Layer 1</title>
@@ -73,7 +73,7 @@
         </g>
       </g>
       <g id="Line_794">
-        <line x1="163.87247" y1="611.1289" x2="163.87247" y2="622.2789" marker-end="url(#StickArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+        <line x1="163.87247" y1="599.1869" x2="163.87247" y2="622.2789" marker-end="url(#StickArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Line_793">
         <path d="M 105.43847 478.9381 L 73.66748 478.9381 L 73.66748 416.9902 L 134.65547 416.9902 L 134.65547 432.32983" marker-end="url(#StickArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
@@ -202,14 +202,14 @@
       <g id="Group_836">
         <g id="Group_751">
           <g id="Graphic_832">
-            <rect x="105.43847" y="439.20983" width="116.868" height="17.321064" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-            <text transform="translate(129.86597 442.23983)" fill="black">
+            <rect x="105.43847" y="439.20983" width="116.868" height="17.261063" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+            <text transform="translate(129.86597 442.20983)" fill="black">
               <tspan font-family="Helvetica Neue" font-weight="bold" font-size="9" fill="black" x="0" y="9" xml:space="preserve">ResourceShape</tspan>
             </text>
           </g>
           <g id="Graphic_814">
-            <rect x="105.43847" y="536.1929" width="116.868" height="62.740005" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-            <text transform="translate(111.43847 539.4329)" fill="black">
+            <rect x="105.43847" y="524.7309" width="116.868" height="62.259995" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+            <text transform="translate(111.43847 527.7309)" fill="black">
               <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">class?: Reference</tspan>
               <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">pattern?: Reference</tspan>
               <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="31.503998" xml:space="preserve">in?: Reference[]</tspan>
@@ -218,25 +218,24 @@
             </text>
           </g>
           <g id="Graphic_753">
-            <rect x="105.43847" y="485.0649" width="116.868" height="51.128" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-            <text transform="translate(111.43847 488.1249)" fill="black">
-              <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">virtual?: boolean</tspan>
-              <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">name?: Text</tspan>
-              <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="31.503998" xml:space="preserve">description?: Text</tspan>
-              <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="42.755997" xml:space="preserve">namespace?: Namespace</tspan>
+            <rect x="105.43847" y="484.9749" width="116.868" height="39.755997" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+            <text transform="translate(111.43847 487.9749)" fill="black">
+              <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">name?: Text</tspan>
+              <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">description?: Text</tspan>
+              <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="31.503998" xml:space="preserve">namespace?: Namespace</tspan>
             </text>
           </g>
           <g id="Graphic_752">
-            <rect x="105.43847" y="456.4709" width="116.868" height="28.594" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-            <text transform="translate(111.43847 459.5159)" fill="black">
+            <rect x="105.43847" y="456.4709" width="116.868" height="28.503998" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+            <text transform="translate(111.43847 459.4709)" fill="black">
               <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">kind: “resource”</tspan>
               <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">model: Template</tspan>
             </text>
           </g>
         </g>
         <g id="Graphic_750">
-          <rect x="134.56497" y="598.9329" width="58.615" height="12.195999" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(139.56497 600.9329)" fill="black">
+          <rect x="134.56497" y="586.9909" width="58.615" height="12.195999" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+          <text transform="translate(139.56497 588.9909)" fill="black">
             <tspan font-family="Helvetica Neue" font-size="7" fill="black" x=".973" y="7" xml:space="preserve">entry: Identifier </tspan>
           </text>
         </g>
@@ -270,7 +269,7 @@
         </g>
       </g>
       <g id="Line_765">
-        <line x1="163.87247" y1="439.17983" x2="163.87247" y2="399.5706" marker-end="url(#Arrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+        <line x1="163.87247" y1="439.20983" x2="163.87247" y2="399.5706" marker-end="url(#Arrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Line_766">
         <path d="M 362.16647 351.8573 L 163.87247 351.8573 L 163.87247 344.05756" marker-end="url(#Arrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>

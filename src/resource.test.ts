@@ -1534,94 +1534,6 @@ describe("utilities", () => {
 
 		describe("inherit fields", () => {
 
-			describe("virtual", () => {
-
-				describe("linear", () => {
-
-					it("inherits virtual from parent when child has none", async () => {
-
-						const parent = resource({ virtual: true }, {});
-						const child = resource({ extends: parent }, {});
-
-						const flat = flatten(child);
-
-						expect(flat.virtual).toBe(true);
-
-					});
-
-					it("child overrides parent virtual", async () => {
-
-						const parent = resource({ virtual: true }, {});
-						const child = resource({ extends: parent, virtual: false }, {});
-
-						const flat = flatten(child);
-
-						expect(flat.virtual).toBe(false);
-
-					});
-
-					it("grandparent virtual overridden by parent propagates to child", async () => {
-
-						const grandparent = resource({ virtual: true }, {});
-						const parent = resource({ extends: grandparent, virtual: false }, {});
-						const child = resource({ extends: parent }, {});
-
-						const flat = flatten(child);
-
-						expect(flat.virtual).toBe(false);
-
-					});
-
-				});
-
-				describe("branched", () => {
-
-					it("inherits virtual when both parents agree", async () => {
-
-						const parentA = resource({ virtual: true }, {});
-						const parentB = resource({ virtual: true }, {});
-						const child = resource({ extends: [parentA, parentB] }, {});
-
-						const flat = flatten(child);
-
-						expect(flat.virtual).toBe(true);
-
-					});
-
-					it("child overrides conflicting parents", async () => {
-
-						const parentA = resource({ virtual: true }, {});
-						const parentB = resource({ virtual: false }, {});
-						const child = resource({ extends: [parentA, parentB], virtual: true }, {});
-
-						const flat = flatten(child);
-
-						expect(flat.virtual).toBe(true);
-
-					});
-
-					it("rejects conflicting parents without child override", async () => {
-
-						const parentA = resource({ virtual: true }, {});
-						const parentB = resource({ virtual: false }, {});
-
-						expect(() => resource({ extends: [parentA, parentB] }, {})).toThrow(RangeError);
-
-					});
-
-					it("rejects undefined vs defined conflict without child override", async () => {
-
-						const parentA = resource({ virtual: true }, {});
-						const parentB = resource({});
-
-						expect(() => resource({ extends: [parentA, parentB] }, {})).toThrow(RangeError);
-
-					});
-
-				});
-
-			});
-
 			describe("namespace", () => {
 
 				describe("linear", () => {
@@ -1979,36 +1891,6 @@ describe("utilities", () => {
 				const child = resource({ extends: parent }, { age: required(integer()) });
 
 				expect(checkParents(child, [flatten(parent)])).toBeUndefined();
-
-			});
-
-			it("returns undefined when parents agree on virtual", async () => {
-
-				const parentA = resource({ virtual: true }, { name: required(string()) });
-				const parentB = resource({ virtual: true }, { age: required(integer()) });
-				const child = resource({ extends: [parentA, parentB] }, {});
-
-				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
-
-			});
-
-			it("reports conflicting virtual without child override", async () => {
-
-				const parentA = resource({ virtual: true }, { name: required(string()) });
-				const parentB = resource({}, { age: required(integer()) });
-				const child = resource({}, {});
-
-				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeDefined();
-
-			});
-
-			it("returns undefined when child overrides conflicting virtual", async () => {
-
-				const parentA = resource({ virtual: true }, { name: required(string()) });
-				const parentB = resource({}, { age: required(integer()) });
-				const child = resource({ virtual: false }, {});
-
-				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
 
 			});
 
@@ -2908,40 +2790,6 @@ describe("operators", () => {
 
 				expect(merged.model).toHaveProperty("inherited", 0);
 				expect(merged.model).toHaveProperty("name", "");
-
-			});
-
-		});
-
-		describe("virtual", () => {
-
-			it("inherits virtual from target", async () => {
-
-				const merged = mergeResource(
-					resource({ virtual: true }, {}),
-					resource({})
-				);
-
-				expect(merged.virtual).toBe(true);
-
-			});
-
-			it("inherits virtual from source when target is undefined", async () => {
-
-				const merged = mergeResource(
-					resource({}),
-					resource({ virtual: true }, {})
-				);
-
-				expect(merged.virtual).toBe(true);
-
-			});
-
-			it("preserves undefined when neither defines virtual", async () => {
-
-				const merged = mergeResource(resource({}), resource({}));
-
-				expect(merged.virtual).toBeUndefined();
 
 			});
 
