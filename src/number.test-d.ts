@@ -38,8 +38,7 @@ describe("NumberShape", () => {
 			number({ in: [42] });
 		});
 
-		test("rejects empty array", () => {
-			// @ts-expect-error - empty array not assignable to non-empty tuple
+		test("accepts empty array (ignored)", () => {
 			number({ in: [] });
 		});
 
@@ -55,8 +54,7 @@ describe("NumberShape", () => {
 			number({ hasValue: [0] });
 		});
 
-		test("rejects empty array", () => {
-			// @ts-expect-error - empty array not assignable to non-empty tuple
+		test("accepts empty array (ignored)", () => {
 			number({ hasValue: [] });
 		});
 

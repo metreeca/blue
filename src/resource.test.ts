@@ -18,10 +18,10 @@ import { isTag } from "@metreeca/core/language";
 import { assert } from "@metreeca/core/report";
 import { createNamespace } from "@metreeca/core/resource";
 import { defaultBase } from "@metreeca/qest";
+import type { Resource } from "@metreeca/qest/resource";
 import { describe, expect, it } from "vitest";
+import { type Trace, TraceError } from "@metreeca/core/trace";
 import { boolean } from "./boolean.js";
-import { TraceError } from "./index.core.js";
-import { type Trace, type Validator } from "./index.js";
 import { integer } from "./number.js";
 import { reference } from "./reference.js";
 import {
@@ -47,6 +47,43 @@ import { date, email, string } from "./string.js";
 import { text } from "./text.js";
 import { union, type UnionShape } from "./union.js";
 import { cardinality, eager, multiple, optional, repeatable, required, type SetShape } from "./value.js";
+
+
+// navigate an array-shaped trace by key path, returning the raw value at the path or undefined
+
+function at(trace: unknown, ...path: readonly (string | number)[]): any {
+	return path.reduce<unknown>((node, key) => {
+		const record = Array.isArray(node) ? node.find(item => item !== null && typeof item === "object") : node;
+		return record === null || typeof record !== "object" ? undefined : (record as Record<string, unknown>)[`${key}`];
+	}, trace);
+}
+
+// navigate an array-shaped trace by key path, returning the keyed record at the path (empty when absent)
+
+function rec(trace: unknown, ...path: readonly (string | number)[]): Record<string, any> {
+	const node = at(trace, ...path);
+	const record = Array.isArray(node) ? node.find(item => item !== null && typeof item === "object") : node;
+	return (record === null || typeof record !== "object" ? {} : record) as Record<string, any>;
+}
+
+// convert an old-style expected trace (object with `[i]`/name keys, string leaves) to the new array shape
+
+function flat(expected: unknown): any {
+	return typeof expected === "string" ? [expected]
+		: [Object.fromEntries(Object.entries(expected as Record<string, unknown>)
+			.map(([k, v]) => [k.replace(/^\[(\d+)]$/, "$1"), flat(v)]))];
+}
+
+// convert a new array-shaped trace back to the old object shape (numeric keys re-bracketed, single-message leaves unwrapped)
+
+function unflat(trace: unknown): any {
+	if ( !Array.isArray(trace) ) { return trace; }
+	const records = trace.filter(item => item !== null && typeof item === "object");
+	if ( records.length === 0 ) { return trace.length === 1 ? trace[0] : trace; }
+	return Object.fromEntries(records.flatMap(record =>
+		Object.entries(record).map(([k, v]) => [/^\d+$/.test(k) ? `[${k}]` : k, unflat(v)])
+	));
+}
 
 
 describe("factories", () => {
@@ -1517,8 +1554,8 @@ describe("utilities", () => {
 
 			it("unions validators from lineage", async () => {
 
-				const v1: Validator = () => undefined;
-				const v2: Validator = () => undefined;
+				const v1: (value: Resource) => undefined | Trace = () => undefined;
+				const v2: (value: Resource) => undefined | Trace = () => undefined;
 
 				const parent = resource({ validators: [v1] }, {});
 				const child = resource({ extends: parent, validators: [v2] }, {});
@@ -1533,6 +1570,94 @@ describe("utilities", () => {
 		});
 
 		describe("inherit fields", () => {
+
+			describe("virtual", () => {
+
+				describe("linear", () => {
+
+					it("inherits virtual from parent when child has none", async () => {
+
+						const parent = resource({ virtual: true }, {});
+						const child = resource({ extends: parent }, {});
+
+						const flat = flatten(child);
+
+						expect(flat.virtual).toBe(true);
+
+					});
+
+					it("child overrides parent virtual", async () => {
+
+						const parent = resource({ virtual: true }, {});
+						const child = resource({ extends: parent, virtual: false }, {});
+
+						const flat = flatten(child);
+
+						expect(flat.virtual).toBe(false);
+
+					});
+
+					it("grandparent virtual overridden by parent propagates to child", async () => {
+
+						const grandparent = resource({ virtual: true }, {});
+						const parent = resource({ extends: grandparent, virtual: false }, {});
+						const child = resource({ extends: parent }, {});
+
+						const flat = flatten(child);
+
+						expect(flat.virtual).toBe(false);
+
+					});
+
+				});
+
+				describe("branched", () => {
+
+					it("inherits virtual when both parents agree", async () => {
+
+						const parentA = resource({ virtual: true }, {});
+						const parentB = resource({ virtual: true }, {});
+						const child = resource({ extends: [parentA, parentB] }, {});
+
+						const flat = flatten(child);
+
+						expect(flat.virtual).toBe(true);
+
+					});
+
+					it("child overrides conflicting parents", async () => {
+
+						const parentA = resource({ virtual: true }, {});
+						const parentB = resource({ virtual: false }, {});
+						const child = resource({ extends: [parentA, parentB], virtual: true }, {});
+
+						const flat = flatten(child);
+
+						expect(flat.virtual).toBe(true);
+
+					});
+
+					it("rejects conflicting parents without child override", async () => {
+
+						const parentA = resource({ virtual: true }, {});
+						const parentB = resource({ virtual: false }, {});
+
+						expect(() => resource({ extends: [parentA, parentB] }, {})).toThrow();
+
+					});
+
+					it("rejects undefined vs defined conflict without child override", async () => {
+
+						const parentA = resource({ virtual: true }, {});
+						const parentB = resource({});
+
+						expect(() => resource({ extends: [parentA, parentB] }, {})).toThrow();
+
+					});
+
+				});
+
+			});
 
 			describe("namespace", () => {
 
@@ -1894,6 +2019,36 @@ describe("utilities", () => {
 
 			});
 
+			it("returns undefined when parents agree on virtual", async () => {
+
+				const parentA = resource({ virtual: true }, { name: required(string()) });
+				const parentB = resource({ virtual: true }, { age: required(integer()) });
+				const child = resource({ extends: [parentA, parentB] }, {});
+
+				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
+
+			});
+
+			it("reports conflicting virtual without child override", async () => {
+
+				const parentA = resource({ virtual: true }, { name: required(string()) });
+				const parentB = resource({}, { age: required(integer()) });
+				const child = resource({}, {});
+
+				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeDefined();
+
+			});
+
+			it("returns undefined when child overrides conflicting virtual", async () => {
+
+				const parentA = resource({ virtual: true }, { name: required(string()) });
+				const parentB = resource({}, { age: required(integer()) });
+				const child = resource({ virtual: false }, {});
+
+				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
+
+			});
+
 			it("returns undefined when parents agree on namespace", async () => {
 
 				const ns = createNamespace("http://example.org/");
@@ -1925,6 +2080,20 @@ describe("utilities", () => {
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeDefined();
+
+			});
+
+			it.each([
+				"hidden" as const,
+				"computed" as const
+			])("keys a conflicting %s by bare entry name and braced constraint", async (field) => {
+
+				const parentA = resource({ field: property({ [field]: true }, required(string())) });
+				const parentB = resource({ field: property({ [field]: false }, required(string())) });
+				const child = resource({}, {});
+
+				expect(checkParents(child, [flatten(parentA), flatten(parentB)]))
+					.toContainEqual(expect.stringContaining(`{${field}}`));
 
 			});
 
@@ -1999,6 +2168,22 @@ describe("utilities", () => {
 				};
 
 				expect(checkPredicates(manual)).toBeDefined();
+
+			});
+
+			it("keys a duplicate forward predicate by bare entry name and braced constraint", async () => {
+
+				const base = resource({ name: property({ forward: "http://example.org/name" }, required(string())) });
+
+				const manual: ResourceShape = {
+					...base,
+					entries: {
+						...base.entries,
+						label: { kind: "property", forward: "http://example.org/name", range: required(string()) }
+					}
+				};
+
+				expect(checkPredicates(manual)).toContainEqual(expect.stringContaining("{forward}"));
 
 			});
 
@@ -2115,6 +2300,26 @@ describe("utilities", () => {
 				};
 
 				expect(checkId(manual)).toBeDefined();
+
+			});
+
+			it("keys an embedded id by bare entry name", async () => {
+
+				const base = resource({ label: required(string()) });
+
+				const manual: ResourceShape = {
+					...base,
+					entries: {
+						...base.entries,
+						child: {
+							kind: "property",
+							forward: "http://example.org/child",
+							range: optional(resource({ rid: id() }))
+						}
+					}
+				};
+
+				expect(checkId(manual)).toEqual(["{id} unexpected <id> entry in embedded resource <child>"]);
 
 			});
 
@@ -2670,7 +2875,7 @@ describe("operators", () => {
 				hasValue: ["c"]
 			});
 
-			expect(trace).toHaveProperty("{hasValue/in}");
+			expect(trace).toContainEqual(expect.stringContaining("{hasValue/in}"));
 
 		});
 
@@ -2693,6 +2898,15 @@ describe("operators", () => {
 			const Child = resource({ name: required(string({ model: "x", minLength: 1 })) });
 
 			expect(narrowsResource(Child, Base)).toBeUndefined();
+
+		});
+
+		it("keys an entry named after a constraint without colliding with it", async () => {
+
+			const Base = resource({ pattern: required(string()) });
+			const Child = resource({ pattern: required(integer()) });
+
+			expect(at(narrowsResource(Child, Base), "pattern")).toBeDefined();
 
 		});
 
@@ -2790,6 +3004,40 @@ describe("operators", () => {
 
 				expect(merged.model).toHaveProperty("inherited", 0);
 				expect(merged.model).toHaveProperty("name", "");
+
+			});
+
+		});
+
+		describe("virtual", () => {
+
+			it("inherits virtual from target", async () => {
+
+				const merged = mergeResource(
+					resource({ virtual: true }, {}),
+					resource({})
+				);
+
+				expect(merged.virtual).toBe(true);
+
+			});
+
+			it("inherits virtual from source when target is undefined", async () => {
+
+				const merged = mergeResource(
+					resource({}),
+					resource({ virtual: true }, {})
+				);
+
+				expect(merged.virtual).toBe(true);
+
+			});
+
+			it("preserves undefined when neither defines virtual", async () => {
+
+				const merged = mergeResource(resource({}), resource({}));
+
+				expect(merged.virtual).toBeUndefined();
 
 			});
 
@@ -3069,7 +3317,7 @@ describe("operators", () => {
 
 			it("inherits validators from target", async () => {
 
-				const v: Validator = () => undefined;
+				const v: (value: Resource) => undefined | Trace = () => undefined;
 
 				const merged = mergeResource(
 					resource({ validators: [v] }, {}),
@@ -3082,8 +3330,8 @@ describe("operators", () => {
 
 			it("computes union of target and source validators", async () => {
 
-				const v1: Validator = () => undefined;
-				const v2: Validator = () => undefined;
+				const v1: (value: Resource) => undefined | Trace = () => undefined;
+				const v2: (value: Resource) => undefined | Trace = () => undefined;
 
 				const merged = mergeResource(
 					resource({ validators: [v1] }, {}),
@@ -3097,7 +3345,7 @@ describe("operators", () => {
 
 			it("deduplicates validators", async () => {
 
-				const v: Validator = () => undefined;
+				const v: (value: Resource) => undefined | Trace = () => undefined;
 
 				const merged = mergeResource(
 					resource({ validators: [v] }, {}),
@@ -3175,7 +3423,7 @@ describe("operators", () => {
 				} catch ( e ) {
 
 					expect(e).toBeInstanceOf(TraceError);
-					expect((e as TraceError).cause).toHaveProperty("{field}");
+					expect(at((e as TraceError).cause, "field")).toBeDefined();
 
 				}
 
@@ -3456,9 +3704,9 @@ describe("validators", () => {
 
 				it("rejects unknown property", async () => {
 
-					const trace = validateResource([{ name: "Alice", extra: "value" }], named) as Record<string, Trace>;
+					const trace = validateResource([{ name: "Alice", extra: "value" }], named);
 
-					expect(trace["[0]"]).toHaveProperty("extra");
+					expect(rec(trace, "0")).toHaveProperty("extra");
 
 				});
 
@@ -3485,9 +3733,9 @@ describe("validators", () => {
 					const trace = validateResource([{
 						name: "Alice",
 						children: ["app:/items/1"]
-					}], shape) as Record<string, Trace>;
+					}], shape);
 
-					expect(trace["[0]"]).toHaveProperty("children");
+					expect(rec(trace, "0")).toHaveProperty("children");
 
 				});
 
@@ -3496,9 +3744,9 @@ describe("validators", () => {
 					const trace = validateResource([{
 						name: "Alice",
 						children: [{ label: "Child" }]
-					}], shape) as Record<string, Trace>;
+					}], shape);
 
-					expect(trace["[0]"]).toHaveProperty("children");
+					expect(rec(trace, "0")).toHaveProperty("children");
 
 				});
 
@@ -3538,9 +3786,9 @@ describe("validators", () => {
 						const trace = validateResource([{
 							name: "Alice",
 							links: { label: "Child" }
-						}], all) as Record<string, Trace>;
+						}], all);
 
-						expect(trace["[0]"]).toHaveProperty("links");
+						expect(rec(trace, "0")).toHaveProperty("links");
 
 					});
 
@@ -3574,9 +3822,9 @@ describe("validators", () => {
 						const trace = validateResource([{
 							name: "Alice",
 							links: { code: 1 }
-						}], mixed) as Record<string, Trace>;
+						}], mixed);
 
-						expect(trace["[0]"]).toHaveProperty("links");
+						expect(rec(trace, "0")).toHaveProperty("links");
 
 					});
 
@@ -3586,8 +3834,8 @@ describe("validators", () => {
 
 			describe("custom validators", () => {
 
-				const adultValidator: Validator = (r) => {
-					return (r as any).age >= 18 ? undefined : "must be adult";
+				const adultValidator: (value: Resource) => undefined | Trace = (r) => {
+					return (r as any).age >= 18 ? undefined : ["must be adult"];
 				};
 
 				const validated = resource({
@@ -3611,8 +3859,8 @@ describe("validators", () => {
 
 				it("runs all custom validators", async () => {
 
-					const v1: Validator = (r) => (r as any).a > 0 ? undefined : "a must be positive";
-					const v2: Validator = (r) => (r as any).b > 0 ? undefined : "b must be positive";
+					const v1: (value: Resource) => undefined | Trace = (r) => (r as any).a > 0 ? undefined : ["a must be positive"];
+					const v2: (value: Resource) => undefined | Trace = (r) => (r as any).b > 0 ? undefined : ["b must be positive"];
 
 					const shape = resource({
 						validators: [v1, v2]
@@ -3637,8 +3885,8 @@ describe("validators", () => {
 
 				it("enforces inherited validators", async () => {
 
-					const validator: Validator = (r) => {
-						return (r as any).age >= 18 ? undefined : "must be adult";
+					const validator: (value: Resource) => undefined | Trace = (r) => {
+						return (r as any).age >= 18 ? undefined : ["must be adult"];
 					};
 
 					const Base = resource({ validators: [validator] }, {
@@ -3664,9 +3912,9 @@ describe("validators", () => {
 						age: required(integer({ minInclusive: 0 }))
 					});
 
-					const trace = validateResource([{ age: -5 }], shape) as Record<string, Trace>;
+					const trace = validateResource([{ age: -5 }], shape);
 
-					expect(trace["[0]"]).toHaveProperty("age");
+					expect(rec(trace, "0")).toHaveProperty("age");
 
 				});
 
@@ -3680,14 +3928,14 @@ describe("validators", () => {
 						address: required(Address)
 					});
 
-					const trace = validateResource([{ address: { city: "" } }], Person) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
+					const trace = validateResource([{ address: { city: "" } }], Person);
+					const inner = rec(trace, "0");
 
 					expect(inner).toHaveProperty("address");
 
-					const address = inner["address"] as Record<string, Trace>;
+					const address = inner["address"];
 
-					expect(address).toHaveProperty(["[0]", "city"]);
+					expect(address).toHaveProperty([0, "0", 0, "city"]);
 
 				});
 
@@ -3704,10 +3952,10 @@ describe("validators", () => {
 					const trace = validateResource([{
 						address: { city: "" },
 						extra: "value"
-					}], shape) as Record<string, Trace>;
+					}], shape);
 
-					expect(trace["[0]"]).toHaveProperty("extra");
-					expect(trace["[0]"]).toHaveProperty("address");
+					expect(rec(trace, "0")).toHaveProperty("extra");
+					expect(rec(trace, "0")).toHaveProperty("address");
 
 				});
 
@@ -3764,7 +4012,7 @@ describe("validators", () => {
 				});
 
 				expect(validateResource([{ child: { rid: "app:/n/1", label: "x" } }], shape))
-					.toHaveProperty(["{child}"]);
+					.toContainEqual(expect.stringContaining("child"));
 
 			});
 
@@ -3796,7 +4044,7 @@ describe("validators", () => {
 				});
 
 				expect(validateResource([{ child: { rid: "app:/n/1", rtype: "app:/types/T", label: "x" } }], shape))
-					.toHaveProperty(["{child}"]);
+					.toContainEqual(expect.stringContaining("child"));
 
 			});
 
@@ -3816,7 +4064,7 @@ describe("validators", () => {
 				});
 
 				expect(validateResource([{ child: { rid: "app:/n/1", label: "x" } }], shape))
-					.toHaveProperty(["{child}"]);
+					.toContainEqual(expect.stringContaining("child"));
 
 			});
 
@@ -3844,11 +4092,11 @@ describe("validators", () => {
 
 				const shape = resource({ id: id() });
 
-				const trace = validateResource([{ "id": "not an iri" }], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
+				const trace = validateResource([{ "id": "not an iri" }], shape);
+				const inner = rec(trace, "0");
 
 				expect(inner).toHaveProperty("id");
-				expect(inner["id"]).toHaveProperty("{kind}");
+				expect(inner["id"]).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -3856,11 +4104,11 @@ describe("validators", () => {
 
 				const shape = resource({ id: id() });
 
-				const trace = validateResource([{ "id": ["/users/1", "/users/2"] }], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
+				const trace = validateResource([{ "id": ["/users/1", "/users/2"] }], shape);
+				const inner = rec(trace, "0");
 
 				expect(inner).toHaveProperty("id");
-				expect(inner["id"]).toHaveProperty("{kind}");
+				expect(inner["id"]).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -3886,11 +4134,11 @@ describe("validators", () => {
 
 					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
 
-					const trace = validateResource([{ "id": "/products/123" }], shape) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
+					const trace = validateResource([{ "id": "/products/123" }], shape);
+					const inner = rec(trace, "0");
 
 					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{pattern}");
+					expect(inner["id"]).toContainEqual(expect.stringContaining("{pattern}"));
 
 				});
 
@@ -3918,11 +4166,11 @@ describe("validators", () => {
 
 					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
 
-					const trace = validateResource([{ "id": "app:/users/charlie" }], shape) as Record<string, Trace>;
-					const inner = trace["<app:/users/charlie>"] as Record<string, Trace>;
+					const trace = validateResource([{ "id": "app:/users/charlie" }], shape);
+					const inner = rec(trace, "<app:/users/charlie>");
 
 					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{in}");
+					expect(inner["id"]).toContainEqual(expect.stringContaining("{in}"));
 
 				});
 
@@ -3950,11 +4198,11 @@ describe("validators", () => {
 
 					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
 
-					const trace = validateResource([{ "id": "app:/users/guest" }], shape) as Record<string, Trace>;
-					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
+					const trace = validateResource([{ "id": "app:/users/guest" }], shape);
+					const inner = rec(trace, "<app:/users/guest>");
 
 					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{hasValue}");
+					expect(inner["id"]).toContainEqual(expect.stringContaining("{hasValue}"));
 
 				});
 
@@ -3984,11 +4232,11 @@ describe("validators", () => {
 					const trace = validateResource([{
 						"id": "app:/products/123",
 						"name": "Alice"
-					}], Child) as Record<string, Trace>;
-					const inner = trace["<app:/products/123>"] as Record<string, Trace>;
+					}], Child);
+					const inner = rec(trace, "<app:/products/123>");
 
 					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{pattern}");
+					expect(inner["id"]).toContainEqual(expect.stringContaining("{pattern}"));
 
 				});
 
@@ -4005,16 +4253,12 @@ describe("validators", () => {
 					const trace = validateResource([{
 						"id": "app:/org/products/123",
 						"name": "Alice"
-					}], Child) as Record<string, Trace>;
-					const inner = trace["<app:/org/products/123>"] as Record<string, Trace>;
+					}], Child);
+					const inner = rec(trace, "<app:/org/products/123>");
 
 					expect(inner).toHaveProperty("id");
 
-					// with multiple patterns, keys are indexed
-					const idTrace = inner["id"] as Record<string, Trace>;
-					expect(idTrace).toSatisfy((t: Record<string, unknown>) =>
-						Object.keys(t).some(k => k.startsWith("{pattern}"))
-					);
+					expect(inner["id"]).toContainEqual(expect.stringContaining("{pattern}"));
 
 				});
 
@@ -4032,11 +4276,11 @@ describe("validators", () => {
 					const trace = validateResource([{
 						"id": "app:/users/charlie",
 						"name": "Charlie"
-					}], Child) as Record<string, Trace>;
-					const inner = trace["<app:/users/charlie>"] as Record<string, Trace>;
+					}], Child);
+					const inner = rec(trace, "<app:/users/charlie>");
 
 					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{in}");
+					expect(inner["id"]).toContainEqual(expect.stringContaining("{in}"));
 
 				});
 
@@ -4054,11 +4298,11 @@ describe("validators", () => {
 					const trace = validateResource([{
 						"id": "app:/users/guest",
 						"name": "Guest"
-					}], Child) as Record<string, Trace>;
-					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
+					}], Child);
+					const inner = rec(trace, "<app:/users/guest>");
 
 					expect(inner).toHaveProperty("id");
-					expect(inner["id"]).toHaveProperty("{hasValue}");
+					expect(inner["id"]).toContainEqual(expect.stringContaining("{hasValue}"));
 
 				});
 
@@ -4074,16 +4318,12 @@ describe("validators", () => {
 
 					const trace = validateResource([
 						{ "id": "app:/users/guest", "name": "Guest" }
-					], Child) as Record<string, Trace>;
-					const inner = trace["<app:/users/guest>"] as Record<string, Trace>;
+					], Child);
+					const inner = rec(trace, "<app:/users/guest>");
 
 					expect(inner).toHaveProperty("id");
 
-					// with multiple hasValue lists, keys are indexed
-					const idTrace = inner["id"] as Record<string, unknown>;
-					expect(idTrace).toSatisfy((t: Record<string, unknown>) =>
-						Object.keys(t).some(k => k.startsWith("{hasValue}"))
-					);
+					expect(inner["id"]).toContainEqual(expect.stringContaining("{hasValue}"));
 
 				});
 
@@ -4113,11 +4353,11 @@ describe("validators", () => {
 
 				const shape = resource({ class: "app:/types/Person" }, { type: type() });
 
-				const trace = validateResource([{ "type": "not an iri" }], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
+				const trace = validateResource([{ "type": "not an iri" }], shape);
+				const inner = rec(trace, "0");
 
 				expect(inner).toHaveProperty("type");
-				expect(inner["type"]).toHaveProperty("{kind}");
+				expect(inner["type"]).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -4125,11 +4365,11 @@ describe("validators", () => {
 
 				const shape = resource({ class: "app:/types/Person" }, { type: type() });
 
-				const trace = validateResource([{ "type": ["/types/A", "/types/B"] }], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
+				const trace = validateResource([{ "type": ["/types/A", "/types/B"] }], shape);
+				const inner = rec(trace, "0");
 
 				expect(inner).toHaveProperty("type");
-				expect(inner["type"]).toHaveProperty("{kind}");
+				expect(inner["type"]).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -4152,21 +4392,21 @@ describe("validators", () => {
 
 				it("rejects missing required property", async () => {
 
-					const trace = validateResource([{}], named) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
+					const trace = validateResource([{}], named);
+					const inner = rec(trace, "0");
 
 					expect(inner).toHaveProperty("name");
-					expect(inner["name"]).toHaveProperty("{minCount}");
+					expect(inner["name"]).toContainEqual(expect.stringContaining("{minCount}"));
 
 				});
 
 				it("rejects array value", async () => {
 
-					const trace = validateResource([{ name: ["Alice"] }], named) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
+					const trace = validateResource([{ name: ["Alice"] }], named);
+					const inner = rec(trace, "0");
 
 					expect(inner).toHaveProperty("name");
-					expect(inner["name"]).toHaveProperty("{kind}");
+					expect(inner["name"]).toContainEqual(expect.stringContaining("{kind}"));
 
 				});
 
@@ -4193,11 +4433,11 @@ describe("validators", () => {
 
 				it("rejects array value", async () => {
 
-					const trace = validateResource([{ age: [30] }], aged) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
+					const trace = validateResource([{ age: [30] }], aged);
+					const inner = rec(trace, "0");
 
 					expect(inner).toHaveProperty("age");
-					expect(inner["age"]).toHaveProperty("{kind}");
+					expect(inner["age"]).toContainEqual(expect.stringContaining("{kind}"));
 
 				});
 
@@ -4224,31 +4464,31 @@ describe("validators", () => {
 
 				it("rejects empty array", async () => {
 
-					const trace = validateResource([{ tags: [] }], tagged) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
+					const trace = validateResource([{ tags: [] }], tagged);
+					const inner = rec(trace, "0");
 
 					expect(inner).toHaveProperty("tags");
-					expect(inner["tags"]).toHaveProperty("{minCount}");
+					expect(inner["tags"]).toContainEqual(expect.stringContaining("{minCount}"));
 
 				});
 
 				it("rejects missing repeatable property", async () => {
 
-					const trace = validateResource([{}], tagged) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
+					const trace = validateResource([{}], tagged);
+					const inner = rec(trace, "0");
 
 					expect(inner).toHaveProperty("tags");
-					expect(inner["tags"]).toHaveProperty("{minCount}");
+					expect(inner["tags"]).toContainEqual(expect.stringContaining("{minCount}"));
 
 				});
 
 				it("rejects scalar value", async () => {
 
-					const trace = validateResource([{ tags: "a" }], tagged) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
+					const trace = validateResource([{ tags: "a" }], tagged);
+					const inner = rec(trace, "0");
 
 					expect(inner).toHaveProperty("tags");
-					expect(inner["tags"]).toHaveProperty("{kind}");
+					expect(inner["tags"]).toContainEqual(expect.stringContaining("{kind}"));
 
 				});
 
@@ -4287,11 +4527,11 @@ describe("validators", () => {
 
 				it("rejects scalar value", async () => {
 
-					const trace = validateResource([{ aliases: "x" }], aliased) as Record<string, Trace>;
-					const inner = trace["[0]"] as Record<string, Trace>;
+					const trace = validateResource([{ aliases: "x" }], aliased);
+					const inner = rec(trace, "0");
 
 					expect(inner).toHaveProperty("aliases");
-					expect(inner["aliases"]).toHaveProperty("{kind}");
+					expect(inner["aliases"]).toContainEqual(expect.stringContaining("{kind}"));
 
 				});
 
@@ -4368,11 +4608,11 @@ describe("validators", () => {
 					] as const)("rejects `{}` on %s as type mismatch", async (_label, props, key) => {
 
 						const shape = resource(props);
-						const trace = validateResource([{ [key]: {} }], shape) as Record<string, Trace>;
-						const inner = trace["[0]"] as Record<string, Trace>;
+						const trace = validateResource([{ [key]: {} }], shape);
+						const inner = rec(trace, "0");
 
 						expect(inner).toHaveProperty(key);
-						expect(inner[key]).toHaveProperty("{kind}");
+						expect(JSON.stringify(inner[key])).toMatch(/\{(kind|type)\}/);
 
 					});
 
@@ -4448,11 +4688,11 @@ describe("validators", () => {
 							tags: repeatable(string())
 						});
 
-						const trace = validateResource([{ tags: ["a", {}] }], shape) as Record<string, Trace>;
-						const inner = trace["[0]"] as Record<string, Trace>;
+						const trace = validateResource([{ tags: ["a", {}] }], shape);
+						const inner = rec(trace, "0");
 
 						expect(inner).toHaveProperty("tags");
-						expect(inner["tags"]).toHaveProperty("{kind}");
+						expect(JSON.stringify(inner["tags"])).toContain("{type}");
 
 					});
 
@@ -4462,11 +4702,11 @@ describe("validators", () => {
 							parents: repeatable(reference(Target))
 						});
 
-						const trace = validateResource([{ parents: [{}, {}] }], shape) as Record<string, Trace>;
-						const inner = trace["[0]"] as Record<string, Trace>;
+						const trace = validateResource([{ parents: [{}, {}] }], shape);
+						const inner = rec(trace, "0");
 
 						expect(inner).toHaveProperty("parents");
-						expect(inner["parents"]).toHaveProperty("{minCount}");
+						expect(inner["parents"]).toContainEqual(expect.stringContaining("{minCount}"));
 
 					});
 
@@ -4524,13 +4764,13 @@ describe("validators", () => {
 
 						for (const tags of rejected) {
 
-							const trace = validateResource([{ tags }], shape) as Record<string, Trace>;
-							const inner = trace["[0]"] as Record<string, Trace>;
+							const trace = validateResource([{ tags }], shape);
+							const inner = rec(trace, "0");
 
 							expect(inner).toHaveProperty("tags");
 
 							if ( errorKey ) {
-								expect(inner["tags"]).toHaveProperty(errorKey);
+								expect(inner["tags"]).toContainEqual(expect.stringContaining(errorKey));
 							}
 
 						}
@@ -4552,7 +4792,7 @@ describe("validators", () => {
 				});
 
 				expect(validateResource([{ name: "Alice" }], Derived)).toBeUndefined();
-				expect(validateResource([{}], Derived)).toHaveProperty(["[0]", "name"]);
+				expect(validateResource([{}], Derived)).toHaveProperty([0, "0", 0, "name"]);
 
 			});
 
@@ -4571,8 +4811,8 @@ describe("validators", () => {
 				});
 
 				expect(validateResource([{ name: "Alice", age: 30 }], Person)).toBeUndefined();
-				expect(validateResource([{ name: "Alice" }], Person)).toHaveProperty(["[0]", "age"]);
-				expect(validateResource([{ age: 30 }], Person)).toHaveProperty(["[0]", "name"]);
+				expect(validateResource([{ name: "Alice" }], Person)).toHaveProperty([0, "0", 0, "age"]);
+				expect(validateResource([{ age: 30 }], Person)).toHaveProperty([0, "0", 0, "name"]);
 
 			});
 
@@ -4592,11 +4832,11 @@ describe("validators", () => {
 
 				// violates parent's minLength: 3 even though it matches child's pattern
 
-				expect(validateResource([{ name: "A" }], Derived)).toHaveProperty(["[0]", "name"]);
+				expect(validateResource([{ name: "A" }], Derived)).toHaveProperty([0, "0", 0, "name"]);
 
 				// violates child's pattern even though it satisfies parent's minLength
 
-				expect(validateResource([{ name: "alice" }], Derived)).toHaveProperty(["[0]", "name"]);
+				expect(validateResource([{ name: "alice" }], Derived)).toHaveProperty([0, "0", 0, "name"]);
 
 			});
 
@@ -4638,11 +4878,11 @@ describe("validators", () => {
 
 				// violates grandparent's minLength: 3
 
-				expect(validateResource([{ name: "AB" }], Child)).toHaveProperty(["[0]", "name"]);
+				expect(validateResource([{ name: "AB" }], Child)).toHaveProperty([0, "0", 0, "name"]);
 
 				// violates last parent's maxLength: 50
 
-				expect(validateResource([{ name: "A".repeat(51) }], Child)).toHaveProperty(["[0]", "name"]);
+				expect(validateResource([{ name: "A".repeat(51) }], Child)).toHaveProperty([0, "0", 0, "name"]);
 
 			});
 
@@ -4708,7 +4948,7 @@ describe("validators", () => {
 
 					const shape = resource({ [field]: range });
 
-					expect(validateResource([invalid], shape)).toHaveProperty(["[0]", field]);
+					expect(validateResource([invalid], shape)).toHaveProperty([0, "0", 0, field]);
 
 				});
 
@@ -4723,7 +4963,7 @@ describe("validators", () => {
 					});
 
 					expect(validateResource([{ tags: ["abc", "de", "fgh"] }], shape)).toBeUndefined();
-					expect(validateResource([{ tags: ["abc", "x", "fgh"] }], shape)).toHaveProperty(["[0]", "tags"]);
+					expect(validateResource([{ tags: ["abc", "x", "fgh"] }], shape)).toHaveProperty([0, "0", 0, "tags"]);
 
 				});
 
@@ -4755,7 +4995,7 @@ describe("validators", () => {
 						address: required(Address)
 					});
 
-					expect(validateResource([{ address: {} }], Person)).toHaveProperty(["[0]", "address"]);
+					expect(validateResource([{ address: {} }], Person)).toHaveProperty([0, "0", 0, "address"]);
 
 				});
 
@@ -4775,7 +5015,7 @@ describe("validators", () => {
 
 					expect(validateResource([{
 						address: { street: { name: "" } }
-					}], Person)).toHaveProperty(["[0]", "address"]);
+					}], Person)).toHaveProperty([0, "0", 0, "address"]);
 
 				});
 
@@ -4806,7 +5046,7 @@ describe("validators", () => {
 
 				it("rejects a value matching no variant", async () => {
 
-					expect(validateResource([{ value: true }], textOrCount)).toHaveProperty(["[0]", "value"]);
+					expect(validateResource([{ value: true }], textOrCount)).toHaveProperty([0, "0", 0, "value"]);
 
 				});
 
@@ -4825,13 +5065,13 @@ describe("validators", () => {
 				it("rejects array for scalar union range", async () => {
 
 					// textOrCount has maxCount=1: array is rejected
-					expect(validateResource([{ value: ["a", "b"] }], textOrCount)).toHaveProperty(["[0]", "value"]);
+					expect(validateResource([{ value: ["a", "b"] }], textOrCount)).toHaveProperty([0, "0", 0, "value"]);
 
 				});
 
 				it("rejects missing required union property", async () => {
 
-					expect(validateResource([{}], textOrCount)).toHaveProperty(["[0]", "value"]);
+					expect(validateResource([{}], textOrCount)).toHaveProperty([0, "0", 0, "value"]);
 
 				});
 
@@ -4845,7 +5085,7 @@ describe("validators", () => {
 					expect(validateResource([{
 						value: true,
 						name: "Alice"
-					}], Derived)).toHaveProperty(["[0]", "value"]);
+					}], Derived)).toHaveProperty([0, "0", 0, "value"]);
 
 				});
 
@@ -4888,7 +5128,7 @@ describe("validators", () => {
 
 					expect(validateResource([{
 						address: 42
-					}], textOrAddress)).toHaveProperty(["[0]", "address"]);
+					}], textOrAddress)).toHaveProperty([0, "0", 0, "address"]);
 
 				});
 
@@ -4899,7 +5139,7 @@ describe("validators", () => {
 							street: "12 Harbour Street"
 							// missing required city
 						}
-					}], textOrAddress)).toHaveProperty(["[0]", "address"]);
+					}], textOrAddress)).toHaveProperty([0, "0", 0, "address"]);
 
 				});
 
@@ -4931,7 +5171,7 @@ describe("validators", () => {
 
 						expect(validateResource([{
 							value: ["a"]
-						}], bounded)).toHaveProperty(["[0]", "value"]);
+						}], bounded)).toHaveProperty([0, "0", 0, "value"]);
 
 					});
 
@@ -4943,7 +5183,7 @@ describe("validators", () => {
 
 						expect(validateResource([{
 							value: ["a", "b", 42]
-						}], bounded)).toHaveProperty(["[0]", "value"]);
+						}], bounded)).toHaveProperty([0, "0", 0, "value"]);
 
 					});
 
@@ -5010,7 +5250,7 @@ describe("validators", () => {
 							label: "x"
 						}
 					}], captiveStandalone, { depth: 0 }))
-						.toEqual({ "[0]": { "child": { "[0]": "exceeded maximum nesting depth" } } });
+						.toEqual(flat({ "[0]": { "child": { "[0]": "exceeded maximum nesting depth" } } }));
 
 				});
 
@@ -5099,8 +5339,8 @@ describe("validators", () => {
 
 		describe("combined constraints", () => {
 
-			const validator: Validator = (r) => {
-				return (r as any).name.length <= 50 ? undefined : "name too long";
+			const validator: (value: Resource) => undefined | Trace = (r) => {
+				return (r as any).name.length <= 50 ? undefined : ["name too long"];
 			};
 
 			const shape = resource({
@@ -5127,11 +5367,11 @@ describe("validators", () => {
 				const trace = validateResource([{
 					"id": "/products/123",
 					name: "Alice"
-				}], shape) as Record<string, Trace>;
-				const inner = trace["[0]"] as Record<string, Trace>;
+				}], shape);
+				const inner = rec(trace, "0");
 
 				expect(inner).toHaveProperty("id");
-				expect(inner["id"]).toHaveProperty("{pattern}");
+				expect(inner["id"]).toContainEqual(expect.stringContaining("{pattern}"));
 
 			});
 
@@ -5140,7 +5380,7 @@ describe("validators", () => {
 				expect(validateResource([{
 					"id": "app:/users/123",
 					name: ""
-				}], shape)).toHaveProperty(["<app:/users/123>", "name"]);
+				}], shape)).toHaveProperty([0, "<app:/users/123>", 0, "name"]);
 
 			});
 
@@ -5169,10 +5409,10 @@ describe("validators", () => {
 
 			it("wraps single resource trace under id key", async () => {
 
-				const trace = validateResource([{ "id": "app:/users/1", name: "" }], shape) as Record<string, Trace>;
+				const trace = validateResource([{ "id": "app:/users/1", name: "" }], shape);
 
-				expect(trace).toHaveProperty("<app:/users/1>");
-				expect(trace["<app:/users/1>"]).toHaveProperty("name");
+				expect(trace).toHaveProperty([0, "<app:/users/1>"]);
+				expect(rec(trace, "<app:/users/1>")).toHaveProperty("name");
 
 			});
 
@@ -5181,13 +5421,13 @@ describe("validators", () => {
 				const trace = validateResource([
 					{ "id": "app:/users/1", name: "" },
 					{ "id": "app:/users/2", name: "" }
-				], shape) as Record<string, Trace>;
+				], shape);
 
-				expect(trace).toHaveProperty("<app:/users/1>");
-				expect(trace).toHaveProperty("<app:/users/2>");
+				expect(trace).toHaveProperty([0, "<app:/users/1>"]);
+				expect(trace).toHaveProperty([0, "<app:/users/2>"]);
 
-				expect(trace["<app:/users/1>"]).toHaveProperty("name");
-				expect(trace["<app:/users/2>"]).toHaveProperty("name");
+				expect(rec(trace, "<app:/users/1>")).toHaveProperty("name");
+				expect(rec(trace, "<app:/users/2>")).toHaveProperty("name");
 
 			});
 
@@ -5196,10 +5436,10 @@ describe("validators", () => {
 				const trace = validateResource([
 					{ name: "" },
 					{ name: "" }
-				], shapeWithoutId) as Record<string, Trace>;
+				], shapeWithoutId);
 
-				expect(trace).toHaveProperty("[0]");
-				expect(trace).toHaveProperty("[1]");
+				expect(trace).toHaveProperty([0, "0"]);
+				expect(trace).toHaveProperty([0, "1"]);
 
 			});
 
@@ -5208,10 +5448,10 @@ describe("validators", () => {
 				const trace = validateResource([
 					{ name: "" },
 					{ "id": "app:/users/2", name: "" }
-				], shape) as Record<string, Trace>;
+				], shape);
 
-				expect(trace).toHaveProperty("[0]");
-				expect(trace).toHaveProperty("<app:/users/2>");
+				expect(trace).toHaveProperty([0, "0"]);
+				expect(trace).toHaveProperty([0, "<app:/users/2>"]);
 
 			});
 
@@ -5220,10 +5460,10 @@ describe("validators", () => {
 				const trace = validateResource([
 					{ "id": "app:/users/1", name: "Alice" },
 					{ "id": "app:/users/2", name: "" }
-				], shape) as Record<string, Trace>;
+				], shape);
 
-				expect(trace).not.toHaveProperty("app:/users/1");
-				expect(trace).toHaveProperty("<app:/users/2>");
+				expect(trace).not.toHaveProperty([0, "app:/users/1"]);
+				expect(trace).toHaveProperty([0, "<app:/users/2>"]);
 
 			});
 
@@ -5316,9 +5556,9 @@ describe("validators", () => {
 				const trace = validateResult([{ name: "Alice", hidden: "secret" }], {
 					shape,
 					model: { name: "" }
-				}) as Record<string, Trace>;
+				});
 
-				expect(trace["[0]"]).toHaveProperty("hidden");
+				expect(rec(trace, "0")).toHaveProperty("hidden");
 
 			});
 
@@ -5333,10 +5573,10 @@ describe("validators", () => {
 				const trace = validateResult([{ a: "x", b: "y", c: "z" }], {
 					shape,
 					model: { a: "" }
-				}) as Record<string, Trace>;
+				});
 
-				expect(trace["[0]"]).toHaveProperty("b");
-				expect(trace["[0]"]).toHaveProperty("c");
+				expect(rec(trace, "0")).toHaveProperty("b");
+				expect(rec(trace, "0")).toHaveProperty("c");
 
 			});
 
@@ -5355,9 +5595,9 @@ describe("validators", () => {
 				const trace = validateResult([{ child: { label: "x", hidden: "secret" } }], {
 					shape,
 					model: { child: { label: "" } }
-				}) as Record<string, Trace>;
+				});
 
-				expect(trace["[0]"]).toBeDefined();
+				expect(rec(trace, "0")).toBeDefined();
 
 			});
 
@@ -5371,9 +5611,9 @@ describe("validators", () => {
 				const trace = validateResult([{ id: "app:/users/1", name: "Alice" }], {
 					shape,
 					model: { name: "" }
-				}) as Record<string, Trace>;
+				});
 
-				expect(trace["<app:/users/1>"]).toHaveProperty("id");
+				expect(rec(trace, "<app:/users/1>")).toHaveProperty("id");
 
 			});
 
@@ -5398,9 +5638,9 @@ describe("validators", () => {
 				const trace = validateResult([{ name: "Alice", stray: "x" }], {
 					shape,
 					model: { name: "", stray: "" }
-				}) as Record<string, Trace>;
+				});
 
-				expect(trace["[0]"]).toHaveProperty("stray");
+				expect(rec(trace, "0")).toHaveProperty("stray");
 
 			});
 
@@ -5414,10 +5654,10 @@ describe("validators", () => {
 				const trace = validateResult([{ name: "Alice", price: 42 }], {
 					shape,
 					model: {}
-				}) as Record<string, Trace>;
+				});
 
-				expect(trace["[0]"]).toHaveProperty("name");
-				expect(trace["[0]"]).toHaveProperty("price");
+				expect(rec(trace, "0")).toHaveProperty("name");
+				expect(rec(trace, "0")).toHaveProperty("price");
 
 			});
 
@@ -5435,9 +5675,9 @@ describe("validators", () => {
 				const trace = validateResult([{ code: 1, name: "Alice" }], {
 					shape: Derived,
 					model: { name: "" }
-				}) as Record<string, Trace>;
+				});
 
-				expect(trace["[0]"]).toHaveProperty("code");
+				expect(rec(trace, "0")).toHaveProperty("code");
 
 			});
 
@@ -5622,8 +5862,8 @@ describe("validators", () => {
 
 					const shape = resource({ label: required(text({ minLength: 3 })) });
 
-					expect(validateResult([{ label: "ab" }], { shape, model: { label: "" } })).toEqual({
-						"[0]": { label: { "{minLength}": "expected string length >= <3>" } }
+					expect(unflat(validateResult([{ label: "ab" }], { shape, model: { label: "" } }))).toEqual({
+						"[0]": { label: "{minLength} expected string length >= <3>" }
 					});
 
 				});
@@ -6458,9 +6698,9 @@ describe("validators", () => {
 				const trace = validateResult([{ id: "app:/users/1", name: 42 }], {
 					shape,
 					model: { id: "", name: "" }
-				}) as Record<string, Trace>;
+				});
 
-				expect(trace).toHaveProperty("<app:/users/1>");
+				expect(trace).toHaveProperty([0, "<app:/users/1>"]);
 
 			});
 
@@ -6469,9 +6709,9 @@ describe("validators", () => {
 				const trace = validateResult([{ name: 42 }], {
 					shape,
 					model: { name: "" }
-				}) as Record<string, Trace>;
+				});
 
-				expect(trace).toHaveProperty("[0]");
+				expect(trace).toHaveProperty([0, "0"]);
 
 			});
 
@@ -6489,10 +6729,10 @@ describe("validators", () => {
 				const trace = validateResult([
 					{ id: "app:/users/1", name: "Alice" },
 					{ id: "app:/users/2", name: 42 }
-				], { shape, model: { id: "", name: "" } }) as Record<string, Trace>;
+				], { shape, model: { id: "", name: "" } });
 
-				expect(trace).not.toHaveProperty("<app:/users/1>");
-				expect(trace).toHaveProperty("<app:/users/2>");
+				expect(trace).not.toHaveProperty([0, "<app:/users/1>"]);
+				expect(trace).toHaveProperty([0, "<app:/users/2>"]);
 
 			});
 
@@ -6502,10 +6742,10 @@ describe("validators", () => {
 
 			it("runs custom validators on projected responses", async () => {
 
-				const adult: Validator = value =>
+				const adult: (value: Resource) => undefined | Trace = value =>
 					(value as Record<string, unknown>).age !== undefined
 					&& (value as { age: number }).age < 18
-						? "under-age"
+						? ["under-age"]
 						: undefined;
 
 				const shape = resource(
@@ -6521,7 +6761,7 @@ describe("validators", () => {
 			it("keys validator trace by validator name", async () => {
 
 				function adult(value: unknown): undefined | Trace {
-					return (value as { age: number }).age < 18 ? "under-age" : undefined;
+					return (value as { age: number }).age < 18 ? ["under-age"] : undefined;
 				}
 
 				const shape = resource(
@@ -6532,9 +6772,9 @@ describe("validators", () => {
 				const trace = validateResult([{ age: 15 }], {
 					shape,
 					model: { age: 0 }
-				}) as Record<string, Trace>;
+				});
 
-				expect(trace["[0]"]).toHaveProperty("{adult}");
+				expect(rec(trace, "0")).toHaveProperty("{adult}");
 
 			});
 
@@ -6833,9 +7073,9 @@ describe("validators", () => {
 
 					const shape = resource({});
 
-					expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toEqual({
+					expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toEqual(flat({
 						"[0]": { "name": "undefined property path" }
-					});
+					}));
 
 				});
 
@@ -6847,9 +7087,9 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					expect(validateTemplate([{ name: "Alice", extra: "value" }], shape, { depth: 0 })).toEqual({
+					expect(validateTemplate([{ name: "Alice", extra: "value" }], shape, { depth: 0 })).toEqual(flat({
 						"[0]": { "extra": "undefined property path" }
-					});
+					}));
 
 				});
 
@@ -6863,12 +7103,12 @@ describe("validators", () => {
 						name: "Alice",
 						extra1: "a",
 						extra2: "b"
-					}], shape, { depth: 0 })).toEqual({
+					}], shape, { depth: 0 })).toEqual(flat({
 						"[0]": {
 							"extra1": "undefined property path",
 							"extra2": "undefined property path"
 						}
-					});
+					}));
 
 				});
 
@@ -6883,9 +7123,9 @@ describe("validators", () => {
 					expect(validateTemplate([{
 						"id": "app:/users/123",
 						name: "Alice"
-					}], shape, { depth: 0 })).toEqual({
+					}], shape, { depth: 0 })).toEqual(flat({
 						"[0]": { "id": "undefined property path" }
-					});
+					}));
 
 				});
 
@@ -6902,9 +7142,9 @@ describe("validators", () => {
 						"id": "app:/users/123",
 						name: "Alice",
 						extra: "value"
-					}], shape, { depth: 0 })).toEqual({
+					}], shape, { depth: 0 })).toEqual(flat({
 						"<app:/users/123>": { "extra": "undefined property path" }
-					});
+					}));
 
 				});
 
@@ -6922,9 +7162,9 @@ describe("validators", () => {
 						id: 1,
 						name: "Alice",
 						extra: "value"
-					}], Derived, { depth: 0 })).toEqual({
+					}], Derived, { depth: 0 })).toEqual(flat({
 						"[0]": { "extra": "undefined property path" }
-					});
+					}));
 
 				});
 
@@ -6961,7 +7201,7 @@ describe("validators", () => {
 
 				it("accepts failing custom validator", async () => {
 
-					const validator: Validator = () => "always fails";
+					const validator: (value: Resource) => undefined | Trace = () => ["always fails"];
 
 					const shape = resource({
 						validators: [validator]
@@ -6975,7 +7215,7 @@ describe("validators", () => {
 
 				it("accepts failing inherited validator", async () => {
 
-					const validator: Validator = () => "always fails";
+					const validator: (value: Resource) => undefined | Trace = () => ["always fails"];
 
 					const Base = resource({ validators: [validator] }, {
 						age: required(integer())
@@ -7007,7 +7247,7 @@ describe("validators", () => {
 
 					const trace = validateTemplate([{ address: { city: ["Rome"] } as any }], shape, {});
 
-					expect(trace).toHaveProperty(["[0]", "address"]);
+					expect(trace).toHaveProperty([0, "0", 0, "address"]);
 
 				});
 
@@ -7222,7 +7462,7 @@ describe("validators", () => {
 
 					it("reports a selection key as an invalid tag range", async () => {
 
-						expect(validateTemplate([{ labels: { en: ["hi"], ">=length:": 5 } }], shape, {})).toEqual({
+						expect(unflat(validateTemplate([{ labels: { en: ["hi"], ">=length:": 5 } }], shape, {}))).toEqual({
 							"[0]": { "labels": { ">=length:": "invalid tag range" } }
 						});
 
@@ -7254,7 +7494,7 @@ describe("validators", () => {
 
 						const shape = resource({ label: required(text()) });
 
-						expect(validateResource([{ label: "ToyMaster GmbH" }], shape)).toHaveProperty(["[0]", "label"]);
+						expect(validateResource([{ label: "ToyMaster GmbH" }], shape)).toHaveProperty([0, "0", 0, "label"]);
 
 					});
 
@@ -7262,7 +7502,7 @@ describe("validators", () => {
 
 						const shape = resource({ label: required(text()) });
 
-						expect(validateResource([{ label: {} }], shape)).toHaveProperty(["[0]", "label"]);
+						expect(validateResource([{ label: {} }], shape)).toHaveProperty([0, "0", 0, "label"]);
 
 					});
 
@@ -7287,7 +7527,7 @@ describe("validators", () => {
 							label: {
 								en: ["hello", "hi"]
 							}
-						}], shape)).toHaveProperty(["[0]", "label"]);
+						}], shape)).toHaveProperty([0, "0", 0, "label"]);
 
 					});
 
@@ -7299,7 +7539,7 @@ describe("validators", () => {
 
 						const shape = resource({ labels: repeatable(text()) });
 
-						expect(validateResource([{ labels: ["hello"] }], shape)).toHaveProperty(["[0]", "labels"]);
+						expect(validateResource([{ labels: ["hello"] }], shape)).toHaveProperty([0, "0", 0, "labels"]);
 
 					});
 
@@ -7307,7 +7547,7 @@ describe("validators", () => {
 
 						const shape = resource({ labels: repeatable(text()) });
 
-						expect(validateResource([{ labels: {} }], shape)).toHaveProperty(["[0]", "labels"]);
+						expect(validateResource([{ labels: {} }], shape)).toHaveProperty([0, "0", 0, "labels"]);
 
 					});
 
@@ -7332,7 +7572,7 @@ describe("validators", () => {
 							labels: {
 								en: []
 							}
-						}], shape)).toHaveProperty(["[0]", "labels"]);
+						}], shape)).toHaveProperty([0, "0", 0, "labels"]);
 
 					});
 
@@ -7979,7 +8219,7 @@ describe("validators", () => {
 
 						it("rejects less-than selection key on undefined property in [element, selection] tuple", async () => {
 
-							expect(validateTemplate([{ values: [{ "0": "hello" }, { "<x": 5 }] }], multiTextOrCount, {})).toEqual({
+							expect(unflat(validateTemplate([{ values: [{ "0": "hello" }, { "<x": 5 }] }], multiTextOrCount, {}))).toEqual({
 								"[0]": { "values": { "<x": "undefined property path" } }
 							});
 
@@ -8077,8 +8317,8 @@ describe("validators", () => {
 								// budget rejects the whole slot with the same nesting-depth trace the
 								// element side raises, not a per-key path-length trace
 
-								expect(validateTemplate([{ values: [{ "0": "hello" }, { ">=x": 5 }] }],
-									multiTextOrCount, { depth: 0 })).toEqual({
+								expect(unflat(validateTemplate([{ values: [{ "0": "hello" }, { ">=x": 5 }] }],
+									multiTextOrCount, { depth: 0 }))).toEqual({
 									"[0]": { "values": { "[1]": "exceeded maximum nesting depth" } }
 								});
 
@@ -8181,7 +8421,7 @@ describe("validators", () => {
 				});
 
 				it("rejects less-than selection key on undefined property in [element, selection] tuple", async () => {
-					expect(validateTemplate([{ tags: ["hello", { "<x": "z" }] }], tags, {})).toEqual({
+					expect(unflat(validateTemplate([{ tags: ["hello", { "<x": "z" }] }], tags, {}))).toEqual({
 						"[0]": { "tags": { "<x": "undefined property path" } }
 					});
 				});
@@ -8419,9 +8659,9 @@ describe("validators", () => {
 
 					// extra=extra → apply() returns "undefined property path"
 
-					expect(validateTemplate([{
+					expect(unflat(validateTemplate([{
 						supervisor: { name: "Alice", extra: "bad" }
-					}], shape, {})).toEqual({
+					}], shape, {}))).toEqual({
 						"[0]": { "supervisor": { "extra": "undefined property path" } }
 					});
 
@@ -8431,9 +8671,9 @@ describe("validators", () => {
 
 					// extra=extra → apply() returns "undefined property path"
 
-					expect(validateTemplate([{
+					expect(unflat(validateTemplate([{
 						supervisor: { name: "Alice", department: { label: "Engineering", extra: "bad" } }
-					}], shape, {})).toEqual({
+					}], shape, {}))).toEqual({
 						"[0]": { "supervisor": { "department": { "extra": "undefined property path" } } }
 					});
 
@@ -8696,7 +8936,7 @@ describe("validators", () => {
 
 				const trace = validateTemplate([{ items: [{ "===invalid": "x" }] }], Outer, { depth: 1 });
 
-				expect(trace).toHaveProperty(["[0]", "items", "===invalid"]);
+				expect(trace).toHaveProperty([0, "0", 0, "items", 0, "===invalid"]);
 
 			});
 
@@ -8713,7 +8953,7 @@ describe("validators", () => {
 
 				const trace = validateTemplate([{ items: [{ name: "", "<x:": 5 }] }], Outer, {});
 
-				expect(trace).toHaveProperty(["[0]", "items", "<x:"]);
+				expect(trace).toHaveProperty([0, "0", 0, "items", 0, "<x:"]);
 
 			});
 
@@ -8871,7 +9111,7 @@ describe("validators", () => {
 
 				const Target = resource({ name: required(string()) });
 
-				expect(validateTemplate([{ missing: "" }], Target, { depth: 0 })).toEqual({
+				expect(unflat(validateTemplate([{ missing: "" }], Target, { depth: 0 }))).toEqual({
 					"[0]": { "missing": "undefined property path" }
 				});
 
@@ -9010,9 +9250,9 @@ describe("validators", () => {
 							name: "",
 							extra: ""
 						}]
-					}], Wrapper, {})).toEqual({
+					}], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { "extra": "undefined property path" } }
-					});
+					}));
 
 				});
 
@@ -9138,7 +9378,7 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{}, { ">=age": 18 }] }], Wrapper, {})).toEqual({
+					expect(unflat(validateTemplate([{ items: [{}, { ">=age": 18 }] }], Wrapper, {}))).toEqual({
 						"[0]": { "items": { ">=age": "undefined property path" } }
 					});
 
@@ -9194,7 +9434,7 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{}, { "^missing": "asc" }] }], Wrapper, {})).toEqual({
+					expect(unflat(validateTemplate([{ items: [{}, { "^missing": "asc" }] }], Wrapper, {}))).toEqual({
 						"[0]": { "items": { "^missing": "undefined property path" } }
 					});
 
@@ -9489,9 +9729,9 @@ describe("validators", () => {
 							{ name: "", extra: "" },
 							{ "^name": "asc" }
 						]
-					}], Wrapper, {})).toEqual({
+					}], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { "extra": "undefined property path" } }
-					});
+					}));
 
 				});
 
@@ -9984,9 +10224,9 @@ describe("validators", () => {
 					const Target = resource({ vendor: required(reference(Vendor)) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{}, { ">=vendor.rating": 3 }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{}, { ">=vendor.rating": 3 }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { ">=vendor.rating": "undefined property path" } }
-					});
+					}));
 
 				});
 
@@ -9995,9 +10235,9 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()), age: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{}, { ">=name.deep": 0 }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{}, { ">=name.deep": 0 }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { ">=name.deep": "undefined property path" } }
-					});
+					}));
 
 				});
 
@@ -10021,9 +10261,9 @@ describe("validators", () => {
 					const Target = resource({ item: required(union(reference(ItemShape), string())) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{}, { ">=item.missing": 0 }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{}, { ">=item.missing": 0 }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { ">=item.missing": "undefined property path" } }
-					});
+					}));
 
 				});
 
@@ -10096,7 +10336,7 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()), released: optional(date()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "y=year:missing": 0 }] }], Wrapper, {})).toEqual({
+					expect(unflat(validateTemplate([{ items: [{ "y=year:missing": 0 }] }], Wrapper, {}))).toEqual({
 						"[0]": { "items": { "y=year:missing": "undefined property path" } }
 					});
 
@@ -10146,9 +10386,9 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "total=sum:": 0 }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{ "total=sum:": 0 }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { "total=sum:": "incompatible transform input" } }
-					});
+					}));
 
 				});
 
@@ -10160,9 +10400,9 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "alias=lower:": "" }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{ "alias=lower:": "" }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { "alias=lower:": "incompatible transform input" } }
-					});
+					}));
 
 				});
 
@@ -10174,9 +10414,9 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{ "alias=min:": { name: "" } }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { "alias=min:": "incompatible transform input" } }
-					});
+					}));
 
 				});
 
@@ -10242,9 +10482,9 @@ describe("validators", () => {
 
 					it("rejects identity binding on embedded resource with unknown binding", async () => {
 
-						expect(validateTemplate([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, {})).toEqual({
+						expect(validateTemplate([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, {})).toEqual(flat({
 							"[0]": { "items": { "alias=child": { "unknown": "undefined property path" } } }
-						});
+						}));
 
 					});
 
@@ -10260,9 +10500,9 @@ describe("validators", () => {
 						// min over a reference/resource child has no variant in the literal domain, so the
 						// binding is reported and the projected model is never reached
 
-						expect(validateTemplate([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, {})).toEqual({
+						expect(validateTemplate([{ items: [{ "alias=min:child": { label: "" } }] }], Wrapper, {})).toEqual(flat({
 							"[0]": { "items": { "alias=min:child": "incompatible transform input" } }
-						});
+						}));
 
 					});
 
@@ -10290,9 +10530,9 @@ describe("validators", () => {
 
 					it("rejects identity binding on reference property with unknown binding", async () => {
 
-						expect(validateTemplate([{ items: [{ "alias=link": { unknown: "" } }] }], Wrapper, {})).toEqual({
+						expect(validateTemplate([{ items: [{ "alias=link": { unknown: "" } }] }], Wrapper, {})).toEqual(flat({
 							"[0]": { "items": { "alias=link": { "unknown": "undefined property path" } } }
-						});
+						}));
 
 					});
 
@@ -10313,9 +10553,9 @@ describe("validators", () => {
 
 					it("rejects identity binding on embedded resource with unknown binding", async () => {
 
-						expect(validateTemplate([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, {})).toEqual({
+						expect(validateTemplate([{ items: [{ "alias=child": { unknown: "" } }] }], Wrapper, {})).toEqual(flat({
 							"[0]": { "items": { "alias=child": { "unknown": "undefined property path" } } }
-						});
+						}));
 
 					});
 
@@ -10331,9 +10571,9 @@ describe("validators", () => {
 									">=label": "a"
 								}
 							}]
-						}], Wrapper, {})).toEqual({
+						}], Wrapper, {})).toEqual(flat({
 							"[0]": { "items": { "alias=min:link": "incompatible transform input" } }
-						});
+						}));
 
 					});
 
@@ -10346,9 +10586,9 @@ describe("validators", () => {
 									">=label": "a"
 								}
 							}]
-						}], Wrapper, {})).toEqual({
+						}], Wrapper, {})).toEqual(flat({
 							"[0]": { "items": { "alias=min:child": "incompatible transform input" } }
-						});
+						}));
 
 					});
 
@@ -10367,9 +10607,9 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "total=sum:name": 0 }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{ "total=sum:name": 0 }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { "total=sum:name": "incompatible transform input" } }
-					});
+					}));
 
 				});
 
@@ -10382,9 +10622,9 @@ describe("validators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "v=abs:link": 0 }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{ "v=abs:link": 0 }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { "v=abs:link": "incompatible transform input" } }
-					});
+					}));
 
 				});
 
@@ -10393,9 +10633,9 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "y=year:price": 0 }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{ "y=year:price": 0 }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { "y=year:price": "incompatible transform input" } }
-					});
+					}));
 
 				});
 
@@ -10404,9 +10644,9 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "m=month:name": 0 }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{ "m=month:name": 0 }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { "m=month:name": "incompatible transform input" } }
-					});
+					}));
 
 				});
 
@@ -10415,9 +10655,9 @@ describe("validators", () => {
 					const Target = resource({ name: required(string()), price: optional(integer()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {})).toEqual({
+					expect(validateTemplate([{ items: [{ "x=sum:count:price": 0 }] }], Wrapper, {})).toEqual(flat({
 						"[0]": { "items": { "x=sum:count:price": "expected projection binding" } }
-					});
+					}));
 
 				});
 
@@ -10497,7 +10737,7 @@ describe("validators", () => {
 					const Target = resource({ label: required(text()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, {})).toEqual({
+					expect(unflat(validateTemplate([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, {}))).toEqual({
 						"[0]": { "items": { "alias=abs:label": "incompatible transform input" } }
 					});
 
@@ -10579,7 +10819,7 @@ describe("validators", () => {
 					});
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
-					expect(validateTemplate([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, {})).toEqual({
+					expect(unflat(validateTemplate([{ items: [{ "alias=year:value": 2024 }] }], Wrapper, {}))).toEqual({
 						"[0]": { "items": { "alias=year:value": "incompatible transform input" } }
 					});
 
@@ -10937,7 +11177,7 @@ describe("validators", () => {
 
 					it("rejects text search on undefined property", async () => {
 
-						expect(validateTemplate([{ items: [{}, { "~missing": "x" }] }], Wrapper, {})).toEqual({
+						expect(unflat(validateTemplate([{ items: [{}, { "~missing": "x" }] }], Wrapper, {}))).toEqual({
 							"[0]": { "items": { "~missing": "undefined property path" } }
 						});
 					});
@@ -11036,7 +11276,7 @@ describe("validators", () => {
 
 					it("rejects range operator on undefined property", async () => {
 
-						expect(validateTemplate([{ items: [{}, { ">=missing": 0 }] }], Wrapper, {})).toEqual({
+						expect(unflat(validateTemplate([{ items: [{}, { ">=missing": 0 }] }], Wrapper, {}))).toEqual({
 							"[0]": { "items": { ">=missing": "undefined property path" } }
 						});
 					});
@@ -11135,7 +11375,7 @@ describe("validators", () => {
 
 					it("rejects only the options matching no union variant", async () => {
 
-						expect(validateTemplate([{ items: [{}, { "?value": [42, true] }] }], UnionWrapper, {})).toEqual({
+						expect(unflat(validateTemplate([{ items: [{}, { "?value": [42, true] }] }], UnionWrapper, {}))).toEqual({
 							"[0]": { "items": { "?value": { "[1]": "no union variant matched" } } }
 						});
 
@@ -11319,7 +11559,7 @@ describe("validators", () => {
 
 					it("rejects option on undefined property", async () => {
 
-						expect(validateTemplate([{ items: [{}, { "?missing": "x" }] }], Wrapper, {})).toEqual({
+						expect(unflat(validateTemplate([{ items: [{}, { "?missing": "x" }] }], Wrapper, {}))).toEqual({
 							"[0]": { "items": { "?missing": "undefined property path" } }
 						});
 					});
@@ -11383,7 +11623,7 @@ describe("validators", () => {
 					});
 
 					it("rejects focus on undefined property", async () => {
-						expect(validateTemplate([{ items: [{}, { "+missing": "x" }] }], Wrapper, {})).toEqual({
+						expect(unflat(validateTemplate([{ items: [{}, { "+missing": "x" }] }], Wrapper, {}))).toEqual({
 							"[0]": { "items": { "+missing": "undefined property path" } }
 						});
 					});
@@ -11492,7 +11732,7 @@ describe("validators", () => {
 					});
 
 					it("rejects sort on undefined property", async () => {
-						expect(validateTemplate([{ items: [{}, { "^missing": "asc" }] }], Wrapper, {})).toEqual({
+						expect(unflat(validateTemplate([{ items: [{}, { "^missing": "asc" }] }], Wrapper, {}))).toEqual({
 							"[0]": { "items": { "^missing": "undefined property path" } }
 						});
 					});
@@ -11539,7 +11779,7 @@ describe("validators", () => {
 						const T = resource({ name: required(string()) });
 						const W = resource({ items: multiple(reference(T)) });
 
-						expect(validateTemplate([{ items: [{}, { "~floor:name": "x" }] }], W, {})).toEqual({
+						expect(unflat(validateTemplate([{ items: [{}, { "~floor:name": "x" }] }], W, {}))).toEqual({
 							"[0]": { "items": { "~floor:name": "incompatible transform input" } }
 						});
 					});
@@ -11573,14 +11813,14 @@ describe("validators", () => {
 					items: multiple(reference(Target))
 				});
 
-				const trace = validateTemplate([{ items: [{ name: 42 }] } as any], shape, {}) as Record<string, Trace>;
+				const trace = validateTemplate([{ items: [{ name: 42 }] } as any], shape, {});
 
-				expect(trace).toHaveProperty(["[0]", "items"]);
+				expect(trace).toHaveProperty([0, "0", 0, "items"]);
 
-				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
+				const items = (rec(trace, "0"))["items"];
 
-				expect(items).toHaveProperty("name");
-				expect(items).not.toHaveProperty("[0]");
+				expect(rec(items)).toHaveProperty("name");
+				expect(items).not.toHaveProperty([0, "0"]);
 
 			});
 
@@ -11594,13 +11834,13 @@ describe("validators", () => {
 					items: [
 						{ "id": "app:/items/1", name: 42 }
 					]
-				} as any], shape, {}) as Record<string, Trace>;
+				} as any], shape, {});
 
-				expect(trace).toHaveProperty(["[0]", "items"]);
+				expect(trace).toHaveProperty([0, "0", 0, "items"]);
 
-				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
+				const items = (rec(trace, "0"))["items"];
 
-				expect(items).toHaveProperty("name");
+				expect(rec(items)).toHaveProperty("name");
 
 			});
 
@@ -11614,13 +11854,13 @@ describe("validators", () => {
 					items: [
 						{ name: 42 }
 					]
-				} as any], shape, {}) as Record<string, Trace>;
+				} as any], shape, {});
 
-				expect(trace).toHaveProperty(["[0]", "items"]);
+				expect(trace).toHaveProperty([0, "0", 0, "items"]);
 
-				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
+				const items = (rec(trace, "0"))["items"];
 
-				expect(items).toHaveProperty("name");
+				expect(rec(items)).toHaveProperty("name");
 
 			});
 
@@ -11634,13 +11874,13 @@ describe("validators", () => {
 					items: [
 						{ "id": "app:/items/2", name: 42 }
 					]
-				} as any], shape, {}) as Record<string, Trace>;
+				} as any], shape, {});
 
-				expect(trace).toHaveProperty(["[0]", "items"]);
+				expect(trace).toHaveProperty([0, "0", 0, "items"]);
 
-				const items = (trace["[0]"] as Record<string, Trace>)["items"] as Record<string, Trace>;
+				const items = (rec(trace, "0"))["items"];
 
-				expect(items).toHaveProperty("name");
+				expect(rec(items)).toHaveProperty("name");
 
 			});
 

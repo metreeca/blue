@@ -21,10 +21,25 @@
  */
 
 import { isNumber } from "@metreeca/core";
+import { union } from "@metreeca/core/combo";
 import { immutable } from "@metreeca/core/deep";
-import { collect, every, group, type Scope, TraceError, wrap } from "./index.core.js";
-import type { Trace } from "./index.js";
-import type { NumberConstraints, NumberShape } from "./number.js";
+import {
+	all,
+	array,
+	domain,
+	gt,
+	gte,
+	integer,
+	lt,
+	lte,
+	test,
+	type Trace,
+	TraceError,
+	type,
+	values as contains
+} from "@metreeca/core/trace";
+import { type Scope } from "./index.core.js";
+import type { NumberShape } from "./number.js";
 
 
 /**
@@ -32,90 +47,106 @@ import type { NumberConstraints, NumberShape } from "./number.js";
  *
  * @param constraints The constraint fields to validate
  *
- * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
+ * @returns A trace of consistency violations, or `undefined` if all constraints are consistent
  */
-export function checkNumber({
+export function checkNumber(constraints: Partial<NumberShape>): undefined | Trace {
 
-	integral,
+	return all<typeof constraints>(
+		test(({ minExclusive, maxExclusive }) => {
 
-	minExclusive,
-	maxExclusive,
-	minInclusive,
-	maxInclusive,
+			return minExclusive === undefined || maxExclusive === undefined || minExclusive < maxExclusive || [
+				`{minExclusive/maxExclusive} inconsistent bounds <${minExclusive}> >= <${maxExclusive}>`
+			];
 
-	in: allowed,
-	hasValue
+		}),
+		test(({ minInclusive, maxInclusive }) => {
 
-}: {
+			return minInclusive === undefined || maxInclusive === undefined || minInclusive <= maxInclusive || [
+				`{minInclusive/maxInclusive} inconsistent bounds <${minInclusive}> > <${maxInclusive}>`
+			];
 
-	readonly model?: number;
+		}),
+		test(({ minExclusive, maxInclusive }) => {
 
-	readonly integral?: boolean;
+			return minExclusive === undefined || maxInclusive === undefined || minExclusive < maxInclusive || [
+				`{minExclusive/maxInclusive} inconsistent bounds <${minExclusive}> >= <${maxInclusive}>`
+			];
 
-	readonly minExclusive?: number;
-	readonly maxExclusive?: number;
-	readonly minInclusive?: number;
-	readonly maxInclusive?: number;
+		}),
+		test(({ minInclusive, maxExclusive }) => {
 
-	readonly in?: readonly [number, ...number[]];
-	readonly hasValue?: readonly number[];
+			return minInclusive === undefined || maxExclusive === undefined || minInclusive < maxExclusive || [
+				`{minInclusive/maxExclusive} inconsistent bounds <${minInclusive}> >= <${maxExclusive}>`
+			];
 
-}): undefined | Trace {
+		}),
+		test(({ in: allowed, hasValue }) => {
 
-	// least and greatest legal integers implied by the bounds, used for the empty-integral-range check
+			return hasValue === undefined || allowed === undefined || hasValue.every(v => allowed.includes(v)) || [
+				`{hasValue/in} required values <${hasValue.filter(v => !allowed.includes(v))}> not in allowed set`
+			];
 
-	const lower = minInclusive !== undefined ? Math.ceil(minInclusive)
-		: minExclusive !== undefined ? Math.floor(minExclusive)+1
-			: undefined;
+		}),
+		test(({ integral, minExclusive }) => {
 
-	const upper = maxInclusive !== undefined ? Math.floor(maxInclusive)
-		: maxExclusive !== undefined ? Math.ceil(maxExclusive)-1
-			: undefined;
+			return !integral || minExclusive === undefined || Number.isInteger(minExclusive) || [
+				`{minExclusive} fractional bound <${minExclusive}> on integral shape`
+			];
 
-	return collect({
+		}),
+		test(({ integral, maxExclusive }) => {
 
-		"{minExclusive/maxExclusive}": minExclusive === undefined || maxExclusive === undefined
-			|| minExclusive < maxExclusive
-			|| `inconsistent bounds <${minExclusive}> >= <${maxExclusive}>`,
+			return !integral || maxExclusive === undefined || Number.isInteger(maxExclusive) || [
+				`{maxExclusive} fractional bound <${maxExclusive}> on integral shape`
+			];
 
-		"{minInclusive/maxInclusive}": minInclusive === undefined || maxInclusive === undefined
-			|| minInclusive <= maxInclusive
-			|| `inconsistent bounds <${minInclusive}> > <${maxInclusive}>`,
+		}),
+		test(({ integral, minInclusive }) => {
 
-		"{minExclusive/maxInclusive}": minExclusive === undefined || maxInclusive === undefined
-			|| minExclusive < maxInclusive
-			|| `inconsistent bounds <${minExclusive}> >= <${maxInclusive}>`,
+			return !integral || minInclusive === undefined || Number.isInteger(minInclusive) || [
+				`{minInclusive} fractional bound <${minInclusive}> on integral shape`
+			];
 
-		"{minInclusive/maxExclusive}": minInclusive === undefined || maxExclusive === undefined
-			|| minInclusive < maxExclusive
-			|| `inconsistent bounds <${minInclusive}> >= <${maxExclusive}>`,
+		}),
+		test(({ integral, maxInclusive }) => {
 
-		"{hasValue/in}": hasValue === undefined || allowed === undefined
-			|| hasValue.every(v => allowed.includes(v))
-			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`,
+			return !integral || maxInclusive === undefined || Number.isInteger(maxInclusive) || [
+				`{maxInclusive} fractional bound <${maxInclusive}> on integral shape`
+			];
 
-		"{integral/minExclusive}": !integral || minExclusive === undefined || Number.isInteger(minExclusive)
-			|| `fractional bound <${minExclusive}> on integral shape`,
+		}),
+		test(({ integral, in: allowed }) => {
 
-		"{integral/maxExclusive}": !integral || maxExclusive === undefined || Number.isInteger(maxExclusive)
-			|| `fractional bound <${maxExclusive}> on integral shape`,
+			return !integral || allowed === undefined || allowed.every(v => Number.isInteger(v)) || [
+				`{in} fractional values [${allowed.filter(v => !Number.isInteger(v))}] on integral shape`
+			];
 
-		"{integral/minInclusive}": !integral || minInclusive === undefined || Number.isInteger(minInclusive)
-			|| `fractional bound <${minInclusive}> on integral shape`,
+		}),
+		test(({ integral, hasValue }) => {
 
-		"{integral/maxInclusive}": !integral || maxInclusive === undefined || Number.isInteger(maxInclusive)
-			|| `fractional bound <${maxInclusive}> on integral shape`,
+			return !integral || hasValue === undefined || hasValue.every(v => Number.isInteger(v)) || [
+				`{hasValue} fractional values [${hasValue.filter(v => !Number.isInteger(v))}] on integral shape`
+			];
 
-		"{integral/in}": !integral || allowed === undefined || allowed.every(v => Number.isInteger(v))
-			|| `fractional values [${allowed.filter(v => !Number.isInteger(v))}] on integral shape`,
+		}),
+		test(({ integral }) => {
 
-		"{integral/hasValue}": !integral || hasValue === undefined || hasValue.every(v => Number.isInteger(v))
-			|| `fractional values [${hasValue.filter(v => !Number.isInteger(v))}] on integral shape`,
+			const lower = Math.max(
+				constraints.minInclusive !== undefined ? Math.ceil(constraints.minInclusive) : -Infinity,
+				constraints.minExclusive !== undefined ? Math.floor(constraints.minExclusive)+1 : -Infinity
+			);
 
-		"{integral/range}": !integral || lower === undefined || upper === undefined || lower <= upper
-			|| `no integer within bounds <[${lower}, ${upper}]>`
+			const upper = Math.min(
+				constraints.maxInclusive !== undefined ? Math.floor(constraints.maxInclusive) : Infinity,
+				constraints.maxExclusive !== undefined ? Math.ceil(constraints.maxExclusive)-1 : Infinity
+			);
 
-	});
+			return !integral || lower <= upper || [
+				`{range} no integer within bounds <[${lower}, ${upper}]>`
+			];
+
+		})
+	)(constraints);
 
 }
 
@@ -125,96 +156,96 @@ export function checkNumber({
  *
  * Tests the override relation without building the merged shape: returns `undefined` when `target` only tightens
  * `source` (matching `datatype`, not dropping `integral`, bounds not widened, `in` intersection non-empty,
- * merged constraints consistent), or a keyed {@link Trace} describing the obstacles otherwise.
+ * merged constraints consistent), or a {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
  *
- * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
+ * @returns A trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
 export function narrowsNumber(target: NumberShape, source: NumberShape): undefined | Trace {
 
-	// conjunctive: in — intersection
+	return all<NumberShape>(
+		test(({ datatype }) => {
 
-	const allowed = target.in !== undefined && source.in !== undefined
-		? target.in.filter(v => source.in!.includes(v))
-		: target.in ?? source.in;
+			return datatype === undefined || source.datatype === undefined || datatype === source.datatype || [
+				`{datatype} mismatched datatypes <${datatype}> and <${source.datatype}>`
+			];
 
-	// conjunctive: hasValue — union
+		}),
+		test(({ integral }) => {
 
-	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
-		? [...new Set([...target.hasValue, ...source.hasValue])]
-		: target.hasValue ?? source.hasValue;
+			return integral !== false || source.integral !== true || [
+				`{integral} dropped integral constraint`
+			];
 
-	// merged constraints
+		}),
+		test(({ minExclusive }) => {
 
-	const minExclusive = target.minExclusive ?? source.minExclusive;
-	const maxExclusive = target.maxExclusive ?? source.maxExclusive;
-	const minInclusive = target.minInclusive ?? source.minInclusive;
-	const maxInclusive = target.maxInclusive ?? source.maxInclusive;
+			return minExclusive === undefined
+				|| source.minExclusive === undefined
+				|| minExclusive >= source.minExclusive
+				|| [
+					`{minExclusive} widened limit <${minExclusive}> beyond <${source.minExclusive}>`
+				];
 
-	return collect({
+		}),
+		test(({ maxExclusive }) => {
 
-		// structural: datatype must be strictly equal when both defined
+			return maxExclusive === undefined
+				|| source.maxExclusive === undefined
+				|| maxExclusive <= source.maxExclusive
+				|| [
+					`{maxExclusive} widened limit <${maxExclusive}> beyond <${source.maxExclusive}>`
+				];
 
-		"{datatype}": target.datatype === undefined || source.datatype === undefined
-			|| target.datatype === source.datatype
-			|| `mismatched datatypes <${target.datatype}> and <${source.datatype}>`,
+		}),
+		test(({ minInclusive }) => {
 
-		// structural: integral — child may add but not drop the constraint
+			return minInclusive === undefined
+				|| source.minInclusive === undefined
+				|| minInclusive >= source.minInclusive
+				|| [
+					`{minInclusive} widened limit <${minInclusive}> beyond <${source.minInclusive}>`
+				];
 
-		"{integral}": source.integral !== true || target.integral !== false
-			|| `dropped integral constraint`,
+		}),
+		test(({ maxInclusive }) => {
 
-		// narrow: minExclusive — child >= parent
+			return maxInclusive === undefined
+				|| source.maxInclusive === undefined
+				|| maxInclusive <= source.maxInclusive
+				|| [
+					`{maxInclusive} widened limit <${maxInclusive}> beyond <${source.maxInclusive}>`
+				];
 
-		"{minExclusive}": target.minExclusive === undefined || source.minExclusive === undefined
-			|| target.minExclusive >= source.minExclusive
-			|| `widened limit <${target.minExclusive}> beyond <${source.minExclusive}>`,
+		}),
+		test(({ in: values }) => {
 
-		// narrow: maxExclusive — child <= parent
+			return values === undefined || source.in === undefined || values.some(v => source.in!.includes(v)) || [
+				`{in} disjoint sets [${values}] and [${source.in}]`
+			];
 
-		"{maxExclusive}": target.maxExclusive === undefined || source.maxExclusive === undefined
-			|| target.maxExclusive <= source.maxExclusive
-			|| `widened limit <${target.maxExclusive}> beyond <${source.maxExclusive}>`,
-
-		// narrow: minInclusive — child >= parent
-
-		"{minInclusive}": target.minInclusive === undefined || source.minInclusive === undefined
-			|| target.minInclusive >= source.minInclusive
-			|| `widened limit <${target.minInclusive}> beyond <${source.minInclusive}>`,
-
-		// narrow: maxInclusive — child <= parent
-
-		"{maxInclusive}": target.maxInclusive === undefined || source.maxInclusive === undefined
-			|| target.maxInclusive <= source.maxInclusive
-			|| `widened limit <${target.maxInclusive}> beyond <${source.maxInclusive}>`,
-
-		// conjunctive: in — empty intersection
-
-		"{in}": target.in === undefined || source.in === undefined
-			|| allowed!.length !== 0
-			|| `disjoint sets [${target.in}] and [${source.in}]`,
-
-		// post-merge constraint consistency
-
-		...wrap(checkNumber({
+		}),
+		() => checkNumber({ // post-merge constraint consistency
 
 			integral: target.integral ?? source.integral,
 
-			minExclusive,
-			maxExclusive,
-			minInclusive,
-			maxInclusive,
+			minExclusive: target.minExclusive ?? source.minExclusive,
+			maxExclusive: target.maxExclusive ?? source.maxExclusive,
+			minInclusive: target.minInclusive ?? source.minInclusive,
+			maxInclusive: target.maxInclusive ?? source.maxInclusive,
 
-			// ;(cast) the merge intersection is a plain array; its non-emptiness is reported by {in} above
+			in: target.in !== undefined && source.in !== undefined
+				? target.in.filter(v => source.in!.includes(v))
+				: target.in ?? source.in,
 
-			in: allowed as NumberShape["in"],
-			hasValue
+			hasValue: target.hasValue !== undefined && source.hasValue !== undefined
+				? union([target.hasValue, source.hasValue])
+				: target.hasValue ?? source.hasValue
 
-		}))
-
-	});
+		})
+	)(target);
 
 }
 
@@ -247,7 +278,7 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 	// conjunctive: hasValue — union
 
 	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
-		? [...new Set([...target.hasValue, ...source.hasValue])]
+		? union([target.hasValue, source.hasValue])
 		: target.hasValue ?? source.hasValue;
 
 	// merged constraints
@@ -272,8 +303,8 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 		minInclusive,
 		maxInclusive,
 
-		in: allowed as NumberShape["in"],
-		hasValue: hasValue as NumberShape["hasValue"]
+		in: allowed,
+		hasValue
 
 	});
 
@@ -285,8 +316,9 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 /**
  * Validates values against a number shape.
  *
- * Filters input values by type, reporting non-numeric values under the `kind` key, then enforces the numeric
- * value-domain constraints on the matching values.
+ * Reports each non-numeric value as a `{kind}` violation, then enforces the numeric value-domain constraints on the
+ * matching values, keying every element violation by its index. Membership over the whole set (`hasValue`) is reported
+ * as a leading bare message.
  *
  * @param values The values to validate
  * @param shape The number shape defining validation constraints
@@ -295,23 +327,9 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
  *     value-domain constraints and match by kind alone, so the value need not be legal. A number carries no `pattern`,
  *     so `"bound"` coincides with `"model"` here. Defaults to `"state"`
  *
- * @returns A keyed trace of validation errors, or `undefined` if all values are valid
+ * @returns A trace of validation violations, or `undefined` if all values are valid
  */
-export function validateNumber(values: readonly unknown[], {
-
-	kind,
-
-	minExclusive,
-	maxExclusive,
-	minInclusive,
-	maxInclusive,
-
-	integral,
-
-	in: allowed,
-	hasValue
-
-}: NumberShape, {
+export function validateNumber(values: readonly unknown[], shape: NumberShape, {
 
 	scope = "state"
 
@@ -321,52 +339,67 @@ export function validateNumber(values: readonly unknown[], {
 
 } = {}): undefined | Trace {
 
-	const matching = values.filter(isNumber);
-	const mistyped = values.length-matching.length;
+	switch ( scope ) {
 
-	// only {kind} is enforced outside the state scope: bound and model skip the value-domain constraints (a number
-	// carries no pattern, so there is nothing between kind and the full domain for bound to keep)
+		case "state":
 
-	return collect({
+			return state(shape)(values);
 
-		"{kind}": mistyped === 0
-			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+		case "bound":
 
-		"{integral}": scope !== "state" || every(matching, value =>
-			!integral || Number.isInteger(value)
-			|| `expected integral values`
-		),
+			return bound(shape)(values);
 
-		"{minExclusive}": scope !== "state" || every(matching, value =>
-			minExclusive === undefined || value > minExclusive
-			|| `expected values > <${minExclusive}>`
-		),
+		case "model":
 
-		"{maxExclusive}": scope !== "state" || every(matching, value =>
-			maxExclusive === undefined || value < maxExclusive
-			|| `expected values < <${maxExclusive}>`
-		),
+			return model(shape)(values);
 
-		"{minInclusive}": scope !== "state" || every(matching, value =>
-			minInclusive === undefined || value >= minInclusive
-			|| `expected values >= <${minInclusive}>`
-		),
+	}
 
-		"{maxInclusive}": scope !== "state" || every(matching, value =>
-			maxInclusive === undefined || value <= maxInclusive
-			|| `expected values <= <${maxInclusive}>`
-		),
 
-		"{in}": scope !== "state" || every(matching, value =>
-			allowed === undefined || allowed.includes(value)
-			|| `expected values in [${allowed.join(", ")}]`
-		),
+	function state({
 
-		"{hasValue}": scope !== "state" || group(matching, group =>
-			hasValue === undefined || hasValue.every(v => group.includes(v))
-			|| `expected values to include [${hasValue.join(", ")}]`
-		)
+		minExclusive,
+		maxExclusive,
+		minInclusive,
+		maxInclusive,
 
-	});
+		integral,
+
+		in: allowed,
+		hasValue: required
+
+	}: NumberShape) {
+
+		return array(
+			type(isNumber,
+				all(
+					integral && integer(),
+					gt(minExclusive),
+					lt(maxExclusive),
+					gte(minInclusive),
+					lte(maxInclusive),
+					domain(allowed)
+				)
+			),
+			contains(required)
+		);
+
+	}
+
+	function bound({}: NumberShape) {
+
+		return array(
+			type(isNumber)
+		);
+
+	}
+
+	function model({}: NumberShape) {
+
+		return array(
+			type(isNumber)
+		);
+
+	}
 
 }

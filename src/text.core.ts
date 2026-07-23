@@ -21,12 +21,12 @@
  */
 
 import { isArray, isObject, isString } from "@metreeca/core";
+import { fold } from "@metreeca/core/combo";
 import { immutable } from "@metreeca/core/deep";
 import { isTag, isTagRange, matchTag, type Tag } from "@metreeca/core/language";
 import type { Text } from "@metreeca/qest/resource";
 import { type Locale, type Placeholders, type Selection } from "@metreeca/qest/template";
-import { collect, every, TraceError, wrap } from "./index.core.js";
-import type { Trace } from "./index.js";
+import { all, array, fail, length, object, test, type Trace, TraceError } from "@metreeca/core/trace";
 import type { TextConstraints, TextShape } from "./text.js";
 
 
@@ -44,33 +44,22 @@ import type { TextConstraints, TextShape } from "./text.js";
  *
  * @returns A keyed trace of violations, or `undefined` if the declaration is consistent
  */
-export function checkText({
+export function checkText(constraints: Partial<TextShape>): undefined | Trace {
 
-	minLength,
-	maxLength,
+	return all<typeof constraints>(
+		test(({ minLength, maxLength }) => {
 
-	model
+			return minLength === undefined || maxLength === undefined || minLength <= maxLength || [
+				`{minLength/maxLength} inconsistent bounds <${minLength}> > <${maxLength}>`
+			];
 
-}: {
+		}),
+		test(({ model }) => {
 
-	readonly minLength?: number;
-	readonly maxLength?: number;
+			return model === undefined || fold(checkTextModel(model), trace => [{ "{model}": trace }]) || true;
 
-	readonly model?: Locale;
-
-}): undefined | Trace {
-
-	return collect({
-
-		"{minLength/maxLength}": minLength === undefined || maxLength === undefined
-			|| minLength <= maxLength
-			|| `inconsistent bounds <${minLength}> > <${maxLength}>`,
-
-		// model legality: validate the prototype Locale declaration
-
-		"{model}": model === undefined || checkTextModel(model)
-
-	});
+		})
+	)(constraints);
 
 
 	/**
@@ -102,24 +91,19 @@ export function checkText({
 			const hasScalar = entries.some(([k, v]) => isTagRange(k) && isString(v));
 			const hasArray = entries.some(([k, v]) => isTagRange(k) && isArray(v, [isString]));
 
-			if ( hasScalar && hasArray ) {
+			return hasScalar && hasArray
 
-				return collect({ "{kind}": "mixed scalar and singleton-tuple values" });
+				? ["{kind} mixed scalar and singleton-tuple values"]
 
-			} else {
-
-				return collect(Object.fromEntries(entries.map(([k, v]) => [k,
-					!isTagRange(k) ? "invalid tag range"
-						: isString(v) ? undefined
-							: isArray(v, [isString]) ? undefined
-								: "expected string or singleton string tuple"
-				])));
-
-			}
+				: object(([k, v]) =>
+					!isTagRange(k) ? [{ [k]: ["invalid tag range"] }]
+						: isString(v) || isArray(v, [isString]) ? undefined
+							: [{ [k]: ["expected string or singleton string tuple"] }]
+				)(value);
 
 		} else {
 
-			return "expected <text> value";
+			return ["expected <text> value"];
 
 		}
 
@@ -142,42 +126,37 @@ export function checkText({
  */
 export function narrowsText(target: TextShape, source: TextShape): undefined | Trace {
 
-	// conjunctive: languageIn — intersection
+	return all<TextShape>(
+		test(({ minLength }) => {
 
-	const languageIn = target.languageIn !== undefined && source.languageIn !== undefined
-		? target.languageIn.filter(v => source.languageIn!.includes(v))
-		: target.languageIn ?? source.languageIn;
+			return minLength === undefined || source.minLength === undefined || minLength >= source.minLength || [
+				`{minLength} widened limit <${minLength}> beyond <${source.minLength}>`
+			];
 
-	// merged constraints
+		}),
+		test(({ maxLength }) => {
 
-	const minLength = target.minLength ?? source.minLength;
-	const maxLength = target.maxLength ?? source.maxLength;
+			return maxLength === undefined || source.maxLength === undefined || maxLength <= source.maxLength || [
+				`{maxLength} widened limit <${maxLength}> beyond <${source.maxLength}>`
+			];
 
-	return collect({
+		}),
+		test(({ languageIn }) => {
 
-		// narrow: minLength — child >= parent
+			return languageIn === undefined || source.languageIn === undefined
+				|| languageIn.some(v => source.languageIn!.includes(v))
+				|| [
+					`{languageIn} disjoint sets [${languageIn}] and [${source.languageIn}]`
+				];
 
-		"{minLength}": target.minLength === undefined || source.minLength === undefined
-			|| target.minLength >= source.minLength
-			|| `widened limit <${target.minLength}> beyond <${source.minLength}>`,
+		}),
+		() => checkText({ // post-merge constraint consistency
 
-		// narrow: maxLength — child <= parent
+			minLength: target.minLength ?? source.minLength,
+			maxLength: target.maxLength ?? source.maxLength
 
-		"{maxLength}": target.maxLength === undefined || source.maxLength === undefined
-			|| target.maxLength <= source.maxLength
-			|| `widened limit <${target.maxLength}> beyond <${source.maxLength}>`,
-
-		// conjunctive: languageIn — empty intersection
-
-		"{languageIn}": target.languageIn === undefined || source.languageIn === undefined
-			|| languageIn!.length !== 0
-			|| `disjoint sets [${target.languageIn}] and [${source.languageIn}]`,
-
-		// post-merge constraint consistency
-
-		...wrap(checkText({ minLength, maxLength }))
-
-	});
+		})
+	)(target);
 
 }
 
@@ -222,7 +201,7 @@ export function mergeText(target: TextShape, source: TextShape): TextShape {
 		minLength,
 		maxLength,
 
-		languageIn: languageIn as TextShape["languageIn"] // casts are safe: non-emptiness validated above
+		languageIn
 
 	});
 
@@ -275,26 +254,14 @@ export function deriveText({
 export function validateText(values: readonly unknown[], shape: TextShape): undefined | Trace {
 
 	const stringTrace = validateTextString(values, shape);
-
-	if ( stringTrace === undefined ) {
-
-		return undefined;
-
-	}
-
 	const stringsTrace = validateTextStrings(values, shape);
 
-	if ( stringsTrace === undefined ) {
+	// either arm accepts; otherwise prefer the structurally richer trace (one carrying a keyed record)
 
-		return undefined;
-
-	}
-
-	// both arms failed: prefer the structurally richer trace (object over plain string)
-
-	return isObject(stringsTrace) ? stringsTrace
-		: isObject(stringTrace) ? stringTrace
-			: stringsTrace;
+	return stringTrace === undefined || stringsTrace === undefined ? undefined
+		: keyed(stringsTrace) ? stringsTrace
+			: keyed(stringTrace) ? stringTrace
+				: stringsTrace;
 
 }
 
@@ -348,7 +315,7 @@ export function validateTextSet(value: unknown, {
 	} else if ( present === undefined ) {
 
 		return minCount !== undefined && minCount >= 1
-			? collect({ "{minCount}": `expected at least one language tag` })
+			? ["{minCount} expected at least one language tag"]
 			: undefined;
 
 	} else {
@@ -356,31 +323,24 @@ export function validateTextSet(value: unknown, {
 		// validator contract: structural arm passed and present !== undefined, so present
 		// is a non-array object (see validateTextString/validateTextStrings)
 
-		const entries = Object.entries(present as Record<string, unknown>);
+		const entries = present as Record<string, unknown>;
 
-		if ( entries.length === 0 && minCount !== undefined && minCount >= 1 ) {
+		return Object.keys(entries).length === 0 && minCount !== undefined && minCount >= 1
 
-			return collect({ "{minCount}": `expected at least one language tag` });
+			? ["{minCount} expected at least one language tag"]
 
-		} else {
-
-			return collect(Object.fromEntries(entries.map(([tag, tagValue]) => {
+			: object(([tag, tagValue]: readonly [string, unknown]) => {
 
 				const count = isArray(tagValue) ? tagValue.length : 1;
 
-				return [tag, collect({
+				return fold(all(
+					(minCount !== undefined && count < minCount)
+					&& fail([`{minCount} expected at least <${minCount}> value(s) for tag`]),
+					(maxCount !== undefined && count > maxCount)
+					&& fail([`{maxCount} expected at most <${maxCount}> value(s) for tag`])
+				)(undefined), trace => [{ [tag]: trace }]);
 
-					"{minCount}": minCount === undefined || count >= minCount
-						|| `expected at least <${minCount}> value(s) for tag`,
-
-					"{maxCount}": maxCount === undefined || count <= maxCount
-						|| `expected at most <${maxCount}> value(s) for tag`
-
-				})];
-
-			})));
-
-		}
+			})(entries);
 
 	}
 
@@ -413,54 +373,31 @@ export function validateTextString(values: readonly unknown[], {
 
 }: TextShape): undefined | Trace {
 
+	const [value] = values;
+
 	if ( values.length === 0 ) {
 
 		return undefined;
 
 	} else if ( values.length > 1 ) {
 
-		return collect({ "{kind}": "expected at most one <text> value" });
+		return ["{kind} expected at most one <text> value"];
 
-	} else if ( !values.every(v => isObject(v)) ) {
+	} else if ( !isObject(value) ) {
 
-		return collect({ "{kind}": "expected <text> value" });
+		return ["{kind} expected <text> value"];
 
 	} else {
 
-		const value = values[0] as Record<string, unknown>;
-
-		return collect({
-
-			...Object.fromEntries(Object.entries(value).map(([key, value]) => {
-
-				if ( !isTag(key) ) {
-
-					return [key, "invalid tag"];
-
-				} else if ( !isString(value) ) {
-
-					return [key, "expected string value"];
-
-				} else {
-
-					return [key, collect({
-
-						"{minLength}": minLength === undefined || value.length >= minLength
-							|| `expected string length >= <${minLength}>`,
-
-						"{maxLength}": maxLength === undefined || value.length <= maxLength
-							|| `expected string length <= <${maxLength}>`,
-
-						"{languageIn}": languageIn === undefined || languageIn.some(range => matchTag(key, range))
-							|| `unsupported tag for allowed languages [${languageIn.join(", ")}]`
-
-					})];
-
-				}
-
-			}))
-
-		});
+		return object(([key, text]: readonly [string, unknown]) =>
+			!isTag(key) ? [{ [key]: ["invalid tag"] }]
+				: !isString(text) ? [{ [key]: ["expected string value"] }]
+					: fold(all(
+						length(minLength, maxLength),
+						(languageIn !== undefined && !languageIn.some(range => matchTag(key, range)))
+						&& fail([`{languageIn} unsupported tag for allowed languages [${languageIn.join(", ")}]`])
+					)(text), trace => [{ [key]: trace }])
+		)(value);
 
 	}
 
@@ -495,58 +432,31 @@ export function validateTextStrings(values: readonly unknown[], {
 
 }: TextShape): undefined | Trace {
 
+	const [value] = values;
+
 	if ( values.length === 0 ) {
 
 		return undefined;
 
 	} else if ( values.length > 1 ) {
 
-		return collect({ "{kind}": "expected at most one <text> value" });
+		return ["{kind} expected at most one <text> value"];
 
-	} else if ( !values.every(v => isObject(v)) ) {
+	} else if ( !isObject(value) ) {
 
-		return collect({ "{kind}": "expected <text> value" });
+		return ["{kind} expected <text> value"];
 
 	} else {
 
-		const value = values[0] as Record<string, unknown>;
-
-		return collect({
-
-			...Object.fromEntries(Object.entries(value).map(([key, value]) => {
-
-				if ( !isTag(key) ) {
-
-					return [key, "invalid tag"];
-
-				} else if ( !isArray<string>(value, isString) ) {
-
-					return [key, "expected string array value"];
-
-				} else {
-
-					return [key, collect({
-
-						"{minLength}": every(value, text =>
-							minLength === undefined || text.length >= minLength
-							|| `expected string length >= <${minLength}>`
-						),
-
-						"{maxLength}": every(value, text =>
-							maxLength === undefined || text.length <= maxLength
-							|| `expected string length <= <${maxLength}>`
-						),
-
-						"{languageIn}": languageIn === undefined || languageIn.some(range => matchTag(key, range))
-							|| `unsupported tag for allowed languages [${languageIn.join(", ")}]`
-
-					})];
-
-				}
-
-			}))
-
-		});
+		return object(([key, texts]: readonly [string, unknown]) =>
+			!isTag(key) ? [{ [key]: ["invalid tag"] }]
+				: !isArray<string>(texts, isString) ? [{ [key]: ["expected string array value"] }]
+					: fold(all(
+						array(length(minLength, maxLength)),
+						(languageIn !== undefined && !languageIn.some(range => matchTag(key, range)))
+						&& fail([`{languageIn} unsupported tag for allowed languages [${languageIn.join(", ")}]`])
+					)(texts), trace => [{ [key]: trace }])
+		)(value);
 
 	}
 
@@ -579,7 +489,7 @@ export function validateLocale(values: readonly unknown[]): undefined | Trace {
 
 	} else if ( values.length > 1 ) {
 
-		return "expected at most one <text> value";
+		return ["{kind} expected at most one <text> value"];
 
 	} else {
 
@@ -588,11 +498,11 @@ export function validateLocale(values: readonly unknown[]): undefined | Trace {
 		const stringTrace = validateLocaleString(value);
 		const stringsTrace = validateLocaleStrings(value);
 
-		// either arm accepts; otherwise prefer the structurally richer trace (object over plain string)
+		// either arm accepts; otherwise prefer the structurally richer trace (one carrying a keyed record)
 
 		return stringTrace === undefined || stringsTrace === undefined ? undefined
-			: isObject(stringsTrace) ? stringsTrace
-				: isObject(stringTrace) ? stringTrace
+			: keyed(stringsTrace) ? stringsTrace
+				: keyed(stringTrace) ? stringTrace
 					: stringsTrace;
 
 	}
@@ -630,15 +540,15 @@ export function validateLocaleString(value: unknown): undefined | Trace {
 
 	} else if ( isObject(value) ) {
 
-		return collect(Object.fromEntries(Object.entries(value).map(([k, v]) => [k,
-			!isTagRange(k) ? "invalid tag range"
+		return object(([k, v]: readonly [string, unknown]) =>
+			!isTagRange(k) ? [{ [k]: ["invalid tag range"] }]
 				: isString(v) ? undefined
-					: "expected string value"
-		])));
+					: [{ [k]: ["expected string value"] }]
+		)(value);
 
 	} else {
 
-		return "expected <text> value";
+		return ["expected <text> value"];
 
 	}
 
@@ -675,16 +585,26 @@ export function validateLocaleStrings(value: unknown): undefined | Trace {
 
 	} else if ( isObject(value) ) {
 
-		return collect(Object.fromEntries(Object.entries(value).map(([k, v]) => [k,
-			!isTagRange(k) ? "invalid tag range"
+		return object(([k, v]: readonly [string, unknown]) =>
+			!isTagRange(k) ? [{ [k]: ["invalid tag range"] }]
 				: isArray(v, [isString]) ? undefined
-					: "expected singleton string tuple"
-		])));
+					: [{ [k]: ["expected singleton string tuple"] }]
+		)(value);
 
 	} else {
 
-		return "expected <text> value";
+		return ["expected <text> value"];
 
 	}
 
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Reports whether a trace carries a keyed record rather than only bare messages.
+ */
+function keyed(trace: Trace): boolean {
+	return trace.some(item => !isString(item));
 }

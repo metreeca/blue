@@ -106,7 +106,8 @@ import { equals, seal } from "@metreeca/core/deep";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { type Reference } from "@metreeca/qest";
 import type { Instance, Template } from "@metreeca/qest/template";
-import { sh, TraceError } from "./index.core.js";
+import { type Trace, TraceError } from "@metreeca/core/trace";
+import { sh } from "./index.core.js";
 import type { ReferenceShape } from "./reference.js";
 import { enforce, validateResource, validateResult, validateTemplate } from "./resource.core.js";
 import type { ResourceShape } from "./resource.js";
@@ -114,7 +115,7 @@ import { validateUnion } from "./union.core.js";
 import { eager, validateValue } from "./value.core.js";
 import type { Shape } from "./value.js";
 
-export { sh, TraceError };
+export { sh };
 
 
 /**
@@ -124,41 +125,6 @@ export { sh, TraceError };
  * when the same shape and options are presented again.
  */
 const Validated: unique symbol = Symbol("Validated");
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validation trace.
- *
- * Represents the result of validating a resource against a shape as a recursive union of violation messages and keyed
- * reports. An `undefined` trace signals successful validation; a non-empty trace is always a failure.
- *
- * Key semantics shift by nesting depth:
- *
- * - **Collection level**: resource identifier values
- * - **Resource level**: property keys (`name`, `type`, …)
- * - **Property level**: SHACL-derived constraint names (`minLength`, `pattern`, `in`, …)
- * - **Leaf level**: human-readable error message
- *
- * @see {@link https://www.w3.org/TR/shacl/#validation-report | SHACL § 3.6 Validation Report}
- */
-export type Trace =
-	| string
-	| { readonly [key: string]: Trace }
-
-/**
- * Value validator.
- *
- * A function that examines a value and returns a {@link Trace} describing any constraint violations:
- *
- * - `undefined` or `true` — successful validation with no issues
- * - A non-empty trace — constraint failures as a keyed report or violation message
- *
- * @typeParam T The value type being validated
- */
-export type Validator<T = unknown> =
-	(value: T) => undefined | true | Trace;
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -216,7 +182,7 @@ export function validate<T extends Template>(value: unknown, opts: {
 }): Relay<{
 
 	readonly value: Instance<T>,
-	readonly trace: Trace
+	readonly trace: undefined | Trace
 
 }>;
 
@@ -270,7 +236,7 @@ export function validate<T extends Template>(value: unknown, opts: {
 }): Relay<{
 
 	readonly value: Instance<T>,
-	readonly trace: Trace
+	readonly trace: undefined | Trace
 
 }>;
 
@@ -339,7 +305,7 @@ export function validate<T extends Template>(value: unknown, opts: {
 }): Relay<{
 
 	readonly value: T,
-	readonly trace: Trace
+	readonly trace: undefined | Trace
 
 }>;
 
@@ -371,7 +337,7 @@ export function validate(value: unknown, {
 }): Relay<{
 
 	readonly value: unknown,
-	readonly trace: Trace
+	readonly trace: undefined | Trace
 
 }> {
 

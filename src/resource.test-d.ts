@@ -468,8 +468,7 @@ describe("resource()", () => {
 
 	});
 
-	test("extends rejects empty array", () => {
-		// @ts-expect-error - empty array not assignable to non-empty tuple
+	test("accepts empty extends array (ignored)", () => {
 		resource({ extends: [] }, { name: required(string()) });
 	});
 
@@ -485,18 +484,15 @@ describe("resource()", () => {
 		resource({ hasValue: ["https://example.org/x" as IRI] }, {});
 	});
 
-	test("rejects empty classes array", () => {
-		// @ts-expect-error - empty array not assignable to non-empty tuple
+	test("accepts empty classes array (ignored)", () => {
 		resource({ classes: [] }, {});
 	});
 
-	test("rejects empty in array", () => {
-		// @ts-expect-error - empty array not assignable to non-empty tuple
+	test("accepts empty in array (ignored)", () => {
 		resource({ in: [] }, {});
 	});
 
-	test("rejects empty hasValue array", () => {
-		// @ts-expect-error - empty array not assignable to non-empty tuple
+	test("accepts empty hasValue array (ignored)", () => {
 		resource({ hasValue: [] }, {});
 	});
 

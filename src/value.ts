@@ -82,8 +82,9 @@ import { type Eager, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { TagRange } from "@metreeca/core/language";
 import { type Instance, type Probe, type Selection } from "@metreeca/qest/template";
+
+import type { Trace } from "@metreeca/core/trace";
 import type { BooleanShape } from "./boolean.js";
-import { type Trace } from "./index.js";
 import { type NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
 import type { ResourceShape } from "./resource.js";

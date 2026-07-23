@@ -22,6 +22,9 @@
       "NumberConstructor.MAX_SAFE_INTEGER": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER"
     },
     "@metreeca/core": {
+      "Trace": "https://metreeca.github.io/core/types/trace.Trace.html",
+      "Validator": "https://metreeca.github.io/core/types/trace.Validator.html",
+      "TraceError": "https://metreeca.github.io/core/classes/trace.TraceError.html",
       "Relay": "https://metreeca.github.io/core/types/relay.Relay.html",
       "isIdentifier": "https://metreeca.github.io/core/functions/index.isIdentifier.html",
       "Identifier": "https://metreeca.github.io/core/types/index.Identifier.html",

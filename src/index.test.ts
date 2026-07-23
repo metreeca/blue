@@ -15,25 +15,18 @@
  */
 
 import type { Probe, Transform } from "@metreeca/qest/template";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { Trace } from "@metreeca/core/trace";
 import { boolean } from "./boolean.js";
-import { collect, every, group, normalise, sh, TraceError, wrap } from "./index.core.js";
-import { type Trace, validate } from "./index.js";
+import { sh } from "./index.core.js";
+import { validate } from "./index.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { reference } from "./reference.js";
 import { id, resource, type ResourceShape, type } from "./resource.js";
 import { date, duration, instant, string, time, timestamp, year } from "./string.js";
 import { text } from "./text.js";
 import { union } from "./union.js";
-import {
-	effective,
-	multiple,
-	optional,
-	type RangeShape,
-	repeatable,
-	required,
-	type ValuesShape
-} from "./value.js";
+import { effective, multiple, optional, type RangeShape, repeatable, required, type ValuesShape } from "./value.js";
 
 
 describe("apply", () => {
@@ -42,14 +35,14 @@ describe("apply", () => {
 		return { target: path[path.length-1] ?? "_", pipe, path };
 	}
 
-	function range(r: RangeShape | Extract<Trace, string>): RangeShape {
+	function range(r: RangeShape | string): RangeShape {
 		if ( typeof r === "string" ) { throw new Error(`expected RangeShape, got trace <${r}>`); }
 		return r;
 	}
 
 	// transform-focused helpers: wrap leaf shape in a resource property
 
-	function transformRange(pipe: readonly Transform[], s: ValuesShape): RangeShape | Extract<Trace, string> {
+	function transformRange(pipe: readonly Transform[], s: ValuesShape): RangeShape | string {
 		return effective(resource({ _: required(s) }), probe(["_"], pipe));
 	}
 
@@ -419,7 +412,7 @@ describe("apply", () => {
 
 	describe("path cardinality accumulation", () => {
 
-		function pathRange(p: Probe, s: ResourceShape): RangeShape | Extract<Trace, string> {
+		function pathRange(p: Probe, s: ResourceShape): RangeShape | string {
 			return effective(s, p);
 		}
 
@@ -490,7 +483,7 @@ describe("apply", () => {
 
 	describe("path traversal", () => {
 
-		function probeRange(p: Probe, s: ResourceShape): RangeShape | Extract<Trace, string> {
+		function probeRange(p: Probe, s: ResourceShape): RangeShape | string {
 			return effective(s, p);
 		}
 
@@ -699,7 +692,7 @@ describe("apply", () => {
 
 	describe("id/type path resolution", () => {
 
-		function probeRange(p: Probe, s: ResourceShape): RangeShape | Extract<Trace, string> {
+		function probeRange(p: Probe, s: ResourceShape): RangeShape | string {
 			return effective(s, p);
 		}
 
@@ -2846,342 +2839,6 @@ describe("validation", () => {
 				});
 
 			});
-
-		});
-
-	});
-
-});
-
-describe("traces", () => {
-
-	describe("collect", () => {
-
-		it("returns undefined when all entries are undefined", async () => {
-
-			expect(collect({ minLength: undefined, maxLength: undefined })).toBeUndefined();
-
-		});
-
-		it("returns undefined for empty entries", async () => {
-
-			expect(collect({})).toBeUndefined();
-
-		});
-
-		it("filters out undefined entries", async () => {
-
-			const result = collect({ minLength: "too short", maxLength: undefined });
-
-			expect(result).toEqual({ minLength: "too short" });
-
-		});
-
-		it("preserves all failed entries", async () => {
-
-			const result = collect({ minLength: "too short", pattern: "no match" });
-
-			expect(result).toEqual({ minLength: "too short", pattern: "no match" });
-
-		});
-
-		it("filters out empty string entries", async () => {
-
-			expect(collect({ minLength: "" })).toBeUndefined();
-
-		});
-
-		it("filters out empty object entries", async () => {
-
-			expect(collect({ minLength: {} })).toBeUndefined();
-
-		});
-
-		it("preserves nested trace entries", async () => {
-
-			const result = collect({ name: { minLength: "too short" } });
-
-			expect(result).toEqual({ name: { minLength: "too short" } });
-
-		});
-
-	});
-
-	describe("every", () => {
-
-		it("returns undefined when all values pass", async () => {
-
-			expect(every([1, 2, 3], () => true)).toBeUndefined();
-
-		});
-
-		it("returns undefined when validator returns undefined", async () => {
-
-			expect(every([1, 2, 3], () => undefined)).toBeUndefined();
-
-		});
-
-		it("returns violation message for single failing value", async () => {
-
-			const result = every(["ab"], () => "too short");
-
-			expect(result).toBe("too short");
-
-		});
-
-		it("returns message without count prefix for single value", async () => {
-
-			const result = every(["ab"], () => "too short");
-
-			expect(typeof result === "string" && !result.startsWith("(")).toBeTruthy();
-
-		});
-
-		it("returns message with count prefix for multiple failing values", async () => {
-
-			const result = every(["a", "b", "c"], () => "too short");
-
-			expect(result).toMatch(/^\(3\/3\)/);
-
-		});
-
-		it("counts only failing values in prefix", async () => {
-
-			const result = every(
-				["ab", "hello", "c"],
-				v => v.length >= 3 || "too short"
-			);
-
-			expect(result).toMatch(/^\(2\/3\)/);
-
-		});
-
-		it("returns undefined for empty values array", async () => {
-
-			expect(every([], () => "error")).toBeUndefined();
-
-		});
-
-		it("normalises true results from validator", async () => {
-
-			const result = every([1, 2], v => v > 0 || "must be positive");
-
-			expect(result).toBeUndefined();
-
-		});
-
-		it("returns keyed trace directly for single failing value", async () => {
-
-			const keyed = { name: "required" };
-
-			const result = every([1], () => keyed);
-
-			expect(result).toEqual(keyed);
-
-		});
-
-		it("wraps single keyed failure in index key for multi-element array", async () => {
-
-			const keyed = { name: "required" };
-
-			const result = every([1, 2], v => v === 1 ? keyed : undefined);
-
-			expect(result).toEqual({ "0": keyed });
-
-		});
-
-		it("wraps multiple keyed failures in index keys", async () => {
-
-			const result = every([1, 2], () => ({ name: "required" }));
-
-			expect(result).toEqual({
-				"0": { name: "required" },
-				"1": { name: "required" }
-			});
-
-		});
-
-		it("wraps mixed failures in index keys when any is keyed", async () => {
-
-			const result = every([1, 2, 3], v =>
-				v === 1 ? "bad" : { name: "required" }
-			);
-
-			expect(result).toEqual({
-				"0": "bad",
-				"1": { name: "required" },
-				"2": { name: "required" }
-			});
-
-		});
-
-		it("applies count prefix when all failures are strings", async () => {
-
-			const result = every(["a", "b", "c"], () => "too short");
-
-			expect(result).toMatch(/^\(3\/3\) too short$/);
-
-		});
-
-		it("omits passing values from index-keyed trace", async () => {
-
-			const result = every([1, 2, 3], v =>
-				v === 2 ? undefined : { name: "required" }
-			);
-
-			expect(result).toEqual({
-				"0": { name: "required" },
-				"2": { name: "required" }
-			});
-
-		});
-
-	});
-
-	describe("group", () => {
-
-		it("returns undefined when validator returns true", async () => {
-
-			expect(group([1, 2, 3], () => true)).toBeUndefined();
-
-		});
-
-		it("returns undefined when validator returns undefined", async () => {
-
-			expect(group([1, 2, 3], () => undefined)).toBeUndefined();
-
-		});
-
-		it("returns trace when validator returns string", async () => {
-
-			expect(group([1, 2], () => "missing required value")).toBe("missing required value");
-
-		});
-
-		it("returns trace when validator returns keyed object", async () => {
-
-			const result = group([1, 2], () => ({ hasValue: "missing 3" }));
-
-			expect(result).toEqual({ hasValue: "missing 3" });
-
-		});
-
-		it("passes entire collection to validator", async () => {
-
-			const result = group(
-				["apple", "cherry"],
-				vs => ["apple", "banana"].every(v => vs.includes(v)) || "missing banana"
-			);
-
-			expect(result).toBe("missing banana");
-
-		});
-
-		it("normalises empty string from validator to undefined", async () => {
-
-			expect(group([1], () => "")).toBeUndefined();
-
-		});
-
-		it("normalises empty object from validator to undefined", async () => {
-
-			expect(group([1], () => ({}))).toBeUndefined();
-
-		});
-
-	});
-
-	describe("normalise", () => {
-
-		it("returns undefined for undefined", async () => {
-
-			expect(normalise(undefined)).toBeUndefined();
-
-		});
-
-		it("returns undefined for true", async () => {
-
-			expect(normalise(true)).toBeUndefined();
-
-		});
-
-		it("returns undefined for empty string", async () => {
-
-			expect(normalise("")).toBeUndefined();
-
-		});
-
-		it("returns undefined for empty object", async () => {
-
-			expect(normalise({})).toBeUndefined();
-
-		});
-
-		it("passes through non-empty string", async () => {
-
-			expect(normalise("error message")).toBe("error message");
-
-		});
-
-		it("passes through non-empty object", async () => {
-
-			const result = normalise({ minLength: "too short" });
-
-			expect(result).toEqual({ minLength: "too short" });
-
-		});
-
-		it("passes through nested trace object", async () => {
-
-			const nested = { name: { minLength: "too short" } };
-
-			expect(normalise(nested)).toEqual(nested);
-
-		});
-
-	});
-
-	describe("wrap", () => {
-
-		it("returns an empty record for undefined", async () => {
-
-			expect(wrap(undefined)).toEqual({});
-
-		});
-
-		it("wraps a bare string trace under the '{}' key", async () => {
-
-			expect(wrap("too short")).toEqual({ "{}": "too short" });
-
-		});
-
-		it("returns a keyed trace unchanged", async () => {
-
-			expect(wrap({ "{minLength}": "too short" })).toEqual({ "{minLength}": "too short" });
-
-		});
-
-	});
-
-	describe("TraceError", () => {
-
-		it("exposes the trace as cause", async () => {
-
-			const trace = { "{minLength}": "too short" };
-
-			expect(new TraceError("invalid shape", trace).cause).toBe(trace);
-
-		});
-
-		it("includes the pretty-printed trace in the message", async () => {
-
-			expect(new TraceError("invalid shape", { "{minLength}": "too short" }).message).toContain("too short");
-
-		});
-
-		it("is a RangeError", async () => {
-
-			expect(new TraceError("invalid shape", {})).toBeInstanceOf(RangeError);
 
 		});
 

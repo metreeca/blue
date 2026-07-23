@@ -285,8 +285,8 @@
  *
  * **Custom Validators**
  *
- * Implement custom resource-level constraints using {@link index!Validator | Validator}
- * functions, returning keyed {@link index!Trace | Trace} reports:
+ * Implement custom resource-level constraints as {@link Validator | validators} reporting keyed {@link Trace} records,
+ * or `undefined` when the resource passes:
  *
  * ```typescript
  * import type { Validator } from '@metreeca/blue';
@@ -300,15 +300,15 @@
  * const checkProduct: Validator<Product> = value => {
  *
  *   const priceIssue = value.minPrice !== undefined && value.maxPrice !== undefined
- *       && value.minPrice > value.maxPrice
- *       ? "minPrice must not exceed maxPrice" : undefined;
+ *       && value.minPrice > value.maxPrice;
  *
  *   const dateIssue = value.startDate !== undefined && value.endDate !== undefined
- *       && value.startDate > value.endDate
- *       ? "startDate must not follow endDate" : undefined;
+ *       && value.startDate > value.endDate;
  *
- *   return priceIssue || dateIssue
- *       ? { minPrice: priceIssue, startDate: dateIssue } : undefined;
+ *   return priceIssue || dateIssue ? {
+ *       ...(priceIssue ? { minPrice: "minPrice must not exceed maxPrice" } : {}),
+ *       ...(dateIssue ? { startDate: "startDate must not follow endDate" } : {})
+ *   } : undefined;
  *
  * };
  *
@@ -329,11 +329,10 @@
 import { type Identifier, isString, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
 import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
+import { type Trace, TraceError, type Validator } from "@metreeca/core/trace";
 import { defaultBase, Reference } from "@metreeca/qest";
 import type { Resource, Text } from "@metreeca/qest/resource";
 import type { Template } from "@metreeca/qest/template";
-import { TraceError } from "./index.core.js";
-import type { Validator } from "./index.js";
 import { checkSingletons, flatten } from "./resource.core.js";
 import { eager, type Schema, type SetShape, type State } from "./value.js";
 
@@ -379,6 +378,7 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | ------------- | --------------------------------------------------------------------------------------- |
  * | `kind`        | Cannot be overridden                                                                    |
  * | `model`       | Computed from entries, not user-defined                                              |
+ * | `virtual`     | Inherited; conflicting parents without child override are reported as an error          |
  * | `name`        | Always from child; not inherited                                                        |
  * | `description` | Always from child; not inherited                                                        |
  * | `namespace`   | Inherited; conflicting parents without child override are reported as an error          |
@@ -425,7 +425,8 @@ export interface ResourceShape extends ResourceConstraints {
 	/**
 	 * Custom resource validators.
 	 *
-	 * When specified, all validators are applied during validation. Must be non-empty.
+	 * When specified, all validators are applied during validation. Must be non-empty. Each validator reports
+	 * violations as a {@link Trace}, returning `undefined` if the resource passes.
 	 *
 	 * **Inheritance** — parent and child validators are merged; all apply.
 	 *
@@ -458,6 +459,18 @@ export interface ResourceShape extends ResourceConstraints {
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
  */
 export interface ResourceConstraints {
+
+	/**
+	 * Marks the resource as dynamically generated.
+	 *
+	 * When `true`, indicates the resource is at least partially computed rather than stored.
+	 *
+	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
+	 *
+	 * @defaultValue `undefined` (`false`)
+	 */
+	readonly virtual?: boolean;
+
 
 	/**
 	 * Human-readable name for the shape.
@@ -510,7 +523,7 @@ export interface ResourceConstraints {
 	 *
 	 * **Inheritance** — structural; outside inheritance scope.
 	 */
-	readonly extends?: Lazy<ResourceShape> | readonly [Lazy<ResourceShape>, ...Lazy<ResourceShape>[]];
+	readonly extends?: Lazy<ResourceShape> | readonly Lazy<ResourceShape>[];
 
 
 	/**
@@ -528,13 +541,13 @@ export interface ResourceConstraints {
 	/**
 	 * Ancillary class constraints for resource instances.
 	 *
-	 * Additional class IRIs that resource instances must conform to. Must be non-empty.
+	 * Additional class IRIs that resource instances must conform to. Empty arrays are ignored.
 	 *
 	 * **Inheritance** — union of parent `class` and child/parent `classes`.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#ClassConstraintComponent SHACL § 4.2.1 sh:class}
 	 */
-	readonly classes?: readonly [Reference, ...Reference[]];
+	readonly classes?: readonly Reference[];
 
 
 	/**
@@ -564,7 +577,8 @@ export interface ResourceConstraints {
 	/**
 	 * Allowed resource {@link Id identifiers} (closed enumeration).
 	 *
-	 * When specified, resource identifiers must be members of this list. IRIs must be absolute. Must be non-empty.
+	 * When specified, resource identifiers must be members of this list. IRIs must be absolute. Empty arrays are
+	 * ignored.
 	 *
 	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
 	 *
@@ -572,12 +586,12 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.5.1 sh:in}
 	 */
-	readonly in?: readonly [Reference, ...Reference[]];
+	readonly in?: readonly Reference[];
 
 	/**
 	 * Required resource {@link Id identifiers} that must be present.
 	 *
-	 * When specified, all listed resource identifiers must appear. IRIs must be absolute. Must be non-empty.
+	 * When specified, all listed resource identifiers must appear. IRIs must be absolute. Empty arrays are ignored.
 	 *
 	 * **Inheritance** — union of parent and child required values; child must require all parent values.
 	 *
@@ -585,7 +599,7 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.5.2 sh:hasValue}
 	 */
-	readonly hasValue?: readonly [Reference, ...Reference[]];
+	readonly hasValue?: readonly Reference[];
 
 }
 
@@ -1200,7 +1214,9 @@ export function resource<
 	E extends Members,
 	M extends Composition<E, C> = Composition<E, C>
 >(
-	constraints: C & { readonly validators?: readonly [Validator<M>, ...Validator<M>[]] },
+	constraints: C & {
+		readonly validators?: readonly [(value: M) => undefined | Trace, ...((value: M) => undefined | Trace)[]]
+	},
 	entries: E & Override<E, Inheritance<C>>
 ): Omit<ResourceShape, "model"> & { readonly model: M };
 

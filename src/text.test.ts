@@ -153,6 +153,16 @@ describe("factories", () => {
 
 });
 
+// navigate an array-shaped trace by key path, returning the value at the path or undefined
+
+function at(trace: unknown, ...path: readonly string[]): unknown {
+	return path.reduce<unknown>((node, key) => {
+		const record = Array.isArray(node) ? node.find(item => item !== null && typeof item === "object") : node;
+		return record === null || typeof record !== "object" ? undefined : (record as Record<string, unknown>)[key];
+	}, trace);
+}
+
+
 describe("operators", () => {
 
 	describe("checkText", () => {
@@ -191,8 +201,7 @@ describe("operators", () => {
 
 			const trace = checkText({ minLength: 10, maxLength: 5 });
 
-			expect(trace).toBeDefined();
-			expect(trace).toHaveProperty("{minLength/maxLength}");
+			expect(trace).toContainEqual(expect.stringContaining("{minLength/maxLength}"));
 
 		});
 
@@ -200,20 +209,20 @@ describe("operators", () => {
 
 			it("rejects plain string (no bare-string shorthand)", async () => {
 
-				expect(checkText({ model: "hello" } as any)).toHaveProperty("{model}");
-				expect(checkText({ model: "" } as any)).toHaveProperty("{model}");
+				expect(at(checkText({ model: "hello" } as any), "{model}")).toBeDefined();
+				expect(at(checkText({ model: "" } as any), "{model}")).toBeDefined();
 
 			});
 
 			it("rejects singleton string array (no bare-array shorthand)", async () => {
 
-				expect(checkText({ model: ["hello"] } as any)).toHaveProperty("{model}");
+				expect(at(checkText({ model: ["hello"] } as any), "{model}")).toBeDefined();
 
 			});
 
 			it("rejects multi-element string array", async () => {
 
-				expect(checkText({ model: ["hello", "world"] } as any)).toHaveProperty("{model}");
+				expect(at(checkText({ model: ["hello", "world"] } as any), "{model}")).toBeDefined();
 
 			});
 
@@ -233,8 +242,7 @@ describe("operators", () => {
 
 				const trace = checkText({ model: { "en": ["hello", "world"] } } as any);
 
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty(["{model}", "en"]);
+				expect(at(trace, "{model}", "en")).toBeDefined();
 
 			});
 
@@ -253,9 +261,9 @@ describe("operators", () => {
 
 			it("rejects non-string non-array non-object value", async () => {
 
-				expect(checkText({ model: 42 } as any)).toHaveProperty("{model}");
-				expect(checkText({ model: true } as any)).toHaveProperty("{model}");
-				expect(checkText({ model: null } as any)).toHaveProperty("{model}");
+				expect(at(checkText({ model: 42 } as any), "{model}")).toBeDefined();
+				expect(at(checkText({ model: true } as any), "{model}")).toBeDefined();
+				expect(at(checkText({ model: null } as any), "{model}")).toBeDefined();
 
 			});
 
@@ -263,15 +271,13 @@ describe("operators", () => {
 
 				const trace = checkText({ model: { "123": ["hello"] } } as any);
 
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty(["{model}", "123"]);
+				expect(at(trace, "{model}", "123")).toBeDefined();
 
 				// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
 
 				const extended = checkText({ model: { "en-*": ["hello"] } } as any);
 
-				expect(extended).toBeDefined();
-				expect(extended).toHaveProperty(["{model}", "en-*"]);
+				expect(at(extended, "{model}", "en-*")).toBeDefined();
 
 			});
 
@@ -279,8 +285,7 @@ describe("operators", () => {
 
 				const trace = checkText({ model: { en: 42 } } as any);
 
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty(["{model}", "en"]);
+				expect(at(trace, "{model}", "en")).toBeDefined();
 
 			});
 
@@ -288,10 +293,9 @@ describe("operators", () => {
 
 				const trace = checkText({ model: { en: ["hello"], "123": ["bad"], fr: 42 } } as any);
 
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty(["{model}", "123"]);
-				expect(trace).toHaveProperty(["{model}", "fr"]);
-				expect(trace).not.toHaveProperty(["{model}", "en"]);
+				expect(at(trace, "{model}", "123")).toBeDefined();
+				expect(at(trace, "{model}", "fr")).toBeDefined();
+				expect(at(trace, "{model}", "en")).toBeUndefined();
 
 			});
 
@@ -300,7 +304,7 @@ describe("operators", () => {
 				// qest's Locale type defines `{ TagRange: string }` and `{ TagRange: [string] }` as
 				// distinct arms; a single map with both shapes satisfies neither
 
-				expect(checkText({ model: { en: "hello", fr: ["bonjour"] } } as any)).toHaveProperty("{model}");
+				expect(at(checkText({ model: { en: "hello", fr: ["bonjour"] } } as any), "{model}")).toBeDefined();
 
 			});
 
@@ -314,14 +318,14 @@ describe("operators", () => {
 
 					const trace = checkText({ model: { en: ["hi"], ">=length:": 5 } } as any);
 
-					expect(trace).toHaveProperty(["{model}", ">=length:"]);
-					expect(trace).not.toHaveProperty(["{model}", "en"]);
+					expect(at(trace, "{model}", ">=length:")).toBeDefined();
+					expect(at(trace, "{model}", "en")).toBeUndefined();
 
 				});
 
 				it("rejects an object with only selection keys", async () => {
 
-					expect(checkText({ model: { ">=length:": 5 } } as any)).toHaveProperty("{model}");
+					expect(at(checkText({ model: { ">=length:": 5 } } as any), "{model}")).toBeDefined();
 
 				});
 
@@ -332,7 +336,7 @@ describe("operators", () => {
 					["pagination limit", { en: ["hi"], "#": 10 }]
 				])("rejects %s selection key", async (_label, value) => {
 
-					expect(checkText({ model: value } as any)).toHaveProperty("{model}");
+					expect(at(checkText({ model: value } as any), "{model}")).toBeDefined();
 
 				});
 
@@ -649,7 +653,7 @@ describe("validators", () => {
 
 			it("rejects plain string (no und shorthand)", async () => {
 
-				expect(validateTextString(["hello"], text())).toHaveProperty("{kind}");
+				expect(validateTextString(["hello"], text())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -665,7 +669,7 @@ describe("validators", () => {
 				["mixed valid and non-object values", [{ "en": "hello" }, 42]]
 			])("returns a kind trace for %s", async (_label, values) => {
 
-				expect(validateTextString(values, text())).toHaveProperty("{kind}");
+				expect(validateTextString(values, text())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -690,7 +694,7 @@ describe("validators", () => {
 				const result = validateTextString([{ "123": "hello" }], text());
 
 				expect(result).toBeDefined();
-				expect(result).toHaveProperty("123");
+				expect(at(result, "123")).toBeDefined();
 
 			});
 
@@ -699,7 +703,7 @@ describe("validators", () => {
 				const result = validateTextString([{ en: 42 }], text());
 
 				expect(result).toBeDefined();
-				expect(result).toHaveProperty("en");
+				expect(at(result, "en")).toBeDefined();
 
 			});
 
@@ -708,9 +712,9 @@ describe("validators", () => {
 				const result = validateTextString([{ en: "hello", "123": "bad tag", fr: 42 }], text());
 
 				expect(result).toBeDefined();
-				expect(result).toHaveProperty("123");
-				expect(result).toHaveProperty("fr");
-				expect(result).not.toHaveProperty("en");
+				expect(at(result, "123")).toBeDefined();
+				expect(at(result, "fr")).toBeDefined();
+				expect(at(result, "en")).toBeUndefined();
 
 			});
 
@@ -719,8 +723,8 @@ describe("validators", () => {
 				const result = validateTextString([{ en: "hi", "123": "bad" }], text({ minLength: 5 }));
 
 				expect(result).toBeDefined();
-				expect(result).toHaveProperty("123"); // invalid tag
-				expect(result).toHaveProperty("en"); // valid tag but fails minLength
+				expect(at(result, "123")).toBeDefined(); // invalid tag
+				expect(at(result, "en")).toBeDefined(); // valid tag but fails minLength
 
 			});
 
@@ -728,12 +732,9 @@ describe("validators", () => {
 
 				const result = validateTextString([{ en: 42 }], text({ minLength: 5 }));
 
-				expect(result).toBeDefined();
-				expect(result).toHaveProperty("en");
-
 				// structural error, not a constraint error
-				const en = (result as any).en;
-				expect(typeof en === "string" || (typeof en === "object" && !en["{minLength}"])).toBeTruthy();
+
+				expect(at(result, "en")).toEqual(["expected string value"]);
 
 			});
 
@@ -754,14 +755,14 @@ describe("validators", () => {
 
 				const result = validateTextString([{ en: "hi", fr: "bonjour" }], text({ minLength: 5 }));
 
-				expect(result).toHaveProperty("en");
-				expect(result).not.toHaveProperty("fr");
+				expect(at(result, "en")).toBeDefined();
+				expect(at(result, "fr")).toBeUndefined();
 
 			});
 
 			it("returns trace for empty string when minLength > 0", async () => {
 
-				expect(validateTextString([{ en: "" }], text({ minLength: 1 }))).toHaveProperty("en");
+				expect(at(validateTextString([{ en: "" }], text({ minLength: 1 })), "en")).toBeDefined();
 
 			});
 
@@ -785,7 +786,7 @@ describe("validators", () => {
 					fr: "bonjour"
 				}], text({ maxLength: 5 }));
 
-				expect(result).toHaveProperty("fr");
+				expect(at(result, "fr")).toBeDefined();
 
 			});
 
@@ -809,8 +810,8 @@ describe("validators", () => {
 					de: "hallo"
 				}], text({ languageIn: ["en", "fr"] }));
 
-				expect(result).toHaveProperty("de");
-				expect(result).not.toHaveProperty("en");
+				expect(at(result, "de")).toBeDefined();
+				expect(at(result, "en")).toBeUndefined();
 
 			});
 
@@ -825,7 +826,7 @@ describe("validators", () => {
 
 			it("returns trace for base language when only subtag allowed", async () => {
 
-				expect(validateTextString([{ en: "hello" }], text({ languageIn: ["en-US"] }))).toHaveProperty("en");
+				expect(at(validateTextString([{ en: "hello" }], text({ languageIn: ["en-US"] })), "en")).toBeDefined();
 
 			});
 
@@ -850,7 +851,7 @@ describe("validators", () => {
 					languageIn: ["en"]
 				}));
 
-				expect(result).toHaveProperty("en");
+				expect(at(result, "en")).toBeDefined();
 
 			});
 
@@ -861,7 +862,7 @@ describe("validators", () => {
 					languageIn: ["en"]
 				}));
 
-				expect(result).toHaveProperty("fr");
+				expect(at(result, "fr")).toBeDefined();
 
 			});
 
@@ -871,13 +872,13 @@ describe("validators", () => {
 
 			it("rejects plain string values (no und shorthand)", async () => {
 
-				expect(validateTextString(["hello"], text())).toHaveProperty("{kind}");
+				expect(validateTextString(["hello"], text())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
 			it("rejects empty plain string values", async () => {
 
-				expect(validateTextString([""], text())).toHaveProperty("{kind}");
+				expect(validateTextString([""], text())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -897,7 +898,7 @@ describe("validators", () => {
 
 			it("rejects plain string array (no und shorthand)", async () => {
 
-				expect(validateTextStrings([["hello"]], text())).toHaveProperty("{kind}");
+				expect(validateTextStrings([["hello"]], text())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -913,7 +914,7 @@ describe("validators", () => {
 				["mixed valid and non-object values", [{ "en": ["hello"] }, 42]]
 			])("returns a kind trace for %s", async (_label, values) => {
 
-				expect(validateTextStrings(values, text())).toHaveProperty("{kind}");
+				expect(validateTextStrings(values, text())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -944,7 +945,7 @@ describe("validators", () => {
 				const result = validateTextStrings([{ "123": ["hello"] }], text());
 
 				expect(result).toBeDefined();
-				expect(result).toHaveProperty("123");
+				expect(at(result, "123")).toBeDefined();
 
 			});
 
@@ -953,7 +954,7 @@ describe("validators", () => {
 				const result = validateTextStrings([{ en: 42 }], text());
 
 				expect(result).toBeDefined();
-				expect(result).toHaveProperty("en");
+				expect(at(result, "en")).toBeDefined();
 
 			});
 
@@ -962,9 +963,9 @@ describe("validators", () => {
 				const result = validateTextStrings([{ en: ["hello"], "123": ["bad tag"], fr: 42 }], text());
 
 				expect(result).toBeDefined();
-				expect(result).toHaveProperty("123");
-				expect(result).toHaveProperty("fr");
-				expect(result).not.toHaveProperty("en");
+				expect(at(result, "123")).toBeDefined();
+				expect(at(result, "fr")).toBeDefined();
+				expect(at(result, "en")).toBeUndefined();
 
 			});
 
@@ -972,11 +973,9 @@ describe("validators", () => {
 
 				const result = validateTextStrings([{ en: 42 }], { ...text(), minLength: 5 } as any);
 
-				expect(result).toBeDefined();
-				expect(result).toHaveProperty("en");
+				// structural error, not a constraint error
 
-				const en = (result as any).en;
-				expect(typeof en === "string" || (typeof en === "object" && !en["{minLength}"])).toBeTruthy();
+				expect(at(result, "en")).toEqual(["expected string array value"]);
 
 			});
 
@@ -1000,7 +999,7 @@ describe("validators", () => {
 					minLength: 5
 				} as any);
 
-				expect(result).toHaveProperty("en");
+				expect(at(result, "en")).toBeDefined();
 
 			});
 
@@ -1024,7 +1023,7 @@ describe("validators", () => {
 					maxLength: 5
 				} as any);
 
-				expect(result).toHaveProperty("en");
+				expect(at(result, "en")).toBeDefined();
 
 			});
 
@@ -1048,8 +1047,8 @@ describe("validators", () => {
 					de: ["hallo"]
 				}], { ...text(), languageIn: ["en", "fr"] } as any);
 
-				expect(result).toHaveProperty("de");
-				expect(result).not.toHaveProperty("en");
+				expect(at(result, "de")).toBeDefined();
+				expect(at(result, "en")).toBeUndefined();
 
 			});
 
@@ -1085,7 +1084,7 @@ describe("validators", () => {
 					languageIn: ["en"]
 				} as any);
 
-				expect(result).toHaveProperty("en");
+				expect(at(result, "en")).toBeDefined();
 
 			});
 
@@ -1098,13 +1097,13 @@ describe("validators", () => {
 				expect(validateTextStrings([["hello", "world"]], {
 					...text(),
 					minLength: 3
-				} as any)).toHaveProperty("{kind}");
+				} as any)).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
 			it("rejects single-element plain string array", async () => {
 
-				expect(validateTextStrings([["hello"]], text())).toHaveProperty("{kind}");
+				expect(validateTextStrings([["hello"]], text())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -1112,16 +1111,15 @@ describe("validators", () => {
 
 		describe("per-value errors", () => {
 
-			it.each<[string, readonly string[], Record<string, number>, string, RegExp]>([
-				["a count prefix for multiple failing minLength texts", ["ab", "c", "d"], { minLength: 3 }, "{minLength}", /^\(3\/3\) /],
-				["a count prefix for maxLength violations", ["toolong", "alsotoolong"], { maxLength: 3 }, "{maxLength}", /^\(2\/2\) /],
-				["only failing texts in the prefix", ["ab", "hello", "c"], { minLength: 3 }, "{minLength}", /^\(2\/3\) /]
-			])("includes %s", async (_label, values, constraints, key, message) => {
+			it.each<[string, readonly string[], Record<string, number>]>([
+				["multiple failing minLength texts", ["ab", "c", "d"], { minLength: 3 }],
+				["maxLength violations", ["toolong", "alsotoolong"], { maxLength: 3 }],
+				["only failing texts", ["ab", "hello", "c"], { minLength: 3 }]
+			])("keys per-element length violations for %s", async (_label, values, constraints) => {
 
 				const result = validateTextStrings([{ en: values }], { ...text(), ...constraints } as any);
-				const en = (result as any).en as Record<string, string>;
 
-				expect(en[key]).toMatch(message);
+				expect(JSON.stringify(at(result, "en"))).toContain("{length}");
 
 			});
 
@@ -1138,6 +1136,10 @@ describe("validators", () => {
 
 		it("rejects more than one value", async () => {
 			expect(validateLocale(["a", "b"])).toBeDefined();
+		});
+
+		it("reports an arity violation under the kind key, as the text arms do", async () => {
+			expect(validateLocale(["a", "b"])).toEqual(["{kind} expected at most one <text> value"]);
 		});
 
 		it("accepts a bare string (coalesced scalar placeholder)", async () => {
@@ -1225,14 +1227,14 @@ describe("validators", () => {
 			const result = validateLocaleString({ "123": "hello" });
 
 			expect(result).toBeDefined();
-			expect(result).toHaveProperty("123");
+			expect(at(result, "123")).toBeDefined();
 
 			// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
 
 			const extended = validateLocaleString({ "en-*": "hello" });
 
 			expect(extended).toBeDefined();
-			expect(extended).toHaveProperty("en-*");
+			expect(at(extended, "en-*")).toBeDefined();
 
 		});
 
@@ -1241,7 +1243,7 @@ describe("validators", () => {
 			const result = validateLocaleString({ en: 42 });
 
 			expect(result).toBeDefined();
-			expect(result).toHaveProperty("en");
+			expect(at(result, "en")).toBeDefined();
 
 		});
 
@@ -1250,9 +1252,9 @@ describe("validators", () => {
 			const result = validateLocaleString({ en: "hello", "123": "bad", fr: 42 });
 
 			expect(result).toBeDefined();
-			expect(result).toHaveProperty("123");
-			expect(result).toHaveProperty("fr");
-			expect(result).not.toHaveProperty("en");
+			expect(at(result, "123")).toBeDefined();
+			expect(at(result, "fr")).toBeDefined();
+			expect(at(result, "en")).toBeUndefined();
 
 		});
 
@@ -1266,8 +1268,8 @@ describe("validators", () => {
 
 				const result = validateLocaleString({ en: "hi", ">=length:": 5 });
 
-				expect(result).toHaveProperty(">=length:");
-				expect(result).not.toHaveProperty("en");
+				expect(at(result, ">=length:")).toBeDefined();
+				expect(at(result, "en")).toBeUndefined();
 
 			});
 
@@ -1327,7 +1329,7 @@ describe("validators", () => {
 			const result = validateLocaleStrings({ "en": "hello" });
 
 			expect(result).toBeDefined();
-			expect(result).toHaveProperty("en");
+			expect(at(result, "en")).toBeDefined();
 
 		});
 
@@ -1336,7 +1338,7 @@ describe("validators", () => {
 			const result = validateLocaleStrings({ "en": ["hello", "world"] });
 
 			expect(result).toBeDefined();
-			expect(result).toHaveProperty("en");
+			expect(at(result, "en")).toBeDefined();
 
 		});
 
@@ -1359,14 +1361,14 @@ describe("validators", () => {
 			const result = validateLocaleStrings({ "123": ["hello"] });
 
 			expect(result).toBeDefined();
-			expect(result).toHaveProperty("123");
+			expect(at(result, "123")).toBeDefined();
 
 			// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
 
 			const extended = validateLocaleStrings({ "en-*": ["hello"] });
 
 			expect(extended).toBeDefined();
-			expect(extended).toHaveProperty("en-*");
+			expect(at(extended, "en-*")).toBeDefined();
 
 		});
 

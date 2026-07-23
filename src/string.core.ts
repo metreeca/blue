@@ -21,9 +21,21 @@
  */
 
 import { isString } from "@metreeca/core";
+import { union } from "@metreeca/core/combo";
 import { immutable } from "@metreeca/core/deep";
-import { collect, every, group, type Scope, TraceError, wrap } from "./index.core.js";
-import type { Trace } from "./index.js";
+import {
+	all,
+	array,
+	domain,
+	format,
+	length,
+	test,
+	type Trace,
+	TraceError,
+	type,
+	values as contains
+} from "@metreeca/core/trace";
+import { type Scope } from "./index.core.js";
 import type { StringShape } from "./string.js";
 
 
@@ -32,43 +44,26 @@ import type { StringShape } from "./string.js";
  *
  * @param constraints The constraint fields to validate
  *
- * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
+ * @returns A trace of consistency violations, or `undefined` if all constraints are consistent
  */
-export function checkString({
+export function checkString(constraints: Partial<StringShape>): undefined | Trace {
 
-	minLength,
-	maxLength,
+	return all<typeof constraints>(
+		test(({ minLength, maxLength }) => {
 
-	pattern,
+			return minLength === undefined || maxLength === undefined || minLength <= maxLength || [
+				`{minLength/maxLength} inconsistent bounds <${minLength}> > <${maxLength}>`
+			];
 
-	in: allowed,
-	hasValue
+		}),
+		test(({ in: allowed, hasValue }) => {
 
-}: {
+			return hasValue === undefined || allowed === undefined || hasValue.every(v => allowed.includes(v)) || [
+				`{hasValue/in} required values <${hasValue.filter(v => !allowed.includes(v))}> not in allowed set`
+			];
 
-	readonly model?: string;
-
-	readonly minLength?: number;
-	readonly maxLength?: number;
-
-	readonly pattern?: string;
-
-	readonly in?: readonly [string, ...string[]];
-	readonly hasValue?: readonly string[];
-
-}): undefined | Trace {
-
-	return collect({
-
-		"{minLength/maxLength}": minLength === undefined || maxLength === undefined
-			|| minLength <= maxLength
-			|| `inconsistent bounds <${minLength}> > <${maxLength}>`,
-
-		"{hasValue/in}": hasValue === undefined || allowed === undefined
-			|| hasValue.every(v => allowed.includes(v))
-			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`
-
-	});
+		})
+	)(constraints);
 
 }
 
@@ -77,79 +72,66 @@ export function checkString({
  *
  * Tests the override relation without building the merged shape: returns `undefined` when `target` only tightens
  * `source` (matching `datatype` and `pattern`, lengths not widened, `in` intersection non-empty, merged
- * constraints consistent), or a keyed {@link Trace} describing the obstacles otherwise.
+ * constraints consistent), or a {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
  *
- * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
+ * @returns A trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
 export function narrowsString(target: StringShape, source: StringShape): undefined | Trace {
 
-	// conjunctive: in — intersection
+	return all<StringShape>(
+		test(({ datatype }) => {
 
-	const allowed = target.in !== undefined && source.in !== undefined
-		? target.in.filter(v => source.in!.includes(v))
-		: target.in ?? source.in;
+			return datatype === undefined || source.datatype === undefined || datatype === source.datatype || [
+				`{datatype} mismatched datatypes <${datatype}> and <${source.datatype}>`
+			];
 
-	// conjunctive: hasValue — union
+		}),
+		test(({ pattern }) => {
 
-	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
-		? [...new Set([...target.hasValue, ...source.hasValue])]
-		: target.hasValue ?? source.hasValue;
+			return pattern === undefined || source.pattern === undefined || pattern === source.pattern || [
+				`{pattern} mismatched patterns <${pattern}> and <${source.pattern}>`
+			];
 
-	// merged constraints
+		}),
+		test(({ minLength }) => {
 
-	const minLength = target.minLength ?? source.minLength;
-	const maxLength = target.maxLength ?? source.maxLength;
+			return minLength === undefined || source.minLength === undefined || minLength >= source.minLength || [
+				`{minLength} widened limit <${minLength}> beyond <${source.minLength}>`
+			];
 
-	return collect({
+		}),
+		test(({ maxLength }) => {
 
-		// structural: datatype must be strictly equal when both defined
+			return maxLength === undefined || source.maxLength === undefined || maxLength <= source.maxLength || [
+				`{maxLength} widened limit <${maxLength}> beyond <${source.maxLength}>`
+			];
 
-		"{datatype}": target.datatype === undefined || source.datatype === undefined
-			|| target.datatype === source.datatype
-			|| `mismatched datatypes <${target.datatype}> and <${source.datatype}>`,
+		}),
+		test(({ in: values }) => {
 
-		// structural: pattern must be strictly equal when both defined
+			return values === undefined || source.in === undefined || values.some(v => source.in!.includes(v)) || [
+				`{in} disjoint sets [${values}] and [${source.in}]`
+			];
 
-		"{pattern}": target.pattern === undefined || source.pattern === undefined
-			|| target.pattern === source.pattern
-			|| `mismatched patterns <${target.pattern}> and <${source.pattern}>`,
+		}),
+		() => checkString({ // post-merge constraint consistency
 
-		// narrow: minLength — child >= parent
+			minLength: target.minLength ?? source.minLength,
+			maxLength: target.maxLength ?? source.maxLength,
 
-		"{minLength}": target.minLength === undefined || source.minLength === undefined
-			|| target.minLength >= source.minLength
-			|| `widened limit <${target.minLength}> beyond <${source.minLength}>`,
+			in: target.in !== undefined && source.in !== undefined
+				? target.in.filter(v => source.in!.includes(v))
+				: target.in ?? source.in,
 
-		// narrow: maxLength — child <= parent
+			hasValue: target.hasValue !== undefined && source.hasValue !== undefined
+				? union([target.hasValue, source.hasValue])
+				: target.hasValue ?? source.hasValue
 
-		"{maxLength}": target.maxLength === undefined || source.maxLength === undefined
-			|| target.maxLength <= source.maxLength
-			|| `widened limit <${target.maxLength}> beyond <${source.maxLength}>`,
-
-		// conjunctive: in — empty intersection
-
-		"{in}": target.in === undefined || source.in === undefined
-			|| allowed!.length !== 0
-			|| `disjoint sets [${target.in}] and [${source.in}]`,
-
-		// post-merge constraint consistency
-
-		...wrap(checkString({
-
-			minLength,
-			maxLength,
-
-			// ;(cast) the merge intersection is a plain array; its non-emptiness is reported by {in} above
-
-			in: allowed as StringShape["in"],
-			hasValue
-
-		}))
-
-	});
+		})
+	)(target);
 
 }
 
@@ -186,7 +168,7 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 	// conjunctive: hasValue — union
 
 	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
-		? [...new Set([...target.hasValue, ...source.hasValue])]
+		? union([target.hasValue, source.hasValue])
 		: target.hasValue ?? source.hasValue;
 
 	// merged constraints
@@ -206,8 +188,8 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 		minLength,
 		maxLength,
 
-		in: allowed as StringShape["in"],
-		hasValue: hasValue as StringShape["hasValue"]
+		in: allowed,
+		hasValue
 
 	});
 
@@ -219,8 +201,9 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 /**
  * Validates values against a string shape.
  *
- * Filters input values by type, reporting non-string values under the `kind` key, then enforces the string
- * value-domain constraints on the matching values.
+ * Reports each non-string value as a `{kind}` violation, then enforces the string value-domain constraints on the
+ * matching values, keying every element violation by its index. Membership over the whole set (`hasValue`) is reported
+ * as a leading bare message.
  *
  * @param values The values to validate
  * @param shape The string shape defining validation constraints
@@ -229,21 +212,9 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
  *     discriminator over an open datatype set) but skips the value-domain magnitude constraints (length, `in`,
  *     `hasValue`); `"model"` skips every constraint and matches by kind alone. Defaults to `"state"`
  *
- * @returns A keyed trace of validation errors, or `undefined` if all values are valid
+ * @returns A trace of validation violations, or `undefined` if all values are valid
  */
-export function validateString(values: readonly unknown[], {
-
-	kind,
-
-	minLength,
-	maxLength,
-
-	pattern,
-
-	in: allowed,
-	hasValue
-
-}: StringShape, {
+export function validateString(values: readonly unknown[], shape: StringShape, {
 
 	scope = "state"
 
@@ -253,42 +224,68 @@ export function validateString(values: readonly unknown[], {
 
 } = {}): undefined | Trace {
 
-	const matching = values.filter(isString);
-	const mistyped = values.length-matching.length;
+	switch ( scope ) {
 
-	// {pattern} is kept through the bound scope as the sole lexical discriminator; the magnitude constraints apply
-	// only in the state scope, and the model scope matches by {kind} alone
+		case "state":
 
-	return collect({
+			return state(shape)(values);
 
-		"{kind}": mistyped === 0
-			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+		case "bound":
 
-		"{minLength}": scope !== "state" || every(matching, value =>
-			minLength === undefined || value.length >= minLength
-			|| `expected string length >= <${minLength}>`
-		),
+			return bound(shape)(values);
 
-		"{maxLength}": scope !== "state" || every(matching, value =>
-			maxLength === undefined || value.length <= maxLength
-			|| `expected string length <= <${maxLength}>`
-		),
+		case "model":
 
-		"{pattern}": scope === "model" || every(matching, value =>
-			pattern === undefined || new RegExp(pattern).test(value)
-			|| `expected string matching </${pattern}/>`
-		),
+			return model(shape)(values);
 
-		"{in}": scope !== "state" || every(matching, value =>
-			allowed === undefined || allowed.includes(value)
-			|| `expected values in [${allowed.join(", ")}]`
-		),
+	}
 
-		"{hasValue}": scope !== "state" || group(matching, group =>
-			hasValue === undefined || hasValue.every(v => group.includes(v))
-			|| `expected values to include [${hasValue.join(", ")}]`
-		)
 
-	});
+	function state({
+
+		minLength,
+		maxLength,
+
+		pattern,
+
+		in: allowed,
+		hasValue: required
+
+	}: StringShape) {
+
+		return array(
+			type(isString,
+				all(
+					length(minLength, maxLength),
+					domain(allowed),
+					format(pattern)
+				)
+			),
+			contains(required)
+		);
+
+	}
+
+	function bound({
+
+		pattern
+
+	}: StringShape) {
+
+		return array(
+			type(isString,
+				format(pattern)
+			)
+		);
+
+	}
+
+	function model({}: StringShape) {
+
+		return array(
+			type(isString)
+		);
+
+	}
 
 }

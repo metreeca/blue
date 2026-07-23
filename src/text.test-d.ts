@@ -43,8 +43,7 @@ describe("TextShape", () => {
 			text({ languageIn: [assert("en", isTagRange)] });
 		});
 
-		test("rejects empty array", () => {
-			// @ts-expect-error - empty array not assignable to non-empty tuple
+		test("accepts empty array (ignored)", () => {
 			text({ languageIn: [] });
 		});
 

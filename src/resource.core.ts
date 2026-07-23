@@ -30,6 +30,7 @@ import {
 	isString,
 	type Lazy
 } from "@metreeca/core";
+import { fold, union } from "@metreeca/core/combo";
 import { equals, immutable, seal } from "@metreeca/core/deep";
 import { isTagRange, matchTag } from "@metreeca/core/language";
 import { type IRI, isIRI } from "@metreeca/core/resource";
@@ -56,9 +57,8 @@ import {
 	type Template,
 	type Union
 } from "@metreeca/qest/template";
+import { all, array, fail, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { validateBoolean } from "./boolean.core.js";
-import { collect, normalise, TraceError, wrap } from "./index.core.js";
-import type { Trace } from "./index.js";
 import { validateNumber } from "./number.core.js";
 import { getShapeTarget, validateReference } from "./reference.core.js";
 import { type ReferenceShape } from "./reference.js";
@@ -107,32 +107,24 @@ const PatternFormat = new RegExp(
  *
  * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
  */
-export function checkResource({
+export function checkResource(constraints: Partial<ResourceShape>): undefined | Trace {
 
-	in: allowed,
-	hasValue
+	return all<typeof constraints>(
+		test(({ in: allowed, hasValue }) => {
 
-}: {
+			return hasValue === undefined || allowed === undefined || hasValue.every(v => allowed.includes(v)) || [
+				`{hasValue/in} required values <${hasValue.filter(v => !allowed.includes(v))}> not in allowed set`
+			];
 
-	readonly in?: readonly string[];
-	readonly hasValue?: readonly string[];
-
-}): undefined | Trace {
-
-	return collect({
-
-		"{hasValue/in}": hasValue === undefined || allowed === undefined
-			|| hasValue.every(v => allowed.includes(v))
-			|| `required values <${hasValue?.filter(v => !allowed.includes(v))}> not in allowed set`
-
-	});
+		})
+	)(constraints);
 
 }
 
 /**
  * Checks for conflicting inherit-strategy fields across sibling parents.
  *
- * Inherit fields (`namespace` on resources; `hidden`, `computed` on entries) require all sibling
+ * Inherit fields (`virtual`, `namespace` on resources; `hidden`, `computed` on entries) require all sibling
  * parents to agree on the value. When any two flattened parents define different values (including `undefined` vs
  * defined) and the child shape does not provide an override, a trace entry is produced.
  *
@@ -146,19 +138,24 @@ export function checkResource({
  */
 export function checkParents(shape: ResourceShape, parents: readonly ResourceShape[]): undefined | Trace {
 
-	return parents.length < 2 ? undefined : collect({
+	if ( parents.length < 2 ) { return undefined; }
 
+	return all(
 		// resource-level inherit fields
 
-		"{namespace}": shape.namespace !== undefined
-			|| parents.every(p => p.namespace?.[""] === parents[0].namespace?.[""])
-			|| `conflicting parent values <${parents[0].namespace?.[""]}>  vs <${parents.find(p =>
-				p.namespace?.[""] !== parents[0].namespace?.[""])?.namespace?.[""]
-			}>  without child override`,
+		(shape.virtual === undefined && !parents.every(p => p.virtual === parents[0].virtual))
+		&& fail([`{virtual} conflicting parent values <${parents[0].virtual}> vs <${parents.find(p =>
+			p.virtual !== parents[0].virtual)?.virtual
+		}> without child override`]),
+
+		(shape.namespace === undefined && !parents.every(p => p.namespace?.[""] === parents[0].namespace?.[""]))
+		&& fail([`{namespace} conflicting parent values <${parents[0].namespace?.[""]}> vs <${parents.find(p =>
+			p.namespace?.[""] !== parents[0].namespace?.[""])?.namespace?.[""]
+		}> without child override`]),
 
 		// property-level inherit fields
 
-		...Object.fromEntries([...new Set(parents.flatMap(p => Object.keys(p.entries)))]
+		...[...new Set(parents.flatMap(p => Object.keys(p.entries)))]
 
 			// skip entries defined by a single parent: no conflict possible
 
@@ -171,30 +168,26 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 
 				return [
 
-					[`{${key}.hidden}`, inherited.every(p => p.hidden === inherited[0].hidden)
-					|| override?.hidden !== undefined
-					|| `conflicting parent values <${inherited[0].hidden}> vs <${
+					(!inherited.every(p => p.hidden === inherited[0].hidden) && override?.hidden === undefined)
+					&& fail([`{hidden} conflicting parent values <${inherited[0].hidden}> vs <${
 						inherited.find(p => p.hidden !== inherited[0].hidden)?.hidden
-					}> without child override`],
+					}> for <${key}> without child override`]),
 
-					[`{${key}.computed}`, inherited.every(p => p.computed === inherited[0].computed)
-					|| override?.computed !== undefined
-					|| `conflicting parent values <${inherited[0].computed}> vs <${
+					(!inherited.every(p => p.computed === inherited[0].computed) && override?.computed === undefined)
+					&& fail([`{computed} conflicting parent values <${inherited[0].computed}> vs <${
 						inherited.find(p => p.computed !== inherited[0].computed)?.computed
-					}> without child override`],
+					}> for <${key}> without child override`]),
 
-					...inherited[0].range.shape.kind === "text" ? [[`{${key}.model}`,
-						inherited.every(p => equals(p.range.shape.model, inherited[0].range.shape.model))
-						|| override !== undefined
-						|| `conflicting parent localised models without child override`
-					]] : []
+					...inherited[0].range.shape.kind === "text" ? [
+						(!inherited.every(p => equals(p.range.shape.model, inherited[0].range.shape.model))
+							&& override === undefined)
+						&& fail([`{model} conflicting parent localised models for <${key}> without child override`])
+					] : []
 
 				];
 
 			})
-		)
-
-	});
+	)(undefined);
 
 }
 
@@ -210,15 +203,22 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
  */
 export function checkSingletons(properties: readonly { readonly kind?: string }[]): undefined | Trace {
 
-	return collect({
+	return all<typeof properties>(
+		test(props => {
 
-		"{id}": properties.filter(p => p.kind === "id").length <= 1
-			|| `duplicate entry (<${properties.filter(p => p.kind === "id").length}> found)`,
+			return props.filter(p => p.kind === "id").length <= 1 || [
+				`{id} duplicate entry (<${props.filter(p => p.kind === "id").length}> found)`
+			];
 
-		"{type}": properties.filter(p => p.kind === "type").length <= 1
-			|| `duplicate entry (<${properties.filter(p => p.kind === "type").length}> found)`
+		}),
+		test(props => {
 
-	});
+			return props.filter(p => p.kind === "type").length <= 1 || [
+				`{type} duplicate entry (<${props.filter(p => p.kind === "type").length}> found)`
+			];
+
+		})
+	)(properties);
 
 }
 
@@ -238,22 +238,22 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
 		.filter((e): e is [string, Property] => e[1].kind === "property");
 
 
-	function duplicates(field: "forward" | "reverse"): Record<string, string> {
+	function duplicates(field: "forward" | "reverse"): readonly string[] {
 
-		return Object.fromEntries(properties
+		return properties
 
 			.filter(([, p]) => p[field] !== undefined)
 
-			.reduce<{ seen: Map<string, string>; errors: [string, string][] }>(({ seen, errors }, [key, p]) => {
+			.reduce<{ seen: Map<string, string>; errors: string[] }>(({ seen, errors }, [key, p]) => {
 
 				const iri = p[field] as string;
 				const existing = seen.get(iri);
 
-				const message = `duplicate predicate <${iri}> already used by <${existing}>`;
+				const message = `{${field}} duplicate predicate <${iri}> on <${key}> already used by <${existing}>`;
 
 				return existing === undefined
 					? { seen: new Map([...seen, [iri, key]]), errors }
-					: { seen, errors: [...errors, [`{${key}.${field}}`, message]] };
+					: { seen, errors: [...errors, message] };
 
 			}, {
 
@@ -262,17 +262,11 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
 
 			})
 
-			.errors
-		);
+			.errors;
 
 	}
 
-	return collect({
-
-		...duplicates("forward"),
-		...duplicates("reverse")
-
-	});
+	return all(...[...duplicates("forward"), ...duplicates("reverse")].map(message => fail([message])))(undefined);
 
 }
 
@@ -295,14 +289,14 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
  */
 export function checkId(shape: ResourceShape): undefined | Trace {
 
-	return collect(Object.fromEntries(Object.entries(shape.entries)
+	return all(...Object.entries(shape.entries)
 		.filter((e): e is [string, Property] => e[1].kind === "property")
 		.flatMap(([name, { range }]) => getShapeVariants(range.shape)
 			.filter(s => s.kind === "resource")
 			.filter(s => getShapeId(s) !== undefined)
-			.map(() => [`{${name}}`, `unexpected <id> entry in embedded resource`])
+			.map(() => fail([`{id} unexpected <id> entry in embedded resource <${name}>`]))
 		)
-	));
+	)(undefined);
 
 }
 
@@ -319,35 +313,18 @@ export function checkId(shape: ResourceShape): undefined | Trace {
  */
 export function checkType(shape: ResourceShape): undefined | Trace {
 
-	return collect({
+	return all<ResourceShape>(
+		test(({ class: cls, entries }) => {
 
-		"{class}": shape.class !== undefined
-			|| !Object.values(shape.entries).some(p => p.kind === "type")
-			|| `<type> property without a declared class`
+			return cls !== undefined || !Object.values(entries).some(p => p.kind === "type") || [
+				`{class} <type> property without a declared class`
+			];
 
-	});
-
-}
-
-
-/**
- * Reports whether a target IRI pattern narrows a source pattern.
- *
- * Only trailing `/*` wildcards admit narrowing: the target may replace `/*` with more specific segments, provided the
- * fixed prefix matches. All other cases require exact equality.
- *
- * @param target The overriding child pattern
- * @param source The inherited parent pattern
- *
- * @returns `true` if the target narrows or equals the source
- */
-function narrowsPattern(target: string, source: string): boolean {
-
-	return target === source ? true
-		: source.endsWith("/*") ? target.startsWith(source.slice(0, -1))
-			: false;
+		})
+	)(shape);
 
 }
+
 
 /**
  * Reports whether an overriding resource shape narrows an inherited base shape.
@@ -364,63 +341,48 @@ function narrowsPattern(target: string, source: string): boolean {
  */
 export function narrowsResource(target: ResourceShape, source: ResourceShape): undefined | Trace {
 
-	// conjunctive: in — intersection
+	return all<ResourceShape>(
+		test(({ pattern }) => {
 
-	const allowed = target.in !== undefined && source.in !== undefined
-		? target.in.filter(v => source.in!.includes(v))
-		: target.in ?? source.in;
+			return pattern === undefined || source.pattern === undefined || pattern === source.pattern
+				|| source.pattern.endsWith("/*") && pattern.startsWith(source.pattern.slice(0, -1))
+				|| [`{pattern} incompatible IRI templates <${pattern}> and <${source.pattern}>`];
 
-	// conjunctive: hasValue — union
+		}),
+		test(({ in: values }) => {
 
-	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
-		? [...new Set([...target.hasValue, ...source.hasValue])]
-		: target.hasValue ?? source.hasValue;
+			return values === undefined || source.in === undefined || values.some(v => source.in!.includes(v)) || [
+				`{in} disjoint sets [${values}] and [${source.in}]`
+			];
 
-	const keys = [...new Set([
+		}),
+		...union([Object.keys(target.entries), Object.keys(source.entries)]).flatMap(key => {
 
-		...Object.keys(target.entries),
-		...Object.keys(source.entries)
-
-	])];
-
-	return collect({
-
-		// conjunctive: pattern — IRI pattern compatibility
-
-		"{pattern}": target.pattern === undefined || source.pattern === undefined
-			|| narrowsPattern(target.pattern, source.pattern)
-			|| `incompatible IRI templates <${target.pattern}> and <${source.pattern}>`,
-
-		// conjunctive: in — empty intersection
-
-		"{in}": target.in === undefined || source.in === undefined
-			|| allowed!.length !== 0
-			|| `disjoint sets [${target.in}] and [${source.in}]`,
-
-		// per shared entry: kind must match, and property entries must narrow
-
-		...Object.fromEntries(keys.flatMap((key): (readonly [string, undefined | Trace])[] => {
+			// per shared entry: kind must match, and property entries must narrow
 
 			const t = target.entries[key];
 			const s = source.entries[key];
 
 			return t === undefined || s === undefined ? []
-				: t.kind !== s.kind ? [[`{${key}}`, `mismatched entry kinds <${t.kind}> vs <${s.kind}>`]]
-					: t.kind === "property" && s.kind === "property" ? [[`{${key}}`, narrowsProperty(t, s)]]
+				: t.kind !== s.kind ? [() => [{ [key]: [`mismatched entry kinds <${t.kind}> vs <${s.kind}>`] }]]
+					: t.kind === "property" && s.kind === "property"
+						? [() => fold(narrowsProperty(t, s), trace => [{ [key]: trace }])]
 						: [];
 
-		})),
+		}),
+		() => checkResource({ // post-merge constraint consistency
 
-		// post-merge constraint consistency
+			in: target.in !== undefined && source.in !== undefined
+				? target.in.filter(v => source.in!.includes(v))
+				: target.in ?? source.in,
 
-		...wrap(checkResource({
+			hasValue: target.hasValue !== undefined && source.hasValue !== undefined
+				? union([target.hasValue, source.hasValue])
+				: target.hasValue ?? source.hasValue
 
-			in: allowed,
-			hasValue
+		})
+	)(target);
 
-		}))
-
-	});
 
 }
 
@@ -438,33 +400,37 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): u
  */
 export function narrowsProperty(target: Property, source: Property): undefined | Trace {
 
-	return collect({
+	return all<Property>(
+		test(({ name }) => {
 
-		// inherited: name must not be redefined by target (exact match tolerated for diamond inheritance)
+			return name === undefined || equals(name, source.name) || [
+				`{name} unexpected <name> redefinition`
+			];
 
-		"{name}": target.name === undefined || equals(target.name, source.name)
-			|| `unexpected <name> redefinition`,
+		}),
+		test(({ description }) => {
 
-		// inherited: description must not be redefined by target (exact match tolerated for diamond inheritance)
+			return description === undefined || equals(description, source.description) || [
+				`{description} unexpected <description> redefinition`
+			];
 
-		"{description}": target.description === undefined || equals(target.description, source.description)
-			|| `unexpected <description> redefinition`,
+		}),
+		test(({ forward }) => {
 
-		// inherited: forward must not be redefined by target (exact match tolerated for diamond inheritance)
+			return forward === undefined || forward === source.forward || [
+				`{forward} unexpected <forward> redefinition`
+			];
 
-		"{forward}": target.forward === undefined || target.forward === source.forward
-			|| `unexpected <forward> redefinition`,
+		}),
+		test(({ reverse }) => {
 
-		// inherited: reverse must not be redefined by target (exact match tolerated for diamond inheritance)
+			return reverse === undefined || reverse === source.reverse || [
+				`{reverse} unexpected <reverse> redefinition`
+			];
 
-		"{reverse}": target.reverse === undefined || target.reverse === source.reverse
-			|| `unexpected <reverse> redefinition`,
-
-		// range: child range must narrow the base range
-
-		"{range}": narrowsValues(target.range, source.range)
-
-	});
+		}),
+		() => narrowsValues(target.range, source.range) // range: child narrows base
+	)(target);
 
 }
 
@@ -489,11 +455,11 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 
 	// conjunctive: classes — union of parent class and own/parent classes
 
-	const classes: readonly IRI[] = [...new Set([
-		...source.class !== undefined ? [source.class] : [],
-		...source.classes ?? [],
-		...target.classes ?? []
-	])];
+	const classes = union<IRI>([
+		source.class !== undefined ? [source.class] : [],
+		source.classes ?? [],
+		target.classes ?? []
+	]);
 
 	// conjunctive: in — intersection
 
@@ -504,23 +470,18 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 	// conjunctive: hasValue — union
 
 	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
-		? [...new Set([...target.hasValue, ...source.hasValue])]
+		? union([target.hasValue, source.hasValue])
 		: target.hasValue ?? source.hasValue;
 
 	// conjunctive: validators — union (deduplicated)
 
 	const validators = target.validators !== undefined && source.validators !== undefined
-		? [...new Set([...target.validators, ...source.validators])]
+		? union([target.validators, source.validators])
 		: target.validators ?? source.validators;
 
 	// conjunctive: entries — union with per-key merge
 
-	const keys = [...new Set([
-
-		...Object.keys(target.entries),
-		...Object.keys(source.entries)
-
-	])];
+	const keys = union([Object.keys(target.entries), Object.keys(source.entries)]);
 
 	const properties = Object.fromEntries(keys.map(key => {
 
@@ -559,6 +520,8 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 
 		} as Template,
 
+		virtual: target.virtual ?? source.virtual,
+
 		name: target.name,
 		description: target.description,
 
@@ -566,12 +529,12 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 		extends: target.extends,
 
 		class: target.class,
-		classes: classes as ResourceShape["classes"],
+		classes,
 
 		pattern: target.pattern ?? source.pattern,
 
-		in: allowed as ResourceShape["in"],
-		hasValue: hasValue as ResourceShape["hasValue"],
+		in: allowed,
+		hasValue,
 		validators: validators as ResourceShape["validators"],
 
 		entries: properties
@@ -723,46 +686,45 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
 
-	return collect({
-
+	return all(
 		// embedded-resource id rejection runs here against the state, not in flatten (see checkId)
 
-		...wrap(checkId(shape)),
+		() => checkId(shape),
 
-		"{kind}": mistyped === 0
-			|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+		(mistyped > 0)
+		&& fail([`{kind} expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`]),
 
-		...Object.fromEntries(matching.map((resource, index) => [key(resource, shape, index),
+		// per resource, keyed by <iri> or index
 
-			collect(Object.fromEntries([
-
+		...matching.map((resource, index) => () => fold(
+			all(
 				// property validation — validate merged shape entries
 
-				...Object.entries(shape.entries).map(([name, declared]) => [name,
+				...Object.entries(shape.entries).map(([name, declared]) => () => fold(
 					declared.kind === "id" ? validateId(resource[name], shape, entry)
 						: declared.kind === "type" ? validateType(resource[name], shape)
 							: declared.kind === "property" ? validateProperty(resource[name], declared, depth)
-								: undefined
-				]),
+								: undefined,
+					trace => [{ [name]: trace }]
+				)),
 
 				// envelope validation — reject unknown entries
 
 				...Object.keys(resource)
-					.filter(key => !Object.hasOwn(shape.entries, key))
-					.map(key => [key, "unexpected property"]),
+					.filter(name => !Object.hasOwn(shape.entries, name))
+					.map(name => () => [{ [name]: ["unexpected property"] }]),
 
 				// custom validators // ;(cast) object confirmed by isObject; the validator owns its own shape checks
 
-				...(shape.validators ?? [])
-					.map(validator => [validator.name, normalise(validator(resource as Resource))] as const)
-					.filter(([, trace]) => trace !== undefined)
-					.map(([name, trace], i) => [`{${name || `validator[${i}]`}}`, trace])
+				...(shape.validators ?? []).map((validator, i) => () => fold(
+					validator(resource as Resource),
+					trace => [{ [`{${validator.name || `validator[${i}]`}}`]: trace }]
+				))
+			)(undefined),
 
-			]))
-
-		]))
-
-	});
+			trace => [{ [key(resource, shape, index)]: trace }]
+		))
+	)(undefined);
 
 
 	function validateProperty(value: unknown, { range }: Property, depth: undefined | number): undefined | Trace {
@@ -777,13 +739,13 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 			const owned = shape.variants.filter(v => !(v.kind === "reference" && v.foreign));
 
 			return owned.length > 0 ? validateValues(value, { ...range, shape: { ...shape, variants: owned } }, depth)
-				: value !== undefined ? "unexpected foreign property"
+				: value !== undefined ? ["unexpected foreign property"]
 					: undefined;
 
 		} else if ( shape.kind === "reference" && shape.foreign ) {
 
 			return value !== undefined
-				? "unexpected foreign property"
+				? ["unexpected foreign property"]
 				: undefined;
 
 		} else {
@@ -824,25 +786,23 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 			const arity = maxCount === 1
 				? isArray(present)
-					? collect({ "{kind}": "expected scalar value" })
+					? ["{kind} expected scalar value"]
 					: undefined
 				: present !== undefined && !isArray(present)
-					? collect({ "{kind}": "expected array value" })
+					? ["{kind} expected array value"]
 					: undefined;
 
 			// report the arity error first, then per-value errors, then cardinality
 
 			return arity
 				?? validateValueSet(values, shape, depth)
-				?? collect({
+				?? all(
+					(minCount !== undefined && values.length < minCount)
+					&& fail([`{minCount} expected at least <${minCount}> value(s)`]),
 
-					"{minCount}": minCount === undefined || values.length >= minCount
-						|| `expected at least <${minCount}> value(s)`,
-
-					"{maxCount}": maxCount === undefined || values.length <= maxCount
-						|| `expected at most <${maxCount}> value(s)`
-
-				});
+					(maxCount !== undefined && values.length > maxCount)
+					&& fail([`{maxCount} expected at most <${maxCount}> value(s)`])
+				)(undefined);
 
 		}
 
@@ -856,9 +816,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 				return shape.captive
 
-					? collect(Object.fromEntries(values.map((value, index) =>
-						[`[${index}]`, validateReferenceElement(value, shape, depth)]
-					)))
+					? array((value: unknown) => validateReferenceElement(value, shape, depth))(values)
 
 					: validateReference(values, shape);
 
@@ -893,7 +851,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 		return !isObject(value) || !shape.captive ? validateReference([value], shape)
 			: depth === undefined || depth > 0 ? validateResource([value], eager(shape.shape), { depth: next })
-				: "exceeded maximum nesting depth";
+				: ["exceeded maximum nesting depth"];
 
 	}
 
@@ -977,52 +935,43 @@ export function validateResult(values: readonly unknown[], {
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
 
-	return collect({
+	return all(
+		(mistyped > 0)
+		&& fail([`{kind} expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`]),
 
-		"{kind}": mistyped === 0
-			|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
-
-		...Object.fromEntries(matching.map((resource, index) => [key(resource, shape, index),
-
-			collect(Object.fromEntries([
-
+		...matching.map((resource, index) => () => fold(
+			all(
 				// requested property validation — one entry per non-vacuous model key; vacuous slots
 				// (empty-template `{}` and other elided forms) carry no contract and bypass validation
 
 				...Object.keys(model)
 					.filter(k => !isVacuous(model[k]))
-					.map(k => {
+					.map(k => () => fold(
+						shape.entries[k] === undefined ? ["undefined property"]
+							: shape.entries[k].kind === "id" ? validateId(resource[k], shape, entry)
+								: shape.entries[k].kind === "type" ? validateType(resource[k], shape)
+									: validateRange(resource[k], (shape.entries[k] as Property).range, model[k]),
 
-						const value = resource[k];
-						const property = shape.entries[k];
-						const nested = model[k];
-
-						return [k, property === undefined ? "undefined property"
-							: property.kind === "id" ? validateId(value, shape, entry)
-								: property.kind === "type" ? validateType(value, shape)
-									: validateRange(value, property.range, nested)
-						];
-
-					}),
+						trace => [{ [k]: trace }]
+					)),
 
 				// envelope validation — reject response keys absent from the model (client expectations)
 
 				...Object.keys(resource)
 					.filter(k => !Object.hasOwn(model, k))
-					.map(k => [k, "unexpected property"]),
+					.map(k => () => [{ [k]: ["unexpected property"] }]),
 
 				// custom validators // ;(cast) object confirmed by isObject; the validator owns its own shape checks
 
-				...(shape.validators ?? [])
-					.map(validator => [validator.name, normalise(validator(resource as Resource))] as const)
-					.filter(([, trace]) => trace !== undefined)
-					.map(([name, trace], i) => [`{${name || `validator[${i}]`}}`, trace])
+				...(shape.validators ?? []).map((validator, i) => () => fold(
+					validator(resource as Resource),
+					trace => [{ [`{${validator.name || `validator[${i}]`}}`]: trace }]
+				))
+			)(undefined),
 
-			]))
-
-		]))
-
-	});
+			trace => [{ [key(resource, shape, index)]: trace }]
+		))
+	)(undefined);
 
 
 	function validateRange(value: unknown, shape: SetShape, model: unknown): undefined | Trace {
@@ -1055,14 +1004,14 @@ export function validateResult(values: readonly unknown[], {
 		if ( present === undefined ) {
 
 			return minCount !== undefined && minCount >= 1
-				? collect({ "{minCount}": `expected at least <${minCount}> value(s)` })
+				? [`{minCount} expected at least <${minCount}> value(s)`]
 				: undefined;
 
 		} else if ( isScalar === isArray(present) ) {
 
 			// a scalar slot rejects an array and an array slot rejects a scalar
 
-			return collect({ "{kind}": isScalar ? "expected scalar value" : "expected array value" });
+			return [isScalar ? "{kind} expected scalar value" : "{kind} expected array value"];
 
 		} else {
 
@@ -1071,7 +1020,7 @@ export function validateResult(values: readonly unknown[], {
 			const elements = (isArray(present) ? present : [present])
 				.filter(v => !(nests && isObject(v) && Object.keys(v).length === 0));
 
-			return validateElements(elements, variants, model) ?? collect(validateCardinality(elements.length, shape));
+			return validateElements(elements, variants, model) ?? validateCardinality(elements.length, shape);
 
 		}
 
@@ -1087,9 +1036,7 @@ export function validateResult(values: readonly unknown[], {
 
 			// a disjunction (or empty set): every value must single out exactly one reachable variant
 
-			return collect(Object.fromEntries(values.map((v, i) => [`[${i}]`,
-				validateBranch(v, shape, model)
-			])));
+			return array((v: unknown) => validateBranch(v, shape, model))(values);
 
 		}
 
@@ -1100,20 +1047,20 @@ export function validateResult(values: readonly unknown[], {
 			// a reference admits a bare IRI (legal for its target) or an expanded resource, validated
 			// against the target shape narrowed by the nested projection
 
-			return collect(Object.fromEntries(values.map((v, i) => [`[${i}]`,
-				isString(v) ? isReference(v) ? undefined : `expected absolute IRI`
+			return array((v: unknown) =>
+				isString(v) ? isReference(v) ? undefined : ["expected absolute IRI"]
 					: isObject(v) ? validateResult([v], { shape: eager(variant.shape), model: nestedTemplate(model) })
-						: "expected IRI or nested resource"
-			])));
+						: ["expected IRI or nested resource"]
+			)(values);
 
 		} else if ( variant.kind === "resource" ) {
 
 			// an embedded resource expands inline, validated against the nested projection
 
-			return collect(Object.fromEntries(values.map((v, i) => [`[${i}]`,
+			return array((v: unknown) =>
 				isObject(v) ? validateResult([v], { shape: variant, model: nestedTemplate(model) })
-					: "expected nested resource"
-			])));
+					: ["expected nested resource"]
+			)(values);
 
 		} else {
 
@@ -1146,7 +1093,7 @@ export function validateResult(values: readonly unknown[], {
 
 			if ( malformed.length > 0 ) {
 
-				return collect(Object.fromEntries(malformed.map(key => [key, "expected union variant key"])));
+				return all(...malformed.map(key => () => [{ [key]: ["expected union variant key"] }]))(undefined);
 
 			} else {
 
@@ -1231,28 +1178,23 @@ export function validateResult(values: readonly unknown[], {
 
 		if ( present === undefined ) {
 
-			return collect(validateCardinality(0, range));
+			return validateCardinality(0, range);
 
 		} else if ( range.maxCount === 1 ) {
 
 			// single-string-per-tag: the one rendered string
 
 			return isString(present) ? validateLength(present, textShape)
-				: collect({ "{kind}": "expected coalesced string value" });
+				: ["{kind} expected coalesced string value"];
 
 		} else {
 
 			// array-per-tag: the winning tag's value set as a string array, length-checked per element
 
-			return isArray<string>(present, isString) ? collect({
-
-				...Object.fromEntries(present.map((element, index) =>
-					[`[${index}]`, validateLength(element, textShape)]
-				)),
-
-				...validateCardinality(present.length, range)
-
-			}) : collect({ "{kind}": "expected coalesced string array value" });
+			return isArray<string>(present, isString) ? all(
+				() => array((element: string) => validateLength(element, textShape))(present),
+				() => validateCardinality(present.length, range)
+			)(undefined) : ["{kind} expected coalesced string array value"];
 
 		}
 
@@ -1271,13 +1213,13 @@ export function validateResult(values: readonly unknown[], {
 
 		if ( present === undefined ) {
 
-			return collect(validateCardinality(0, range));
+			return validateCardinality(0, range);
 
 		} else if ( isScalar === isArray(present) ) {
 
 			// a scalar slot rejects an array and an array slot rejects a scalar
 
-			return collect({ "{kind}": isScalar ? "expected scalar value" : "expected array value" });
+			return [isScalar ? "{kind} expected scalar value" : "{kind} expected array value"];
 
 		} else {
 
@@ -1286,19 +1228,17 @@ export function validateResult(values: readonly unknown[], {
 			const elements = (isArray(present) ? present : [present])
 				.filter(el => !(isObject(el) && Object.keys(el).length === 0));
 
-			return collect({
-
-				...Object.fromEntries(elements.map((el, i) => [`[${i}]`,
+			return all(
+				() => array((el: unknown) =>
 					isObject(el)
-						? collect(Object.fromEntries((wildcard ? Object.keys(el) : explicit).map(tag =>
-							[tag, validateProjectedTag(el[tag], tag, textShape)]
-						)))
-						: "expected tag-map value"
-				])),
+						? all(...(wildcard ? Object.keys(el) : explicit).map(tag => () =>
+							fold(validateProjectedTag(el[tag], tag, textShape), trace => [{ [tag]: trace }])
+						))(undefined)
+						: ["expected tag-map value"]
+				)(elements),
 
-				...validateCardinality(elements.length, range)
-
-			});
+				() => validateCardinality(elements.length, range)
+			)(undefined);
 
 		}
 
@@ -1312,46 +1252,39 @@ export function validateResult(values: readonly unknown[], {
 
 	}: TextShape): undefined | Trace {
 
-		return tagValue === undefined ? "missing projected tag"
-			: !isString(tagValue) ? "expected string value"
-				: collect({
+		return tagValue === undefined ? ["missing projected tag"]
+			: !isString(tagValue) ? ["expected string value"]
+				: all(
+					(minLength !== undefined && tagValue.length < minLength)
+					&& fail([`{minLength} expected string length >= <${minLength}>`]),
 
-					"{minLength}": minLength === undefined || tagValue.length >= minLength
-						|| `expected string length >= <${minLength}>`,
+					(maxLength !== undefined && tagValue.length > maxLength)
+					&& fail([`{maxLength} expected string length <= <${maxLength}>`]),
 
-					"{maxLength}": maxLength === undefined || tagValue.length <= maxLength
-						|| `expected string length <= <${maxLength}>`,
-
-					"{languageIn}": languageIn === undefined
-						|| languageIn.some(range => matchTag(tag, range))
-						|| `unsupported tag for allowed languages [${languageIn.join(", ")}]`
-
-				});
+					(languageIn !== undefined && !languageIn.some(range => matchTag(tag, range)))
+					&& fail([`{languageIn} unsupported tag for allowed languages [${languageIn.join(", ")}]`])
+				)(undefined);
 
 	}
 
-	function validateCardinality(count: number, { minCount, maxCount }: SetShape): Record<string, true | Trace> {
-		return {
+	function validateCardinality(count: number, { minCount, maxCount }: SetShape): undefined | Trace {
+		return all(
+			(minCount !== undefined && count < minCount)
+			&& fail([`{minCount} expected at least <${minCount}> value(s)`]),
 
-			"{minCount}": minCount === undefined || count >= minCount
-				|| `expected at least <${minCount}> value(s)`,
-
-			"{maxCount}": maxCount === undefined || count <= maxCount
-				|| `expected at most <${maxCount}> value(s)`
-
-		};
+			(maxCount !== undefined && count > maxCount)
+			&& fail([`{maxCount} expected at most <${maxCount}> value(s)`])
+		)(undefined);
 	}
 
 	function validateLength(value: string, { minLength, maxLength }: TextShape): undefined | Trace {
-		return collect({
+		return all(
+			(minLength !== undefined && value.length < minLength)
+			&& fail([`{minLength} expected string length >= <${minLength}>`]),
 
-			"{minLength}": minLength === undefined || value.length >= minLength
-				|| `expected string length >= <${minLength}>`,
-
-			"{maxLength}": maxLength === undefined || value.length <= maxLength
-				|| `expected string length <= <${maxLength}>`
-
-		});
+			(maxLength !== undefined && value.length > maxLength)
+			&& fail([`{maxLength} expected string length <= <${maxLength}>`])
+		)(undefined);
 	}
 
 
@@ -1472,16 +1405,15 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
 
-	return collect({
+	return all(
+		(mistyped > 0)
+		&& fail([`{kind} expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`]),
 
-		"{kind}": mistyped === 0
-			|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
-
-		...Object.fromEntries(matching.map((template, index) =>
-			[key(template, shape, index), validateTemplate(template, shape, depth)]
+		...matching.map((template, index) => () => fold(
+			validateTemplate(template, shape, depth),
+			trace => [{ [key(template, shape, index)]: trace }]
 		))
-
-	});
+	)(undefined);
 
 
 	function validateTemplate(
@@ -1492,40 +1424,24 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( !isObject(value) ) {
 
-			return "expected <template> value";
+			return ["expected <template> value"];
 
 		} else if ( depth !== undefined && depth < 0 ) {
 
-			return "exceeded maximum nesting depth";
+			return ["exceeded maximum nesting depth"];
 
 		} else {
 
-			return collect(Object.fromEntries(Object.entries(value).map(([k, v]) => {
+			return all(...Object.entries(value).map(([k, v]) => () => fold(
+				!isIdentifier(k) ? ["expected property identifier"]
+					: v === undefined ? undefined
+						: !Object.hasOwn(shape.entries, k) ? ["undefined property path"]
+							: shape.entries[k].kind === "property"
+								? validatePlaceholders(v, (shape.entries[k] as Property).range, depth)
+								: isIRI(v) ? undefined : ["expected <IRI> value"], // id/type
 
-				if ( !isIdentifier(k) ) {
-
-					return [k, "expected property identifier"];
-
-				} else if ( v === undefined ) {
-
-					return [k, undefined];
-
-				} else if ( !Object.hasOwn(shape.entries, k) ) {
-
-					return [k, "undefined property path"];
-
-				} else {
-
-					const entry = shape.entries[k];
-
-					return [k, entry.kind === "property"
-						? validatePlaceholders(v, entry.range, depth)
-						: isIRI(v) ? undefined : "expected <IRI> value" // id/type
-					];
-
-				}
-
-			})));
+				trace => [{ [k]: trace }]
+			)))(undefined);
 
 		}
 
@@ -1559,7 +1475,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			case "boolean":
 
-				return validateBoolean([value], shape);
+				return validateBoolean([value], shape, { scope: "model" });
 
 			case "number":
 
@@ -1596,7 +1512,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		return variants.length > 1 ? validateUnionValue(value, shape, depth, local)
 			: variant.kind === "text" ? validateLocale(value, shape)
-				: collect(wrap(validatePlaceholder(value, variant, depth)));
+				: validatePlaceholder(value, variant, depth);
 
 	}
 
@@ -1608,7 +1524,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( !isArray(value) || value.length < 1 || value.length > 2 ) {
 
-			return "expected collection tuple <[element, selection?]>";
+			return ["expected collection tuple <[element, selection?]>"];
 
 		} else {
 
@@ -1626,14 +1542,22 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			// element keys (variant indices, identifiers, bindings) and selection operator keys are disjoint, so
 			// the per-slot traces merge into one: a keyed trace spreads its own keys, an atomic one is filed
-			// under its tuple position, and collect drops the undefined slots (grouping is never atomic)
+			// under its tuple position, and undefined slots drop out; the grouping trace is keyed by construction
 
-			return collect({
-				...(isObject(elementTrace) ? elementTrace : { "[0]": elementTrace }),
-				...(isObject(selectionTrace) ? selectionTrace : { "[1]": selectionTrace }),
-				...(isObject(groupingTrace) ? groupingTrace : {})
-			});
+			return all(
+				() => positional(elementTrace, "0"),
+				() => positional(selectionTrace, "1"),
+				() => groupingTrace
+			)(undefined);
 
+		}
+
+		// spread a keyed trace, or file an atomic message trace under its tuple position
+
+		function positional(trace: undefined | Trace, index: string): undefined | Trace {
+			return trace === undefined ? undefined
+				: trace.every(item => isString(item)) ? [{ [index]: trace }]
+					: trace;
 		}
 
 		function validateGroupedOrdering(element: unknown, selection: unknown): undefined | Trace {
@@ -1656,12 +1580,12 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			// a non-aggregate `^` ordering or `+` focus must reference a grouping key; an aggregate one ranks
 			// by its post-aggregation value and is always admissible
 
-			return !grouped ? undefined : collect(Object.fromEntries(selectors
+			return !grouped ? undefined : all(...selectors
 				.filter(([, probe]) =>
 					(probe.target === "^" || probe.target === "+") && !aggregate(probe) && !groupingKeys.has(signature(probe))
 				)
-				.map(([k]) => [k, "expected a grouping-key or aggregate ordering/focus expression under grouping"])
-			));
+				.map(([k]) => () => [{ [k]: ["expected a grouping-key or aggregate ordering/focus expression under grouping"] }])
+			)(undefined);
 
 		}
 
@@ -1679,7 +1603,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( depth !== undefined && depth < 0 ) {
 
-			return "exceeded maximum nesting depth";
+			return ["exceeded maximum nesting depth"];
 
 		} else if ( variants.length > 1 ) {
 
@@ -1707,7 +1631,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 				case "text":
 
-					return "unexpected <text> element";
+					return ["unexpected <text> element"];
 
 			}
 
@@ -1738,20 +1662,20 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( isObject(value, (_, key) => isUnionKey(key)) ) {
 
-			return collect(Object.fromEntries(Object.entries(value).map(([key, branch]) => {
-
-				return [key, validateUnion(branch, variants, {
+			return all(...Object.entries(value).map(([key, branch]) => () => fold(
+				validateUnion(branch, variants, {
 					model: true,
 					match: (branch, variant) => variant.kind === "text"
 						? local && validateLocaleString(branch) === undefined
 						: validatePlaceholder(branch, variant, depth) === undefined
-				})];
+				}),
 
-			})));
+				trace => [{ [key]: trace }]
+			)))(undefined);
 
 		} else {
 
-			return "expected union variant map";
+			return ["expected union variant map"];
 
 		}
 
@@ -1766,11 +1690,11 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( !isObject(value) ) {
 
-			return "expected <projection> value";
+			return ["expected <projection> value"];
 
 		} else if ( depth !== undefined && depth < 0 ) {
 
-			return "exceeded maximum nesting depth";
+			return ["exceeded maximum nesting depth"];
 
 		} else {
 
@@ -1780,58 +1704,62 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 				.map(key => [key, decodeProbe(key)])
 			);
 
-			return collect(Object.fromEntries(Object.entries(value).map(([binding, model]) => {
+			return all(...Object.entries(value).map(([binding, model]) => () =>
+				fold(binding_trace(binding, model), trace => [{ [binding]: trace }])
+			))(undefined);
 
-					const probe = isBinding(binding) ? probes.get(binding) : undefined;
 
-					if ( probe === undefined ) {
+			function binding_trace(binding: string, model: unknown): undefined | Trace {
 
-						return [binding, "expected projection binding"];
+				const probe = isBinding(binding) ? probes.get(binding) : undefined;
 
-					} else if ( depth !== undefined && probe.path.length > depth ) {
+				if ( probe === undefined ) {
 
-						return [binding, "exceeded maximum path length"];
+					return ["expected projection binding"];
 
-					} else if ( plain && probe.pipe.some(isAggregate) ) {
+				} else if ( depth !== undefined && probe.path.length > depth ) {
 
-						return [binding, "disabled aggregate transforms"];
+					return ["exceeded maximum path length"];
 
-					} else if ( Array.from(probes.values()).filter(p => p.target === probe.target).length > 1 ) {
+				} else if ( plain && probe.pipe.some(isAggregate) ) {
 
-						return [binding, `duplicate projection identifier <${probe.target}>`];
+					return ["disabled aggregate transforms"];
 
-					} else if ( model === undefined ) {
+				} else if ( Array.from(probes.values()).filter(p => p.target === probe.target).length > 1 ) {
 
-						return [binding, undefined];
+					return [`duplicate projection identifier <${probe.target}>`];
+
+				} else if ( model === undefined ) {
+
+					return undefined;
+
+				} else {
+
+					const range = effective(shape, probe);
+
+					if ( isString(range) ) {
+
+						return [range]; // error trace
 
 					} else {
 
-						const range = effective(shape, probe);
+						// the coalesced array placeholder `[""]` over an array-per-tag localised target is the
+						// only array admitted in a projection value; any other tuple is rejected before dispatch
 
-						if ( isString(range) ) {
+						const locales =
+							range.variants.length === 1
+							&& range.variants[0].kind === "text"
+							&& range.maxCount !== 1;
 
-							return [binding, range]; // error trace
-
-						} else {
-
-							// the coalesced array placeholder `[""]` over an array-per-tag localised target is the
-							// only array admitted in a projection value; any other tuple is rejected before dispatch
-
-							const locales =
-								range.variants.length === 1
-								&& range.variants[0].kind === "text"
-								&& range.maxCount !== 1;
-
-							return [binding, isArray(model) && !locales
-								? "unexpected array in projection value"
-								: validateModel(model, range, depth, true)
-							];
-
-						}
+						return isArray(model) && !locales
+							? ["unexpected array in projection value"]
+							: validateModel(model, range, depth, true);
 
 					}
+
 				}
-			)));
+
+			}
 
 		}
 
@@ -1854,89 +1782,91 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		} else if ( !isObject(value) ) {
 
-			return "expected selection object";
+			return ["expected selection object"];
 
 		} else if ( next !== undefined && next < 0 ) {
 
-			return "exceeded maximum nesting depth";
+			return ["exceeded maximum nesting depth"];
 
 		} else {
 
-			return collect(Object.fromEntries(Object.entries(value).map(([k, v]) => {
+			return all(...Object.entries(value).map(([k, v]) => () =>
+				fold(selector(k, v), trace => [{ [k]: trace }])
+			))(undefined);
+
+
+			function selector(k: string, v: unknown): undefined | Trace {
 
 				if ( !isSelector(k) ) {
 
-					return [k, "expected selection operator"];
+					return ["expected selection operator"];
+
+				}
+
+				const probe = decodeProbe(k);
+				const range = effective(shape.shape, probe);
+
+				if ( next !== undefined && probe.path.length > next ) {
+
+					return ["exceeded maximum path length"];
+
+				} else if ( plain && probe.pipe.some(isAggregate) ) {
+
+					return ["disabled aggregate transforms"];
+
+				} else if ( isString(range) ) { // error trace
+
+					return [range];
 
 				} else {
 
-					const probe = decodeProbe(k);
-					const range = effective(shape.shape, probe);
+					const { variants } = range;
 
-					if ( next !== undefined && probe.path.length > next ) {
+					switch ( probe.target ) {
 
-						return [k, "exceeded maximum path length"];
+						case "<":
+						case ">":
+						case "<=":
+						case ">=":
 
-					} else if ( plain && probe.pipe.some(isAggregate) ) {
+							return validateBound(v, variants);
 
-						return [k, "disabled aggregate transforms"];
+						case "~":
 
-					} else if ( isString(range) ) { // error trace
+							return validateKeywords(v, variants);
 
-						return [k, range];
+						case "?":
+						case "!":
 
-					} else {
+							return validateOptions(v, variants);
 
-						const { variants } = range;
+						case "+": // sort focus ranks one value per resource, so it rejects a multi-valued key
 
-						switch ( probe.target ) {
+							return range.maxCount === 1
+								? validateOptions(v, variants)
+								: ["expected single-valued sort focus key"];
 
-							case "<":
-							case ">":
-							case "<=":
-							case ">=":
+						case "^":
 
-								return [k, validateBound(v, variants)];
+							return validateOrder(v, range);
 
-							case "~":
+						case "@":
 
-								return [k, validateKeywords(v, variants)];
+							return validateOffset(v);
 
-							case "?":
-							case "!":
+						case "#":
 
-								return [k, validateOptions(v, variants)];
+							return validateLimit(v);
 
-							case "+": // sort focus ranks one value per resource, so it rejects a multi-valued key
+						default:
 
-								return [k, range.maxCount === 1
-									? validateOptions(v, variants)
-									: "expected single-valued sort focus key"
-								];
-
-							case "^":
-
-								return [k, validateOrder(v, range)];
-
-							case "@":
-
-								return [k, validateOffset(v)];
-
-							case "#":
-
-								return [k, validateLimit(v)];
-
-							default:
-
-								return [k, "expected selection operator"];
-
-						}
+							return ["expected selection operator"];
 
 					}
 
 				}
 
-			})));
+			}
 
 		}
 
@@ -1962,27 +1892,27 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 					case "boolean":
 
 						return isBoolean(value) ? undefined
-							: `expected <${shape.kind}> value`;
+							: [`expected <${shape.kind}> value`];
 
 					case "number":
 
 						return isNumber(value) ? undefined
-							: `expected <${shape.kind}> value`;
+							: [`expected <${shape.kind}> value`];
 
 					case "string":
 
 						return isString(value) ? undefined
-							: `expected <${shape.kind}> value`;
+							: [`expected <${shape.kind}> value`];
 
 					case "text": // a localised property coalesces to a string set the bound filters existentially
 
 						return isString(value) ? undefined
-							: "expected string value";
+							: ["expected string value"];
 
 					case "reference":
 					case "resource":
 
-						return `unsupported constraint for <${shape.kind}> value`;
+						return [`unsupported constraint for <${shape.kind}> value`];
 
 				}
 
@@ -2013,18 +1943,18 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 					case "string":
 
-						return isString(value) ? undefined : "expected string value";
+						return isString(value) ? undefined : ["expected string value"];
 
 					case "text": // `~` searches the coalesced string set of a localised property existentially
 
-						return isString(value) ? undefined : "expected string value";
+						return isString(value) ? undefined : ["expected string value"];
 
 					case "boolean":
 					case "number":
 					case "reference":
 					case "resource":
 
-						return `unsupported constraint for <${shape.kind}> value`;
+						return [`unsupported constraint for <${shape.kind}> value`];
 
 				}
 
@@ -2041,7 +1971,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			} else if ( variants.length > 1 ) {
 
 				return isArray(value)
-					? collect(Object.fromEntries(value.map((option, index) => [`[${index}]`, validate(option)])))
+					? array((option: unknown) => validate(option))(value)
 					: validate(value);
 
 
@@ -2065,14 +1995,12 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 					return value === null || isString(value) || isArray(value, isString) ? undefined
 						: isObject(value) ? validateText([value], shape)
 							: isArray(value) && value.some(v => isObject(v)) && value.some(v => isString(v))
-								? "mixed plain and tagged options"
-								: `unsupported constraint for <${shape.kind}> value`;
+								? ["mixed plain and tagged options"]
+								: [`unsupported constraint for <${shape.kind}> value`];
 
 				} else if ( isArray(value) ) {
 
-					return collect(Object.fromEntries(value.map((element, index) =>
-						[`[${index}]`, validateOption(element, shape)]
-					)));
+					return array((element: unknown) => validateOption(element, shape))(value);
 
 				} else {
 
@@ -2097,23 +2025,23 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 					case "boolean":
 
 						return isBoolean(value) ? undefined
-							: `expected <${shape.kind}> value`;
+							: [`expected <${shape.kind}> value`];
 
 					case "number":
 
 						return isNumber(value) ? undefined
-							: `expected <${shape.kind}> value`;
+							: [`expected <${shape.kind}> value`];
 
 					case "string":
 
 						return isString(value) ? undefined
-							: `expected <${shape.kind}> value`;
+							: [`expected <${shape.kind}> value`];
 
 					case "reference":
 					case "resource":
 
 						return isReference(value) ? undefined
-							: `expected <reference> value`;
+							: [`expected <reference> value`];
 
 				}
 
@@ -2128,7 +2056,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 				// order is a 1-based precedence rank (`asc`/`desc` abbreviate `+1`/`-1`), so a
 				// fractional value is meaningless
 
-				return "expected <asc>, <desc>, or integer value";
+				return ["expected <asc>, <desc>, or integer value"];
 
 			} else if ( range !== undefined && range.maxCount !== 1 ) {
 
@@ -2136,7 +2064,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 				// when it resolves single-valued (a single-string-per-tag leaf), a multi-valued prefix
 				// having multiplied it into the path product
 
-				return "expected single-valued sort key";
+				return ["expected single-valued sort key"];
 
 			} else {
 
@@ -2147,16 +2075,16 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		}
 
 
-		function validateOffset(v: any) {
-			return !isNumber(v) ? "expected number value"
-				: !Number.isInteger(v) || v < 0 ? "expected non-negative integer"
+		function validateOffset(v: any): undefined | Trace {
+			return !isNumber(v) ? ["expected number value"]
+				: !Number.isInteger(v) || v < 0 ? ["expected non-negative integer"]
 					: undefined;
 		}
 
-		function validateLimit(v: any) {
-			return !isNumber(v) ? "expected number value"
-				: !Number.isInteger(v) || v < 0 ? "expected non-negative integer"
-					: limit && (v === 0 || v > limit) ? `exceeded maximum result set limit <${limit}>`
+		function validateLimit(v: any): undefined | Trace {
+			return !isNumber(v) ? ["expected number value"]
+				: !Number.isInteger(v) || v < 0 ? ["expected non-negative integer"]
+					: limit && (v === 0 || v > limit) ? [`exceeded maximum result set limit <${limit}>`]
 						: undefined;
 		}
 
@@ -2235,17 +2163,15 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 		}));
 
-		const trace = collect({
-
-			...wrap(checkParents(shape, parents)),
-			...wrap(checkSingletons(Object.values(merged.entries))),
-			...wrap(checkPredicates(merged)),
+		const trace = all(
+			() => checkParents(shape, parents),
+			() => checkSingletons(Object.values(merged.entries)),
+			() => checkPredicates(merged),
 
 			// checkId is deferred to validateResource, not run here at construction (see checkId)
 
-			...wrap(checkType(merged))
-
-		});
+			() => checkType(merged)
+		)(undefined);
 
 		if ( trace !== undefined ) {
 			throw new TraceError("incompatible flattened shape", trace);
@@ -2577,7 +2503,7 @@ function key(value: unknown, shape: ResourceShape, index: number) {
 	const id = getShapeId(shape);
 	const iri = id !== undefined && isObject(value) ? value[id] : undefined;
 
-	return isReference(iri) ? `<${iri}>` : `[${index}]`;
+	return isReference(iri) ? `<${iri}>` : `${index}`;
 
 }
 
@@ -2601,35 +2527,29 @@ function validateId(value: unknown, shape: ResourceShape, entry: undefined | Ref
 
 	const { pattern, in: allowed, hasValue: required } = shape;
 
-	return value === undefined ? undefined : collect({
-
+	return value === undefined ? undefined : all(
 		// format validation
 
-		"{kind}": isArray(value) ? "expected scalar value"
-			: !isReference(value) ? "expected absolute IRI"
-				: undefined,
+		isArray(value) ? fail(["{kind} expected scalar value"])
+			: !isReference(value) ? fail(["{kind} expected absolute IRI"])
+				: false,
 
 		// entry validation
 
-		"{entry}": entry === undefined || !isReference(value) ? undefined
-			: value !== entry ? `mismatched entry <${entry}>`
-				: undefined,
+		(entry !== undefined && isReference(value) && value !== entry)
+		&& fail([`{entry} mismatched entry <${entry}>`]),
 
 		// constraint validation against the flattened shape lineage
 
-		"{pattern}": pattern === undefined
-			|| isReference(value) && match(value, pattern)
-			|| `expected IRI matching pattern <${pattern}>`,
+		(pattern !== undefined && !(isReference(value) && match(value, pattern)))
+		&& fail([`{pattern} expected IRI matching pattern <${pattern}>`]),
 
-		"{in}": allowed === undefined
-			|| isReference(value) && allowed.includes(value)
-			|| `expected values in [${allowed?.join(", ")}]`,
+		(allowed !== undefined && !(isReference(value) && allowed.includes(value)))
+		&& fail([`{in} expected values in [${allowed.join(", ")}]`]),
 
-		"{hasValue}": required === undefined
-			|| isReference(value) && required.includes(value)
-			|| `expected values to include [${required?.join(", ")}]`
-
-	});
+		(required !== undefined && !(isReference(value) && required.includes(value)))
+		&& fail([`{hasValue} expected values to include [${required.join(", ")}]`])
+	)(undefined);
 
 }
 
@@ -2649,17 +2569,15 @@ function validateType(value: unknown, shape: ResourceShape): undefined | Trace {
 
 	const { class: clazz } = shape;
 
-	return value === undefined ? undefined : collect({
-
-		"{kind}": isArray(value) ? "expected scalar value"
-			: !isReference(value) ? "expected absolute IRI"
-				: undefined,
+	return value === undefined ? undefined : all(
+		isArray(value) ? fail(["{kind} expected scalar value"])
+			: !isReference(value) ? fail(["{kind} expected absolute IRI"])
+				: false,
 
 		// a type value materialises the resource's declared class and must match it
 
-		"{class}": !isReference(value) || value === clazz
-			|| `expected declared class <${clazz}>`
-
-	});
+		(isReference(value) && value !== clazz)
+		&& fail([`{class} expected declared class <${clazz}>`])
+	)(undefined);
 
 }

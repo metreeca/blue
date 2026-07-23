@@ -27,10 +27,10 @@ import { equals, immutable } from "@metreeca/core/deep";
 import { assert, error } from "@metreeca/core/report";
 import { defaultBase } from "@metreeca/qest";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/template";
+import { all, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
 import type { BooleanShape } from "./boolean.js";
-import { collect, type Scope, sh, TraceError, wrap } from "./index.core.js";
-import { type Trace } from "./index.js";
+import { type Scope, sh } from "./index.core.js";
 import { mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
 import { decimal, integer, type NumberShape } from "./number.js";
 import { getShapeTarget, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
@@ -124,25 +124,17 @@ const models = new WeakMap<() => Shape, null | Schema<Shape>>();
  *
  * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
  */
-export function checkValues({
+export function checkValues(constraints: Partial<SetShape>): undefined | Trace {
 
-	minCount,
-	maxCount
+	return all<typeof constraints>(
+		test(({ minCount, maxCount }) => {
 
-}: {
+			return minCount === undefined || maxCount === undefined || minCount <= maxCount || [
+				`{minCount/maxCount} inconsistent bounds <${minCount}> > <${maxCount}>`
+			];
 
-	readonly minCount?: number;
-	readonly maxCount?: number;
-
-}): undefined | Trace {
-
-	return collect({
-
-		"{minCount/maxCount}": minCount === undefined || maxCount === undefined
-			|| minCount <= maxCount
-			|| `inconsistent bounds <${minCount}> > <${maxCount}>`
-
-	});
+		})
+	)(constraints);
 
 }
 
@@ -167,7 +159,7 @@ export function narrowsValue(target: ValuesShape, source: ValuesShape): undefine
 	// kind-equality guard: a mismatch is reported rather than dispatched, so each per-kind branch is reached only when
 	// both shapes share target.kind — the source casts below merely bridge a gap the type system cannot see
 
-	return target.kind !== source.kind ? `mismatched kinds <${target.kind}> vs <${source.kind}>`
+	return target.kind !== source.kind ? [`{kind} mismatched kinds <${target.kind}> vs <${source.kind}>`]
 		: target.kind === "boolean" ? narrowsBoolean(target, source as BooleanShape)
 			: target.kind === "number" ? narrowsNumber(target, source as NumberShape)
 				: target.kind === "string" ? narrowsString(target, source as StringShape)
@@ -191,25 +183,21 @@ export function narrowsValue(target: ValuesShape, source: ValuesShape): undefine
 	 */
 	function narrowsResourceValue(target: ResourceShape, source: ResourceShape): undefined | Trace {
 
-		const classes = new Set<string>([
-			...target.class !== undefined ? [target.class] : [],
-			...target.classes ?? []
-		]);
+		return all<ResourceShape>(
+			test(shape => {
 
-		const missing = [
-			...source.class !== undefined ? [source.class] : [],
-			...source.classes ?? []
-		].filter(iri => !classes.has(iri));
+				return classesOf(source).every(iri => classesOf(shape).includes(iri)) || [
+					`{class} missing base classes [${classesOf(source).filter(iri => !classesOf(shape).includes(iri))}]`
+				];
 
-		return collect({
+			}),
+			() => narrowsResource(target, source)
+		)(target);
 
-			// subtype: base classes must all be present in the target
 
-			"{class}": missing.length === 0 || `missing base classes [${missing}]`,
-
-			...wrap(narrowsResource(target, source))
-
-		});
+		function classesOf({ class: cls, classes }: ResourceShape): readonly string[] {
+			return [...cls !== undefined ? [cls] : [], ...classes ?? []];
+		}
 
 	}
 
@@ -229,32 +217,27 @@ export function narrowsValue(target: ValuesShape, source: ValuesShape): undefine
  */
 export function narrowsValues(target: SetShape, source: SetShape): undefined | Trace {
 
-	const minCount = target.minCount ?? source.minCount;
-	const maxCount = target.maxCount ?? source.maxCount;
+	return all<SetShape>(
+		test(({ minCount }) => {
 
-	return collect({
+			return minCount === undefined || source.minCount === undefined || minCount >= source.minCount || [
+				`{minCount} widened limit <${minCount}> beyond <${source.minCount}>`
+			];
 
-		// narrow: minCount — child >= parent
+		}),
+		test(({ maxCount }) => {
 
-		"{minCount}": target.minCount === undefined || source.minCount === undefined
-			|| target.minCount >= source.minCount
-			|| `widened limit <${target.minCount}> beyond <${source.minCount}>`,
+			return maxCount === undefined || source.maxCount === undefined || maxCount <= source.maxCount || [
+				`{maxCount} widened limit <${maxCount}> beyond <${source.maxCount}>`
+			];
 
-		// narrow: maxCount — child <= parent
-
-		"{maxCount}": target.maxCount === undefined || source.maxCount === undefined
-			|| target.maxCount <= source.maxCount
-			|| `widened limit <${target.maxCount}> beyond <${source.maxCount}>`,
-
-		// structural + narrowing: child shape must narrow the base shape
-
-		"{shape}": narrowsShape(target.shape, source.shape),
-
-		// post-merge constraint consistency
-
-		...wrap(checkValues({ minCount, maxCount }))
-
-	});
+		}),
+		() => narrowsShape(target.shape, source.shape), // structural: child shape narrows base
+		() => checkValues({ // post-merge constraint consistency
+			minCount: target.minCount ?? source.minCount,
+			maxCount: target.maxCount ?? source.maxCount
+		})
+	)(target);
 
 
 	/**
@@ -275,7 +258,7 @@ export function narrowsValues(target: SetShape, source: SetShape): undefined | T
 
 		return source.kind === "union"
 			? target.kind === "union" ? narrowsUnion(target, source) : narrowsVariant(target, source)
-			: target.kind === "union" ? `mismatched kinds <union> vs <${source.kind}>`
+			: target.kind === "union" ? [`{kind} mismatched kinds <union> vs <${source.kind}>`]
 				: narrowsValue(target, source);
 
 	}
@@ -293,8 +276,8 @@ export function narrowsValues(target: SetShape, source: SetShape): undefined | T
 		const matches = source.variants.filter(base => narrowsValue(target, base) === undefined);
 
 		return matches.length === 1 ? undefined
-			: matches.length === 0 ? `narrows no base variant`
-				: `narrows several base variants`;
+			: matches.length === 0 ? [`narrows no base variant`]
+				: [`narrows several base variants`];
 
 	}
 
@@ -418,15 +401,11 @@ export function mergeValues(target: SetShape, source: SetShape): SetShape {
 		const matches = source.variants.filter(base => narrowsValue(target, base) === undefined);
 
 		if ( matches.length === 0 ) {
-			throw new TraceError("incompatible value set override", {
-				"{shape}": `narrows no base variant`
-			});
+			throw new TraceError("incompatible value set override", ["{shape} narrows no base variant"]);
 		}
 
 		if ( matches.length > 1 ) {
-			throw new TraceError("incompatible value set override", {
-				"{shape}": `narrows several base variants`
-			});
+			throw new TraceError("incompatible value set override", ["{shape} narrows several base variants"]);
 		}
 
 		// ;(cast) narrowsValue guarantees matches[0] shares target's kind
@@ -546,7 +525,7 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape, {
 
 		case "boolean":
 
-			return validateBoolean(values, shape);
+			return validateBoolean(values, shape, { scope });
 
 		case "number":
 
@@ -602,9 +581,9 @@ export function eager<S extends Lazy<Shape | RangeShape>>(shape: S): Resolved<S>
 
 		if ( cached === null ) {
 
-			throw new TraceError("circular extends chain", {
-				[shape.name || "<anonymous>"]: "circular dependency"
-			});
+			throw new TraceError("circular extends chain", [{
+				[shape.name || "<anonymous>"]: ["circular dependency"]
+			}]);
 
 		} else if ( cached === undefined ) {
 
@@ -671,9 +650,9 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
 
 		if ( cached === null ) {
 
-			throw new TraceError("circular extends chain", {
-				[shape.name || "<anonymous>"]: "circular dependency"
-			});
+			throw new TraceError("circular extends chain", [{
+				[shape.name || "<anonymous>"]: ["circular dependency"]
+			}]);
 
 		} else if ( cached !== undefined ) {
 
@@ -794,7 +773,7 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function effective(shape: Lazy<Shape | RangeShape>, probe: Probe): RangeShape | Extract<Trace, string> {
+export function effective(shape: Lazy<Shape | RangeShape>, probe: Probe): RangeShape | string {
 
 	type Branch = {
 
@@ -838,7 +817,7 @@ export function effective(shape: Lazy<Shape | RangeShape>, probe: Probe): RangeS
 	 * rules on {@link effective}). The surviving cohort is then enveloped across all reachable branches into a
 	 * single focus; an exhausted cohort yields `"undefined property path"`.
 	 */
-	function traverse(seed: readonly Branch[]): RangeShape | Extract<Trace, string> {
+	function traverse(seed: readonly Branch[]): RangeShape | string {
 
 		const branches = path.reduce<readonly Branch[]>((branches, segment) =>
 
@@ -1008,7 +987,7 @@ export function effective(shape: Lazy<Shape | RangeShape>, probe: Probe): RangeS
 	 * When no variant survives the pipe, every one having fallen outside its transforms' declared domains, reports
 	 * `"incompatible transform input"`.
 	 */
-	function transform(focus: RangeShape | Extract<Trace, string>): RangeShape | Extract<Trace, string> {
+	function transform(focus: RangeShape | string): RangeShape | string {
 
 		if ( isString(focus) ) {
 

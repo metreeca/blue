@@ -25,8 +25,8 @@ import { map } from "@metreeca/core/combo";
 import { equals, immutable } from "@metreeca/core/deep";
 import { isIRI } from "@metreeca/core/resource";
 import { isReference } from "@metreeca/qest";
-import { collect, every, group, type Scope, TraceError } from "./index.core.js";
-import type { Trace } from "./index.js";
+import { all, array, domain, test, type Trace, TraceError, type, values as contains } from "@metreeca/core/trace";
+import { type Scope } from "./index.core.js";
 import type { ReferenceShape } from "./reference.js";
 import { match } from "./resource.core.js";
 import type { ResourceShape } from "./resource.js";
@@ -38,39 +38,45 @@ import { eager, type Shape } from "./value.js";
  *
  * Tests the override relation without building the merged shape: a reference carries no tightenable constraints, so
  * `target` narrows `source` exactly when their `model` matches, the non-overridable fields (`foreign`, `captive`) are
- * not redefined, and the target shapes are equal. Returns a keyed {@link Trace} describing the obstacles otherwise.
+ * not redefined, and the target shapes are equal. Returns a {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
  *
- * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
+ * @returns A trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
 export function narrowsReference(target: ReferenceShape, source: ReferenceShape): undefined | Trace {
 
-	return collect({
+	return all<ReferenceShape>(
+		test(({ model }) => {
 
-		// structural: model must be strictly equal
+			return model === source.model || [
+				`{model} mismatched types <${model}> and <${source.model}>`
+			];
 
-		"{model}": target.model === source.model
-			|| `mismatched types <${target.model}> and <${source.model}>`,
+		}),
+		test(({ foreign }) => {
 
-		// inherited: foreign must not be redefined by target (exact match tolerated for diamond inheritance)
+			return foreign === undefined || foreign === source.foreign || [
+				`{foreign} unexpected <foreign> redefinition`
+			];
 
-		"{foreign}": target.foreign === undefined || target.foreign === source.foreign
-			|| `unexpected <foreign> redefinition`,
+		}),
+		test(({ captive }) => {
 
-		// inherited: captive must not be redefined by target (exact match tolerated for diamond inheritance)
+			return captive === undefined || captive === source.captive || [
+				`{captive} unexpected <captive> redefinition`
+			];
 
-		"{captive}": target.captive === undefined || target.captive === source.captive
-			|| `unexpected <captive> redefinition`,
+		}),
+		test(({ shape }) => {
 
-		// structural: the target shape cannot be overridden (an equivalent target is tolerated for diamond
-		// inheritance; nested forward references compare by their Lazy identity, so recursive shapes terminate)
+			return equals(eager(shape), eager(source.shape)) || [
+				`{shape} unexpected <shape> redefinition`
+			];
 
-		"{shape}": equals(eager(target.shape), eager(source.shape))
-			|| `unexpected <shape> redefinition`
-
-	});
+		})
+	)(target);
 
 }
 
@@ -115,8 +121,9 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 /**
  * Validates values against a {@link ReferenceShape}.
  *
- * Filters input values by type, reporting non-reference values under the `kind` key, then enforces the reference
- * value-domain constraints on the matching values.
+ * Reports each non-reference value as a `{kind}` violation, then enforces the reference value-domain constraints on
+ * the matching values, keying every element violation by its index. Membership over the whole set (`hasValue`) is
+ * reported as a leading bare message.
  *
  * @param values The values to validate
  * @param shape The reference shape defining validation constraints
@@ -126,7 +133,7 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
  *     skips every target constraint, matches by kind alone, and admits the full IRI-reference production (empty,
  *     relative, root-relative, and absolute forms) rather than the absolute-only instance form. Defaults to `"state"`
  *
- * @returns A keyed trace of validation errors, or `undefined` if all values are valid
+ * @returns A trace of validation violations, or `undefined` if all values are valid
  */
 export function validateReference(values: readonly unknown[], shape: ReferenceShape, {
 
@@ -138,40 +145,61 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 
 } = {}): undefined | Trace {
 
-	const matching = values.filter(scope === "model" ? value => isIRI(value) : isReference);
-	const mistyped = values.length-matching.length;
-
 	const target = eager(shape.shape);
 
-	// {pattern} is kept through the bound scope as the target's lexical discriminator; {in} and {hasValue} apply only
-	// in the state scope, and the model scope matches by {kind} alone
+	switch ( scope ) {
 
-	const patterns = scope === "model" || target.pattern === undefined ? [] : [target.pattern];
-	const allowed = scope !== "state" || target.in === undefined ? [] : [target.in];
-	const required = scope !== "state" || target.hasValue === undefined ? [] : [target.hasValue];
+		case "state":
 
-	return collect({
+			return state(target)(values);
 
-		"{kind}": mistyped === 0
-			|| `expected <${shape.kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`,
+		case "bound":
 
-		...Object.fromEntries([
+			return bound(target)(values);
 
-			...patterns.map((pattern, i) => [patterns.length > 1 ? `{pattern}[${i}]` : "{pattern}",
-				every(matching, value => match(value, pattern) || `expected IRI matching pattern <${pattern}>`)
-			]),
+		case "model":
 
-			...allowed.map((items, i) => [allowed.length > 1 ? `{in}[${i}]` : "{in}",
-				every(matching, value => items.includes(value) || `expected values in [${items.join(", ")}]`)
-			]),
+			return model(target)(values);
 
-			...required.map((items, i) => [required.length > 1 ? `{hasValue}[${i}]` : "{hasValue}",
-				group(matching, group => items.every(v => group.includes(v)) || `expected values to include [${items.join(", ")}]`)
-			])
+	}
 
-		])
 
-	});
+	function state({ pattern, in: allowed, hasValue: required }: typeof target) {
+
+		return array(
+			type(isReference,
+				all(
+					pattern !== undefined && test(value =>
+						match(value, pattern) || [`{format} expected IRI matching pattern <${pattern}>`]
+					),
+					domain(allowed)
+				)
+			),
+			contains(required)
+		);
+
+	}
+
+	function bound({ pattern }: typeof target) {
+
+		return array(
+			type(isReference,
+				all(
+					pattern !== undefined && test(value =>
+						match(value, pattern) || [`{format} expected IRI matching pattern <${pattern}>`])
+				)
+			)
+		);
+
+	}
+
+	function model({}: typeof target) {
+
+		return array(
+			type(isIRI)
+		);
+
+	}
 
 }
 

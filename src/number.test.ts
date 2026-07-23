@@ -286,14 +286,14 @@ describe("operators", () => {
 
 		it("returns trace for minExclusive >= maxExclusive", async () => {
 
-			expect(checkNumber({ minExclusive: 10, maxExclusive: 10 })).toHaveProperty("{minExclusive/maxExclusive}");
-			expect(checkNumber({ minExclusive: 10, maxExclusive: 5 })).toHaveProperty("{minExclusive/maxExclusive}");
+			expect(checkNumber({ minExclusive: 10, maxExclusive: 10 })).toContainEqual(expect.stringContaining("{minExclusive/maxExclusive}"));
+			expect(checkNumber({ minExclusive: 10, maxExclusive: 5 })).toContainEqual(expect.stringContaining("{minExclusive/maxExclusive}"));
 
 		});
 
 		it("returns trace for minInclusive > maxInclusive", async () => {
 
-			expect(checkNumber({ minInclusive: 10, maxInclusive: 5 })).toHaveProperty("{minInclusive/maxInclusive}");
+			expect(checkNumber({ minInclusive: 10, maxInclusive: 5 })).toContainEqual(expect.stringContaining("{minInclusive/maxInclusive}"));
 
 		});
 
@@ -305,21 +305,21 @@ describe("operators", () => {
 
 		it("returns trace for minExclusive >= maxInclusive", async () => {
 
-			expect(checkNumber({ minExclusive: 10, maxInclusive: 10 })).toHaveProperty("{minExclusive/maxInclusive}");
-			expect(checkNumber({ minExclusive: 10, maxInclusive: 5 })).toHaveProperty("{minExclusive/maxInclusive}");
+			expect(checkNumber({ minExclusive: 10, maxInclusive: 10 })).toContainEqual(expect.stringContaining("{minExclusive/maxInclusive}"));
+			expect(checkNumber({ minExclusive: 10, maxInclusive: 5 })).toContainEqual(expect.stringContaining("{minExclusive/maxInclusive}"));
 
 		});
 
 		it("returns trace for minInclusive >= maxExclusive", async () => {
 
-			expect(checkNumber({ minInclusive: 10, maxExclusive: 10 })).toHaveProperty("{minInclusive/maxExclusive}");
-			expect(checkNumber({ minInclusive: 10, maxExclusive: 5 })).toHaveProperty("{minInclusive/maxExclusive}");
+			expect(checkNumber({ minInclusive: 10, maxExclusive: 10 })).toContainEqual(expect.stringContaining("{minInclusive/maxExclusive}"));
+			expect(checkNumber({ minInclusive: 10, maxExclusive: 5 })).toContainEqual(expect.stringContaining("{minInclusive/maxExclusive}"));
 
 		});
 
 		it("returns trace for hasValue entries not in the in set", async () => {
 
-			expect(checkNumber({ hasValue: [5], in: [1, 2, 3] })).toHaveProperty("{hasValue/in}");
+			expect(checkNumber({ hasValue: [5], in: [1, 2, 3] })).toContainEqual(expect.stringContaining("{hasValue/in}"));
 
 		});
 
@@ -348,22 +348,22 @@ describe("operators", () => {
 
 		it("returns trace for fractional bounds when integral", async () => {
 
-			expect(checkNumber({ integral: true, minInclusive: 1.5 })).toHaveProperty("{integral/minInclusive}");
-			expect(checkNumber({ integral: true, maxInclusive: 9.5 })).toHaveProperty("{integral/maxInclusive}");
-			expect(checkNumber({ integral: true, minExclusive: 0.5 })).toHaveProperty("{integral/minExclusive}");
-			expect(checkNumber({ integral: true, maxExclusive: 8.5 })).toHaveProperty("{integral/maxExclusive}");
+			expect(checkNumber({ integral: true, minInclusive: 1.5 })).toContainEqual(expect.stringContaining("{minInclusive}"));
+			expect(checkNumber({ integral: true, maxInclusive: 9.5 })).toContainEqual(expect.stringContaining("{maxInclusive}"));
+			expect(checkNumber({ integral: true, minExclusive: 0.5 })).toContainEqual(expect.stringContaining("{minExclusive}"));
+			expect(checkNumber({ integral: true, maxExclusive: 8.5 })).toContainEqual(expect.stringContaining("{maxExclusive}"));
 
 		});
 
 		it("returns trace for a fractional in member when integral", async () => {
 
-			expect(checkNumber({ integral: true, in: [1, 2.5] })).toHaveProperty("{integral/in}");
+			expect(checkNumber({ integral: true, in: [1, 2.5] })).toContainEqual(expect.stringContaining("{in}"));
 
 		});
 
 		it("returns trace for a fractional hasValue member when integral", async () => {
 
-			expect(checkNumber({ integral: true, hasValue: [1.5] })).toHaveProperty("{integral/hasValue}");
+			expect(checkNumber({ integral: true, hasValue: [1.5] })).toContainEqual(expect.stringContaining("{hasValue}"));
 
 		});
 
@@ -379,13 +379,24 @@ describe("operators", () => {
 				integral: true,
 				minExclusive: 0,
 				maxExclusive: 1
-			})).toHaveProperty("{integral/range}");
+			})).toContainEqual(expect.stringContaining("{range}"));
 
 		});
 
 		it("returns undefined for a non-empty integral range", async () => {
 
 			expect(checkNumber({ integral: true, minInclusive: 0, maxInclusive: 0 })).toBeUndefined();
+
+		});
+
+		it("returns trace for an empty integral range across both bounds on a side", async () => {
+
+			expect(checkNumber({
+				integral: true,
+				minInclusive: 0,
+				minExclusive: 5,
+				maxExclusive: 6
+			})).toContainEqual(expect.stringContaining("{range}"));
 
 		});
 
@@ -416,7 +427,7 @@ describe("operators", () => {
 		it("reports constraint inconsistency regardless of the model", async () => {
 
 			expect(checkNumber({ model: 5, minInclusive: 10, maxInclusive: 0 }))
-				.toHaveProperty("{minInclusive/maxInclusive}");
+				.toContainEqual(expect.stringContaining("{minInclusive/maxInclusive}"));
 
 		});
 
@@ -468,7 +479,8 @@ describe("operators", () => {
 
 		it("rejects mismatched datatypes", async () => {
 
-			expect(narrowsNumber(number({ datatype: xsd.int }), number({ datatype: xsd.long }))).toHaveProperty("{datatype}");
+			expect(narrowsNumber(number({ datatype: xsd.int }), number({ datatype: xsd.long })))
+				.toContainEqual(expect.stringContaining("{datatype}"));
 
 		});
 
@@ -486,7 +498,8 @@ describe("operators", () => {
 
 		it("rejects a child that drops an integral parent", async () => {
 
-			expect(narrowsNumber(number({ integral: false }), number({ integral: true }))).toHaveProperty("{integral}");
+			expect(narrowsNumber(number({ integral: false }), number({ integral: true })))
+				.toContainEqual(expect.stringContaining("{integral}"));
 
 		});
 
@@ -806,34 +819,32 @@ describe("validators", () => {
 
 			});
 
-			it.each<[string, readonly unknown[], RegExp]>([
-				["a single non-numeric value", ["hello"], /expected <number> values$/],
-				["mixed valid and non-numeric values", ["hello", 42, true], /expected <number> values \(2\/3\)/],
-				["multiple non-numeric values", ["hello", true], /expected <number> values \(2\/2\)/]
-			])("returns a kind trace for %s", async (_label, values, message) => {
+			it.each<[string, readonly unknown[], readonly number[]]>([
+				["a single non-numeric value", ["hello"], [0]],
+				["mixed valid and non-numeric values", ["hello", 42, true], [0, 2]],
+				["multiple non-numeric values", ["hello", true], [0, 1]]
+			])("keys a kind violation by element for %s", async (_label, values, indices) => {
 
-				const trace = validateNumber(values, number());
-
-				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
-
-			});
-
-			it("validates only matched numeric values against constraints", async () => {
-
-				const trace = validateNumber([-1, "hello", -2], number({ minInclusive: 0 }));
-
-				expect(trace).toHaveProperty("{kind}");
-				expect(trace).toHaveProperty("{minInclusive}");
+				expect(validateNumber(values, number())).toEqual([
+					Object.fromEntries(indices.map(index => [`${index}`, ["{type} expected <number> value"]]))
+				]);
 
 			});
 
-			it("returns undefined when non-numeric values filtered and numbers pass", async () => {
+			it("keys type and constraint violations by element", async () => {
 
-				const trace = validateNumber([42, "hello"], number({ minInclusive: 0 }));
+				expect(validateNumber([-1, "hello", -2], number({ minInclusive: 0 }))).toEqual([{
+					"0": ["{gte} expected value greater than or equal to <0>"],
+					"1": ["{type} expected <number> value"],
+					"2": ["{gte} expected value greater than or equal to <0>"]
+				}]);
 
-				expect(trace).toHaveProperty("{kind}");
-				expect(trace).not.toHaveProperty("{minInclusive}");
+			});
+
+			it("reports only the wrong-typed value, matched numbers passing", async () => {
+
+				expect(validateNumber([42, "hello"], number({ minInclusive: 0 })))
+					.toEqual([{ "1": ["{type} expected <number> value"] }]);
 
 			});
 
@@ -852,7 +863,8 @@ describe("validators", () => {
 
 			it("still rejects a placeholder of the wrong kind", async () => {
 
-				expect(validateNumber(["nope"], number(), { scope: "model" })).toHaveProperty("{kind}");
+				expect(validateNumber(["nope"], number(), { scope: "model" }))
+					.toEqual([{ "0": ["{type} expected <number> value"] }]);
 
 			});
 
@@ -874,15 +886,16 @@ describe("validators", () => {
 
 			it("still rejects a bound of the wrong kind", async () => {
 
-				expect(validateNumber(["nope"], number(), { scope: "bound" })).toHaveProperty("{kind}");
+				expect(validateNumber(["nope"], number(), { scope: "bound" }))
+					.toEqual([{ "0": ["{type} expected <number> value"] }]);
 
 			});
 
 		});
 
 		describe.each([
-			["minExclusive", { minExclusive: 0 }, "{minExclusive}", 1, 0, -1, 0.0001],
-			["maxExclusive", { maxExclusive: 100 }, "{maxExclusive}", 99, 100, 101, 99.9999]
+			["minExclusive", { minExclusive: 0 }, "{gt}", 1, 0, -1, 0.0001],
+			["maxExclusive", { maxExclusive: 100 }, "{lt}", 99, 100, 101, 99.9999]
 		])("%s constraint", (_name, constraints, traceKey, passingValue, boundaryValue, failingValue, fractionalValue) => {
 
 			it("returns undefined for values strictly within bound", async () => {
@@ -893,13 +906,15 @@ describe("validators", () => {
 
 			it("returns trace for values equal to bound", async () => {
 
-				expect(validateNumber([boundaryValue], number(constraints))).toHaveProperty(traceKey);
+				expect(validateNumber([boundaryValue], number(constraints)))
+					.toEqual([{ "0": [expect.stringContaining(traceKey)] }]);
 
 			});
 
 			it("returns trace for values beyond bound", async () => {
 
-				expect(validateNumber([failingValue], number(constraints))).toHaveProperty(traceKey);
+				expect(validateNumber([failingValue], number(constraints)))
+					.toEqual([{ "0": [expect.stringContaining(traceKey)] }]);
 
 			});
 
@@ -912,8 +927,8 @@ describe("validators", () => {
 		});
 
 		describe.each([
-			["minInclusive", { minInclusive: 0 }, "{minInclusive}", 1, 0, -1],
-			["maxInclusive", { maxInclusive: 100 }, "{maxInclusive}", 99, 100, 101]
+			["minInclusive", { minInclusive: 0 }, "{gte}", 1, 0, -1],
+			["maxInclusive", { maxInclusive: 100 }, "{lte}", 99, 100, 101]
 		])("%s constraint", (_name, constraints, traceKey, passingValue, boundaryValue, failingValue) => {
 
 			it("returns undefined for values within bound", async () => {
@@ -930,7 +945,8 @@ describe("validators", () => {
 
 			it("returns trace for values beyond bound", async () => {
 
-				expect(validateNumber([failingValue], number(constraints))).toHaveProperty(traceKey);
+				expect(validateNumber([failingValue], number(constraints)))
+					.toEqual([{ "0": [expect.stringContaining(traceKey)] }]);
 
 			});
 
@@ -963,8 +979,8 @@ describe("validators", () => {
 
 				const shape = number({ minExclusive: 0, maxExclusive: 100 });
 
-				expect(validateNumber([0], shape)).toHaveProperty("{minExclusive}");
-				expect(validateNumber([100], shape)).toHaveProperty("{maxExclusive}");
+				expect(validateNumber([0], shape)).toEqual([{ "0": [expect.stringContaining("{gt}")] }]);
+				expect(validateNumber([100], shape)).toEqual([{ "0": [expect.stringContaining("{lt}")] }]);
 
 			});
 
@@ -974,7 +990,7 @@ describe("validators", () => {
 
 				expect(validateNumber([0], shape)).toBeUndefined();
 				expect(validateNumber([99], shape)).toBeUndefined();
-				expect(validateNumber([100], shape)).toHaveProperty("{maxExclusive}");
+				expect(validateNumber([100], shape)).toEqual([{ "0": [expect.stringContaining("{lt}")] }]);
 
 			});
 
@@ -982,7 +998,7 @@ describe("validators", () => {
 
 				const shape = number({ minExclusive: 0, maxInclusive: 100 });
 
-				expect(validateNumber([0], shape)).toHaveProperty("{minExclusive}");
+				expect(validateNumber([0], shape)).toEqual([{ "0": [expect.stringContaining("{gt}")] }]);
 				expect(validateNumber([1], shape)).toBeUndefined();
 				expect(validateNumber([100], shape)).toBeUndefined();
 
@@ -1004,13 +1020,15 @@ describe("validators", () => {
 
 			it("returns trace for values not in the enumeration", async () => {
 
-				expect(validateNumber([4], number({ in: [1, 2, 3] }))).toHaveProperty("{in}");
+				expect(validateNumber([4], number({ in: [1, 2, 3] })))
+					.toEqual([{ "0": [expect.stringContaining("{domain}")] }]);
 
 			});
 
 			it("returns trace for values close to but not in the enumeration", async () => {
 
-				expect(validateNumber([1.5], number({ in: [1, 2, 3] }))).toHaveProperty("{in}");
+				expect(validateNumber([1.5], number({ in: [1, 2, 3] })))
+					.toEqual([{ "0": [expect.stringContaining("{domain}")] }]);
 
 			});
 
@@ -1019,7 +1037,7 @@ describe("validators", () => {
 				const shape = number({ in: [42] });
 
 				expect(validateNumber([42], shape)).toBeUndefined();
-				expect(validateNumber([0], shape)).toHaveProperty("{in}");
+				expect(validateNumber([0], shape)).toEqual([{ "0": [expect.stringContaining("{domain}")] }]);
 
 			});
 
@@ -1034,7 +1052,7 @@ describe("validators", () => {
 				const shape = number({ in: [1.5, 2.5, 3.5] });
 
 				expect(validateNumber([1.5], shape)).toBeUndefined();
-				expect(validateNumber([1], shape)).toHaveProperty("{in}");
+				expect(validateNumber([1], shape)).toEqual([{ "0": [expect.stringContaining("{domain}")] }]);
 
 			});
 
@@ -1056,13 +1074,15 @@ describe("validators", () => {
 
 			it("returns trace when required value is missing", async () => {
 
-				expect(validateNumber([1, 3], number({ hasValue: [1, 2] }))).toHaveProperty("{hasValue}");
+				expect(validateNumber([1, 3], number({ hasValue: [1, 2] })))
+					.toEqual([expect.stringContaining("{values}")]);
 
 			});
 
 			it("returns trace when values array is empty", async () => {
 
-				expect(validateNumber([], number({ hasValue: [1] }))).toHaveProperty("{hasValue}");
+				expect(validateNumber([], number({ hasValue: [1] })))
+					.toEqual([expect.stringContaining("{values}")]);
 
 			});
 
@@ -1091,7 +1111,7 @@ describe("validators", () => {
 					minInclusive: 0,
 					maxInclusive: 10,
 					in: [2, 4, 6, 8]
-				}))).toHaveProperty("{in}");
+				}))).toEqual([{ "0": [expect.stringContaining("{domain}")] }]);
 
 			});
 
@@ -1099,10 +1119,10 @@ describe("validators", () => {
 
 				const shape = number({ minInclusive: 5, in: [7, 8, 9] });
 
-				const result = validateNumber([4], shape);
-
-				expect(result).toHaveProperty("{minInclusive}");
-				expect(result).toHaveProperty("{in}");
+				expect(validateNumber([4], shape)).toEqual([{ "0": [
+					expect.stringContaining("{gte}"),
+					expect.stringContaining("{domain}")
+				] }]);
 				expect(validateNumber([7], shape)).toBeUndefined();
 
 			});
@@ -1134,7 +1154,8 @@ describe("validators", () => {
 
 			it("rejects fractional values when integral", async () => {
 
-				expect(validateNumber([3.5], number({ integral: true }))).toHaveProperty("{integral}");
+				expect(validateNumber([3.5], number({ integral: true })))
+					.toEqual([{ "0": [expect.stringContaining("{integer}")] }]);
 
 			});
 
@@ -1149,15 +1170,17 @@ describe("validators", () => {
 
 		describe("per-value errors", () => {
 
-			it.each<[string, readonly number[], RegExp]>([
-				["a count prefix for multiple failing values", [-1, -2], /^\(2\/2\) /],
-				["only failing values in the count prefix", [-1, 50, -2], /^\(2\/3\) /],
-				["no count prefix for a single failing value", [-1], /^expected values >= <0>/]
-			])("includes %s", async (_label, values, message) => {
+			it.each<[string, readonly number[], readonly number[]]>([
+				["both failing values", [-1, -2], [0, 1]],
+				["only the failing values", [-1, 50, -2], [0, 2]],
+				["a single failing value", [-1], [0]]
+			])("keys range violations by element (%s)", async (_label, values, indices) => {
 
-				const trace = validateNumber(values, number({ minInclusive: 0 }));
-
-				expect((trace as Record<string, string>)["{minInclusive}"]).toMatch(message);
+				expect(validateNumber(values, number({ minInclusive: 0 }))).toEqual([
+					Object.fromEntries(indices.map(index =>
+						[`${index}`, ["{gte} expected value greater than or equal to <0>"]]
+					))
+				]);
 
 			});
 

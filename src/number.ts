@@ -111,7 +111,8 @@ import { isNumber } from "@metreeca/core";
 import { xsd } from "@metreeca/core/datatype";
 import { immutable } from "@metreeca/core/deep";
 import type { Reference } from "@metreeca/qest";
-import { TraceError } from "./index.core.js";
+
+import { TraceError } from "@metreeca/core/trace";
 import { checkNumber } from "./number.core.js";
 
 
@@ -286,7 +287,7 @@ export interface NumericConstraints {
 	/**
 	 * Allowed values (closed enumeration).
 	 *
-	 * When specified, values must be members of this list. Must be non-empty.
+	 * When specified, values must be members of this list. Empty arrays are ignored.
 	 *
 	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
 	 *
@@ -294,12 +295,12 @@ export interface NumericConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.5.1 sh:in}
 	 */
-	readonly in?: readonly [number, ...number[]];
+	readonly in?: readonly number[];
 
 	/**
 	 * Required values that must be present.
 	 *
-	 * When specified, all listed values must appear in the resource. Must be non-empty.
+	 * When specified, all listed values must appear in the resource. Empty arrays are ignored.
 	 *
 	 * **Inheritance** — union of parent and child required values; child must require all parent values.
 	 *
@@ -307,7 +308,7 @@ export interface NumericConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.5.2 sh:hasValue}
 	 */
-	readonly hasValue?: readonly [number, ...number[]];
+	readonly hasValue?: readonly number[];
 
 }
 

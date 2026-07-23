@@ -356,8 +356,7 @@ describe("operators", () => {
 
 			const trace = checkString({ minLength: 10, maxLength: 5 });
 
-			expect(trace).toBeDefined();
-			expect(trace).toHaveProperty("{minLength/maxLength}");
+			expect(trace).toContainEqual(expect.stringContaining("{minLength/maxLength}"));
 
 		});
 
@@ -371,8 +370,7 @@ describe("operators", () => {
 
 			const trace = checkString({ hasValue: ["x"], in: ["a", "b"] });
 
-			expect(trace).toBeDefined();
-			expect(trace).toHaveProperty("{hasValue/in}");
+			expect(trace).toContainEqual(expect.stringContaining("{hasValue/in}"));
 
 		});
 
@@ -467,7 +465,8 @@ describe("operators", () => {
 
 		it("rejects mismatched datatypes", async () => {
 
-			expect(narrowsString(string({ datatype: xsd.date }), string({ datatype: xsd.time }))).toHaveProperty("{datatype}");
+			expect(narrowsString(string({ datatype: xsd.date }), string({ datatype: xsd.time })))
+				.toContainEqual(expect.stringContaining("{datatype}"));
 
 		});
 
@@ -497,7 +496,7 @@ describe("operators", () => {
 			expect(narrowsString(string({ model: "abc", pattern: "^[a-z]+$" }), string({
 				model: "123",
 				pattern: "^[0-9]+$"
-			}))).toHaveProperty("{pattern}");
+			}))).toContainEqual(expect.stringContaining("{pattern}"));
 
 		});
 
@@ -818,34 +817,32 @@ describe("validators", () => {
 
 			});
 
-			it.each<[string, readonly unknown[], RegExp]>([
-				["a single non-string value", [42], /expected <string> values$/],
-				["mixed valid and non-string values", [42, "hello", true], /expected <string> values \(2\/3\)/],
-				["multiple non-string values", [42, true], /expected <string> values \(2\/2\)/]
-			])("returns a kind trace for %s", async (_label, values, message) => {
+			it.each<[string, readonly unknown[], readonly number[]]>([
+				["a single non-string value", [42], [0]],
+				["mixed valid and non-string values", [42, "hello", true], [0, 2]],
+				["multiple non-string values", [42, true], [0, 1]]
+			])("keys a kind violation by element for %s", async (_label, values, indices) => {
 
-				const trace = validateString(values, string());
-
-				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
-
-			});
-
-			it("validates only matched string values against constraints", async () => {
-
-				const trace = validateString(["ab", 42, "c"], string({ model: "abc", minLength: 3 }));
-
-				expect(trace).toHaveProperty("{kind}");
-				expect(trace).toHaveProperty("{minLength}");
+				expect(validateString(values, string())).toEqual([
+					Object.fromEntries(indices.map(index => [`${index}`, ["{type} expected <string> value"]]))
+				]);
 
 			});
 
-			it("returns undefined when non-string values filtered and strings pass", async () => {
+			it("keys type and constraint violations by element", async () => {
 
-				const trace = validateString(["hello", 42], string({ model: "abc", minLength: 3 }));
+				expect(validateString(["ab", 42, "c"], string({ model: "abc", minLength: 3 }))).toEqual([{
+					"0": ["{length} expected string length greater than or equal to <3>"],
+					"1": ["{type} expected <string> value"],
+					"2": ["{length} expected string length greater than or equal to <3>"]
+				}]);
 
-				expect(trace).toHaveProperty("{kind}");
-				expect(trace).not.toHaveProperty("{minLength}");
+			});
+
+			it("reports only the wrong-typed value, matched strings passing", async () => {
+
+				expect(validateString(["hello", 42], string({ model: "abc", minLength: 3 })))
+					.toEqual([{ "1": ["{type} expected <string> value"] }]);
 
 			});
 
@@ -864,7 +861,8 @@ describe("validators", () => {
 
 			it("still rejects a placeholder of the wrong kind", async () => {
 
-				expect(validateString([42], string(), { scope: "model" })).toHaveProperty("{kind}");
+				expect(validateString([42], string(), { scope: "model" }))
+					.toEqual([{ "0": ["{type} expected <string> value"] }]);
 
 			});
 
@@ -886,13 +884,14 @@ describe("validators", () => {
 			it("still enforces the pattern for a bound", async () => {
 
 				expect(validateString(["A1"], string({ pattern: "^[a-z]*$" }), { scope: "bound" }))
-					.toHaveProperty("{pattern}");
+					.toEqual([{ "0": ["{format} expected string matching </^[a-z]*$/>"] }]);
 
 			});
 
 			it("still rejects a bound of the wrong kind", async () => {
 
-				expect(validateString([42], string(), { scope: "bound" })).toHaveProperty("{kind}");
+				expect(validateString([42], string(), { scope: "bound" }))
+					.toEqual([{ "0": ["{type} expected <string> value"] }]);
 
 			});
 
@@ -920,12 +919,10 @@ describe("validators", () => {
 
 			});
 
-			it("returns keyed trace for strings beyond boundary", async () => {
+			it("keys a length violation by element for strings beyond boundary", async () => {
 
-				const trace = validateString([beyondBoundary], string({ model: "abcd", [constraint]: limit }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty(`{${constraint}}`);
+				expect(validateString([beyondBoundary], string({ model: "abcd", [constraint]: limit })))
+					.toEqual([{ "0": [expect.stringContaining("{length}")] }]);
 
 			});
 
@@ -933,12 +930,10 @@ describe("validators", () => {
 
 		describe("minLength edge cases", () => {
 
-			it("returns keyed trace for empty string when minLength > 0", async () => {
+			it("keys a length violation for empty string when minLength > 0", async () => {
 
-				const trace = validateString([""], string({ model: "x", minLength: 1 }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{minLength}");
+				expect(validateString([""], string({ model: "x", minLength: 1 })))
+					.toEqual([{ "0": ["{length} expected string length greater than or equal to <1>"] }]);
 
 			});
 
@@ -958,12 +953,10 @@ describe("validators", () => {
 
 			});
 
-			it("returns keyed trace when maxLength is 0 and string is non-empty", async () => {
+			it("keys a length violation when maxLength is 0 and string is non-empty", async () => {
 
-				const trace = validateString(["a"], string({ maxLength: 0 }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{maxLength}");
+				expect(validateString(["a"], string({ maxLength: 0 })))
+					.toEqual([{ "0": ["{length} expected string length less than or equal to <0>"] }]);
 
 			});
 
@@ -990,8 +983,8 @@ describe("validators", () => {
 
 				const shape = string({ model: "abc", minLength: 2, maxLength: 5 });
 
-				expect(validateString(["a"], shape)).toHaveProperty("{minLength}");
-				expect(validateString(["abcdef"], shape)).toHaveProperty("{maxLength}");
+				expect(validateString(["a"], shape)).toEqual([{ "0": [expect.stringContaining("{length}")] }]);
+				expect(validateString(["abcdef"], shape)).toEqual([{ "0": [expect.stringContaining("{length}")] }]);
 
 			});
 
@@ -1007,19 +1000,15 @@ describe("validators", () => {
 
 			it("returns keyed trace for strings not matching pattern", async () => {
 
-				const trace = validateString(["Hello123"], string({ model: "abc", pattern: /^[a-z]+$/ }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{pattern}");
+				expect(validateString(["Hello123"], string({ model: "abc", pattern: /^[a-z]+$/ })))
+					.toEqual([{ "0": [expect.stringContaining("{format}")] }]);
 
 			});
 
 			it("returns keyed trace for empty string when pattern requires content", async () => {
 
-				const trace = validateString([""], string({ model: "abc", pattern: /^[a-z]+$/ }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{pattern}");
+				expect(validateString([""], string({ model: "abc", pattern: /^[a-z]+$/ })))
+					.toEqual([{ "0": [expect.stringContaining("{format}")] }]);
 
 			});
 
@@ -1034,13 +1023,10 @@ describe("validators", () => {
 
 			it("returns keyed trace for invalid email pattern", async () => {
 
-				const trace = validateString(["invalid-email"], string({
+				expect(validateString(["invalid-email"], string({
 					model: "a@b.co",
 					pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-				}));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{pattern}");
+				}))).toEqual([{ "0": [expect.stringContaining("{format}")] }]);
 
 			});
 
@@ -1049,8 +1035,8 @@ describe("validators", () => {
 				const shape = string({ model: "ABC", pattern: /^ABC$/ });
 
 				expect(validateString(["ABC"], shape)).toBeUndefined();
-				expect(validateString(["ABCD"], shape)).toHaveProperty("{pattern}");
-				expect(validateString(["0ABC"], shape)).toHaveProperty("{pattern}");
+				expect(validateString(["ABCD"], shape)).toEqual([{ "0": [expect.stringContaining("{format}")] }]);
+				expect(validateString(["0ABC"], shape)).toEqual([{ "0": [expect.stringContaining("{format}")] }]);
 
 			});
 
@@ -1076,10 +1062,8 @@ describe("validators", () => {
 
 			it("returns keyed trace for strings not in the enumeration", async () => {
 
-				const trace = validateString(["orange"], string({ in: ["apple", "banana", "cherry"] }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{in}");
+				expect(validateString(["orange"], string({ in: ["apple", "banana", "cherry"] })))
+					.toEqual([{ "0": [expect.stringContaining("{domain}")] }]);
 
 			});
 
@@ -1088,7 +1072,7 @@ describe("validators", () => {
 				const shape = string({ in: ["only"] });
 
 				expect(validateString(["only"], shape)).toBeUndefined();
-				expect(validateString(["other"], shape)).toHaveProperty("{in}");
+				expect(validateString(["other"], shape)).toEqual([{ "0": [expect.stringContaining("{domain}")] }]);
 
 			});
 
@@ -1097,7 +1081,7 @@ describe("validators", () => {
 				const shape = string({ in: ["Hello", "World"] });
 
 				expect(validateString(["Hello"], shape)).toBeUndefined();
-				expect(validateString(["hello"], shape)).toHaveProperty("{in}");
+				expect(validateString(["hello"], shape)).toEqual([{ "0": [expect.stringContaining("{domain}")] }]);
 
 			});
 
@@ -1125,19 +1109,15 @@ describe("validators", () => {
 
 			it("returns keyed trace when required value is missing", async () => {
 
-				const trace = validateString(["apple", "cherry"], string({ hasValue: ["apple", "banana"] }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{hasValue}");
+				expect(validateString(["apple", "cherry"], string({ hasValue: ["apple", "banana"] })))
+					.toEqual([expect.stringContaining("{values}")]);
 
 			});
 
 			it("returns keyed trace when values array is empty", async () => {
 
-				const trace = validateString([], string({ hasValue: ["apple"] }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{hasValue}");
+				expect(validateString([], string({ hasValue: ["apple"] })))
+					.toEqual([expect.stringContaining("{values}")]);
 
 			});
 
@@ -1164,25 +1144,18 @@ describe("validators", () => {
 
 			it("returns keyed trace for valid pattern but invalid length", async () => {
 
-				const trace = validateString(["ab"], string({ model: "hello", minLength: 5, pattern: /^[a-z]+$/ }));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{minLength}");
-				expect(trace).not.toHaveProperty("{pattern}");
+				expect(validateString(["ab"], string({ model: "hello", minLength: 5, pattern: /^[a-z]+$/ })))
+					.toEqual([{ "0": ["{length} expected string length greater than or equal to <5>"] }]);
 
 			});
 
 			it("returns keyed trace for valid length but invalid pattern", async () => {
 
-				const trace = validateString(["Hello123"], string({
+				expect(validateString(["Hello123"], string({
 					model: "abc",
 					maxLength: 10,
 					pattern: /^[a-z]+$/
-				}));
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{pattern}");
-				expect(trace).not.toHaveProperty("{maxLength}");
+				}))).toEqual([{ "0": [expect.stringContaining("{format}")] }]);
 
 			});
 
@@ -1208,12 +1181,8 @@ describe("validators", () => {
 					in: ["apple", "banana", "cherry"]
 				});
 
-				const trace = validateString(["grape"], shape);
-
-				expect(trace).toBeDefined();
-				expect(trace).toHaveProperty("{in}");
-				expect(trace).not.toHaveProperty("{minLength}");
-				expect(trace).not.toHaveProperty("{pattern}");
+				expect(validateString(["grape"], shape))
+					.toEqual([{ "0": [expect.stringContaining("{domain}")] }]);
 
 			});
 
@@ -1265,15 +1234,17 @@ describe("validators", () => {
 
 		describe("per-value errors", () => {
 
-			it.each<[string, readonly string[], RegExp]>([
-				["a count prefix for multiple failing values", ["ab", "c"], /^\(2\/2\) /],
-				["only failing values in the count prefix", ["ab", "hello", "c"], /^\(2\/3\) /],
-				["no count prefix for a single failing value", ["ab"], /^expected string length >= <3>/]
-			])("reports %s", async (_label, values, message) => {
+			it.each<[string, readonly string[], readonly number[]]>([
+				["both failing values", ["ab", "c"], [0, 1]],
+				["only the failing values", ["ab", "hello", "c"], [0, 2]],
+				["a single failing value", ["ab"], [0]]
+			])("keys length violations by element (%s)", async (_label, values, indices) => {
 
-				const trace = validateString(values, string({ model: "abc", minLength: 3 }));
-
-				expect((trace as Record<string, string>)["{minLength}"]).toMatch(message);
+				expect(validateString(values, string({ model: "abc", minLength: 3 }))).toEqual([
+					Object.fromEntries(indices.map(index =>
+						[`${index}`, ["{length} expected string length greater than or equal to <3>"]]
+					))
+				]);
 
 			});
 

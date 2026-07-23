@@ -82,7 +82,8 @@ import { immutable } from "@metreeca/core/deep";
 import type { Tag, TagRange } from "@metreeca/core/language";
 import type { Locale } from "@metreeca/qest/template";
 
-import { TraceError } from "./index.core.js";
+
+import { TraceError } from "@metreeca/core/trace";
 import { checkText, deriveText } from "./text.core.js";
 
 
@@ -169,7 +170,7 @@ export interface TextConstraints {
 	 *
 	 * When specified, language tags must match one of the given {@link TagRange} values under RFC 4647 basic
 	 * filtering. Each range is a basic language range (a sequence of subtags or the standalone `*` wildcard);
-	 * extended ranges such as `en-*` are not accepted. Must be non-empty.
+	 * extended ranges such as `en-*` are not accepted. Empty arrays are ignored.
 	 *
 	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
 	 *
@@ -178,7 +179,7 @@ export interface TextConstraints {
 	 * @see {@link https://www.w3.org/TR/shacl/#LanguageInConstraintComponent SHACL § 4.8.2 sh:languageIn}
 	 * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
 	 */
-	readonly languageIn?: readonly [TagRange, ...TagRange[]];
+	readonly languageIn?: readonly TagRange[];
 
 }
 

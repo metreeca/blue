@@ -16,9 +16,9 @@
 
 import type { Probe, Selection, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
+import { type Trace, TraceError } from "@metreeca/core/trace";
 import { boolean } from "./boolean.js";
-import { sh, TraceError } from "./index.core.js";
-import { type Trace } from "./index.js";
+import { sh } from "./index.core.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { reference } from "./reference.js";
 import { id, resource, type ResourceShape, type } from "./resource.js";
@@ -411,14 +411,14 @@ describe("utilities", () => {
 			return { target: path[path.length-1] ?? "_", pipe, path };
 		}
 
-		function range(r: RangeShape | Extract<Trace, string>): RangeShape {
+		function range(r: RangeShape | string): RangeShape {
 			if ( typeof r === "string" ) { throw new Error(`expected RangeShape, got trace <${r}>`); }
 			return r;
 		}
 
 		// transform-focused helpers: wrap leaf shape in a resource property
 
-		function transformRange(pipe: readonly Transform[], s: ValuesShape): RangeShape | Extract<Trace, string> {
+		function transformRange(pipe: readonly Transform[], s: ValuesShape): RangeShape | string {
 			return effective(resource({ _: required(s) }), probe(["_"], pipe));
 		}
 
@@ -703,7 +703,7 @@ describe("utilities", () => {
 
 			it("coalesces array-per-tag localised text to a multi-valued string set", async () => {
 
-				function arrayPerTagRange(pipe: readonly Transform[]): RangeShape | Extract<Trace, string> {
+				function arrayPerTagRange(pipe: readonly Transform[]): RangeShape | string {
 					return effective(resource({ _: repeatable(text()) }), probe(["_"], pipe));
 				}
 
@@ -912,7 +912,7 @@ describe("utilities", () => {
 
 		describe("path cardinality accumulation", () => {
 
-			function pathRange(p: Probe, s: ResourceShape): RangeShape | Extract<Trace, string> {
+			function pathRange(p: Probe, s: ResourceShape): RangeShape | string {
 				return effective(s, p);
 			}
 
@@ -1013,7 +1013,7 @@ describe("utilities", () => {
 
 		describe("path traversal", () => {
 
-			function probeRange(p: Probe, s: ResourceShape): RangeShape | Extract<Trace, string> {
+			function probeRange(p: Probe, s: ResourceShape): RangeShape | string {
 				return effective(s, p);
 			}
 
@@ -1351,7 +1351,7 @@ describe("utilities", () => {
 
 		describe("id/type path resolution", () => {
 
-			function probeRange(p: Probe, s: ResourceShape): RangeShape | Extract<Trace, string> {
+			function probeRange(p: Probe, s: ResourceShape): RangeShape | string {
 				return effective(s, p);
 			}
 
@@ -2016,7 +2016,7 @@ describe("internals", () => {
 
 			const trace = checkValues({ minCount: 5, maxCount: 2 });
 
-			expect(trace).toHaveProperty("{minCount/maxCount}");
+			expect(trace).toContainEqual(expect.stringContaining("{minCount/maxCount}"));
 
 		});
 

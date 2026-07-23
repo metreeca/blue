@@ -126,16 +126,15 @@ describe("validators", () => {
 
 		});
 
-		it.each<[string, readonly unknown[], RegExp]>([
-			["a single non-boolean value", [42], /expected <boolean> values$/],
-			["mixed valid and non-boolean values", [true, 42, "hello"], /expected <boolean> values \(2\/3\)/],
-			["multiple non-boolean values", [42, "hello"], /expected <boolean> values \(2\/2\)/]
-		])("returns a kind trace for %s", async (_label, values, message) => {
+		it.each<[string, readonly unknown[], readonly number[]]>([
+			["a single non-boolean value", [42], [0]],
+			["mixed valid and non-boolean values", [true, 42, "hello"], [1, 2]],
+			["multiple non-boolean values", [42, "hello"], [0, 1]]
+		])("keys a kind violation by element for %s", async (_label, values, indices) => {
 
-			const trace = validateBoolean(values, boolean());
-
-			expect(trace).toHaveProperty("{kind}");
-			expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
+			expect(validateBoolean(values, boolean())).toEqual([
+				Object.fromEntries(indices.map(index => [`${index}`, ["{type} expected <boolean> value"]]))
+			]);
 
 		});
 

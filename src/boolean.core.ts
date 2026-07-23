@@ -22,9 +22,9 @@
 
 import { isBoolean } from "@metreeca/core";
 import { immutable } from "@metreeca/core/deep";
+import { array, test, type, type Trace, TraceError } from "@metreeca/core/trace";
 import type { BooleanShape } from "./boolean.js";
-import { collect, TraceError } from "./index.core.js";
-import type { Trace } from "./index.js";
+import type { Scope } from "./index.core.js";
 
 
 /**
@@ -36,18 +36,17 @@ import type { Trace } from "./index.js";
  * @param target The overriding child shape
  * @param source The inherited parent shape
  *
- * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
+ * @returns A trace reporting the narrowing obstacle, or `undefined` when `target` narrows `source`
  */
 export function narrowsBoolean(target: BooleanShape, source: BooleanShape): undefined | Trace {
 
-	return collect({
+	return test<BooleanShape>(({ model }) => {
 
-		// structural: model must be strictly equal
+		return model === source.model || [
+			`{model} mismatched types <${model}> and <${source.model}>`
+		];
 
-		"{model}": target.model === source.model
-			|| `mismatched types <${target.model}> and <${source.model}>`
-
-	});
+	})(target);
 
 }
 
@@ -86,18 +85,14 @@ export function mergeBoolean(target: BooleanShape, source: BooleanShape): Boolea
 /**
  * Validates values against a boolean shape.
  *
- * Filters input values by type, reporting non-boolean values under the `kind` key.
+ * Reports each non-boolean value as a `{kind}` violation keyed by its element index.
  */
-export function validateBoolean(values: readonly unknown[], { kind }: BooleanShape): undefined | Trace {
+export function validateBoolean(values: readonly unknown[], _shape: BooleanShape, {}: {
 
-	const matching = values.filter(isBoolean);
-	const mistyped = values.length-matching.length;
+	scope?: Scope
 
-	return collect({
+} = {}): undefined | Trace {
 
-		"{kind}": mistyped === 0
-			|| `expected <${kind}> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`
-
-	});
+	return array(type(isBoolean))(values);
 
 }

@@ -15,7 +15,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { TraceError } from "./index.core.js";
+
+import { TraceError } from "@metreeca/core/trace";
 import { mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import { reference, type ReferenceConstraints } from "./reference.js";
 import { resource } from "./resource.js";
@@ -238,20 +239,19 @@ describe("validators", () => {
 
 			});
 
-			it.each<[string, readonly unknown[], RegExp]>([
-				["a single non-reference value", [42], /expected <reference> values$/],
-				["mixed valid and non-reference values", ["app:/users/123", 42], /expected <reference> values$/],
-				["multiple non-reference values", [42, true], /expected <reference> values \(2\/2\)/],
+			it.each<[string, readonly unknown[], readonly number[]]>([
+				["a single non-reference value", [42], [0]],
+				["mixed valid and non-reference values", ["app:/users/123", 42], [1]],
+				["multiple non-reference values", [42, true], [0, 1]],
 
 				// references MUST be absolute IRIs; a root-relative string carries no scheme
 
-				["a relative (non-absolute) IRI", ["/users/123"], /expected <reference> values$/]
-			])("returns a kind trace for %s", async (_label, values, message) => {
+				["a relative (non-absolute) IRI", ["/users/123"], [0]]
+			])("keys a kind violation by element for %s", async (_label, values, indices) => {
 
-				const trace = validateReference(values, reference(resource({})));
-
-				expect(trace).toHaveProperty("{kind}");
-				expect((trace as Record<string, string>)["{kind}"]).toMatch(message);
+				expect(validateReference(values, reference(resource({})))).toEqual([
+					Object.fromEntries(indices.map(index => [`${index}`, ["{type} expected <Reference> value"]]))
+				]);
 
 			});
 
@@ -264,7 +264,7 @@ describe("validators", () => {
 				options: { pattern: "/users/{id}" } as const,
 				valid: ["app:/users/123"],
 				invalid: ["app:/products/123"],
-				errorKey: "{pattern}"
+				error: [{ "0": [expect.stringContaining("{format}")] }]
 			},
 
 			{
@@ -272,7 +272,7 @@ describe("validators", () => {
 				options: { in: ["app:/users/1", "app:/users/2"] } as const,
 				valid: ["app:/users/1"],
 				invalid: ["app:/users/99"],
-				errorKey: "{in}"
+				error: [{ "0": [expect.stringContaining("{domain}")] }]
 			},
 
 			{
@@ -280,10 +280,10 @@ describe("validators", () => {
 				options: { hasValue: ["app:/users/1"] } as const,
 				valid: ["app:/users/1", "app:/users/2"],
 				invalid: ["app:/users/2"],
-				errorKey: "{hasValue}"
+				error: [expect.stringContaining("{values}")]
 			}
 
-		])("$constraint constraint", ({ options, valid, invalid, errorKey }) => {
+		])("$constraint constraint", ({ options, valid, invalid, error }) => {
 
 			it("accepts valid references", async () => {
 
@@ -297,7 +297,7 @@ describe("validators", () => {
 
 				const shape = reference(resource(options, {}));
 
-				expect(validateReference(invalid, shape)).toHaveProperty(errorKey);
+				expect(validateReference(invalid, shape)).toEqual(error);
 
 			});
 
@@ -311,7 +311,8 @@ describe("validators", () => {
 				const shape = reference(() => target);
 
 				expect(validateReference(["app:/users/123"], shape)).toBeUndefined();
-				expect(validateReference(["app:/products/123"], shape)).toHaveProperty("{pattern}");
+				expect(validateReference(["app:/products/123"], shape))
+					.toEqual([{ "0": [expect.stringContaining("{format}")] }]);
 
 			});
 
@@ -330,6 +331,14 @@ describe("validators", () => {
 			// a reference placeholder matches the full IRI-reference production (qest §5.2): the empty string
 			// together with the relative, root-relative, and absolute forms, not the absolute-only instance form
 
+			it("skips the target in constraint for a placeholder", async () => {
+
+				const shape = reference(resource({ in: ["app:/users/1", "app:/users/2"] }, {}));
+
+				expect(validateReference(["app:/users/99"], shape, { scope: "model" })).toBeUndefined();
+
+			});
+
 			it.each<[string, readonly unknown[]]>([
 				["an absolute IRI", ["app:/vendors/1"]],
 				["a root-relative IRI", ["/vendors/"]],
@@ -347,7 +356,8 @@ describe("validators", () => {
 
 				const shape = reference(resource({}));
 
-				expect(validateReference([42], shape, { scope: "model" })).toHaveProperty("{kind}");
+				expect(validateReference([42], shape, { scope: "model" }))
+					.toEqual([{ "0": ["{type} expected <IRI> value"] }]);
 
 			});
 
@@ -366,11 +376,20 @@ describe("validators", () => {
 
 			});
 
+			it("skips the target hasValue constraint for a bound", async () => {
+
+				const shape = reference(resource({ hasValue: ["app:/users/1"] }, {}));
+
+				expect(validateReference(["app:/users/2"], shape, { scope: "bound" })).toBeUndefined();
+
+			});
+
 			it("still enforces the target pattern for a bound", async () => {
 
 				const shape = reference(resource({ pattern: "/users/{id}" }, {}));
 
-				expect(validateReference(["app:/products/999"], shape, { scope: "bound" })).toHaveProperty("{pattern}");
+				expect(validateReference(["app:/products/999"], shape, { scope: "bound" }))
+					.toEqual([{ "0": [expect.stringContaining("{format}")] }]);
 
 			});
 
@@ -378,7 +397,8 @@ describe("validators", () => {
 
 				const shape = reference(resource({}));
 
-				expect(validateReference([42], shape, { scope: "bound" })).toHaveProperty("{kind}");
+				expect(validateReference([42], shape, { scope: "bound" }))
+					.toEqual([{ "0": ["{type} expected <Reference> value"] }]);
 
 			});
 

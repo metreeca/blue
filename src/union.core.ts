@@ -23,8 +23,7 @@
 import { isArray, isObject, type Lazy } from "@metreeca/core";
 import { map } from "@metreeca/core/combo";
 import { immutable } from "@metreeca/core/deep";
-import { collect, TraceError } from "./index.core.js";
-import { type Trace } from "./index.js";
+import { array, type Trace, TraceError } from "@metreeca/core/trace";
 import { getShapeTarget } from "./reference.js";
 import type { UnionShape } from "./union.js";
 import { deriveValue, eager, mergeValue, narrowsValue, validateValue } from "./value.core.js";
@@ -151,7 +150,7 @@ export function validateUnion(values: unknown | readonly unknown[], variants: re
 }): undefined | Trace {
 
 	return isArray(values)
-		? collect(Object.fromEntries(values.map((value, index) => [`[${index}]`, validate(value)])))
+		? array((value: unknown) => validate(value))(values)
 		: validate(values);
 
 
@@ -159,8 +158,8 @@ export function validateUnion(values: unknown | readonly unknown[], variants: re
 
 		const matches = variants.filter(variant => match(value, variant, model));
 
-		return matches.length === 0 ? "no union variant matched"
-			: !model && matches.length > 1 ? "multiple union variants matched"
+		return matches.length === 0 ? ["no union variant matched"]
+			: !model && matches.length > 1 ? ["multiple union variants matched"]
 				: undefined;
 
 	}
@@ -311,7 +310,7 @@ export function getModelVariants<V extends ValuesShape>(
  *
  * @returns A base-index to child-index map when the pairing is valid, or a keyed {@link Trace} of obstacles otherwise
  */
-function pair(target: UnionShape, source: UnionShape): Trace | Map<number, number> {
+function pair(target: UnionShape, source: UnionShape): NonNullable<undefined | Trace> | Map<number, number> {
 
 	// base indices each child variant narrows
 
@@ -321,11 +320,11 @@ function pair(target: UnionShape, source: UnionShape): Trace | Map<number, numbe
 
 	// each child variant must narrow exactly one base variant
 
-	const exactly = collect(Object.fromEntries(matches.map((bases, index) => [`[${index}]`,
-		bases.length === 0 ? `variant narrows no base alternative`
-			: bases.length > 1 ? `variant narrows several base alternatives`
-				: true
-	])));
+	const exactly = array((bases: readonly number[]) =>
+		bases.length === 0 ? ["variant narrows no base alternative"]
+			: bases.length > 1 ? ["variant narrows several base alternatives"]
+				: undefined
+	)(matches);
 
 	if ( exactly !== undefined ) {
 		return exactly;
@@ -335,10 +334,9 @@ function pair(target: UnionShape, source: UnionShape): Trace | Map<number, numbe
 
 	const assignments = matches.map(bases => bases[0]);
 
-	const injective = collect(Object.fromEntries(assignments.map((base, index) => [`[${index}]`,
-		assignments.findIndex(other => other === base) === index
-		|| `variant narrows a base alternative already taken`
-	])));
+	const injective = array((taken: boolean) =>
+		taken ? ["variant narrows a base alternative already taken"] : undefined
+	)(assignments.map((base, index) => assignments.findIndex(other => other === base) !== index));
 
 	return injective ?? new Map(assignments.map((base, index) => [base, index]));
 

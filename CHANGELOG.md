@@ -9,7 +9,6 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Add `Validator<T>` type for custom value validators returning `undefined | true | Trace`
 - Add `validate()` overloaded function — resource validation with `{ shape }` and template validation with
   `{ fetch: true, shape }`; returns a `Relay` resolving to `{ value }` on success or `{ trace }` on failure; idempotent
   on a specific shape, skipping re-validation when the same shape and compatible options are presented again
@@ -109,8 +108,6 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Replace `url()` and `uri()` string factories with `iri()` accepting a `variant` parameter
 - Remove `Binding` from `ResourceShape.entries` and `Members` key types; remove `Projection` type utility
 - Remove `temporal()` factory — temporal shapes are identified by their model values
-- Remove `virtual` constraint from `ResourceShape` / `ResourceConstraints` — resources are no longer flagged as
-  dynamically generated
 
 ### Fixed
 

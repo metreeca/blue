@@ -26,7 +26,8 @@
 import type { Relay } from "@metreeca/core/relay";
 import type { Reference } from "@metreeca/qest";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Trace, validate } from "./index.js";
+import type { Trace } from "@metreeca/core/trace";
+import { validate } from "./index.js";
 import { integer } from "./number.js";
 import { id, resource } from "./resource.js";
 import { string } from "./string.js";
@@ -48,7 +49,7 @@ describe("validate (projection) overload", () => {
 
 		expectTypeOf(relay).toEqualTypeOf<Relay<{
 			readonly value: { readonly name: string; readonly price: number };
-			readonly trace: Trace;
+			readonly trace: undefined | Trace;
 		}>>();
 
 	});
@@ -63,7 +64,7 @@ describe("validate (projection) overload", () => {
 
 		expectTypeOf(relay).toEqualTypeOf<Relay<{
 			readonly value: { readonly price: number };
-			readonly trace: Trace;
+			readonly trace: undefined | Trace;
 		}>>();
 
 	});
