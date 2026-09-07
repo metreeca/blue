@@ -79,7 +79,7 @@
  */
 
 import { type Eager, type Lazy } from "@metreeca/core";
-import { immutable } from "@metreeca/core/deep";
+import { immutable } from "@metreeca/core/structures";
 import { TagRange } from "@metreeca/core/language";
 import { type Instance, type Probe, type Selection } from "@metreeca/qest/template";
 

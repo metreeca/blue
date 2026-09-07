@@ -21,8 +21,8 @@
  */
 
 import { isNumber } from "@metreeca/core";
-import { union } from "@metreeca/core/combo";
-import { immutable } from "@metreeca/core/deep";
+import { union } from "@metreeca/core/arrays";
+import { immutable } from "@metreeca/core/structures";
 import {
 	all,
 	array,

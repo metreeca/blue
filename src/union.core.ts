@@ -20,9 +20,8 @@
  * @module
  */
 
-import { isArray, isObject, type Lazy } from "@metreeca/core";
-import { map } from "@metreeca/core/combo";
-import { immutable } from "@metreeca/core/deep";
+import { isArray, isObject, type Lazy, map } from "@metreeca/core";
+import { immutable } from "@metreeca/core/structures";
 import { array, type Trace, TraceError } from "@metreeca/core/trace";
 import { getShapeTarget } from "./reference.js";
 import type { UnionShape } from "./union.js";

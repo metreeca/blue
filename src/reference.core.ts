@@ -20,9 +20,8 @@
  * @module
  */
 
-import type { Lazy } from "@metreeca/core";
-import { map } from "@metreeca/core/combo";
-import { equals, immutable } from "@metreeca/core/deep";
+import { type Lazy, map } from "@metreeca/core";
+import { equals, immutable } from "@metreeca/core/structures";
 import { isIRI } from "@metreeca/core/resource";
 import { isReference } from "@metreeca/qest";
 import { all, array, domain, test, type Trace, TraceError, type, values as contains } from "@metreeca/core/trace";

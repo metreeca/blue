@@ -20,9 +20,8 @@
  * @module
  */
 
-import { isArray, isObject, isString } from "@metreeca/core";
-import { fold } from "@metreeca/core/combo";
-import { immutable } from "@metreeca/core/deep";
+import { isArray, isObject, isString, opt as fold } from "@metreeca/core";
+import { immutable } from "@metreeca/core/structures";
 import { isTag, isTagRange, matchTag, type Tag } from "@metreeca/core/language";
 import type { Text } from "@metreeca/qest/resource";
 import { type Locale, type Placeholders, type Selection } from "@metreeca/qest/template";

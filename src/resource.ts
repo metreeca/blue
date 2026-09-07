@@ -326,9 +326,9 @@
  * @see {@link https://www.w3.org/TR/shacl/#ClosedConstraintComponent SHACL § 4.8.1 sh:closed}
  */
 
-import { type Identifier, isString, type Lazy } from "@metreeca/core";
-import { immutable } from "@metreeca/core/deep";
-import { asIRI, createNamespace, type IRI, type Namespace } from "@metreeca/core/resource";
+import { assert, type Identifier, isString, type Lazy } from "@metreeca/core";
+import { immutable } from "@metreeca/core/structures";
+import { createNamespace, type IRI, isIRI, type Namespace } from "@metreeca/core/resource";
 import { type Trace, TraceError, type Validator } from "@metreeca/core/trace";
 import { defaultBase, Reference } from "@metreeca/qest";
 import type { Resource, Text } from "@metreeca/qest/resource";
@@ -1378,12 +1378,12 @@ export function resource(
 
 			} else {
 
-				const forward = isString(property.forward) ? asIRI(property.forward) // IRI
-					: property.forward ? asIRI(property.forward[name]) // namespace
+				const forward = isString(property.forward) ? assert(property.forward, isIRI) // IRI
+					: property.forward ? assert(property.forward[name], isIRI) // namespace
 						: undefined;
 
-				const reverse = isString(property.reverse) ? asIRI(property.reverse) // IRI
-					: property.reverse ? asIRI(property.reverse[name]) // namespace
+				const reverse = isString(property.reverse) ? assert(property.reverse, isIRI) // IRI
+					: property.reverse ? assert(property.reverse[name], isIRI) // namespace
 						: undefined;
 
 
@@ -1394,7 +1394,7 @@ export function resource(
 					// generate default forward when neither forward nor reverse is defined
 
 					forward: forward === undefined && reverse === undefined
-						? asIRI(namespace[name])
+						? assert(namespace[name], isIRI)
 						: forward,
 
 					reverse

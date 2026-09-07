@@ -84,7 +84,7 @@
  */
 
 import type { Lazy } from "@metreeca/core";
-import { immutable } from "@metreeca/core/deep";
+import { immutable } from "@metreeca/core/structures";
 import { defaultBase, type Reference } from "@metreeca/qest";
 import type { ResourceShape } from "./resource.js";
 

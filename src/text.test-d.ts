@@ -24,7 +24,7 @@
  */
 
 import { isTagRange } from "@metreeca/core/language";
-import { assert } from "@metreeca/core/report";
+import { assert } from "@metreeca/core";
 import { describe, expectTypeOf, test } from "vitest";
 import { resource } from "./resource.js";
 import { text, type TextShape } from "./text.js";

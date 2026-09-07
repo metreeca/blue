@@ -126,7 +126,7 @@
 
 import { isRegExp, isString } from "@metreeca/core";
 import { xsd } from "@metreeca/core/datatype";
-import { immutable } from "@metreeca/core/deep";
+import { immutable } from "@metreeca/core/structures";
 import { type Variant } from "@metreeca/core/resource";
 import type { Reference } from "@metreeca/qest";
 

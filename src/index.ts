@@ -100,9 +100,8 @@
  * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
  */
 
-import { type Lazy } from "@metreeca/core";
-import { map } from "@metreeca/core/combo";
-import { equals, seal } from "@metreeca/core/deep";
+import { type Lazy, map } from "@metreeca/core";
+import { equals, seal } from "@metreeca/core/structures";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { type Reference } from "@metreeca/qest";
 import type { Instance, Template } from "@metreeca/qest/template";

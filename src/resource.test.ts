@@ -15,7 +15,7 @@
  */
 
 import { isTag } from "@metreeca/core/language";
-import { assert } from "@metreeca/core/report";
+import { assert } from "@metreeca/core";
 import { createNamespace } from "@metreeca/core/resource";
 import { defaultBase } from "@metreeca/qest";
 import type { Resource } from "@metreeca/qest/resource";

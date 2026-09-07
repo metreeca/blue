@@ -20,11 +20,10 @@
  * @module
  */
 
-import { type Identifier, isArray, isFunction, isString, type Lazy } from "@metreeca/core";
-import { unique } from "@metreeca/core/combo";
+import { assert, error, type Identifier, isArray, isFunction, isString, type Lazy } from "@metreeca/core";
+import { unique } from "@metreeca/core/arrays";
 import { xsd } from "@metreeca/core/datatype";
-import { equals, immutable } from "@metreeca/core/deep";
-import { assert, error } from "@metreeca/core/report";
+import { equals, immutable } from "@metreeca/core/structures";
 import { defaultBase } from "@metreeca/qest";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/template";
 import { all, test, type Trace, TraceError } from "@metreeca/core/trace";

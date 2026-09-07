@@ -21,18 +21,19 @@
  */
 
 import { isString } from "@metreeca/core";
-import { union } from "@metreeca/core/combo";
-import { immutable } from "@metreeca/core/deep";
+import { union } from "@metreeca/core/arrays";
+import { immutable } from "@metreeca/core/structures";
 import {
 	all,
 	array,
 	domain,
-	format,
 	length,
+	pass,
 	test,
 	type Trace,
 	TraceError,
 	type,
+	type Validator,
 	values as contains
 } from "@metreeca/core/trace";
 import { type Scope } from "./index.core.js";
@@ -285,6 +286,23 @@ export function validateString(values: readonly unknown[], shape: StringShape, {
 		return array(
 			type(isString)
 		);
+
+	}
+
+	function format(pattern: undefined | string): Validator<string> {
+
+		if ( pattern === undefined ) {
+
+			return pass;
+
+		} else {
+
+			const regex = new RegExp(pattern);
+			const mismatched = [`{format} expected string matching </${pattern}/>`];
+
+			return test(value => regex.test(value) || mismatched);
+
+		}
 
 	}
 

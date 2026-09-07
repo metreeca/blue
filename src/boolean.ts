@@ -67,7 +67,7 @@
  */
 
 import { isBoolean } from "@metreeca/core";
-import { immutable } from "@metreeca/core/deep";
+import { immutable } from "@metreeca/core/structures";
 
 
 /**

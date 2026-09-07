@@ -28,10 +28,11 @@ import {
 	isNumber,
 	isObject,
 	isString,
-	type Lazy
+	type Lazy,
+	opt as fold
 } from "@metreeca/core";
-import { fold, union } from "@metreeca/core/combo";
-import { equals, immutable, seal } from "@metreeca/core/deep";
+import { union } from "@metreeca/core/arrays";
+import { equals, immutable, seal } from "@metreeca/core/structures";
 import { isTagRange, matchTag } from "@metreeca/core/language";
 import { type IRI, isIRI } from "@metreeca/core/resource";
 import { defaultBase, isReference, type Reference } from "@metreeca/qest";

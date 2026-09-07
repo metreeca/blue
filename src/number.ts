@@ -109,7 +109,7 @@
 
 import { isNumber } from "@metreeca/core";
 import { xsd } from "@metreeca/core/datatype";
-import { immutable } from "@metreeca/core/deep";
+import { immutable } from "@metreeca/core/structures";
 import type { Reference } from "@metreeca/qest";
 
 import { TraceError } from "@metreeca/core/trace";

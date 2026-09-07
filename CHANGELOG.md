@@ -95,6 +95,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `TraceError`
 - Detect circular `extends` chains — throws `TraceError` keyed by the factory function name
 - Parameterise `Property<R>` and `PropertyConstraints<R>` with a value-range type parameter
+- Realign to the `@metreeca/core` module reorganisation, raising the minimum supported version — `@metreeca/core/deep`
+  is now `@metreeca/core/structures`, `assert` and `error` move from `@metreeca/core/report` to `@metreeca/core`, and
+  `asIRI` is superseded by `assert(value, isIRI)`
 
 ### Removed
 
