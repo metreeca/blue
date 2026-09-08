@@ -330,8 +330,8 @@ import { assert, type Identifier, isString, type Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
 import { createNamespace, type IRI, isIRI, type Namespace } from "@metreeca/core/resource";
 import { type Trace, TraceError, type Validator } from "@metreeca/core/trace";
-import { defaultBase, Reference } from "@metreeca/qest";
-import type { Resource, Text } from "@metreeca/qest/resource";
+import { app } from "@metreeca/qest";
+import type { Reference, Resource, Text } from "@metreeca/qest/resource";
 import type { Template } from "@metreeca/qest/template";
 import { checkSingletons, flatten } from "./resource.core.js";
 import { eager, type Schema, type SetShape, type State } from "./value.js";
@@ -1429,7 +1429,7 @@ export function resource(
 		return immutable({
 			...inherited,
 			...Object.fromEntries(Object.entries(properties).map(([name, property]) =>
-				[name, property.kind === "id" || property.kind === "type" ? defaultBase : property.range.model]
+				[name, property.kind === "id" || property.kind === "type" ? app : property.range.model]
 			))
 		});
 

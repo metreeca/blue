@@ -24,7 +24,7 @@
  */
 
 import type { Relay } from "@metreeca/core/relay";
-import type { Reference } from "@metreeca/qest";
+import type { Reference } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import type { Trace } from "@metreeca/core/trace";
 import { validate } from "./index.js";

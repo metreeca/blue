@@ -98,6 +98,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Realign to the `@metreeca/core` module reorganisation, raising the minimum supported version — `@metreeca/core/deep`
   is now `@metreeca/core/structures`, `assert` and `error` move from `@metreeca/core/report` to `@metreeca/core`, and
   `asIRI` is superseded by `assert(value, isIRI)`
+- Realign to the `@metreeca/qest` module reorganisation, raising the minimum supported version — `Reference` and
+  `isReference` move from `@metreeca/qest` to `@metreeca/qest/resource`, and the `defaultBase` IRI is renamed to `app`
 
 ### Removed
 

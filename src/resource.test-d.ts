@@ -24,7 +24,7 @@
  */
 
 import type { IRI, Namespace } from "@metreeca/core/resource";
-import { type Reference } from "@metreeca/qest";
+import { type Reference } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import type { BooleanShape } from "./boolean.js";
 import { validate } from "./index.js";

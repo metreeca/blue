@@ -17,7 +17,7 @@
 import { isTag } from "@metreeca/core/language";
 import { assert } from "@metreeca/core";
 import { createNamespace } from "@metreeca/core/resource";
-import { defaultBase } from "@metreeca/qest";
+import { app } from "@metreeca/qest";
 import type { Resource } from "@metreeca/qest/resource";
 import { describe, expect, it } from "vitest";
 import { type Trace, TraceError } from "@metreeca/core/trace";
@@ -3621,7 +3621,7 @@ describe("operators", () => {
 		it("projects id entries to the default base", async () => {
 
 			expect(deriveResource(resource({ id: id(), name: required(string()) })))
-				.toEqual({ id: defaultBase, name: "" });
+				.toEqual({ id: app, name: "" });
 
 		});
 

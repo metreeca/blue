@@ -103,7 +103,7 @@
 import { type Lazy, map } from "@metreeca/core";
 import { equals, seal } from "@metreeca/core/structures";
 import { createRelay, type Relay } from "@metreeca/core/relay";
-import { type Reference } from "@metreeca/qest";
+import { type Reference } from "@metreeca/qest/resource";
 import type { Instance, Template } from "@metreeca/qest/template";
 import { type Trace, TraceError } from "@metreeca/core/trace";
 import { sh } from "./index.core.js";

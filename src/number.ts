@@ -110,7 +110,7 @@
 import { isNumber } from "@metreeca/core";
 import { xsd } from "@metreeca/core/datatype";
 import { immutable } from "@metreeca/core/structures";
-import type { Reference } from "@metreeca/qest";
+import type { Reference } from "@metreeca/qest/resource";
 
 import { TraceError } from "@metreeca/core/trace";
 import { checkNumber } from "./number.core.js";
