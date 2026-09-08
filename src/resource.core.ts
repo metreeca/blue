@@ -35,8 +35,8 @@ import { union } from "@metreeca/core/arrays";
 import { equals, immutable, seal } from "@metreeca/core/structures";
 import { isTagRange, matchTag } from "@metreeca/core/language";
 import { type IRI, isIRI } from "@metreeca/core/resource";
-import { defaultBase, isReference, type Reference } from "@metreeca/qest";
-import { type Resource } from "@metreeca/qest/resource";
+import { app } from "@metreeca/qest";
+import { isReference, type Reference, type Resource } from "@metreeca/qest/resource";
 import {
 	type Binding,
 	decodeProbe,
@@ -471,7 +471,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 	// conjunctive: hasValue — union
 
 	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
-		? union([target.hasValue, source.hasValue])
+		? union<Reference>([target.hasValue, source.hasValue])
 		: target.hasValue ?? source.hasValue;
 
 	// conjunctive: validators — union (deduplicated)
@@ -516,7 +516,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 			...source.model,
 
 			...Object.fromEntries(Object.entries(properties).map(([name, entry]) => [name,
-				entry.kind === "id" || entry.kind === "type" ? defaultBase : entry.range.model
+				entry.kind === "id" || entry.kind === "type" ? app : entry.range.model
 			]))
 
 		} as Template,
@@ -595,7 +595,7 @@ export function mergeProperty(target: Property, source: Property): Property {
  * Derives the retrieval template for a resource shape.
  *
  * Projects each property to its retrieval placeholder, deriving the per-property value through
- * {@link value!deriveValue | deriveValue}; `id` and `type` entries project the {@link defaultBase}. Cardinality
+ * {@link value!deriveValue | deriveValue}; `id` and `type` entries project the {@link app | default base IRI}. Cardinality
  * wrapping (a scalar for `maxCount === 1`, otherwise a singleton `[value]` tuple carrying any selection) and the
  * per-tag localised form mirror the {@link value!cardinality | cardinality} projection.
  *
@@ -606,7 +606,7 @@ export function mergeProperty(target: Property, source: Property): Property {
 export function deriveResource(shape: ResourceShape) {
 
 	return immutable(Object.fromEntries(Object.entries(shape.entries).map(([name, entry]) =>
-		[name, entry.kind === "id" || entry.kind === "type" ? defaultBase : deriveValues(entry.range)]
+		[name, entry.kind === "id" || entry.kind === "type" ? app : deriveValues(entry.range)]
 	)));
 
 }

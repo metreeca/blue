@@ -85,7 +85,8 @@
 
 import type { Lazy } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
-import { defaultBase, type Reference } from "@metreeca/qest";
+import { app } from "@metreeca/qest";
+import type { Reference } from "@metreeca/qest/resource";
 import type { ResourceShape } from "./resource.js";
 
 export { getShapeTarget } from "./reference.core.js";
@@ -250,7 +251,7 @@ export function reference(shape: Lazy<ResourceShape>, constraints?: ReferenceCon
 	return immutable({
 
 		kind: "reference",
-		model: defaultBase,
+		model: app,
 
 		...constraints,
 

@@ -278,7 +278,7 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 	// conjunctive: hasValue — union
 
 	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
-		? union([target.hasValue, source.hasValue])
+		? union<number>([target.hasValue, source.hasValue])
 		: target.hasValue ?? source.hasValue;
 
 	// merged constraints

@@ -24,7 +24,7 @@ import { assert, error, type Identifier, isArray, isFunction, isString, type Laz
 import { unique } from "@metreeca/core/arrays";
 import { xsd } from "@metreeca/core/datatype";
 import { equals, immutable } from "@metreeca/core/structures";
-import { defaultBase } from "@metreeca/qest";
+import { app } from "@metreeca/qest";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/template";
 import { all, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
@@ -452,7 +452,7 @@ export function deriveValue<S extends Shape>(shape: S): Schema<S> {
 
 		case "reference":
 
-			return shape.model ?? defaultBase;
+			return shape.model ?? app;
 
 		case "resource":
 

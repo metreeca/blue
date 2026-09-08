@@ -169,7 +169,7 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 	// conjunctive: hasValue — union
 
 	const hasValue = target.hasValue !== undefined && source.hasValue !== undefined
-		? union([target.hasValue, source.hasValue])
+		? union<string>([target.hasValue, source.hasValue])
 		: target.hasValue ?? source.hasValue;
 
 	// merged constraints
