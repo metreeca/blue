@@ -391,6 +391,8 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
  *
  * @returns An immutable shape for validating 8-bit signed integers
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#byte XSD 1.0 Part 2: Datatypes § 3.3.19 byte}
  */
 export function byte(constraints: NumericConstraints = {}): NumberShape {
@@ -420,6 +422,8 @@ export function byte(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns An immutable shape for validating 16-bit signed integers
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#short XSD 1.0 Part 2: Datatypes § 3.3.18 short}
  */
 export function short(constraints: NumericConstraints = {}): NumberShape {
@@ -448,6 +452,8 @@ export function short(constraints: NumericConstraints = {}): NumberShape {
  * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating 32-bit signed integers
+ *
+ * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#int XSD 1.0 Part 2: Datatypes § 3.3.17 int}
  */
@@ -480,6 +486,8 @@ export function int(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns An immutable shape for validating 64-bit signed integers
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#long XSD 1.0 Part 2: Datatypes § 3.3.16 long}
  */
 export function long(constraints: NumericConstraints = {}): NumberShape {
@@ -509,6 +517,8 @@ export function long(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns An immutable shape for validating single-precision floats
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#float XSD 1.0 Part 2: Datatypes § 3.2.4 float}
  */
 export function float(constraints: NumericConstraints = {}): NumberShape {
@@ -535,6 +545,8 @@ export function float(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns An immutable shape for validating double-precision floats
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#double XSD 1.0 Part 2: Datatypes § 3.2.5 double}
  */
 export function double(constraints: NumericConstraints = {}): NumberShape {
@@ -552,6 +564,8 @@ export function double(constraints: NumericConstraints = {}): NumberShape {
  *
  * @returns An immutable shape for validating arbitrary-precision integers
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#integer XSD 1.0 Part 2: Datatypes § 3.3.13 integer}
  */
 export function integer(constraints: NumericConstraints = {}): NumberShape {
@@ -568,6 +582,8 @@ export function integer(constraints: NumericConstraints = {}): NumberShape {
  * @param constraints Optional {@link NumericConstraints validation constraints}
  *
  * @returns An immutable shape for validating arbitrary-precision decimals
+ *
+ * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#decimal XSD 1.0 Part 2: Datatypes § 3.2.3 decimal}
  */

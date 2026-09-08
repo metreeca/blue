@@ -236,8 +236,6 @@ export interface ReferenceConstraints {
  *
  * @returns An immutable {@link ReferenceShape} for validating resource references
  *
- * @throws {TypeError} If `shape` is not a valid {@link ResourceShape}
- *
  * @example
  *
  * ```typescript

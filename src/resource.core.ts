@@ -2107,7 +2107,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
  *
  * @returns true if the IRI matches the pattern; false otherwise
  *
- * @throws {TypeError} If `pattern` is malformed
+ * @throws {@link !TypeError TypeError} If `pattern` is malformed
  */
 export function match(iri: Reference, pattern: string): boolean {
 
@@ -2404,6 +2404,8 @@ export function enforce(value: unknown, shape: ResourceShape, {
  * @param shape One of the range {@link union!getShapeVariants | variants}
  *
  * @returns The own `class`, or `undefined` when absent
+ *
+ * @throws {TraceError} If `shape` transitively references itself, producing a circular extends chain
  */
 export function getShapeClass(shape: Lazy<Shape>): undefined | Reference {
 	return getShapeTarget(shape)?.class;
@@ -2419,6 +2421,8 @@ export function getShapeClass(shape: Lazy<Shape>): undefined | Reference {
  * @param shape One of the range {@link union!getShapeVariants | variants}
  *
  * @returns The inherited `classes`, or `undefined` when absent
+ *
+ * @throws {TraceError} If `shape` transitively references itself, producing a circular extends chain
  */
 export function getShapeClasses(shape: Lazy<Shape>): undefined | readonly Reference[] {
 	return getShapeTarget(shape)?.classes;
@@ -2434,6 +2438,8 @@ export function getShapeClasses(shape: Lazy<Shape>): undefined | readonly Refere
  * @param shape One of the range {@link union!getShapeVariants | variants}
  *
  * @returns The identifier property's field name, or `undefined` when absent
+ *
+ * @throws {TraceError} If `shape` transitively references itself, producing a circular extends chain
  */
 export function getShapeId(shape: Lazy<Shape>): undefined | Identifier {
 	return Object.entries(getShapeProperties(shape)).find(([, p]) => p.kind === "id")?.[0];
@@ -2449,6 +2455,8 @@ export function getShapeId(shape: Lazy<Shape>): undefined | Identifier {
  * @param shape One of the range {@link union!getShapeVariants | variants}
  *
  * @returns The type property's field name, or `undefined` when absent
+ *
+ * @throws {TraceError} If `shape` transitively references itself, producing a circular extends chain
  */
 export function getShapeType(shape: Lazy<Shape>): undefined | Identifier {
 	return Object.entries(getShapeProperties(shape)).find(([, p]) => p.kind === "type")?.[0];
@@ -2463,6 +2471,8 @@ export function getShapeType(shape: Lazy<Shape>): undefined | Identifier {
  * @param shape One of the range {@link union!getShapeVariants | variants}
  *
  * @returns The entries keyed by name, or an empty record when absent
+ *
+ * @throws {TraceError} If `shape` transitively references itself, producing a circular extends chain
  */
 export function getShapeProperties(shape: Lazy<Shape>): ResourceShape["entries"] {
 	return getShapeTarget(shape)?.entries ?? {};

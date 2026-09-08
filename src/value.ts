@@ -531,7 +531,7 @@ export function required<S extends Lazy<Shape>>(shape: S, selection?: SetSelecti
  *
  * @returns An immutable {@link SetFactory} with the specified cardinality bounds
  *
- * @throws TypeError If `lower` or `upper` is negative, or if `lower` exceeds `upper`
+ * @throws {@link !TypeError TypeError} If `lower` or `upper` is negative, or if `lower` exceeds `upper`
  *
  * @example
  *

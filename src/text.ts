@@ -196,6 +196,9 @@ export interface TextConstraints {
  *
  * @returns An immutable shape with `model` typed as `M`
  *
+ * @throws {TraceError} If `model` is not a uniform tag-keyed map of either single strings or singleton string tuples,
+ *     or if any of its keys is not a basic language range
+ *
  * @example
  *
  * ```typescript
