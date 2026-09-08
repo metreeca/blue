@@ -443,7 +443,9 @@ export interface ResourceShape extends ResourceConstraints {
 	 *
 	 * Each entry constrains one field of the JSON-LD node object the shape describes: its `@id` (an {@link Id}), its
 	 * `@type` (a {@link Type}), or a data or object {@link Property} keyed by a predicate IRI. At most one {@link Id}
-	 * and one {@link Type} entry are allowed.
+	 * and one {@link Type} entry are allowed, counted after inheritance merging: declarations sharing a property name
+	 * collapse into a single entry, so a marker reaching the shape through several parents or redeclared by the shape
+	 * counts once, while markers of the same kind under distinct names are rejected.
 	 *
 	 * **Inheritance** — parent and child entries are merged; clashing keys are merged per property rules.
 	 *
@@ -619,8 +621,10 @@ export type Entry =
 /**
  * Shape definition for the resource identifier property.
  *
- * Tags a resource property as mapping to JSON-LD `@id`. Created by the {@link id} factory. At
- * most one `id` entry is allowed per resource shape and per inheritance hierarchy.
+ * Tags a resource property as mapping to JSON-LD `@id`. Created by the {@link id} factory. At most one `id` entry is
+ * allowed per resource shape, counted after inheritance merging: declarations sharing a property name collapse into a
+ * single entry, so an entry reaching the shape through several parents or redeclared by the shape counts once, while
+ * two `id` entries under distinct names are rejected.
  *
  * > [!IMPORTANT]
  * > Rejected on embedded resource shapes during state validation, as embedded resources have no
@@ -634,10 +638,10 @@ export type Entry =
  * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends},
  * identifier entries are subject to the following rules.
  *
- * | Field    | Override Rule                                                 |
- * | -------- | ------------------------------------------------------------- |
- * | `kind`   | Cannot be overridden                                          |
- * | `hidden` | At most one per inheritance hierarchy; conflicts cannot arise |
+ * | Field    | Override Rule                                                                           |
+ * | -------- | --------------------------------------------------------------------------------------- |
+ * | `kind`   | Cannot be overridden                                                                    |
+ * | `hidden` | Taken from the most derived declaration; among sibling parents, from the first declared |
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#node-identifiers JSON-LD 1.1 § 3.3 Node Identifiers}
  */
@@ -653,7 +657,7 @@ export interface Id {
 	/**
 	 * Excludes the property from default serialisation.
 	 *
-	 * **Inheritance** — inherited from the single entry in the hierarchy.
+	 * **Inheritance** — taken from the most derived declaration; among sibling parents, from the first declared.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -664,8 +668,10 @@ export interface Id {
 /**
  * Shape definition for the resource type property.
  *
- * Tags a resource property as mapping to JSON-LD `@type`. Created by the {@link type} factory. At
- * most one `type` entry is allowed per resource shape and per inheritance hierarchy.
+ * Tags a resource property as mapping to JSON-LD `@type`. Created by the {@link type} factory. At most one `type`
+ * entry is allowed per resource shape, counted after inheritance merging: declarations sharing a property name
+ * collapse into a single entry, so an entry reaching the shape through several parents or redeclared by the shape
+ * counts once, while two `type` entries under distinct names are rejected.
  *
  * Unlike an {@link id} entry, a `type` entry is accepted on embedded resource shapes during both
  * state and template validation.
@@ -681,10 +687,10 @@ export interface Id {
  * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends},
  * type entries are subject to the following rules.
  *
- * | Field    | Override Rule                                                 |
- * | -------- | ------------------------------------------------------------- |
- * | `kind`   | Cannot be overridden                                          |
- * | `hidden` | At most one per inheritance hierarchy; conflicts cannot arise |
+ * | Field    | Override Rule                                                                           |
+ * | -------- | --------------------------------------------------------------------------------------- |
+ * | `kind`   | Cannot be overridden                                                                    |
+ * | `hidden` | Taken from the most derived declaration; among sibling parents, from the first declared |
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#specifying-the-type JSON-LD 1.1 § 3.5 Specifying the Type}
  * @see {@link https://www.w3.org/TR/rdf-schema/#ch_resource RDF Schema 1.1 § 2.1 rdfs:Resource}
@@ -701,7 +707,7 @@ export interface Type {
 	/**
 	 * Excludes the property from default serialisation.
 	 *
-	 * **Inheritance** — inherited from the single entry in the hierarchy.
+	 * **Inheritance** — taken from the most derived declaration; among sibling parents, from the first declared.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -1304,10 +1310,17 @@ export function resource(
 	/**
 	 * Wraps naked {@link SetShape} entries into {@link Property} objects.
 	 *
+	 * Singleton markers are counted over the inherited and local entries collapsed by property name: a marker
+	 * reaching the child under the same name through several parents, or redeclared by the child over the inherited
+	 * one, counts once. Override compatibility is settled elsewhere: `narrowsResource` rejects an overriding entry
+	 * that changes the inherited kind.
+	 *
 	 * @param entries The property definitions to normalise
 	 * @param parents Optional parent shapes for inheritance-aware duplicate detection
 	 *
 	 * @returns Normalised entries with range wrapped
+	 *
+	 * @throws {TraceError} If two markers of the same kind are declared under distinct property names
 	 */
 	function normalize(entries: Members, parents?: Parents): Sources {
 
@@ -1315,12 +1328,9 @@ export function resource(
 			: (Array.isArray(parents) ? parents : [parents])
 				.map(parent => eager(parent).entries);
 
-		const properties = [
-			...bases.flatMap(base => Object.values(base)),
-			...Object.values(entries)
-		];
+		const merged: Members = [...bases, entries].reduce((collapsed, source) => ({ ...collapsed, ...source }), {});
 
-		const trace = checkSingletons(properties);
+		const trace = checkSingletons(Object.values(merged));
 
 		if ( trace !== undefined ) {
 			throw new TraceError("duplicate singleton entries", trace);
@@ -1441,9 +1451,11 @@ export function resource(
 /**
  * Creates a marker for the resource identifier property.
  *
- * Tags the enclosing property as mapping to JSON-LD `@id`. At most one `id` marker is allowed
- * per resource shape (and per inheritance hierarchy). The resulting property has implicit
- * `0..1` cardinality and accepts a single absolute IRI value.
+ * Tags the enclosing property as mapping to JSON-LD `@id`. At most one `id` marker is allowed per resource shape,
+ * counted after inheritance merging: markers sharing a property name collapse into a single entry, so a marker
+ * reaching the shape through several parents or redeclared by the shape counts once, while two `id` markers under
+ * distinct property names are rejected. The resulting property has implicit `0..1` cardinality and accepts a single
+ * absolute IRI value.
  *
  * @param constraints The identifier property constraints
  * @param constraints.hidden Excludes the property from default serialisation
@@ -1471,11 +1483,12 @@ export function id(constraints: {
 /**
  * Creates a marker for the resource type property.
  *
- * Tags the enclosing property as mapping to JSON-LD `@type`. At most one `type` marker is
- * allowed per resource shape (and per inheritance hierarchy). The resulting property has
- * implicit `0..1` cardinality and is system-managed: its value is derived from the
- * {@link ResourceConstraints.class | class} constraint and client-supplied values are silently
- * ignored.
+ * Tags the enclosing property as mapping to JSON-LD `@type`. At most one `type` marker is allowed per resource shape,
+ * counted after inheritance merging: markers sharing a property name collapse into a single entry, so a marker
+ * reaching the shape through several parents or redeclared by the shape counts once, while two `type` markers under
+ * distinct property names are rejected. The resulting property has implicit `0..1` cardinality and is system-managed:
+ * its value is derived from the {@link ResourceConstraints.class | class} constraint and client-supplied values are
+ * silently ignored.
  *
  * @param constraints The type property constraints
  * @param constraints.hidden Excludes the property from default serialisation

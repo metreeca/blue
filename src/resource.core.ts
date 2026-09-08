@@ -195,10 +195,12 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 /**
  * Checks that at most one `id` entry and at most one `type` entry exist across all entries.
  *
- * This check applies to the full set of entries after inheritance merging, ensuring that
- * singleton entries are not duplicated across the inheritance hierarchy.
+ * > [!IMPORTANT]
+ * > Entries must be collapsed by property name before counting: a marker reaching a shape under the same name through
+ * > several inheritance paths, or redeclared by a child over the inherited one, is a single entry, not a duplicate.
+ * > Only markers of the same kind held under *distinct* names are duplicates.
  *
- * @param properties The merged property entries to check
+ * @param properties The merged property entries to check, collapsed by property name
  *
  * @returns A keyed trace of violations, or `undefined` if no duplicates exist
  */

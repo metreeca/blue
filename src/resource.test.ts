@@ -621,7 +621,7 @@ describe("factories", () => {
 
 			});
 
-			it("throws on inherited duplicate id entries", async () => {
+			it("throws on inherited id duplicated under a distinct name", async () => {
 
 				const Parent = resource({
 					rid: id(),
@@ -629,12 +629,74 @@ describe("factories", () => {
 				});
 
 				expect(() => resource({ extends: Parent }, {
-					rid: id()
+					uid: id()
 				})).toThrow(TraceError);
 
 			});
 
-			it("throws on inherited duplicate type entries", async () => {
+			it("throws on inherited type duplicated under a distinct name", async () => {
+
+				const Parent = resource({ class: "app:/types/T" }, {
+					rtype: type(),
+					name: required(string())
+				});
+
+				expect(() => resource({ extends: Parent, class: "app:/types/U" }, {
+					utype: type()
+				})).toThrow(TraceError);
+
+			});
+
+			it("throws on deeply inherited id duplicated under a distinct name", async () => {
+
+				const GrandParent = resource({
+					rid: id(),
+					name: required(string())
+				});
+
+				const Parent = resource({ extends: GrandParent }, {
+					age: required(integer())
+				});
+
+				expect(() => resource({ extends: Parent }, {
+					uid: id()
+				})).toThrow(TraceError);
+
+			});
+
+			it("throws on deeply inherited type duplicated under a distinct name", async () => {
+
+				const GrandParent = resource({ class: "app:/types/T" }, {
+					rtype: type(),
+					name: required(string())
+				});
+
+				const Parent = resource({ extends: GrandParent, class: "app:/types/U" }, {
+					age: required(integer())
+				});
+
+				expect(() => resource({ extends: Parent, class: "app:/types/V" }, {
+					utype: type()
+				})).toThrow(TraceError);
+
+			});
+
+			it("accepts a child redeclaring an inherited id under the same name", async () => {
+
+				const Parent = resource({
+					rid: id(),
+					name: required(string())
+				});
+
+				// same name, same kind: a compatible override, collapsed by name before counting
+
+				expect(() => resource({ extends: Parent }, {
+					rid: id()
+				})).not.toThrow();
+
+			});
+
+			it("accepts a child redeclaring an inherited type under the same name", async () => {
 
 				const Parent = resource({ class: "app:/types/T" }, {
 					rtype: type(),
@@ -643,11 +705,11 @@ describe("factories", () => {
 
 				expect(() => resource({ extends: Parent, class: "app:/types/U" }, {
 					rtype: type()
-				})).toThrow(TraceError);
+				})).not.toThrow();
 
 			});
 
-			it("throws on deeply inherited duplicate id entries", async () => {
+			it("accepts a child redeclaring a deeply inherited id under the same name", async () => {
 
 				const GrandParent = resource({
 					rid: id(),
@@ -660,24 +722,57 @@ describe("factories", () => {
 
 				expect(() => resource({ extends: Parent }, {
 					rid: id()
-				})).toThrow(TraceError);
+				})).not.toThrow();
 
 			});
 
-			it("throws on deeply inherited duplicate type entries", async () => {
+			it("accepts an id inherited through a diamond", async () => {
 
-				const GrandParent = resource({ class: "app:/types/T" }, {
+				const Base = resource({
+					rid: id(),
+					name: required(string())
+				});
+
+				// the same marker reaches the child through both parents: one entry, not a duplicate
+
+				const Left = resource({ extends: Base }, { age: required(integer()) });
+				const Right = resource({ extends: Base }, { code: required(string()) });
+
+				expect(() => resource({ extends: [Left, Right] }, {})).not.toThrow();
+
+			});
+
+			it("accepts a type inherited through a diamond", async () => {
+
+				const Base = resource({ class: "app:/types/B" }, {
 					rtype: type(),
 					name: required(string())
 				});
 
-				const Parent = resource({ extends: GrandParent, class: "app:/types/U" }, {
-					age: required(integer())
-				});
+				const Left = resource({ extends: Base, class: "app:/types/L" }, {});
+				const Right = resource({ extends: Base, class: "app:/types/R" }, {});
 
-				expect(() => resource({ extends: Parent, class: "app:/types/V" }, {
-					rtype: type()
-				})).toThrow(TraceError);
+				expect(() => resource({ extends: [Left, Right], class: "app:/types/C" }, {})).not.toThrow();
+
+			});
+
+			it("accepts an id inherited through a diamond and redeclared by the child", async () => {
+
+				const Base = resource({ rid: id(), name: required(string()) });
+
+				const Left = resource({ extends: Base }, {});
+				const Right = resource({ extends: Base }, {});
+
+				expect(() => resource({ extends: [Left, Right] }, { rid: id() })).not.toThrow();
+
+			});
+
+			it("throws on distinct id markers inherited from unrelated parents", async () => {
+
+				const ParentA = resource({ rid: id() });
+				const ParentB = resource({ uid: id() });
+
+				expect(() => resource({ extends: [ParentA, ParentB] }, {})).toThrow(TraceError);
 
 			});
 

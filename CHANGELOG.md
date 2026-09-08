@@ -125,7 +125,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `captive` target states expanded only as permitted by the resource validator's `depth` budget
 - Allow child local/locals shapes to override the parent model during merge
 - Inherit `forward`/`reverse` metadata when overriding inherited entries
-- Reject duplicate `Id` and `Type` entries across the full inheritance chain in resource shape factories
+- Reject duplicate `Id` and `Type` entries across the full inheritance chain in resource shape factories — markers are
+  counted after collapsing entries by property name, so a marker redeclared by a child over the inherited one, or
+  reaching the shape under the same name through several inheritance paths, counts once, while two markers of the same
+  kind under distinct names are rejected
 - Enforce class-level constraints conjunctively across the inheritance chain in resource validation
 - Reject IRI strings for embedded `ResourceShape` entries — only nested models are accepted
 - Enforce string type validation on `id`/`type` template values
