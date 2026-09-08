@@ -63,6 +63,7 @@
       "Binding": "https://metreeca.github.io/qest/types/template.Binding.html",
       "isValue": "https://metreeca.github.io/qest/functions/resource.isValue.html",
       "Instance": "https://metreeca.github.io/qest/types/template.Instance.html",
+      "Slots": "https://metreeca.github.io/qest/types/template.Slots.html",
       "Probe": "https://metreeca.github.io/qest/types/template.Probe.html",
       "__type.path": "https://metreeca.github.io/qest/types/template.Probe.html",
       "__type.pipe": "https://metreeca.github.io/qest/types/template.Probe.html"

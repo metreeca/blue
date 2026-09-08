@@ -137,6 +137,9 @@ and to determine the inferred TypeScript type:
 | `repeatable(s)` | 1..*        | `readonly V[]`              |
 | `multiple(s)`   | 0..*        | `undefined \| readonly V[]` |
 
+Cardinalities admitting absence also relax their entry to an optional key, so a value literal spells out only the
+entries it actually carries; reading an omitted entry still yields `undefined`.
+
 Resource entries link to other resources in two ways. A `reference()` wrapper links to a **standalone resource**, an
 independently identified and managed entity like `Vendor`. A direct shape inclusion defines an **embedded resource**, a
 nested object with no independent identity, created and managed together with its parent like `Rating`.
@@ -228,14 +231,16 @@ type ProductType = State<typeof Product>;
 //     id: Reference,
 //     type: Reference,
 //     name: Text,
-//     description: undefined | Text,
+//     description?: undefined | Text,
 //     price: number,
 //     inStock: boolean,
-//     tags: undefined | readonly string[],
-//     rating: undefined | { average: number, reviews: number },
+//     tags?: undefined | readonly string[],
+//     rating?: undefined | { average: number, reviews: number },
 //     vendor: Reference
 // }
 ```
+
+Entries admitting absence are optional keys: a value may either set them to `undefined` or leave them out.
 
 No separate interface needed: the schema is the type definition.
 

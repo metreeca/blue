@@ -36,7 +36,7 @@ import {
 	type Id,
 	id,
 	type Inheritance,
-	type Intersection,
+	type Intersected,
 	type Override,
 	property,
 	type Property,
@@ -205,6 +205,18 @@ describe("nested model inference", () => {
 
 		});
 
+		test("optional inner entries project to optional keys", () => {
+
+			const Inner = resource({
+				label: optional(string())
+			});
+
+			expectTypeOf(resource({
+				child: required(Inner)
+			}).model).toHaveProperty("child").toEqualTypeOf<{ readonly label?: undefined | string }>();
+
+		});
+
 		test("multiple nested resource preserves inner structure", () => {
 
 			const Inner = resource({
@@ -256,7 +268,7 @@ describe("nested model inference", () => {
 			expectTypeOf(resource({
 				child: optional(Inner)
 			}).model).toHaveProperty("child").toEqualTypeOf<undefined | {
-				readonly value: undefined | { readonly "0": string; readonly "1": number }
+				readonly value?: undefined | { readonly "0": string; readonly "1": number }
 			}>();
 
 		});
@@ -270,7 +282,7 @@ describe("nested model inference", () => {
 			expectTypeOf(resource({
 				children: multiple(Inner)
 			}).model).toHaveProperty("children").toEqualTypeOf<undefined | readonly [{
-				readonly tags: undefined | readonly [{ readonly "0": string; readonly "1": number }]
+				readonly tags?: undefined | readonly [{ readonly "0": string; readonly "1": number }]
 			}]>();
 
 		});
@@ -602,6 +614,18 @@ describe("Prototype", () => {
 		}>();
 	});
 
+	test("marks slots admitting undefined as optional keys", () => {
+		type E = {
+			readonly name: ReturnType<typeof required<StringShape>>;
+			readonly alias: ReturnType<typeof optional<StringShape>>;
+		};
+
+		expectTypeOf<Prototype<E>>().toEqualTypeOf<{
+			readonly name: string;
+			readonly alias?: undefined | string;
+		}>();
+	});
+
 });
 
 
@@ -625,14 +649,14 @@ describe("Declared", () => {
 });
 
 
-describe("Intersection", () => {
+describe("Intersected", () => {
 
 	test("collapses a union into an intersection", () => {
-		expectTypeOf<Intersection<{ a: 1 } | { b: 2 }>>().toEqualTypeOf<{ a: 1 } & { b: 2 }>();
+		expectTypeOf<Intersected<{ a: 1 } | { b: 2 }>>().toEqualTypeOf<{ a: 1 } & { b: 2 }>();
 	});
 
 	test("returns the sole member for a singleton union", () => {
-		expectTypeOf<Intersection<{ a: 1 }>>().toEqualTypeOf<{ a: 1 }>();
+		expectTypeOf<Intersected<{ a: 1 }>>().toEqualTypeOf<{ a: 1 }>();
 	});
 
 });

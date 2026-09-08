@@ -110,6 +110,10 @@ describe("State", () => {
 			assertType<State<typeof Shape>>({ req: undefined, rep: ["x"] });
 		});
 
+		test("omits entries admitting undefined", () => {
+			assertType<State<typeof Shape>>({ req: "x", rep: ["x"] });
+		});
+
 	});
 
 	describe("naked ranges", () => {
@@ -420,6 +424,10 @@ describe("State", () => {
 
 			test("allows undefined for optional entries", () => {
 				assertType<State<typeof Derived>>({ reqBase: "x", reqOwn: 1, optBase: undefined, optOwn: undefined });
+			});
+
+			test("omits optional entries, own and inherited", () => {
+				assertType<State<typeof Derived>>({ reqBase: "x", reqOwn: 1 });
 			});
 
 		});

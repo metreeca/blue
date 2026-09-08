@@ -40,10 +40,12 @@
  *
  * Two companion types project a shape into the relevant TypeScript view:
  *
- * - {@link Schema} — the complete template declared by the shape, with every property present
- *   and cardinality-driven optionality carried on the value types (template side).
+ * - {@link Schema} — the complete template declared by the shape, describing every property and
+ *   carrying cardinality-driven optionality both on the value types and, for properties admitting
+ *   absence, as an optional key (template side).
  * - {@link State} — the runtime state value matching the template, recovered through the
- *   {@link @metreeca/qest!Instance | Instance} (state side).
+ *   {@link @metreeca/qest!Instance | Instance}; entries admitting absence may be `undefined` or
+ *   omitted outright (state side).
  *
  * Ancillary helpers {@link Resolved}, {@link Bounds}, and {@link Boxed}
  * factor the internal projections (narrowing the eager unwrap of a {@link Lazy} shape to the
@@ -326,10 +328,11 @@ export type RangeShape = {
 /**
  * Extracts the complete template declared by a shape.
  *
- * Returns the full structural description of the shape's template side, with every declared
- * property present and cardinality-driven optionality carried on the value types. Produced by
- * the runtime {@link model} helper and consumed wherever the authoritative template is
- * required, notably {@link State} projection and inheritance override checking.
+ * Returns the full structural description of the shape's template side, describing every declared
+ * property and carrying cardinality-driven optionality both on the value types and, for properties
+ * admitting absence, as an optional key. Produced by the runtime {@link model} helper and consumed
+ * wherever the authoritative template is required, notably {@link State} projection and inheritance
+ * override checking.
  *
  * @typeParam S The lazy {@link Shape} to extract from
  */
@@ -339,10 +342,11 @@ export type Schema<S extends Lazy<Shape>> =
 /**
  * Projects a shape to the runtime value type its values satisfy.
  *
- * Required entries are present on every value; optional and multi-valued entries may be
- * `undefined`. Use to annotate retrieved resources, mutation payloads, and any runtime instance
- * the shape constrains. Pair with {@link Schema} when both the template and the values
- * satisfying it are needed.
+ * Required entries are present on every value; optional and multi-valued entries may be `undefined`
+ * and may equally be omitted, so a value literal spells out only the entries it carries, whether
+ * declared locally or inherited. Use to annotate retrieved resources, mutation payloads, and any
+ * runtime instance the shape constrains. Pair with {@link Schema} when both the template and the
+ * values satisfying it are needed.
  *
  * @typeParam S The lazy {@link Shape} to extract from
  */

@@ -327,8 +327,8 @@
  */
 
 import { assert, type Identifier, isString, type Lazy } from "@metreeca/core";
-import { immutable } from "@metreeca/core/structures";
 import { createNamespace, type IRI, isIRI, type Namespace } from "@metreeca/core/resource";
+import { immutable } from "@metreeca/core/structures";
 import { type Trace, TraceError, type Validator } from "@metreeca/core/trace";
 import { app } from "@metreeca/qest";
 import type { Reference, Resource, Text } from "@metreeca/qest/resource";
@@ -414,8 +414,9 @@ export interface ResourceShape extends ResourceConstraints {
 	 * Prototype value for runtime model assembly.
 	 *
 	 * Provides an immutable retrieval template matching this shape. When a shape extends parent shapes, inherited
-	 * entries are merged into the template; local definitions override inherited ones. The runtime state type
-	 * may be recovered via {@link @metreeca/qest!Instance | Instance}.
+	 * entries are merged into the template; local definitions override inherited ones. Entries whose cardinality
+	 * admits absence are carried as optional keys, so a matching literal spells out only the entries it supplies.
+	 * The runtime state type may be recovered via {@link @metreeca/qest!Instance | Instance}.
 	 *
 	 * **Inheritance** — computed from entries, not user-defined.
 	 */
@@ -952,13 +953,16 @@ export type Member =
  * complete template stored on the shape at runtime. Surfaces in the {@link resource} factory's
  * return type as the full, authoritative template.
  *
+ * Entries whose cardinality admits absence are {@link Relaxed | relaxed} to optional keys, so a value
+ * literal may omit them; every other entry stays a required key.
+ *
  * @typeParam E The entries record type
  */
-export type Prototype<E extends Members> = {
+export type Prototype<E extends Members> = Relaxed<{
 
 	readonly [K in keyof E]: Slot<E[K]>
 
-};
+}>;
 
 /**
  * Narrows locally-declared entries against an inherited template, flagging incompatible overrides.
@@ -1027,9 +1031,9 @@ export type Narrowings<T> =
  *
  * Routes {@link Id} and {@link Type} markers to {@link @metreeca/qest!Reference | Reference} and ranged entries to
  * their range's template model, which already carries cardinality-driven optionality and the scalar-versus-tuple
- * distinction. Feeds both {@link Prototype} assembly (where the projection is used as-is to form the resource's
- * `model`) and {@link Override} assignability (where the inherited side is expanded via {@link Narrowings} so the
- * new union-narrowing inheritance forms are accepted).
+ * distinction. Feeds both {@link Prototype} assembly (where the projection supplies the value type of the resource's
+ * `model`, relaxed to an optional key when it admits absence) and {@link Override} assignability (where the inherited
+ * side is expanded via {@link Narrowings} so the new union-narrowing inheritance forms are accepted).
  *
  * @typeParam E The entry type
  */
@@ -1042,7 +1046,7 @@ export type Slot<E extends Member> =
  * Resolves the inherited template contributed by a resource's {@link ResourceConstraints.extends | extends} clause.
  *
  * Reads each parent shape's complete template via {@link Schema}, merges the contributions
- * across multiple parents, and strips index signatures via {@link Declared} so that
+ * across multiple parents via {@link Intersected}, and strips index signatures via {@link Declared} so that
  * {@link Override} checks against concrete inherited entries only. Yields `{}` when
  * `extends` is not declared.
  *
@@ -1054,43 +1058,17 @@ export type Inheritance<C> =
 				| Lazy<ResourceShape>
 				| readonly [Lazy<ResourceShape>, ...Lazy<ResourceShape>[]]
 		}
-		? Declared<Intersection<Schema<E extends readonly (infer S)[] ? S : E>>>
+		? Declared<Intersected<Schema<E extends readonly (infer S)[] ? S : E>>>
 		: {};
-
-/**
- * Strips index signatures from a record type, keeping only explicitly declared entries.
- *
- * Retains entries with literal string or symbol keys and drops broad `string` or `number` index
- * signatures, isolating the concrete entries a type actually declares. Used by
- * {@link Inheritance} to expose only the inherited keys that {@link Override} is expected to
- * assign against.
- *
- * @typeParam T The type to strip
- */
-export type Declared<T> = {
-
-	[K in keyof T as string extends K ? never : number extends K ? never : K]: T[K]
-
-};
-
-/**
- * Collapses a union type into the intersection of its members.
- *
- * Uses contravariant function-parameter inference to turn `A | B | C` into `A & B & C`. Used
- * by {@link Inheritance} to merge the templates inferred from multiple parent shapes into a
- * single object carrying every inherited property.
- *
- * @typeParam U The union type to collapse
- */
-export type Intersection<U> =
-	(U extends unknown ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
 
 /**
  * Composes the resource model from local entries and inherited template.
  *
  * Locally-redeclared keys are taken from {@link Prototype | Prototype<E>}: the child slot replaces the inherited
  * contribution wholesale; non-overridden inherited keys flow through from {@link Inheritance | Inheritance<C>}.
- * Mirrors at the type level the override semantics enforced by {@link resource} on the runtime side.
+ * Mirrors at the type level the override semantics enforced by {@link resource} on the runtime side. The result is
+ * {@link Merged | merged} into a single flat property list, so local and inherited entries read alike and both keep
+ * the optional keys {@link Relaxed} assigns to entries admitting absence.
  *
  * @remarks
  *
@@ -1102,10 +1080,10 @@ export type Intersection<U> =
  * @typeParam E The local entries record type
  * @typeParam C The constraints type providing the inherited template via {@link Inheritance}
  */
-export type Composition<E extends Members, C> =
-		Prototype<E> & Omit<Inheritance<C>, keyof E> extends infer T
-	? { readonly [K in keyof T]: T[K] }
-	: never;
+export type Composition<E extends Members, C> = Merged<
+	& Prototype<E>
+	& Omit<Inheritance<C>, keyof E>
+>;
 
 /**
  * Projects a {@link Member} to its state-side runtime value type.
@@ -1136,6 +1114,81 @@ export type Range<E extends Member> =
 	E extends PropertyConstraints<infer R> ? R
 		: E extends SetShape ? E
 			: never;
+
+
+/**
+ * Relaxes the keys of an object type into optional keys wherever the value type admits absence.
+ *
+ * Marks every key whose type includes `undefined` as an optional key and leaves the rest required,
+ * so a value literal spells out only the entries it actually carries instead of padding absent ones
+ * with `undefined`. Reading is unaffected: an omitted key still yields `undefined`.
+ *
+ * Used by {@link Prototype} to relax template entries whose cardinality admits absence. The
+ * modifiers are carried into {@link value!State | State} by {@link @metreeca/qest!Slots | Slots},
+ * which preserves them as it projects the template, so nested and inherited entries relax alongside
+ * local ones.
+ *
+ * @remarks
+ *
+ * Apply to an already projected template rather than folding the `undefined` test into the
+ * projection itself: repeating the projection inside the key filter multiplies its instantiation
+ * depth and exhausts the compiler's recursion budget on deeply nested shapes.
+ *
+ * @typeParam P The object type to relax
+ */
+export type Relaxed<P> = Merged<
+	& { [K in keyof P as undefined extends P[K] ? never : K]: P[K] }
+	& { [K in keyof P as undefined extends P[K] ? K : never]?: P[K] }
+>;
+
+/**
+ * Strips index signatures from a record type, keeping only explicitly declared entries.
+ *
+ * Retains entries with literal string or symbol keys and drops broad `string` or `number` index
+ * signatures, isolating the concrete entries a type actually declares. Used by
+ * {@link Inheritance} to expose only the inherited keys that {@link Override} is expected to
+ * assign against.
+ *
+ * @typeParam T The type to strip
+ */
+export type Declared<T> = {
+
+	[K in keyof T as string extends K ? never : number extends K ? never : K]: T[K]
+
+};
+
+/**
+ * Collapses a union type into the intersection of its members.
+ *
+ * Uses contravariant function-parameter inference to turn `A | B | C` into `A & B & C`. Used
+ * by {@link Inheritance} to merge the templates inferred from multiple parent shapes into a
+ * single object carrying every inherited property.
+ *
+ * @typeParam U The union type to collapse
+ */
+export type Intersected<U> =
+	(U extends unknown ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
+
+/**
+ * Collapses an intersection of object types into a single object type.
+ *
+ * Re-maps every key of the intersection onto one object, so the composed type is seen and hovered
+ * as a single property list rather than as an `A & B` spelling. Presents every key as `readonly`,
+ * preserving the optional key modifiers assigned by {@link Relaxed}. Used by {@link Relaxed} and
+ * {@link Composition} to present their assembled templates as flat models.
+ *
+ * @remarks
+ *
+ * The `readonly` modifier is restated rather than inherited: mapping over an intersection drops
+ * the source modifiers, so a homomorphic re-map alone would yield a mutable model.
+ *
+ * @typeParam T The intersection type to merge
+ */
+export type Merged<T> = {
+
+	readonly [K in keyof T]: T[K]
+
+};
 
 
 //// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -59,6 +59,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Accept a resolved `RangeShape` as input to `effective`, `eager`, and `Resolved` — re-probing a previously resolved
   range seeds one branch per variant carrying the range's own cumulative `{min,max}`, so its bounds compose into the
   traversal product; a plain `Shape` still enters at unit cardinality
+- Add `Relaxed` and `Merged` type utilities — `Relaxed` turns every key whose type admits `undefined` into an optional
+  key, `Merged` collapses an intersection of object types into a single flat read-only property list
 
 ### Changed
 
@@ -106,6 +108,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `asIRI` is superseded by `assert(value, isIRI)`
 - Realign to the `@metreeca/qest` module reorganisation, raising the minimum supported version — `Reference` and
   `isReference` move from `@metreeca/qest` to `@metreeca/qest/resource`, and the `defaultBase` IRI is renamed to `app`
+- **Breaking:** Relax template entries admitting absence to optional keys — `Prototype`, `Composition`, `Schema` and
+  `State` now mark every entry whose cardinality permits absence as an optional key, so a value literal may omit it
+  instead of setting it to `undefined`; own and inherited entries relax alike, at any nesting depth
+- **Breaking:** Rename the `Intersection` type utility to `Intersected`
 
 ### Removed
 

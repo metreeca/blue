@@ -42,11 +42,11 @@ import {
 	decodeProbe,
 	isAggregate,
 	isBinding,
+	isBranch,
 	isQuery,
 	isSelector,
 	isTemplate,
 	isUnion,
-	isUnionKey,
 	isVacuous,
 	type Model,
 	type Placeholder,
@@ -1092,7 +1092,7 @@ export function validateResult(values: readonly unknown[], {
 
 			// every key must be a structurally valid (canonical integer string) union key
 
-			const malformed = keys.filter(key => !isUnionKey(key));
+			const malformed = keys.filter(key => !isBranch(key));
 
 			if ( malformed.length > 0 ) {
 
@@ -1663,7 +1663,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		const variants = getMultiVariants(shape);
 
-		if ( isObject(value, (_, key) => isUnionKey(key)) ) {
+		if ( isObject(value, (_, key) => isBranch(key)) ) {
 
 			return all(...Object.entries(value).map(([key, branch]) => () => fold(
 				validateUnion(branch, variants, {
@@ -2370,7 +2370,7 @@ export function enforce(value: unknown, shape: ResourceShape, {
 		if ( isObject(value) ) {
 
 			return Object.fromEntries(Object.entries(value).map(([k, v]) =>
-				isUnionKey(k) && Number(k) < variants.length
+				isBranch(k) && Number(k) < variants.length
 					? [k, walkNested(v, variants[Number(k)])]
 					: [k, v]
 			));
