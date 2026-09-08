@@ -242,34 +242,26 @@ describe("factories", () => {
 
 		});
 
-		it("returns a shape with multi-line pattern", async () => {
+		it("returns a shape with no lexical pattern", async () => {
 
 			const shape = markdown();
 
-			expect(shape.pattern).toBe("^\\S(?:[^\\n]*\\S)?(?:(?: {2}|\\n)?\\n[^\\n]*\\S)*$");
+			expect(shape.pattern).toBeUndefined();
 
 		});
 
 		it.each([
 			["a single word", "word"],
-			["space-separated words", "two  words"],
 			["consecutive lines", "first line\nsecond line"],
-			["blank-line separated paragraphs", "first paragraph\n\nsecond paragraph"],
-			["a hard line break", "first line  \nsecond line"]
+			["repeated blank lines", "first paragraph\n\n\n\nsecond paragraph"],
+			["a hard line break", "first line  \nsecond line"],
+			["CRLF line endings", "first line\r\nsecond line"],
+			["indented content", "- item\n  - nested item"],
+			["a fenced code block", "```js\nif ( x ) {\n\n}\n```"],
+			["surrounding whitespace", " word\n"]
 		])("accepts %s", async (_label, value) => {
 
-			expect(value).toMatch(new RegExp(markdown().pattern ?? ""));
-
-		});
-
-		it.each([
-			["the empty string", ""],
-			["leading whitespace", " word"],
-			["trailing whitespace", "word "],
-			["a line with trailing whitespace", "first line \nsecond line"]
-		])("rejects %s", async (_label, value) => {
-
-			expect(value).not.toMatch(new RegExp(markdown().pattern ?? ""));
+			expect(validateString([value], markdown())).toBeUndefined();
 
 		});
 

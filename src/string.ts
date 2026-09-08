@@ -28,7 +28,7 @@
  * | ----------------- | ------------------- | ---------------------------------- | ----------------------------- |
  * | [string][]        | {@link string}      | Unicode character sequence         |                               |
  * | string            | {@link plain}       | Single-line plain text             |                               |
- * | string            | {@link markdown}    | Multi-line [Markdown][] text       |                               |
+ * | string            | {@link markdown}    | [Markdown][] formatted text        |                               |
  * | string            | {@link email}       | [RFC 5321][] email address         |                               |
  * | string            | {@link phone}       | [ITU-T E.164][] telephone number   |                               |
  * | string            | {@link iri}         | [RFC 3987][] IRI reference         |                               |
@@ -97,7 +97,7 @@
  * import { plain, markdown, email, iri, url, date, time, instant, timestamp, duration } from '@metreeca/blue/string';
  *
  * const label = plain();        // single-line plain text
- * const body = markdown();      // multi-line Markdown text
+ * const body = markdown();      // Markdown formatted text
  * const contact = email();      // RFC 5321 email address
  * const identifier = iri();     // RFC 3987 IRI reference
  * const link = url();           // RFC 3986 hierarchical URL
@@ -438,9 +438,9 @@ export function plain(constraints: StringLengthConstraints = {}): StringShape {
  *
  * Defaults the datatype to `xsd:string`.
  *
- * Accepts multi-line content with at least one non-whitespace character, no leading or trailing whitespace on the
- * value, and no trailing whitespace on any of its lines other than the two spaces that encode a hard line break; blank
- * lines separating paragraphs are allowed. Use it for descriptions, abstracts and other long-form values whose
+ * Accepts any string within the requested length bounds. Whitespace carries meaning throughout Markdown, from
+ * indentation and blank lines to the trailing spaces that encode a hard break, so no lexical constraint is imposed and
+ * authored content survives ingestion verbatim. Use it for descriptions, abstracts and other long-form values whose
  * formatting is meaningful; reach for {@link plain} when the content must stay a single unformatted line.
  *
  * @param constraints Optional {@link StringLengthConstraints length bounds}
@@ -456,7 +456,6 @@ export function markdown(constraints: StringLengthConstraints = {}): StringShape
 	return string({
 		model: "md",
 		datatype: xsd.string,
-		pattern: /^\S(?:[^\n]*\S)?(?:(?: {2}|\n)?\n[^\n]*\S)*$/, // !!! review
 		...constraints
 	});
 
