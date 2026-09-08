@@ -42,6 +42,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `plain()` and `markdown()` string factories — `plain()` accepts space-normalised single-line content, while
   `markdown()` accepts any string, leaving significant whitespace untouched; both take optional length bounds through
   the new `StringLengthConstraints` interface, also extended by `StringConstraints`
+- Add `tag()` string factory — accepts BCP 47 language tags, from a bare language subtag to a fully qualified tag with
+  script, region, variant, extension and private-use subtags, matched case-insensitively; grandfathered tags are not
+  accepted
 - Add `const` type parameters to `localised()`, `number()`, and `string()` constraint overloads — non-empty array
   constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
 - Add `model` field to `SetShape` — holds the runtime prototype value, computed from the shape model and cardinality

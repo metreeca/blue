@@ -15,6 +15,7 @@
  */
 
 import { xsd } from "@metreeca/core/datatype";
+import { isTag } from "@metreeca/core/language";
 import { describe, expect, it } from "vitest";
 import { checkString, mergeString, narrowsString, validateString } from "./string.core.js";
 import {
@@ -27,6 +28,7 @@ import {
 	phone,
 	plain,
 	string,
+	tag,
 	time,
 	timestamp,
 	url,
@@ -422,6 +424,109 @@ describe("factories", () => {
 		it("sets the xsd:string datatype", async () => {
 
 			expect(url().datatype).toBe(xsd.string);
+
+		});
+
+	});
+
+	describe("tag", () => {
+
+		const matches = (value: string) => new RegExp(tag().pattern ?? "").test(value);
+
+		it("returns a shape with a language tag model", async () => {
+
+			const shape = tag();
+
+			expect(shape.kind).toBe("string");
+			expect(shape.model).toBe("en");
+
+		});
+
+		it.each([
+			["en"], // bare language
+			["deu"], // three-letter language
+			["zh-cmn"], // language with extlang
+			["zh-Hans"], // language with script
+			["fr-CA"], // language with region
+			["es-419"], // language with numeric region
+			["zh-Hans-CN"], // language with script and region
+			["de-CH-1901"], // language with region and variant
+			["de-DE-u-co-phonebk"], // language with extension
+			["en-US-x-private"], // language with private use
+			["x-private"] // standalone private use
+		])("accepts the well-formed tag %s", async value => {
+
+			expect(matches(value)).toBe(true);
+
+		});
+
+		it.each([
+			["EN"], // uppercase language
+			["fr-ca"], // lowercase region
+			["ZH-hans-cn"] // mixed case throughout
+		])("accepts %s case-insensitively", async value => {
+
+			expect(matches(value)).toBe(true);
+
+		});
+
+		it.each([
+			[""], // empty tag
+			["e"], // single-letter language
+			["toolongsubtag"], // over-long language
+			["en-"], // trailing separator
+			["en--US"], // empty subtag
+			["123"], // numeric language
+			["en US"], // embedded space
+			["*"] // language range wildcard
+		])("rejects the malformed tag %s", async value => {
+
+			expect(matches(value)).toBe(false);
+
+		});
+
+		it.each([
+			["еn"], // Cyrillic 'е' look-alike
+			["ｅｎ"], // fullwidth letters
+			["én"], // precomposed accented letter
+			["eń"], // combining acute accent
+			["𝐞𝐧"], // astral mathematical letters
+			["١٢٣"], // Arabic-Indic digits
+			["ｚｈ-Hans"], // fullwidth language subtag
+			["zh-Ｈans"] // fullwidth script subtag
+		])("rejects the non-ASCII tag %s", async value => {
+
+			expect(matches(value)).toBe(false);
+
+		});
+
+		it("rejects a tag spanning multiple lines", async () => {
+
+			expect(matches("en\nit")).toBe(false);
+
+		});
+
+		it("agrees with the core language tag guard", async () => {
+
+			const values = [
+				"en", "fr-CA", "zh-Hans-CN", "x-private", "", "e", "en--US", "*", "еn", "én", "𝐞𝐧", "en\nit"
+			];
+
+			expect(values.map(matches)).toEqual(values.map(isTag));
+
+		});
+
+		it("forwards textual constraints", async () => {
+
+			const shape = tag({ in: ["en", "it"] });
+
+			expect(shape.in).toEqual(["en", "it"]);
+
+		});
+
+		it("sets the xsd:string datatype", async () => {
+
+			expect(tag().datatype).toBe(xsd.string);
 
 		});
 

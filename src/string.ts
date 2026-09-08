@@ -33,6 +33,7 @@
  * | string            | {@link phone}       | [ITU-T E.164][] telephone number   |                               |
  * | string            | {@link iri}         | [RFC 3987][] IRI reference         |                               |
  * | string            | {@link url}         | [RFC 3986][] hierarchical URL      |                               |
+ * | string            | {@link tag}         | [BCP 47][] language tag            |                               |
  * | [gYear][]         | {@link year} ²      | [ISO 8601][iso-year] year          | YYYY[Z/±hh:mm]                |
  * | [date][]          | {@link date}        | [ISO 8601][iso-date] date          | YYYY-MM-DD[Z/±hh:mm]          |
  * | [time][]          | {@link time}        | [ISO 8601][iso-time] time          | hh:mm:ss[.sss][Z/±hh:mm]      |
@@ -53,6 +54,7 @@
  * [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
  * [RFC 3987]: https://datatracker.ietf.org/doc/html/rfc3987
  * [ITU-T E.164]: https://www.itu.int/rec/T-REC-E.164
+ * [BCP 47]: https://www.rfc-editor.org/info/bcp47
  * [iso-year]: https://en.wikipedia.org/wiki/ISO_8601#Years
  * [iso-date]: https://en.wikipedia.org/wiki/ISO_8601#Dates
  * [iso-time]: https://en.wikipedia.org/wiki/ISO_8601#Times
@@ -94,13 +96,16 @@
  * Predefined factories for common string formats:
  *
  * ```typescript
- * import { plain, markdown, email, iri, url, date, time, instant, timestamp, duration } from '@metreeca/blue/string';
+ * import {
+ *   plain, markdown, email, iri, url, tag, date, time, instant, timestamp, duration
+ * } from '@metreeca/blue/string';
  *
  * const label = plain();        // single-line plain text
  * const body = markdown();      // Markdown formatted text
  * const contact = email();      // RFC 5321 email address
  * const identifier = iri();     // RFC 3987 IRI reference
  * const link = url();           // RFC 3986 hierarchical URL
+ * const language = tag();       // BCP 47 language tag
  * const birthday = date();      // ISO 8601 date (YYYY-MM-DD)
  * const start = time();         // ISO 8601 time (hh:mm:ss)
  * const created = instant();    // ISO 8601 datetime
@@ -131,6 +136,7 @@
 
 import { isRegExp, isString } from "@metreeca/core";
 import { xsd } from "@metreeca/core/datatype";
+import { TagPattern } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/structures";
 import { type Variant } from "@metreeca/core/resource";
 import type { Reference } from "@metreeca/qest/resource";
@@ -582,6 +588,38 @@ export function iri(constraints: TextualConstraints & {
 export function url(constraints: TextualConstraints = {}): StringShape {
 
 	return iri({ variant: "hierarchical", ...constraints });
+
+}
+
+/**
+ * Creates a shape for language tag values.
+ *
+ * Defaults the datatype to `xsd:string`.
+ *
+ * Accepts BCP 47 language tags identifying a natural language, from a bare language subtag to a fully qualified tag
+ * carrying script, region, variant, extension and private-use subtags (for example, `en`, `fr-CA`, `zh-Hans-CN`);
+ * subtags are matched case-insensitively, as the standard prescribes, and grandfathered tags are not accepted.
+ *
+ * Reach for it wherever an entry records the language of a value; language *ranges*, which select values rather than
+ * identify a language, are constrained by {@link text!TextConstraints.languageIn | languageIn} instead.
+ *
+ * @param constraints Optional {@link TextualConstraints validation constraints}
+ *
+ * @returns An immutable shape for validating language tags
+ *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
+ * @see {@link https://www.rfc-editor.org/info/bcp47 BCP 47 - Tags for Identifying Languages}
+ * @see {@link https://www.rfc-editor.org/rfc/rfc5646.html RFC 5646 - Tags for Identifying Languages}
+ */
+export function tag(constraints: TextualConstraints = {}): StringShape {
+
+	return string({
+		model: "en",
+		datatype: xsd.string,
+		pattern: TagPattern,
+		...constraints
+	});
 
 }
 
