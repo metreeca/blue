@@ -17,7 +17,21 @@
 import { xsd } from "@metreeca/core/datatype";
 import { describe, expect, it } from "vitest";
 import { checkString, mergeString, narrowsString, validateString } from "./string.core.js";
-import { date, duration, email, instant, iri, phone, string, time, timestamp, url, year } from "./string.js";
+import {
+	date,
+	duration,
+	email,
+	instant,
+	iri,
+	markdown,
+	phone,
+	plain,
+	string,
+	time,
+	timestamp,
+	url,
+	year
+} from "./string.js";
 
 
 describe("factories", () => {
@@ -154,6 +168,123 @@ describe("factories", () => {
 
 			expect(string({ model: "abc", minLength: 3 }).model).toBe("abc");
 			expect(string({ model: "ab", minLength: 3 }).model).toBe("ab");
+
+		});
+
+	});
+
+	describe("plain", () => {
+
+		it("returns a shape with plain text model", async () => {
+
+			const shape = plain();
+
+			expect(shape.kind).toBe("string");
+			expect(shape.model).toBe("txt");
+
+		});
+
+		it("returns a shape with single-line pattern", async () => {
+
+			const shape = plain();
+
+			expect(shape.pattern).toBe("^\\S+(?: \\S+)*$");
+
+		});
+
+		it.each([
+			["a single word", "word"],
+			["space-separated words", "two words three"]
+		])("accepts %s", async (_label, value) => {
+
+			expect(value).toMatch(new RegExp(plain().pattern ?? ""));
+
+		});
+
+		it.each([
+			["the empty string", ""],
+			["leading whitespace", " word"],
+			["trailing whitespace", "word "],
+			["repeated spaces", "two  words"],
+			["a line break", "two\nwords"],
+			["a tab", "two\twords"]
+		])("rejects %s", async (_label, value) => {
+
+			expect(value).not.toMatch(new RegExp(plain().pattern ?? ""));
+
+		});
+
+		it("passes through constraints", async () => {
+
+			const shape = plain({ minLength: 1, maxLength: 100 });
+
+			expect(shape.minLength).toBe(1);
+			expect(shape.maxLength).toBe(100);
+
+		});
+
+		it("sets the xsd:string datatype", async () => {
+
+			expect(plain().datatype).toBe(xsd.string);
+
+		});
+
+	});
+
+	describe("markdown", () => {
+
+		it("returns a shape with markdown model", async () => {
+
+			const shape = markdown();
+
+			expect(shape.kind).toBe("string");
+			expect(shape.model).toBe("md");
+
+		});
+
+		it("returns a shape with multi-line pattern", async () => {
+
+			const shape = markdown();
+
+			expect(shape.pattern).toBe("^\\S(?:[^\\n]*\\S)?(?:(?: {2}|\\n)?\\n[^\\n]*\\S)*$");
+
+		});
+
+		it.each([
+			["a single word", "word"],
+			["space-separated words", "two  words"],
+			["consecutive lines", "first line\nsecond line"],
+			["blank-line separated paragraphs", "first paragraph\n\nsecond paragraph"],
+			["a hard line break", "first line  \nsecond line"]
+		])("accepts %s", async (_label, value) => {
+
+			expect(value).toMatch(new RegExp(markdown().pattern ?? ""));
+
+		});
+
+		it.each([
+			["the empty string", ""],
+			["leading whitespace", " word"],
+			["trailing whitespace", "word "],
+			["a line with trailing whitespace", "first line \nsecond line"]
+		])("rejects %s", async (_label, value) => {
+
+			expect(value).not.toMatch(new RegExp(markdown().pattern ?? ""));
+
+		});
+
+		it("passes through constraints", async () => {
+
+			const shape = markdown({ minLength: 1, maxLength: 1000 });
+
+			expect(shape.minLength).toBe(1);
+			expect(shape.maxLength).toBe(1000);
+
+		});
+
+		it("sets the xsd:string datatype", async () => {
+
+			expect(markdown().datatype).toBe(xsd.string);
 
 		});
 
