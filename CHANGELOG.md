@@ -39,6 +39,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as a named property
 - Add `classes` constraint on `ResourceShape` for accumulating parent class IRIs across inheritance
 - Add `url()` string factory as a convenience alias for `iri({ variant: "hierarchical" })`
+- Add `plain()` and `markdown()` string factories — `plain()` accepts space-normalised single-line content, while
+  `markdown()` accepts any string, leaving significant whitespace untouched; both take optional length bounds through
+  the new `StringLengthConstraints` interface, also extended by `StringConstraints`
 - Add `const` type parameters to `localised()`, `number()`, and `string()` constraint overloads — non-empty array
   constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
 - Add `model` field to `SetShape` — holds the runtime prototype value, computed from the shape model and cardinality

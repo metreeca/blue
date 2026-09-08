@@ -178,6 +178,8 @@ export function validateUnion(values: unknown | readonly unknown[], variants: re
  * @param shape The range shape to enumerate
  *
  * @returns The value-shape variants in declaration order, or the singleton `[shape]` for a non-union range
+ *
+ * @throws {TraceError} If `shape` transitively references itself, producing a circular extends chain
  */
 export function getShapeVariants(shape: Lazy<Shape>): readonly ValuesShape[] {
 	return map(eager(shape), shape =>

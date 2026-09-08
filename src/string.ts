@@ -27,6 +27,8 @@
  * | XSD Datatype ¹    | Factory             | Description                        | Format                        |
  * | ----------------- | ------------------- | ---------------------------------- | ----------------------------- |
  * | [string][]        | {@link string}      | Unicode character sequence         |                               |
+ * | string            | {@link plain}       | Single-line plain text             |                               |
+ * | string            | {@link markdown}    | [Markdown][] formatted text        |                               |
  * | string            | {@link email}       | [RFC 5321][] email address         |                               |
  * | string            | {@link phone}       | [ITU-T E.164][] telephone number   |                               |
  * | string            | {@link iri}         | [RFC 3987][] IRI reference         |                               |
@@ -46,6 +48,7 @@
  * [dateTime]: https://www.w3.org/TR/xmlschema-2/#dateTime
  * [duration]: https://www.w3.org/TR/xmlschema-2/#duration
  *
+ * [Markdown]: https://commonmark.org/
  * [RFC 5321]: https://datatracker.ietf.org/doc/html/rfc5321
  * [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
  * [RFC 3987]: https://datatracker.ietf.org/doc/html/rfc3987
@@ -91,8 +94,10 @@
  * Predefined factories for common string formats:
  *
  * ```typescript
- * import { email, iri, url, date, time, instant, timestamp, duration } from '@metreeca/blue/string';
+ * import { plain, markdown, email, iri, url, date, time, instant, timestamp, duration } from '@metreeca/blue/string';
  *
+ * const label = plain();        // single-line plain text
+ * const body = markdown();      // Markdown formatted text
  * const contact = email();      // RFC 5321 email address
  * const identifier = iri();     // RFC 3987 IRI reference
  * const link = url();           // RFC 3986 hierarchical URL
@@ -129,7 +134,6 @@ import { xsd } from "@metreeca/core/datatype";
 import { immutable } from "@metreeca/core/structures";
 import { type Variant } from "@metreeca/core/resource";
 import type { Reference } from "@metreeca/qest/resource";
-
 import { TraceError } from "@metreeca/core/trace";
 import { checkString } from "./string.core.js";
 
@@ -206,9 +210,11 @@ export interface StringShape extends StringConstraints {
 /**
  * Constraints for the {@link string} shape factory.
  *
- * Extends {@link TextualConstraints} with the prototype model value.
+ * Adds the prototype model value, the RDF datatype and the lexical pattern, which only the general-purpose factory
+ * accepts, to the {@link StringLengthConstraints length} and {@link TextualConstraints value} constraints shared with
+ * the specialised factories.
  */
-export interface StringConstraints extends TextualConstraints {
+export interface StringConstraints extends StringLengthConstraints, TextualConstraints {
 
 	/**
 	 * Explicit prototype value for runtime model assembly.
@@ -236,6 +242,35 @@ export interface StringConstraints extends TextualConstraints {
 
 
 	/**
+	 * Regular expression pattern that values must match.
+	 *
+	 * The pattern is matched without anchoring: the constraint holds when the pattern occurs anywhere
+	 * within the value. Use anchors (`^` and `$`) to require a match against the complete string.
+	 *
+	 * **Inheritance** — must be strictly equal when both parent and child define it; otherwise the single defined value
+	 * carries through. Within a {@link union!union | union}, this equality makes `pattern` a discriminator: two
+	 * same-datatype string variants that differ only by `pattern` are distinct branches.
+	 *
+	 * @defaultValue `undefined` (no pattern constraint)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#PatternConstraintComponent SHACL § 4.3.3 sh:pattern}
+	 */
+	readonly pattern?: string | RegExp;
+
+}
+
+/**
+ * Length bounds for textual shape factories.
+ *
+ * Bounds the number of characters admitted by a shape, independently of its lexical format. Accepted on its own by the
+ * free-form {@link plain} and {@link markdown} factories, whose content has no fixed length, and included in the full
+ * {@link StringConstraints} set.
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#core-components-string SHACL § 4.3 String-based Constraint Components}
+ */
+export interface StringLengthConstraints {
+
+	/**
 	 * Minimum string length in characters.
 	 *
 	 * **Inheritance** — child value must be ≥ parent value, narrowing the lower bound.
@@ -257,27 +292,14 @@ export interface StringConstraints extends TextualConstraints {
 	 */
 	readonly maxLength?: number;
 
-
-	/**
-	 * Regular expression pattern that values must match.
-	 *
-	 * The pattern is matched without anchoring: the constraint holds when the pattern occurs anywhere
-	 * within the value. Use anchors (`^` and `$`) to require a match against the complete string.
-	 *
-	 * **Inheritance** — must be strictly equal when both parent and child define it; otherwise the single defined value
-	 * carries through. Within a {@link union!union | union}, this equality makes `pattern` a discriminator: two
-	 * same-datatype string variants that differ only by `pattern` are distinct branches.
-	 *
-	 * @defaultValue `undefined` (no pattern constraint)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#PatternConstraintComponent SHACL § 4.3.3 sh:pattern}
-	 */
-	readonly pattern?: string | RegExp;
-
 }
 
 /**
- * Constraints for textual shape factories.
+ * Value constraints for textual shape factories.
+ *
+ * Restricts the admissible values of a shape to a closed enumeration or pins values that must be present. Accepted on
+ * its own by the format-specific factories, whose lexical space is already fixed, and included in the full
+ * {@link StringConstraints} set.
  *
  * @see {@link https://www.w3.org/TR/shacl/#core-components-value SHACL § 4.5 Value Constraint Components}
  */
@@ -385,6 +407,61 @@ export function string(constraints: string | StringConstraints = {}): StringShap
 //// Textual Shorthands ////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Creates a shape for single-line plain text values.
+ *
+ * Defaults the datatype to `xsd:string`.
+ *
+ * Accepts space-normalised single-line content: at least one non-whitespace character, no line breaks or tabs, no
+ * leading or trailing whitespace, and single spaces between words. Use it for labels, names and other short
+ * unformatted values that must survive rendering in any layout; reach for {@link markdown} when the content carries
+ * formatting or spans multiple lines.
+ *
+ * @param constraints Optional {@link StringLengthConstraints length bounds}
+ *
+ * @returns An immutable shape for validating single-line plain text
+ *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ */
+export function plain(constraints: StringLengthConstraints = {}): StringShape {
+
+	return string({
+		model: "txt",
+		datatype: xsd.string,
+		pattern: /^\S+(?: \S+)*$/,
+		...constraints
+	});
+
+}
+
+/**
+ * Creates a shape for Markdown text values.
+ *
+ * Defaults the datatype to `xsd:string`.
+ *
+ * Accepts any string within the requested length bounds. Whitespace carries meaning throughout Markdown, from
+ * indentation and blank lines to the trailing spaces that encode a hard break, so no lexical constraint is imposed and
+ * authored content survives ingestion verbatim. Use it for descriptions, abstracts and other long-form values whose
+ * formatting is meaningful; reach for {@link plain} when the content must stay a single unformatted line.
+ *
+ * @param constraints Optional {@link StringLengthConstraints length bounds}
+ *
+ * @returns An immutable shape for validating Markdown text
+ *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
+ * @see {@link https://commonmark.org/ CommonMark Spec}
+ */
+export function markdown(constraints: StringLengthConstraints = {}): StringShape {
+
+	return string({
+		model: "md",
+		datatype: xsd.string,
+		...constraints
+	});
+
+}
+
+/**
  * Creates a shape for email address values.
  *
  * Defaults the datatype to `xsd:string`.
@@ -392,6 +469,8 @@ export function string(constraints: string | StringConstraints = {}): StringShap
  * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating email addresses
+ *
+ * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc5321 RFC 5321 - Simple Mail Transfer Protocol}
  */
@@ -418,6 +497,8 @@ export function email(constraints: TextualConstraints = {}): StringShape {
  *
  * @returns An immutable shape for validating E.164 telephone numbers
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link https://www.itu.int/rec/T-REC-E.164 ITU-T E.164 - International public telecommunication numbering plan}
  */
 export function phone(constraints: TextualConstraints = {}): StringShape {
@@ -443,6 +524,8 @@ export function phone(constraints: TextualConstraints = {}): StringShape {
  * @param constraints Optional {@link TextualConstraints} validation constraints and IRI {@link Variant | variant}
  *
  * @returns An immutable shape for validating IRIs
+ *
+ * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3987 RFC 3987 - Internationalized Resource Identifiers}
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
@@ -491,6 +574,8 @@ export function iri(constraints: TextualConstraints & {
  *
  * @returns An immutable shape for validating hierarchical URLs
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link iri}
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
  */
@@ -513,6 +598,8 @@ export function url(constraints: TextualConstraints = {}): StringShape {
  * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 year strings
+ *
+ * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @remarks
  *
@@ -540,6 +627,8 @@ export function year(constraints: TextualConstraints = {}): StringShape {
  *
  * @returns An immutable shape for validating ISO 8601 date strings
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#date XSD 1.0 Part 2: Datatypes § 3.2.9 date}
  */
 export function date(constraints: TextualConstraints = {}): StringShape {
@@ -562,6 +651,8 @@ export function date(constraints: TextualConstraints = {}): StringShape {
  *
  * @returns An immutable shape for validating ISO 8601 time strings
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#time XSD 1.0 Part 2: Datatypes § 3.2.8 time}
  */
 export function time(constraints: TextualConstraints = {}): StringShape {
@@ -583,6 +674,8 @@ export function time(constraints: TextualConstraints = {}): StringShape {
  * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 datetime strings
+ *
+ * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
@@ -609,6 +702,8 @@ export function instant(constraints: TextualConstraints = {}): StringShape {
  *
  * @returns An immutable shape for validating UTC timestamp strings
  *
+ * @throws {TraceError} If `constraints` contains contradictory values
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
 export function timestamp(constraints: TextualConstraints = {}): StringShape {
@@ -630,6 +725,8 @@ export function timestamp(constraints: TextualConstraints = {}): StringShape {
  * @param constraints Optional {@link TextualConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 duration strings
+ *
+ * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#duration XSD 1.0 Part 2: Datatypes § 3.2.6 duration}
  */

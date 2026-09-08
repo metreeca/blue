@@ -216,6 +216,8 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
  * @param shape One of the range {@link union!getShapeVariants | variants}
  *
  * @returns The target resource shape, or `undefined` when `shape` admits no entries
+ *
+ * @throws {TraceError} If `shape` transitively references itself, producing a circular extends chain
  */
 export function getShapeTarget(shape: Lazy<Shape>): undefined | ResourceShape {
 	return map(eager(shape), shape =>

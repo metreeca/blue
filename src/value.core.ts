@@ -767,8 +767,10 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  *     transforms"` if the pipe composes more than one aggregate transform, or `"incompatible transform input"` if no
  *     resolved variant lies within the transform pipe's declared domain
  *
- * @throws {TypeError} If `probe` is not a well-formed {@link Probe} (a malformed `path`/`pipe`, or a `pipe`
- *     referencing an unknown transform)
+ * @throws {TraceError} If `shape` transitively references itself, producing a circular extends chain
+ *
+ * @throws {@link !TypeError TypeError} If `probe` is not a well-formed {@link Probe} (a malformed `path`/`pipe`, or a
+ *     `pipe` referencing an unknown transform)
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
