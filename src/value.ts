@@ -85,7 +85,7 @@ import { TagRange } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/structures";
 
 import type { Trace } from "@metreeca/core/trace";
-import { type Instance, type Probe, type Selection } from "@metreeca/qest/template";
+import { type Instance, type Probe } from "@metreeca/qest/template";
 import type { BooleanShape } from "./boolean.js";
 import type { DictionaryShape } from "./dictionary.js";
 import { type NumberShape } from "./number.js";
@@ -196,7 +196,7 @@ export type SetShape<
 	/**
 	 * Prototype value for runtime model assembly.
 	 *
-	 * Scalar value sets hold the shape model directly; multi-valued sets hold an `[element, Selection?]` tuple.
+	 * Scalar value sets hold the shape model directly; multi-valued sets hold a singleton `[element]` tuple.
 	 * {@link DictionaryShape | Dictionary} shapes always hold a single language map because cardinality
 	 * applies per tag within the map, not to the map itself. The type is unioned with `undefined`
 	 * when `minCount` is `0` or `undefined`, reflecting the optional arm on the template side. See
@@ -245,12 +245,7 @@ export type SetShape<
 /**
  * Factory function returned by {@link cardinality}.
  *
- * Accepts a value or union shape and returns a {@link SetShape} with the enclosing cardinality
- * bounds. An optional {@link @metreeca/qest!Selection | Selection} parameter is accepted when
- * the shape inherently represents a collection — either because the upper bound is not `1`
- * (multi-valued model held as a singleton tuple) or because the shape is a
- * {@link DictionaryShape | Dictionary} (always a set, regardless of cardinality). The selection is
- * silently merged into the runtime model without surfacing in the {@link SetShape} type.
+ * Accepts a value or union shape and returns a {@link SetShape} with the enclosing cardinality bounds.
  *
  * @typeParam L The {@link SetShape.minCount | minCount} bound
  * @typeParam U The {@link SetShape.maxCount | maxCount} bound
@@ -258,26 +253,7 @@ export type SetShape<
 export type SetFactory<
 	L extends undefined | number,
 	U extends undefined | number
-> = <S extends Lazy<Shape>>(shape: S, selection?: SetSelection<S, U>) => SetShape<S, L, U>;
-
-/**
- * Conditional {@link @metreeca/qest!Selection | Selection} parameter type for shape factories.
- *
- * {@link @metreeca/qest!Selection | Selection} for shapes that inherently represent a
- * collection, namely {@link DictionaryShape | dictionary} shapes (always a set, regardless of
- * cardinality) or multi-valued ranges (`maxCount !== 1`), and `never` for scalar shapes,
- * preventing callers from passing selection where it would have no effect.
- *
- * @typeParam S The {@link Lazy} {@link Shape} being constrained
- * @typeParam U The {@link SetShape.maxCount | maxCount} bound
- */
-export type SetSelection<
-	S extends Lazy<Shape>,
-	U extends undefined | number = undefined
-> =
-	S extends Lazy<DictionaryShape> ? Selection
-		: U extends 1 ? never
-			: Selection;
+> = <S extends Lazy<Shape>>(shape: S) => SetShape<S, L, U>;
 
 
 /**
@@ -416,8 +392,6 @@ export type Boxed<V, U extends undefined | number> =
  * Creates a {@link SetShape} with no cardinality constraints (0..*).
  *
  * Allows zero or more values, resulting in an optional array type (`undefined | readonly V[]`).
- * Accepts an optional {@link @metreeca/qest!Selection | Selection} that is silently merged
- * into the runtime model.
  *
  * > [!WARNING]
  * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds a string array.
@@ -427,13 +401,12 @@ export type Boxed<V, U extends undefined | number> =
  * @typeParam S The {@link Lazy} {@link Shape} type
  *
  * @param shape The {@link Lazy} {@link Shape} to constrain
- * @param selection Optional {@link @metreeca/qest!Selection | Selection} to merge into the model
  *
  * @returns An immutable {@link SetShape} with no minimum or maximum count
  */
-export function multiple<S extends Lazy<Shape>>(shape: S, selection?: Selection): SetShape<S, undefined, undefined> {
+export function multiple<S extends Lazy<Shape>>(shape: S): SetShape<S, undefined, undefined> {
 
-	return cardinality(undefined, undefined)(shape, selection);
+	return cardinality(undefined, undefined)(shape);
 
 }
 
@@ -441,8 +414,6 @@ export function multiple<S extends Lazy<Shape>>(shape: S, selection?: Selection)
  * Creates a {@link SetShape} requiring at least one value (1..*).
  *
  * Requires one or more values, resulting in a non-empty array type (`readonly [V, ...V[]]`).
- * Accepts an optional {@link @metreeca/qest!Selection | Selection} that is silently merged
- * into the runtime model.
  *
  * > [!WARNING]
  * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds a non-empty string
@@ -453,13 +424,12 @@ export function multiple<S extends Lazy<Shape>>(shape: S, selection?: Selection)
  * @typeParam S The {@link Lazy} {@link Shape} type
  *
  * @param shape The {@link Lazy} {@link Shape} to constrain
- * @param selection Optional {@link @metreeca/qest!Selection | Selection} to merge into the model
  *
  * @returns An immutable {@link SetShape} with minCount=1 and no maximum count
  */
-export function repeatable<S extends Lazy<Shape>>(shape: S, selection?: Selection): SetShape<S, 1, undefined> {
+export function repeatable<S extends Lazy<Shape>>(shape: S): SetShape<S, 1, undefined> {
 
-	return cardinality(1, undefined)(shape, selection);
+	return cardinality(1, undefined)(shape);
 
 }
 
@@ -467,8 +437,6 @@ export function repeatable<S extends Lazy<Shape>>(shape: S, selection?: Selectio
  * Creates a {@link SetShape} for at most one value (0..1).
  *
  * Allows zero or one value, resulting in an optional scalar type (`undefined | V`).
- * For {@link DictionaryShape | dictionary} shapes, accepts an optional
- * {@link @metreeca/qest!Selection | Selection} that is silently merged into the runtime model.
  *
  * > [!WARNING]
  * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds a single string.
@@ -478,14 +446,12 @@ export function repeatable<S extends Lazy<Shape>>(shape: S, selection?: Selectio
  * @typeParam S The {@link Lazy} {@link Shape} type
  *
  * @param shape The {@link Lazy} {@link Shape} to constrain
- * @param selection Optional {@link @metreeca/qest!Selection | Selection} to merge into the model
- *     (accepted only for {@link DictionaryShape | dictionary} shapes)
  *
  * @returns An immutable {@link SetShape} with no minimum count and maxCount=1
  */
-export function optional<S extends Lazy<Shape>>(shape: S, selection?: SetSelection<S, 1>): SetShape<S, undefined, 1> {
+export function optional<S extends Lazy<Shape>>(shape: S): SetShape<S, undefined, 1> {
 
-	return cardinality(undefined, 1)(shape, selection);
+	return cardinality(undefined, 1)(shape);
 
 }
 
@@ -493,8 +459,6 @@ export function optional<S extends Lazy<Shape>>(shape: S, selection?: SetSelecti
  * Creates a {@link SetShape} for exactly one value (1..1).
  *
  * Requires exactly one value, resulting in a required scalar type (`V`).
- * For {@link DictionaryShape | dictionary} shapes, accepts an optional
- * {@link @metreeca/qest!Selection | Selection} that is silently merged into the runtime model.
  *
  * > [!WARNING]
  * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds exactly one string and
@@ -505,28 +469,23 @@ export function optional<S extends Lazy<Shape>>(shape: S, selection?: SetSelecti
  * @typeParam S The {@link Lazy} {@link Shape} type
  *
  * @param shape The {@link Lazy} {@link Shape} to constrain
- * @param selection Optional {@link @metreeca/qest!Selection | Selection} to merge into the model
- *     (accepted only for {@link DictionaryShape | dictionary} shapes)
  *
  * @returns An immutable {@link SetShape} with minCount=1 and maxCount=1
  */
-export function required<S extends Lazy<Shape>>(shape: S, selection?: SetSelection<S, 1>): SetShape<S, 1, 1> {
+export function required<S extends Lazy<Shape>>(shape: S): SetShape<S, 1, 1> {
 
-	return cardinality(1, 1)(shape, selection);
+	return cardinality(1, 1)(shape);
 
 }
 
 /**
  * Creates a {@link SetFactory} with custom cardinality constraints.
  *
- * Returns a {@link SetFactory} that wraps a shape into a {@link SetShape} with the specified
- * bounds. The returned factory accepts an optional
- * {@link @metreeca/qest!Selection | Selection} when the shape inherently represents a
- * collection — either because the upper bound is not `1` or because the shape is a
- * {@link DictionaryShape | Dictionary}. For a multi-valued shape the selection is paired with the
- * element model as the second slot of a two-element `[element, Selection]` tuple, the collection
- * form of the {@link @metreeca/qest!Query | Query} grammar; a {@link DictionaryShape | Dictionary}
- * model merges the selection into its language map.
+ * Returns a {@link SetFactory} that wraps a shape into a {@link SetShape} with the specified bounds. A
+ * {@link DictionaryShape | Dictionary} model is projected per tag within its language map; every other multi-valued
+ * model is held as a singleton `[element]` tuple, the collection form of the
+ * {@link @metreeca/qest!Query | Query} grammar. A retrieval {@link @metreeca/qest!Selection | Selection} is supplied
+ * per request in the template, never declared on the shape.
  *
  * @typeParam L The minimum count constraint type
  * @typeParam U The maximum count constraint type
@@ -543,7 +502,7 @@ export function required<S extends Lazy<Shape>>(shape: S, selection?: SetSelecti
  * ```typescript
  * const twoToFive = cardinality(2, 5);
  * const tags = twoToFive(string());
- * const items = cardinality(0, 100)(resource(ItemShape), { "#": 25 });
+ * const items = cardinality(0, 100)(resource(ItemShape));
  * ```
  */
 export function cardinality<
@@ -566,20 +525,16 @@ export function cardinality<
 		throw new TypeError(`inconsistent bounds <${lower}> > <${upper}>`);
 	}
 
-	return (<S extends Lazy<Shape>>(shape: S, selection?: Selection) => {
+	return (<S extends Lazy<Shape>>(shape: S) => {
 
 		const resolved = eager(shape);
 
 		const model = resolved.kind === "dictionary"
-			? {
-				...Object.fromEntries(Object.entries(resolved.model).map(([key, value]) =>
-					[key, upper === 1 ? value : [value]]
-				)),
-				...selection
-			}
+			? Object.fromEntries(Object.entries(resolved.model).map(([key, value]) =>
+				[key, upper === 1 ? value : [value]]
+			))
 			: upper === 1 ? resolved.model
-				: selection === undefined ? [resolved.model]
-					: [resolved.model, selection];
+				: [resolved.model];
 
 		return immutable({
 

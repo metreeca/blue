@@ -20,7 +20,7 @@
  * @module
  */
 
-import { assert, error, type Identifier, isArray, isFunction, isString, type Lazy } from "@metreeca/core";
+import { assert, error, type Identifier, isFunction, isString, type Lazy } from "@metreeca/core";
 import { unique } from "@metreeca/core/arrays";
 import { xsd } from "@metreeca/core/datatype";
 import { equals, immutable } from "@metreeca/core/structures";
@@ -478,13 +478,13 @@ export function deriveValue<S extends Shape>(shape: S): Schema<S> {
  * Derives the wrapped shape's value through {@link deriveValue} and projects it at the set's cardinality, mirroring the
  * {@link cardinality} factory: a localised {@link dictionary!dictionary | dictionary} set keeps its per-tag map
  * (derived through {@link deriveValue}, so its stored model is honored), a scalar set (`maxCount === 1`) holds the
- * value directly, and a multi-valued set holds a singleton `[value]` tuple carrying any trailing selection.
+ * value directly, and a multi-valued set holds a singleton `[value]` tuple.
  *
  * @param set The value set whose placeholder to derive
  *
  * @returns The derived set placeholder
  */
-export function deriveValues({ shape, model, maxCount }: SetShape): unknown {
+export function deriveValues({ shape, maxCount }: SetShape): unknown {
 
 	return shape.kind === "dictionary"
 
@@ -495,8 +495,7 @@ export function deriveValues({ shape, model, maxCount }: SetShape): unknown {
 		))
 
 		: maxCount === 1 ? deriveValue(shape)
-			: isArray(model) && model.length > 1 ? [deriveValue(shape), model[1]]
-				: [deriveValue(shape)];
+			: [deriveValue(shape)];
 
 }
 

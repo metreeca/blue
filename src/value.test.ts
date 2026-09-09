@@ -15,7 +15,7 @@
  */
 
 import { TraceError } from "@metreeca/core/trace";
-import type { Probe, Selection, Transform } from "@metreeca/qest/template";
+import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { dictionary } from "./dictionary.js";
@@ -167,27 +167,9 @@ describe("factories", () => {
 
 		});
 
-		describe("selection injection", () => {
+		describe("model projection", () => {
 
-			it("appends selection as second tuple slot when upper !== 1", async () => {
-
-				const selection: Selection = { "#": 10 };
-				const range = cardinality(2, 5)(string(), selection);
-
-				expect(range.model).toEqual(["", selection]);
-
-			});
-
-			it("appends selection as second tuple slot with undefined upper", async () => {
-
-				const selection: Selection = { "#": 25, "@": 5 };
-				const range = cardinality(2)(string(), selection);
-
-				expect(range.model).toEqual(["", selection]);
-
-			});
-
-			it("produces plain tuple model when selection is omitted", async () => {
+			it("boxes a multi-valued model into a singleton tuple", async () => {
 
 				const range = cardinality(2, 5)(string());
 
@@ -195,38 +177,35 @@ describe("factories", () => {
 
 			});
 
-			it("appends selection as second tuple slot for resource model", async () => {
+			it("boxes a multi-valued model with undefined upper", async () => {
 
-				const selection: Selection = { "#": 10 };
-				const range = cardinality(2, 5)(resource({ name: required(string()) }), selection);
+				const range = cardinality(2)(string());
 
-				expect(range.model).toEqual([{ name: "" }, selection]);
-
-			});
-
-			it("spreads selection into localised dictionary model", async () => {
-
-				const selection: Selection = { "#": 10 };
-				const range = cardinality(2, 5)(dictionary({ en: "", it: "" }), selection);
-
-				expect(range.model).toEqual({
-					en: [""],
-					it: [""],
-					...selection
-				});
+				expect(range.model).toEqual([""]);
 
 			});
 
-			it("spreads selection into scalar localised dictionary model", async () => {
+			it("boxes a multi-valued resource model into a singleton tuple", async () => {
 
-				const selection: Selection = { "#": 10 };
-				const range = cardinality(1, 1)(dictionary({ en: "", it: "" }), selection);
+				const range = cardinality(2, 5)(resource({ name: required(string()) }));
 
-				expect(range.model).toEqual({
-					en: "",
-					it: "",
-					...selection
-				});
+				expect(range.model).toEqual([{ name: "" }]);
+
+			});
+
+			it("projects a localised dictionary model per tag for collection cardinality", async () => {
+
+				const range = cardinality(2, 5)(dictionary({ en: "", it: "" }));
+
+				expect(range.model).toEqual({ en: [""], it: [""] });
+
+			});
+
+			it("projects a localised dictionary model per tag for scalar cardinality", async () => {
+
+				const range = cardinality(1, 1)(dictionary({ en: "", it: "" }));
+
+				expect(range.model).toEqual({ en: "", it: "" });
 
 			});
 
@@ -271,24 +250,6 @@ describe("factories", () => {
 				const range = cardinality(2, 5)(dictionary());
 
 				expect(range.model).toEqual({ "*": [""] });
-
-			});
-
-			it("hosts selection alongside default tag map for collection cardinality", async () => {
-
-				const selection: Selection = { "#": 10 };
-				const range = cardinality(2, 5)(dictionary(), selection);
-
-				expect(range.model).toEqual({ "*": [""], ...selection });
-
-			});
-
-			it("hosts selection alongside default tag map for scalar cardinality", async () => {
-
-				const selection: Selection = { "#": 10 };
-				const range = cardinality(1, 1)(dictionary(), selection);
-
-				expect(range.model).toEqual({ "*": "", ...selection });
 
 			});
 

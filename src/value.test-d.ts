@@ -16,7 +16,6 @@
 
 import type { IRI } from "@metreeca/core/resource";
 import type { Dictionary } from "@metreeca/qest/resource";
-import type { Selection } from "@metreeca/qest/template";
 import { assertType, describe, expectTypeOf, test } from "vitest";
 import type { BooleanShape } from "./boolean.js";
 import { dictionary, type DictionaryShape } from "./dictionary.js";
@@ -674,41 +673,33 @@ describe("Bounds", () => {
 
 });
 
-describe("selection injection", () => {
+describe("model projection", () => {
 
-	test("tuple factory accepts optional selection parameter", () => {
+	test("tuple factory rejects a selection argument", () => {
 		const factory = cardinality(2, 5);
-		factory(string(), { "#": 10 } satisfies Selection);
-	});
-
-	test("tuple factory accepts undefined upper with selection", () => {
-		const factory = cardinality(2);
-		factory(string(), { "#": 10 } satisfies Selection);
-	});
-
-	test("scalar factory rejects selection parameter", () => {
-		const factory = cardinality(1, 1);
-		// @ts-expect-error - selection not accepted when U extends 1 for non-Dictionary
+		// @ts-expect-error - a selection is supplied per request in the template, never on the shape
 		factory(string(), { "#": 10 });
 	});
 
-	test("scalar factory accepts selection for Dictionary shape", () => {
+	test("scalar factory rejects a selection argument", () => {
 		const factory = cardinality(1, 1);
-		factory(dictionary({ en: "", it: "" }), { "#": 10 } satisfies Selection);
+		// @ts-expect-error - a selection is supplied per request in the template, never on the shape
+		factory(string(), { "#": 10 });
 	});
 
-	test("Dictionary factory accepts selection with undefined upper", () => {
-		const factory = cardinality(1);
-		factory(dictionary({ en: "", it: "" }), { "#": 10 } satisfies Selection);
+	test("Dictionary factory rejects a selection argument", () => {
+		const factory = cardinality(1, 1);
+		// @ts-expect-error - a selection is supplied per request in the template, never on the shape
+		factory(dictionary({ en: "", it: "" }), { "#": 10 });
 	});
 
-	test("selection does not surface in SetShape type", () => {
-		const range = cardinality(2, 5)(string(), { "#": 10 });
+	test("multi-valued model is a singleton tuple", () => {
+		const range = cardinality(2, 5)(string());
 		expectTypeOf(range.model).toEqualTypeOf<readonly [string]>();
 	});
 
-	test("selection does not surface in Dictionary SetShape type", () => {
-		const range = cardinality(1, 1)(dictionary({ en: "", it: "" }), { "#": 10 });
+	test("Dictionary model is a per-tag map", () => {
+		const range = cardinality(1, 1)(dictionary({ en: "", it: "" }));
 		expectTypeOf(range.model).toEqualTypeOf<{ readonly en: string; readonly it: string }>();
 	});
 

@@ -603,8 +603,8 @@ export function mergeProperty(target: Property, source: Property): Property {
  *
  * Projects each property to its retrieval placeholder, deriving the per-property value through
  * {@link value!deriveValue | deriveValue}; `id` and `type` entries project the {@link app | default base IRI}.
- * Cardinality wrapping (a scalar for `maxCount === 1`, otherwise a singleton `[value]` tuple carrying any selection)
- * and the per-tag localised form mirror the {@link value!cardinality | cardinality} projection.
+ * Cardinality wrapping (a scalar for `maxCount === 1`, otherwise a singleton `[value]` tuple) and the per-tag
+ * localised form mirror the {@link value!cardinality | cardinality} projection.
  *
  * @param shape The resource shape whose template to derive
  *
