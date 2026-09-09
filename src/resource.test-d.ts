@@ -24,7 +24,7 @@
  */
 
 import type { IRI, Namespace } from "@metreeca/core/resource";
-import { type Reference } from "@metreeca/qest/resource";
+import { type Dictionary, type Reference } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import type { BooleanShape } from "./boolean.js";
 import { dictionary } from "./dictionary.js";
@@ -453,6 +453,17 @@ describe("resource()", () => {
 		});
 
 		validate({}, { shape });
+
+	});
+
+	test("name and description accept string shorthands but are exposed as dictionaries", () => {
+
+		const shape = resource({ name: "Person", description: "A *person* resource" }, {
+			age: required(integer())
+		});
+
+		expectTypeOf(shape.name).toEqualTypeOf<undefined | Dictionary>();
+		expectTypeOf(shape.description).toEqualTypeOf<undefined | Dictionary>();
 
 	});
 

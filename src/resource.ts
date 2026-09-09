@@ -424,6 +424,31 @@ export interface ResourceShape extends ResourceConstraints {
 
 
 	/**
+	 * Human-readable name for the shape.
+	 *
+	 * Always a localised map: a plain-text {@link ResourceConstraints.name | shorthand} handed to the factory is
+	 * expanded to `{ en: <value> }`.
+	 *
+	 * **Inheritance** — always from child; not inherited.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
+	 */
+	readonly name?: Dictionary;
+
+	/**
+	 * Human-readable description of the shape.
+	 *
+	 * Always a localised map: a Markdown {@link ResourceConstraints.description | shorthand} handed to the factory is
+	 * expanded to `{ en: <value> }`.
+	 *
+	 * **Inheritance** — always from child; not inherited.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
+	 */
+	readonly description?: Dictionary;
+
+
+	/**
 	 * Custom resource validators.
 	 *
 	 * When specified, all validators are applied during validation. Must be non-empty. Each validator reports
@@ -478,6 +503,10 @@ export interface ResourceConstraints {
 	/**
 	 * Human-readable name for the shape.
 	 *
+	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a plain
+	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
+	 * {@link ResourceShape.name | built shape}.
+	 *
 	 * **Inheritance** — always from child; not inherited.
 	 *
 	 * @remarks
@@ -486,10 +515,14 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
 	 */
-	readonly name?: Dictionary;
+	readonly name?: string | Dictionary;
 
 	/**
 	 * Human-readable description of the shape.
+	 *
+	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a
+	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
+	 * {@link ResourceShape.description | built shape}.
 	 *
 	 * **Inheritance** — always from child; not inherited.
 	 *
@@ -499,7 +532,7 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
 	 */
-	readonly description?: Dictionary;
+	readonly description?: string | Dictionary;
 
 
 	/**
@@ -752,6 +785,34 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
 	 */
 	readonly kind: "property";
 
+	/**
+	 * Human-readable name for the property.
+	 *
+	 * Always a localised map: a plain-text {@link PropertyConstraints.name | shorthand} handed to the factory is
+	 * expanded to `{ en: <value> }`.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @defaultValue `undefined` (no label)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
+	 */
+	readonly name?: Dictionary;
+
+	/**
+	 * Human-readable description of the property.
+	 *
+	 * Always a localised map: a Markdown {@link PropertyConstraints.description | shorthand} handed to the factory is
+	 * expanded to `{ en: <value> }`.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @defaultValue `undefined` (no description)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
+	 */
+	readonly description?: Dictionary;
+
 
 	/**
 	 * The absolute IRI identifying the property for direct mapping.
@@ -853,16 +914,24 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	/**
 	 * Human-readable name for the property.
 	 *
+	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a plain
+	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
+	 * {@link Property.name | resolved property}.
+	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
 	 * @defaultValue `undefined` (no label)
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
 	 */
-	readonly name?: Dictionary;
+	readonly name?: string | Dictionary;
 
 	/**
 	 * Human-readable description of the property.
+	 *
+	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a
+	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
+	 * {@link Property.description | resolved property}.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -870,7 +939,7 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
 	 */
-	readonly description?: Dictionary;
+	readonly description?: string | Dictionary;
 
 
 	/**
@@ -935,7 +1004,8 @@ export type Members = {
  * naked {@link SetShape} values for the concise property syntax, or {@link PropertyConstraints}
  * produced by the {@link property} factory when additional constraints such as IRI mappings or
  * labels are needed. The factory resolves each into the stored {@link Entry} form, tightening any
- * {@link Namespace} `forward`/`reverse` mapping to an absolute IRI.
+ * {@link Namespace} `forward`/`reverse` mapping to an absolute IRI and expanding plain-string
+ * `name`/`description` labels to their localised form.
  */
 export type Member =
 	| Id
@@ -1312,6 +1382,8 @@ export function resource(
 		const constraints = a as ResourceConstraints;
 		const properties = b;
 
+		const { name, description, ...labelless } = constraints;
+
 		const namespace = locate(constraints);
 		const resolved = resolve(normalize(properties, constraints.extends), namespace);
 
@@ -1320,7 +1392,10 @@ export function resource(
 			kind: "resource",
 			model: build(resolved, constraints),
 
-			...constraints,
+			...labelless,
+
+			...name !== undefined && { name: localize(name) },
+			...description !== undefined && { description: localize(description) },
 
 			entries: resolved
 
@@ -1328,6 +1403,17 @@ export function resource(
 
 	}
 
+
+	/**
+	 * Expands a localisable label to its dictionary form.
+	 *
+	 * @param label The declared label, either a localised dictionary or a string taken as English content
+	 *
+	 * @returns `label` unchanged when already a dictionary; `{ en: label }` otherwise
+	 */
+	function localize(label: string | Dictionary): Dictionary {
+		return isString(label) ? { en: label } : label;
+	}
 
 	/**
 	 * Identifies the effective namespace for property IRI resolution.
@@ -1422,14 +1508,14 @@ export function resource(
 	}
 
 	/**
-	 * Resolves namespace functions to concrete IRIs for property mappings.
+	 * Resolves namespace functions to concrete IRIs for property mappings and expands shorthand labels.
 	 *
 	 * When neither `forward` nor `reverse` is defined, generates a default forward IRI using the effective namespace.
 	 *
 	 * @param properties The entries to resolve
 	 * @param namespace The effective namespace for default forward resolution
 	 *
-	 * @returns Properties with `forward` and `reverse` resolved to IRIs
+	 * @returns Properties with `forward` and `reverse` resolved to IRIs and `name` and `description` in dictionary form
 	 */
 	function resolve(properties: Sources, namespace: Namespace): Properties {
 
@@ -1453,6 +1539,9 @@ export function resource(
 				return [name, {
 
 					...property,
+
+					...property.name !== undefined && { name: localize(property.name) },
+					...property.description !== undefined && { description: localize(property.description) },
 
 					// generate default forward when neither forward nor reverse is defined
 
@@ -1595,7 +1684,9 @@ export function property<R extends SetShape>(
  * @remarks
  *
  * The `forward` and `reverse` fields accept plain strings for convenience; they are converted
- * to {@link IRI} values internally.
+ * to {@link IRI} values internally. Likewise, `name` and `description` accept plain strings as a
+ * shorthand for English-only labels; both reach their localised form only once the enclosing
+ * {@link resource} factory resolves the property.
  *
  * @typeParam R The value range type
  *

@@ -7,6 +7,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unpublished](https://github.com/metreeca/blue/compare/v0.10.0...HEAD)
 
+### Changed
+
+- Accept a plain string for `name` and `description` on `ResourceConstraints` and `PropertyConstraints` as a shorthand
+  for the English-only case — expanded to `{ en: <value> }` on the built shape, where both fields remain localised
+  dictionaries
+
 ## [0.10.0](https://github.com/metreeca/blue/compare/v0.9.1...v0.10.0) - 2026-09-09
 
 ### Added

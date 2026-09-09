@@ -554,25 +554,25 @@ describe("factories", () => {
 
 			});
 
+			it("expands string name and description shorthands", async () => {
+
+				const shape = resource({
+					name: "Person",
+					description: "A *person* resource"
+				}, {
+					age: property(optional(integer()))
+				});
+
+				expect(shape).toMatchObject({
+					name: { [assert("en", isTag)]: "Person" },
+					description: { [assert("en", isTag)]: "A *person* resource" }
+				});
+
+			});
+
 		});
 
 		describe("type conformance", () => {
-
-			it("accepts string name shorthand", async () => {
-
-				expect(() => resource({ name: "Person" } as any, {
-					name: property(required(string()))
-				})).not.toThrow();
-
-			});
-
-			it("accepts string description shorthand", async () => {
-
-				expect(() => resource({ description: "A person" } as any, {
-					name: property(required(string()))
-				})).not.toThrow();
-
-			});
 
 			it("throws on non-function namespace", async () => {
 
@@ -1339,6 +1339,19 @@ describe("factories", () => {
 				const prop = property({ hidden: true }, required(string()));
 
 				expect(prop.hidden).toBe(true);
+
+			});
+
+			it("expands string name and description shorthands", async () => {
+
+				const shape = resource({
+					age: property({ name: "Age", description: "The *age* in years" }, optional(integer()))
+				});
+
+				expect(shape.entries.age).toMatchObject({
+					name: { [assert("en", isTag)]: "Age" },
+					description: { [assert("en", isTag)]: "The *age* in years" }
+				});
 
 			});
 
