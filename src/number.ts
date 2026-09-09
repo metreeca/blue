@@ -213,7 +213,7 @@ export interface NumberConstraints extends NumberRangeConstraints {
 	 *
 	 * @defaultValue `undefined` (falls back to `xsd:double`)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#DatatypeConstraintComponent SHACL § 4.2.2 sh:datatype}
+	 * @see {@link https://www.w3.org/TR/shacl/#DatatypeConstraintComponent SHACL § 4.1.2 sh:datatype}
 	 */
 	readonly datatype?: Reference;
 
@@ -240,7 +240,7 @@ export interface NumberConstraints extends NumberRangeConstraints {
  * Bounds the magnitudes admitted by a shape, independently of its datatype. Accepted on its own by the specialised
  * factories, whose datatype and integrality are already fixed, and included in the full {@link NumberConstraints} set.
  *
- * @see {@link https://www.w3.org/TR/shacl/#core-components-range SHACL § 4.4 Value Range Constraint Components}
+ * @see {@link https://www.w3.org/TR/shacl/#core-components-range SHACL § 4.3 Value Range Constraint Components}
  */
 export interface NumberRangeConstraints {
 
@@ -251,7 +251,7 @@ export interface NumberRangeConstraints {
 	 *
 	 * @defaultValue `undefined` (no minimum constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MinExclusiveConstraintComponent SHACL § 4.4.1 sh:minExclusive}
+	 * @see {@link https://www.w3.org/TR/shacl/#MinExclusiveConstraintComponent SHACL § 4.3.1 sh:minExclusive}
 	 */
 	readonly minExclusive?: number;
 
@@ -262,7 +262,7 @@ export interface NumberRangeConstraints {
 	 *
 	 * @defaultValue `undefined` (no maximum constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MaxExclusiveConstraintComponent SHACL § 4.4.2 sh:maxExclusive}
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxExclusiveConstraintComponent SHACL § 4.3.3 sh:maxExclusive}
 	 */
 	readonly maxExclusive?: number;
 
@@ -273,7 +273,7 @@ export interface NumberRangeConstraints {
 	 *
 	 * @defaultValue `undefined` (no minimum constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MinInclusiveConstraintComponent SHACL § 4.4.3 sh:minInclusive}
+	 * @see {@link https://www.w3.org/TR/shacl/#MinInclusiveConstraintComponent SHACL § 4.3.2 sh:minInclusive}
 	 */
 	readonly minInclusive?: number;
 
@@ -284,7 +284,7 @@ export interface NumberRangeConstraints {
 	 *
 	 * @defaultValue `undefined` (no maximum constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MaxInclusiveConstraintComponent SHACL § 4.4.4 sh:maxInclusive}
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxInclusiveConstraintComponent SHACL § 4.3.4 sh:maxInclusive}
 	 */
 	readonly maxInclusive?: number;
 
@@ -298,7 +298,7 @@ export interface NumberRangeConstraints {
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.5.1 sh:in}
+	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.8.3 sh:in}
 	 */
 	readonly in?: readonly number[];
 
@@ -311,7 +311,7 @@ export interface NumberRangeConstraints {
 	 *
 	 * @defaultValue `undefined` (no required values)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.5.2 sh:hasValue}
+	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.8.2 sh:hasValue}
 	 */
 	readonly hasValue?: readonly number[];
 

@@ -322,7 +322,7 @@
  *
  * @module
  *
- * @see {@link https://www.w3.org/TR/shacl/ SHACL — Shapes Constraint Language}
+ * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  * @see {@link https://www.w3.org/TR/shacl/#ClosedConstraintComponent SHACL § 4.8.1 sh:closed}
  */
 
@@ -398,7 +398,7 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * - `reverse` predicate IRIs must be unique across all entries
  * - `forward` and `reverse` are independent sets: the same IRI may appear in both
  *
- * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
  * @see {@link https://www.w3.org/TR/shacl/#ClosedConstraintComponent SHACL § 4.8.1 sh:closed}
  */
 export interface ResourceShape extends ResourceConstraints {
@@ -435,7 +435,7 @@ export interface ResourceShape extends ResourceConstraints {
 	 *
 	 * SHACL defines custom constraints via SPARQL; this library uses programmatic validators.
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#constraint-components-overview SHACL § 3 Constraint Components}
+	 * @see {@link https://www.w3.org/TR/shacl/#constraints SHACL § 2.1.1 Constraint Components}
 	 */
 	readonly validators?: readonly [Validator<Resource>, ...Validator<Resource>[]];
 
@@ -450,7 +450,7 @@ export interface ResourceShape extends ResourceConstraints {
 	 *
 	 * **Inheritance** — parent and child entries are merged; clashing keys are merged per property rules.
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
+	 * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
 	 */
 	readonly entries: { readonly [entry: Identifier]: Entry };
 
@@ -459,7 +459,7 @@ export interface ResourceShape extends ResourceConstraints {
 /**
  * Constraints for resource shape factories.
  *
- * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
  */
 export interface ResourceConstraints {
 
@@ -484,7 +484,7 @@ export interface ResourceConstraints {
 	 *
 	 * SHACL defines sh:name only for property shapes; extended here to node shapes.
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.1 sh:name}
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
 	 */
 	readonly name?: Dictionary;
 
@@ -497,7 +497,7 @@ export interface ResourceConstraints {
 	 *
 	 * SHACL defines sh:description only for property shapes; extended here to node shapes.
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.2 sh:description}
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
 	 */
 	readonly description?: Dictionary;
 
@@ -537,7 +537,7 @@ export interface ResourceConstraints {
 	 *
 	 * **Inheritance** — shape-specific target class; outside inheritance scope.
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#targetClass SHACL § 2.1.1 sh:targetClass}
+	 * @see {@link https://www.w3.org/TR/shacl/#targetClass SHACL § 2.1.3.2 sh:targetClass}
 	 */
 	readonly class?: Reference;
 
@@ -548,7 +548,7 @@ export interface ResourceConstraints {
 	 *
 	 * **Inheritance** — union of parent `class` and child/parent `classes`.
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#ClassConstraintComponent SHACL § 4.2.1 sh:class}
+	 * @see {@link https://www.w3.org/TR/shacl/#ClassConstraintComponent SHACL § 4.1.1 sh:class}
 	 */
 	readonly classes?: readonly Reference[];
 
@@ -587,7 +587,7 @@ export interface ResourceConstraints {
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.5.1 sh:in}
+	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.8.3 sh:in}
 	 */
 	readonly in?: readonly Reference[];
 
@@ -600,7 +600,7 @@ export interface ResourceConstraints {
 	 *
 	 * @defaultValue `undefined` (no required values)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.5.2 sh:hasValue}
+	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.8.2 sh:hasValue}
 	 */
 	readonly hasValue?: readonly Reference[];
 
@@ -741,7 +741,7 @@ export interface Type {
  *
  * @typeParam R The value range type, defaulting to an unconstrained {@link SetShape}
  *
- * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
+ * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
  */
 export interface Property<R extends SetShape = SetShape> extends PropertyConstraints<R> {
 
@@ -806,7 +806,7 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
  * @typeParam R The value range type threaded from the {@link property} factory, defaulting to an
  *   unconstrained {@link SetShape}
  *
- * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3.2 Property Shapes}
+ * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
  */
 export interface PropertyConstraints<R extends SetShape = SetShape> {
 
@@ -857,7 +857,7 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	 *
 	 * @defaultValue `undefined` (no label)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.1 sh:name}
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
 	 */
 	readonly name?: Dictionary;
 
@@ -868,7 +868,7 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	 *
 	 * @defaultValue `undefined` (no description)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.2 sh:description}
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
 	 */
 	readonly description?: Dictionary;
 

@@ -58,7 +58,7 @@
  *
  * @module
  *
- * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.7.4 sh:xone}
+ * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.6.4 sh:xone}
  */
 
 import type { Lazy } from "@metreeca/core";
@@ -113,7 +113,7 @@ export { getShapeVariants, getStateVariant, getBoundVariant, getModelVariants } 
  *
  * @typeParam V The variants tuple; each variant eager or a {@link Lazy} factory for recursive self-reference
  *
- * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.7.4 sh:xone}
+ * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.6.4 sh:xone}
  */
 export type UnionShape<
 	V extends readonly Lazy<ValueShape>[] = readonly ValueShape[]
@@ -202,7 +202,7 @@ export type Variants<V extends readonly Lazy<ValueShape>[]> = {
  * ```
  *
  * @see {@link UnionShape} for the variant-narrowing inheritance forms (single-variant narrowing, union subsetting)
- * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.7.4 sh:xone}
+ * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.6.4 sh:xone}
  */
 export function union<
 	V extends readonly [Lazy<ValueShape>, ...Lazy<ValueShape>[]]

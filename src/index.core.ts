@@ -32,7 +32,7 @@ import { createNamespace, type Namespace } from "@metreeca/core/resource";
  *
  * An open {@link Namespace} over `http://www.w3.org/ns/shacl#`, resolving any SHACL term as a named property.
  *
- * @see {@link https://www.w3.org/TR/shacl/ Shapes Constraint Language (SHACL)}
+ * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  */
 export const sh: Namespace = createNamespace("http://www.w3.org/ns/shacl#");
 

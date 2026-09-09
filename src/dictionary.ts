@@ -109,8 +109,8 @@ import { checkDictionary, deriveDictionary } from "./dictionary.core.js";
  *
  * - merged `minLength` must be ≤ merged `maxLength`
  *
- * @see {@link https://www.w3.org/TR/shacl/#UniqueLangConstraintComponent SHACL § 4.8.1 sh:uniqueLang}
- * @see {@link https://www.w3.org/TR/shacl/#LanguageInConstraintComponent SHACL § 4.8.2 sh:languageIn}
+ * @see {@link https://www.w3.org/TR/shacl/#UniqueLangConstraintComponent SHACL § 4.4.5 sh:uniqueLang}
+ * @see {@link https://www.w3.org/TR/shacl/#LanguageInConstraintComponent SHACL § 4.4.4 sh:languageIn}
  */
 export interface DictionaryShape extends DictionaryConstraints {
 
@@ -147,7 +147,7 @@ export interface DictionaryConstraints {
 	 *
 	 * @defaultValue `undefined` (no minimum length)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MinLengthConstraintComponent SHACL § 4.3.1 sh:minLength}
+	 * @see {@link https://www.w3.org/TR/shacl/#MinLengthConstraintComponent SHACL § 4.4.1 sh:minLength}
 	 */
 	readonly minLength?: number;
 
@@ -158,7 +158,7 @@ export interface DictionaryConstraints {
 	 *
 	 * @defaultValue `undefined` (no maximum length)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MaxLengthConstraintComponent SHACL § 4.3.2 sh:maxLength}
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxLengthConstraintComponent SHACL § 4.4.2 sh:maxLength}
 	 */
 	readonly maxLength?: number;
 
@@ -174,7 +174,7 @@ export interface DictionaryConstraints {
 	 *
 	 * @defaultValue `undefined` (no language constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#LanguageInConstraintComponent SHACL § 4.8.2 sh:languageIn}
+	 * @see {@link https://www.w3.org/TR/shacl/#LanguageInConstraintComponent SHACL § 4.4.4 sh:languageIn}
 	 * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
 	 */
 	readonly languageIn?: readonly TagRange[];

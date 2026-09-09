@@ -206,7 +206,7 @@ export interface StringShape extends StringConstraints {
 	 *
 	 * @defaultValue `undefined` (no pattern constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#PatternConstraintComponent SHACL § 4.3.3 sh:pattern}
+	 * @see {@link https://www.w3.org/TR/shacl/#PatternConstraintComponent SHACL § 4.4.3 sh:pattern}
 	 */
 	readonly pattern?: string;
 
@@ -242,7 +242,7 @@ export interface StringConstraints extends StringLengthConstraints, StringValueC
 	 *
 	 * @defaultValue `undefined` (falls back to `xsd:string`)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#DatatypeConstraintComponent SHACL § 4.2.2 sh:datatype}
+	 * @see {@link https://www.w3.org/TR/shacl/#DatatypeConstraintComponent SHACL § 4.1.2 sh:datatype}
 	 */
 	readonly datatype?: Reference;
 
@@ -259,7 +259,7 @@ export interface StringConstraints extends StringLengthConstraints, StringValueC
 	 *
 	 * @defaultValue `undefined` (no pattern constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#PatternConstraintComponent SHACL § 4.3.3 sh:pattern}
+	 * @see {@link https://www.w3.org/TR/shacl/#PatternConstraintComponent SHACL § 4.4.3 sh:pattern}
 	 */
 	readonly pattern?: string | RegExp;
 
@@ -272,7 +272,7 @@ export interface StringConstraints extends StringLengthConstraints, StringValueC
  * free-form {@link text} and {@link markdown} factories, whose content has no fixed length, and included in the full
  * {@link StringConstraints} set.
  *
- * @see {@link https://www.w3.org/TR/shacl/#core-components-string SHACL § 4.3 String-based Constraint Components}
+ * @see {@link https://www.w3.org/TR/shacl/#core-components-string SHACL § 4.4 String-based Constraint Components}
  */
 export interface StringLengthConstraints {
 
@@ -283,7 +283,7 @@ export interface StringLengthConstraints {
 	 *
 	 * @defaultValue `undefined` (no minimum length)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MinLengthConstraintComponent SHACL § 4.3.1 sh:minLength}
+	 * @see {@link https://www.w3.org/TR/shacl/#MinLengthConstraintComponent SHACL § 4.4.1 sh:minLength}
 	 */
 	readonly minLength?: number;
 
@@ -294,7 +294,7 @@ export interface StringLengthConstraints {
 	 *
 	 * @defaultValue `undefined` (no maximum length)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MaxLengthConstraintComponent SHACL § 4.3.2 sh:maxLength}
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxLengthConstraintComponent SHACL § 4.4.2 sh:maxLength}
 	 */
 	readonly maxLength?: number;
 
@@ -307,7 +307,7 @@ export interface StringLengthConstraints {
  * its own by the format-specific factories, whose lexical space is already fixed, and included in the full
  * {@link StringConstraints} set.
  *
- * @see {@link https://www.w3.org/TR/shacl/#core-components-value SHACL § 4.5 Value Constraint Components}
+ * @see {@link https://www.w3.org/TR/shacl/#core-components-others SHACL § 4.8 Other Constraint Components}
  */
 export interface StringValueConstraints {
 
@@ -320,7 +320,7 @@ export interface StringValueConstraints {
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.5.1 sh:in}
+	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.8.3 sh:in}
 	 */
 	readonly in?: readonly string[];
 
@@ -333,7 +333,7 @@ export interface StringValueConstraints {
 	 *
 	 * @defaultValue `undefined` (no required values)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.5.2 sh:hasValue}
+	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.8.2 sh:hasValue}
 	 */
 	readonly hasValue?: readonly string[];
 

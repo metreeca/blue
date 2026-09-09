@@ -77,7 +77,7 @@
  *
  * @module
  *
- * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
+ * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  */
 
 import { type Eager, type Lazy } from "@metreeca/core";
@@ -114,7 +114,7 @@ export type Shape =
  * Extends {@link ValueShape} with {@link DictionaryShape}, whose language-map semantics inherently describe
  * a set of values regardless of cardinality.
  *
- * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
  */
 export type ValuesShape =
 	| ValueShape
@@ -125,7 +125,7 @@ export type ValuesShape =
  *
  * @see {@link ValuesShape}
  *
- * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
  */
 export type ValueShape =
 	| BooleanShape
@@ -177,8 +177,8 @@ export type ValueShape =
  * @typeParam L The {@link SetShape.minCount | minCount} constraint type
  * @typeParam U The {@link SetShape.maxCount | maxCount} constraint type
  *
- * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.1.1 sh:minCount}
- * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.1.2 sh:maxCount}
+ * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
+ * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
  */
 export type SetShape<
 	S extends Lazy<Shape> = Lazy<Shape>,
@@ -214,7 +214,7 @@ export type SetShape<
 	 *
 	 * @defaultValue `undefined` (no minimum constraint, equivalent to 0)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.1.1 sh:minCount}
+	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
 	 */
 	readonly minCount?: L;
 
@@ -225,7 +225,7 @@ export type SetShape<
 	 *
 	 * @defaultValue `undefined` (no maximum constraint)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.1.2 sh:maxCount}
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
 	 */
 	readonly maxCount?: U;
 

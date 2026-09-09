@@ -18,7 +18,7 @@
  * Linked data validation API.
  *
  * Provides validation for linked data {@link @metreeca/qest!Resource | resources}, retrieval
- * {@link Template | templates}, and individual values against {@link https://www.w3.org/TR/shacl/ | SHACL}-derived
+ * {@link Template | templates}, and individual values against {@link https://www.w3.org/TR/shacl/ SHACL}-derived
  * {@link Shape | shapes}.
  *
  * **Defining Shapes**
@@ -97,7 +97,7 @@
  *
  * @module index
  *
- * @see {@link https://www.w3.org/TR/shacl/ | SHACL - Shapes Constraint Language}
+ * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  */
 
 import { type Lazy, map } from "@metreeca/core";

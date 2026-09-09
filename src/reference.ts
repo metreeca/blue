@@ -80,7 +80,7 @@
  *
  * @module
  *
- * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
  */
 
 import type { Lazy } from "@metreeca/core";
@@ -109,7 +109,7 @@ export { getShapeTarget } from "./reference.core.js";
  * | `captive`  | Cannot be overridden                                                     |
  * | `shape`    | Cannot be overridden                                                     |
  *
- * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
  */
 export interface ReferenceShape extends ReferenceConstraints {
 

@@ -378,10 +378,11 @@ This controlled subset is specified by:
 - [value range constraints](https://www.w3.org/TR/shacl/#core-components-range) (`sh:minExclusive`,
   `sh:maxExclusive`, `sh:minInclusive`, `sh:maxInclusive`) for numeric value ranges
 - [string constraints](https://www.w3.org/TR/shacl/#core-components-string) (`sh:minLength`, `sh:maxLength`,
-  `sh:pattern`, `sh:languageIn`) for text length, patterns, and language tags
-- [value type constraints](https://www.w3.org/TR/shacl/#core-components-value-type) (`sh:class`) for declaring the
-  expected type of resource instances; limited to a single class
-- [value constraints](https://www.w3.org/TR/shacl/#InConstraintComponent) (`sh:in`, `sh:hasValue`) for enumerations and
+  `sh:pattern`, `sh:languageIn`, `sh:uniqueLang`) for text length, patterns, and language tags
+- [value type constraints](https://www.w3.org/TR/shacl/#core-components-value-type) (`sh:class`, `sh:datatype`) for
+  declaring the expected type of resource instances and the RDF datatype of literals; `sh:class` is limited to a single
+  class
+- [value constraints](https://www.w3.org/TR/shacl/#core-components-others) (`sh:in`, `sh:hasValue`) for enumerations and
   required values
 - [logical constraints](https://www.w3.org/TR/shacl/#core-components-logical) limited to `sh:xone` typed unions on
   entries, matched exactly-one on write and relaxed to at-least-one (`sh:or`) on read; the `sh:not`, `sh:and`, and
