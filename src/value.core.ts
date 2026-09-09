@@ -29,6 +29,10 @@ import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/
 import { all, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
 import type { BooleanShape } from "./boolean.js";
+import {
+	deriveDictionary, mergeDictionary, narrowsDictionary, validateDictionary, validateLocales
+} from "./dictionary.core.js";
+import type { DictionaryShape } from "./dictionary.js";
 import { type Scope, sh } from "./index.core.js";
 import { mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
 import { decimal, integer, type NumberShape } from "./number.js";
@@ -45,8 +49,6 @@ import {
 import { type ResourceShape } from "./resource.js";
 import { mergeString, narrowsString, validateString } from "./string.core.js";
 import { string, type StringShape } from "./string.js";
-import { deriveText, mergeText, narrowsText, validateLocale, validateText } from "./text.core.js";
-import type { TextShape } from "./text.js";
 import { deriveUnion, mergeUnion, narrowsUnion } from "./union.core.js";
 import type { UnionShape } from "./union.js";
 import { type RangeShape, type Resolved, type Schema, type SetShape, type Shape, type ValuesShape } from "./value.js";
@@ -162,7 +164,7 @@ export function narrowsValue(target: ValuesShape, source: ValuesShape): undefine
 		: target.kind === "boolean" ? narrowsBoolean(target, source as BooleanShape)
 			: target.kind === "number" ? narrowsNumber(target, source as NumberShape)
 				: target.kind === "string" ? narrowsString(target, source as StringShape)
-					: target.kind === "text" ? narrowsText(target, source as TextShape)
+					: target.kind === "dictionary" ? narrowsDictionary(target, source as DictionaryShape)
 						: target.kind === "reference" ? narrowsReference(target, source as ReferenceShape)
 							: narrowsResourceValue(target, source as ResourceShape);
 
@@ -312,9 +314,9 @@ export function mergeValue<T extends ValuesShape>(target: T, source: T): T {
 
 			return mergeString(target, source as StringShape) as T;
 
-		case "text":
+		case "dictionary":
 
-			return mergeText(target, source as TextShape) as T;
+			return mergeDictionary(target, source as DictionaryShape) as T;
 
 		case "reference":
 
@@ -420,8 +422,8 @@ export function mergeValues(target: SetShape, source: SetShape): SetShape {
  *
  * Dispatches on the shape kind. Scalar shapes (boolean, number, string, reference) return their stored `model`
  * placeholder, defaulting an unspecified one to the kind's trivial value (`false`, `0`, `""`, the default base IRI).
- * Text, resource, and union shapes derive a structural placeholder: text a per-language placeholder map, a resource its
- * property template, and a union its per-variant model map.
+ * Dictionary, resource, and union shapes derive a structural placeholder: a dictionary a per-language placeholder map,
+ * a resource its property template, and a union its per-variant model map.
  *
  * @typeParam S The value {@link Shape} to derive from
  *
@@ -446,9 +448,9 @@ export function deriveValue<S extends Shape>(shape: S): Schema<S> {
 
 			return shape.model ?? "";
 
-		case "text":
+		case "dictionary":
 
-			return shape.model ?? deriveText(shape);
+			return shape.model ?? deriveDictionary(shape);
 
 		case "reference":
 
@@ -470,9 +472,9 @@ export function deriveValue<S extends Shape>(shape: S): Schema<S> {
  * Derives the retrieval placeholder for a value set.
  *
  * Derives the wrapped shape's value through {@link deriveValue} and projects it at the set's cardinality, mirroring the
- * {@link cardinality} factory: a localised {@link text!text | text} set keeps its per-tag map (derived through
- * {@link deriveValue}, so its stored model is honored), a scalar set (`maxCount === 1`) holds the value directly, and a
- * multi-valued set holds a singleton `[value]` tuple carrying any trailing selection.
+ * {@link cardinality} factory: a localised {@link dictionary!dictionary | dictionary} set keeps its per-tag map
+ * (derived through {@link deriveValue}, so its stored model is honored), a scalar set (`maxCount === 1`) holds the
+ * value directly, and a multi-valued set holds a singleton `[value]` tuple carrying any trailing selection.
  *
  * @param set The value set whose placeholder to derive
  *
@@ -480,7 +482,7 @@ export function deriveValue<S extends Shape>(shape: S): Schema<S> {
  */
 export function deriveValues({ shape, model, maxCount }: SetShape): unknown {
 
-	return shape.kind === "text"
+	return shape.kind === "dictionary"
 
 		// localised: cardinality applies per tag within the map, so wrap each tag's content
 
@@ -505,8 +507,8 @@ export function deriveValues({ shape, model, maxCount }: SetShape): unknown {
  * @param opts Validation options
  * @param opts.scope The validation scope: `"state"` enforces every constraint; `"bound"` keeps the syntactic
  *     discriminators (`kind`, `pattern`) but skips the value-domain magnitude constraints, so a relational bound that
- *     lies outside the domain still routes; `"model"` matches by kind alone, validating localised text as a `Locale`
- *     placeholder and nested resources as retrieval templates. Defaults to `"state"`
+ *     lies outside the domain still routes; `"model"` matches by kind alone, validating a localised dictionary as a
+ *     `Locales` placeholder and nested resources as retrieval templates. Defaults to `"state"`
  *
  * @returns A keyed trace of validation errors, or `undefined` if all values are valid
  */
@@ -534,11 +536,11 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape, {
 
 			return validateString(values, shape, { scope });
 
-		case "text":
+		case "dictionary":
 
 			return scope === "state"
-				? validateText(values, shape)
-				: validateLocale(values);
+				? validateDictionary(values, shape)
+				: validateLocales(values);
 
 		case "reference":
 
@@ -628,7 +630,7 @@ export function eager<S extends Lazy<Shape | RangeShape>>(shape: S): Resolved<S>
  * on first request and memoised, so repeated calls reuse it.
  *
  * Scalar and {@link reference!ReferenceShape | reference} models are returned as the stored placeholder; a
- * {@link union!UnionShape | union} model is rebuilt from its per-variant models, and text and resource models are
+ * {@link union!UnionShape | union} model is rebuilt from its per-variant models, and dictionary and resource models are
  * likewise returned as stored. A resource template is derived by recursing through its entries, resolving the target
  * on access to support the circular and self-referential definitions the {@link resource!resource | resource} factory
  * admits.
@@ -714,17 +716,17 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  * **Pipe application** — applies transforms to the shape resolved by path traversal, reducing each active variant
  * independently when multiple remain. A pipe composing more than one aggregate transform is rejected upfront as
  * `"multiple aggregate transforms"`, independently of the resolved shape. A non-empty pipe is coalesced access to a
- * localised leaf: a text shape contributes the winning tag's value(s) as an ordinary `xsd:string` for domain matching
- * and effective typing, at the leaf's per-tag cardinality (one value for single-string-per-tag, the winning tag's set
- * for array-per-tag). Among processing-space literals (boolean, numeric, plain or temporal string), a transform
- * applied to a literal outside its declared domain drops the offending variant from the effective set: within a union
- * this retains only the compatible branches, so the pipe is well-typed as long as at least one variant survives. The
- * same dropping extends to values outside the processing space (references and resources), which no transform other
- * than `count` can act on. When no variant survives, including a single non-union shape whose sole variant falls
- * outside the pipe's domain, the probe reports `"incompatible transform input"`. The `count` aggregate accepts any
- * value, references included; `min` and `max` accept the literal processing types (boolean, numeric, string,
- * temporal); the remaining transforms accept their declared processing type only. `avg` always yields a `decimal`: the
- * specification narrows its range to `float` for `float` input and `double` for `double` input, but that
+ * localised leaf: a dictionary shape contributes the winning tag's value(s) as an ordinary `xsd:string` for domain
+ * matching and effective typing, at the leaf's per-tag cardinality (one value for single-string-per-tag, the winning
+ * tag's set for array-per-tag). Among processing-space literals (boolean, numeric, plain or temporal string), a
+ * transform applied to a literal outside its declared domain drops the offending variant from the effective set:
+ * within a union this retains only the compatible branches, so the pipe is well-typed as long as at least one variant
+ * survives. The same dropping extends to values outside the processing space (references and resources), which no
+ * transform other than `count` can act on. When no variant survives, including a single non-union shape whose sole
+ * variant falls outside the pipe's domain, the probe reports `"incompatible transform input"`. The `count` aggregate
+ * accepts any value, references included; `min` and `max` accept the literal processing types (boolean, numeric,
+ * string, temporal); the remaining transforms accept their declared processing type only. `avg` always yields a
+ * `decimal`: the specification narrows its range to `float` for `float` input and `double` for `double` input, but that
  * processing-space distinction is not preserved on egress, so the effective type is reported uniformly as `decimal`.
  * A transform declaring `returns: "same"` reproduces the input's processing type: `min` and `max`, which keep the value
  * within the element domain, preserve the input shape verbatim (value-domain facets included), whereas `sum` combines
@@ -745,7 +747,7 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
  *   the model.
  * - {@link UnionShape} steps themselves contribute no per-step cardinality — the enclosing range
  *   carries the single cardinality shared by all variants.
- * - A **localised step** enters the product like any other: a text property is terminal (no path may
+ * - A **localised step** enters the product like any other: a dictionary property is terminal (no path may
  *   traverse past it) and contributes its per-tag bounds (`maxCount` of `1` for single-string-per-tag,
  *   unbounded for array-per-tag), which multiply into the branch product. A single-string-per-tag leaf
  *   is single-valued on its own, but a multi-valued prefix multiplies through, so a deep coalescible
@@ -983,7 +985,7 @@ export function effective(shape: Lazy<Shape | RangeShape>, probe: Probe): RangeS
 	 * Apply the transform pipe to each variant, adjusting cardinality and assembling the effective value set.
 	 *
 	 * Forwards atomic traces from the upstream traversal unchanged; rejects a pipe composing more than one aggregate
-	 * transform as `"multiple aggregate transforms"`. A non-empty pipe coalesces localised variants first: a text
+	 * transform as `"multiple aggregate transforms"`. A non-empty pipe coalesces localised variants first: a dictionary
 	 * variant is replaced by its coalesced `xsd:string` view (the winning tag's value(s)) at its per-tag cardinality.
 	 * When no variant survives the pipe, every one having fallen outside its transforms' declared domains, reports
 	 * `"incompatible transform input"`.
@@ -1000,11 +1002,11 @@ export function effective(shape: Lazy<Shape | RangeShape>, probe: Probe): RangeS
 
 		} else {
 
-			// a non-empty pipe is coalesced access to a localised leaf: a text variant contributes the
+			// a non-empty pipe is coalesced access to a localised leaf: a dictionary variant contributes the
 			// winning tag's value(s) as an ordinary xsd:string, the cardinality flowing through unchanged
 
 			const staged = pipe.length === 0 ? focus.variants
-				: focus.variants.map(shape => shape.kind === "text" ? string() : shape);
+				: focus.variants.map(shape => shape.kind === "dictionary" ? string() : shape);
 
 			const successes = staged
 				.map(shape => pipe.reduceRight(stage, shape))
@@ -1078,8 +1080,8 @@ export function effective(shape: Lazy<Shape | RangeShape>, probe: Probe): RangeS
 	 * boolean, numeric, string, and temporal processing types; the remaining domains each admit a single
 	 * processing type. Any shape
 	 * outside the matched domain (references and resources included) fails, dropping the
-	 * value to `undefined`. Localised text never reaches the domain check: {@link transform} coalesces text
-	 * variants to their `xsd:string` view before staging.
+	 * value to `undefined`. A localised dictionary never reaches the domain check: {@link transform} coalesces
+	 * dictionary variants to their `xsd:string` view before staging.
 	 */
 	function accepts(domain: (typeof Transforms)[Transform]["accepts"], shape: ValuesShape): boolean {
 

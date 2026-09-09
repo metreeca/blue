@@ -60,13 +60,15 @@ import {
 } from "@metreeca/qest/template";
 import { all, array, fail, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { validateBoolean } from "./boolean.core.js";
+import {
+	validateDictionary, validateDictionarySet, validateLocalesString, validateLocalesStrings
+} from "./dictionary.core.js";
+import type { DictionaryShape } from "./dictionary.js";
 import { validateNumber } from "./number.core.js";
 import { getShapeTarget, validateReference } from "./reference.core.js";
 import { type ReferenceShape } from "./reference.js";
 import type { Property, ResourceShape } from "./resource.js";
 import { validateString } from "./string.core.js";
-import { validateLocaleString, validateLocaleStrings, validateText, validateTextSet } from "./text.core.js";
-import type { TextShape } from "./text.js";
 import { getShapeVariants, validateUnion } from "./union.core.js";
 import {
 	deriveValues,
@@ -179,7 +181,7 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 						inherited.find(p => p.computed !== inherited[0].computed)?.computed
 					}> for <${key}> without child override`]),
 
-					...inherited[0].range.shape.kind === "text" ? [
+					...inherited[0].range.shape.kind === "dictionary" ? [
 						(!inherited.every(p => equals(p.range.shape.model, inherited[0].range.shape.model))
 							&& override === undefined)
 						&& fail([`{model} conflicting parent localised models for <${key}> without child override`])
@@ -625,10 +627,10 @@ export function deriveResource(shape: ResourceShape) {
  *   constraints and, when supplied, the `entry` reference
  * - **`type`** — single absolute IRI
  * - **property** — value validated against the property's range as one of qest's
- *   `Values = Value | Text | readonly Value[]` arms, with cardinality bounds
+ *   `Values = Value | Dictionary | readonly Value[]` arms, with cardinality bounds
  *   enforced through the range's `minCount` / `maxCount`
  *
- * Localised text values are language-tagged maps (`{ tag: string }` or `{ tag: string[] }`);
+ * Dictionary values are language-tagged maps (`{ tag: string }` or `{ tag: string[] }`);
  * within a single map, all values must be uniformly scalar or uniformly array.
  *
  * Foreign reference entries (and unions whose variants are *all* foreign references)
@@ -647,7 +649,7 @@ export function deriveResource(shape: ResourceShape) {
  * deferred to validation rather than shape construction because an id-bearing embedded range is
  * indistinguishable from an expanded captive reference target until a state is checked against it.
  *
- * Property-value absence normalisation enforces qest's `Resource` / `Values` / `Text`
+ * Property-value absence normalisation enforces qest's `Resource` / `Values` / `Dictionary`
  * contract: canonical absent forms (`undefined`, `[]`, and, on slots that accept a nested
  * Resource, `{}`) and empty localised maps are normalised to property omission before
  * structural validation; `{}` elements are dropped from multi-valued Resource-accepting
@@ -770,9 +772,9 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 		const effective = value === undefined || isArray(value, []) ? undefined : value;
 
-		if ( shape.kind === "text" ) {
+		if ( shape.kind === "dictionary" ) {
 
-			return validateTextSet(effective, { minCount, maxCount }, shape);
+			return validateDictionarySet(effective, { minCount, maxCount }, shape);
 
 		} else {
 
@@ -981,7 +983,7 @@ export function validateResult(values: readonly unknown[], {
 
 		const variants = getMultiVariants(shape);
 
-		return variants.length === 1 && variants[0].kind === "text"
+		return variants.length === 1 && variants[0].kind === "dictionary"
 			? validateLocalised(value, shape, variants[0], model)
 			: validateValues(value, shape, model);
 
@@ -1149,7 +1151,7 @@ export function validateResult(values: readonly unknown[], {
 	function validateLocalised(
 		value: unknown,
 		range: SetShape,
-		textShape: TextShape,
+		dictionaryShape: DictionaryShape,
 		model: unknown
 	): undefined | Trace {
 
@@ -1171,13 +1173,13 @@ export function validateResult(values: readonly unknown[], {
 		const head = isArray(model) ? model[0] : model;
 		const tags = isObject(head) ? Object.keys(head).filter(isTagRange) : [];
 
-		return coalesced ? validateCoalesced(present, range, textShape)
-			: tags.length > 0 ? validateProjectedText(present, range, textShape, tags)
-				: validateTextSet(present, range, textShape);
+		return coalesced ? validateCoalesced(present, range, dictionaryShape)
+			: tags.length > 0 ? validateProjectedDictionary(present, range, dictionaryShape, tags)
+				: validateDictionarySet(present, range, dictionaryShape);
 
 	}
 
-	function validateCoalesced(present: unknown, range: SetShape, textShape: TextShape): undefined | Trace {
+	function validateCoalesced(present: unknown, range: SetShape, dictionaryShape: DictionaryShape): undefined | Trace {
 
 		if ( present === undefined ) {
 
@@ -1187,7 +1189,7 @@ export function validateResult(values: readonly unknown[], {
 
 			// single-string-per-tag: the one rendered string
 
-			return isString(present) ? validateLength(present, textShape)
+			return isString(present) ? validateLength(present, dictionaryShape)
 				: ["{kind} expected coalesced string value"];
 
 		} else {
@@ -1195,7 +1197,7 @@ export function validateResult(values: readonly unknown[], {
 			// array-per-tag: the winning tag's value set as a string array, length-checked per element
 
 			return isArray<string>(present, isString) ? all(
-				() => array((element: string) => validateLength(element, textShape))(present),
+				() => array((element: string) => validateLength(element, dictionaryShape))(present),
 				() => validateCardinality(present.length, range)
 			)(undefined) : ["{kind} expected coalesced string array value"];
 
@@ -1203,10 +1205,10 @@ export function validateResult(values: readonly unknown[], {
 
 	}
 
-	function validateProjectedText(
+	function validateProjectedDictionary(
 		present: unknown,
 		range: SetShape,
-		textShape: TextShape,
+		dictionaryShape: DictionaryShape,
 		tags: readonly string[]
 	): undefined | Trace {
 
@@ -1235,7 +1237,7 @@ export function validateResult(values: readonly unknown[], {
 				() => array((el: unknown) =>
 					isObject(el)
 						? all(...(wildcard ? Object.keys(el) : explicit).map(tag => () =>
-							fold(validateProjectedTag(el[tag], tag, textShape), trace => [{ [tag]: trace }])
+							fold(validateProjectedTag(el[tag], tag, dictionaryShape), trace => [{ [tag]: trace }])
 						))(undefined)
 						: ["expected tag-map value"]
 				)(elements),
@@ -1253,7 +1255,7 @@ export function validateResult(values: readonly unknown[], {
 		maxLength,
 		languageIn
 
-	}: TextShape): undefined | Trace {
+	}: DictionaryShape): undefined | Trace {
 
 		return tagValue === undefined ? ["missing projected tag"]
 			: !isString(tagValue) ? ["expected string value"]
@@ -1280,7 +1282,7 @@ export function validateResult(values: readonly unknown[], {
 		)(undefined);
 	}
 
-	function validateLength(value: string, { minLength, maxLength }: TextShape): undefined | Trace {
+	function validateLength(value: string, { minLength, maxLength }: DictionaryShape): undefined | Trace {
 		return all(
 			(minLength !== undefined && value.length < minLength)
 			&& fail([`{minLength} expected string length >= <${minLength}>`]),
@@ -1309,9 +1311,9 @@ export function validateResult(values: readonly unknown[], {
  * Validates retrieval {@link Template | templates} against a {@link ResourceShape}.
  *
  * Implements a recursive descent that mirrors the {@link Placeholders} arms: the single-value
- * {@link Model} forms ({@link Placeholder}, {@link Union}, and localised `Locale`) and the
+ * {@link Model} forms ({@link Placeholder}, {@link Union}, and localised `Locales`) and the
  * collection-valued {@link Query}. Arm selection is gated on effective cardinality and shape kind: localised slots
- * route through the `Locale` arm; union slots take {@link Union}, or a branch-immaterial
+ * route through the `Locales` arm; union slots take {@link Union}, or a branch-immaterial
  * {@link Placeholder}; other `maxCount === 1` slots take {@link Placeholder}; `maxCount !== 1`
  * slots take {@link Query}. Tuple-wrapped {@link Query} forms are therefore rejected on
  * cardinality-1 slots, where {@link Selection} has no meaningful surface. Each arm sub-dispatches
@@ -1322,7 +1324,7 @@ export function validateResult(values: readonly unknown[], {
  * - **{@link Union}** — an object whose keys are canonical variant indices, each mapping to the
  *   per-branch placeholder; a branch-immaterial value reaches a union slot through the sibling
  *   {@link Placeholder} arm instead
- * - **`Locale`** — a per-`TagRange` map whose per-tag values match the property's per-tag cardinality
+ * - **`Locales`** — a per-`TagRange` map whose per-tag values match the property's per-tag cardinality
  *   (single strings for single-string-per-tag, strict singleton string arrays for array-per-tag), or a
  *   coalesced placeholder standing in for its value under language negotiation at the same cardinality
  *   (a bare string for single-string-per-tag, a single-element string array for array-per-tag); a
@@ -1352,7 +1354,7 @@ export function validateResult(values: readonly unknown[], {
  *
  * Within the projection arm, binding identifiers (the part before `=`) must be unique within the
  * element; collisions on the same projected property are rejected with a `duplicate projection
- * identifier` trace. Projection cells over a localised property carry a `Locale` map whose per-tag
+ * identifier` trace. Projection cells over a localised property carry a `Locales` map whose per-tag
  * value is pinned to the property's per-tag cardinality (single strings for single-string-per-tag,
  * singleton tuples for array-per-tag), or the matching coalesced placeholder; the structural map is
  * one cell, fanning out at the row level rather than per tag (qest §5.3, §5.6).
@@ -1460,7 +1462,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		const variants = getMultiVariants(shape);
 		const [variant] = variants;
 
-		return shape.maxCount === 1 || variants.length === 1 && variant.kind === "text"
+		return shape.maxCount === 1 || variants.length === 1 && variant.kind === "dictionary"
 			? validateModel(value, shape, depth)
 			: validateQuery(value, shape, depth);
 
@@ -1514,7 +1516,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		const [variant] = variants;
 
 		return variants.length > 1 ? validateUnionValue(value, shape, depth, local)
-			: variant.kind === "text" ? validateLocale(value, shape)
+			: variant.kind === "dictionary" ? validateLocale(value, shape)
 				: validatePlaceholder(value, variant, depth);
 
 	}
@@ -1632,9 +1634,9 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 						: Object.keys(value).every(isIdentifier) ? validateTemplate(value, target, next)
 							: validateProjection(value, target, next);
 
-				case "text":
+				case "dictionary":
 
-					return ["unexpected <text> element"];
+					return ["unexpected <dictionary> element"];
 
 			}
 
@@ -1649,8 +1651,8 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	): undefined | Trace {
 
 		return shape.maxCount === 1
-			? validateLocaleString(value)
-			: validateLocaleStrings(value);
+			? validateLocalesString(value)
+			: validateLocalesStrings(value);
 
 	}
 
@@ -1668,8 +1670,8 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			return all(...Object.entries(value).map(([key, branch]) => () => fold(
 				validateUnion(branch, variants, {
 					model: true,
-					match: (branch, variant) => variant.kind === "text"
-						? local && validateLocaleString(branch) === undefined
+					match: (branch, variant) => variant.kind === "dictionary"
+						? local && validateLocalesString(branch) === undefined
 						: validatePlaceholder(branch, variant, depth) === undefined
 				}),
 
@@ -1751,7 +1753,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 						const locales =
 							range.variants.length === 1
-							&& range.variants[0].kind === "text"
+							&& range.variants[0].kind === "dictionary"
 							&& range.maxCount !== 1;
 
 						return isArray(model) && !locales
@@ -1907,7 +1909,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 						return isString(value) ? undefined
 							: [`expected <${shape.kind}> value`];
 
-					case "text": // a localised property coalesces to a string set the bound filters existentially
+					case "dictionary": // a localised property coalesces to a string set the bound filters existentially
 
 						return isString(value) ? undefined
 							: ["expected string value"];
@@ -1948,7 +1950,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 						return isString(value) ? undefined : ["expected string value"];
 
-					case "text": // `~` searches the coalesced string set of a localised property existentially
+					case "dictionary": // `~` searches the coalesced string set of a localised property existentially
 
 						return isString(value) ? undefined : ["expected string value"];
 
@@ -1990,13 +1992,13 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 				const [shape] = variants;
 
-				if ( shape.kind === "text" ) {
+				if ( shape.kind === "dictionary" ) {
 
 					// a tag map, or a coalesced plain-string option (single or array), is admitted;
 					// plain and tagged options MUST NOT be mixed within a set
 
 					return value === null || isString(value) || isArray(value, isString) ? undefined
-						: isObject(value) ? validateText([value], shape)
+						: isObject(value) ? validateDictionary([value], shape)
 							: isArray(value) && value.some(v => isObject(v)) && value.some(v => isString(v))
 								? ["mixed plain and tagged options"]
 								: [`unsupported constraint for <${shape.kind}> value`];
@@ -2336,7 +2338,7 @@ export function enforce(value: unknown, shape: ResourceShape, {
 		const [variant] = variants;
 
 		return variants.length > 1 ? walkUnion(value, variants, maxCount === 1)
-			: variant.kind === "text" ? value
+			: variant.kind === "dictionary" ? value
 				: maxCount === 1 ? walkNested(value, variant)
 					: isArray(value) ? [walkNested(value[0], variant), limitSelection(value[1])]
 						: value;

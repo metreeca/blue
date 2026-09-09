@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns:xl="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" version="1.1" viewBox="0 137 488 713" width="488" height="713">
+<svg xmlns:dc="http://purl.org/dc/elements/1.1/" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xl="http://www.w3.org/1999/xlink" viewBox="0 137 488 713" width="488" height="713">
   <defs>
     <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="StickArrow_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -10 26 20" markerWidth="26" markerHeight="20" color="black">
       <g>
@@ -18,7 +18,7 @@
       </g>
     </marker>
   </defs>
-  <g id="shape" fill-opacity="1" stroke-opacity="1" stroke="none" stroke-dasharray="none" fill="none">
+  <g id="shape" stroke="none" stroke-opacity="1" stroke-dasharray="none" fill-opacity="1" fill="none">
     <title>shape</title>
     <g id="shape_Layer_1">
       <title>Layer 1</title>
@@ -95,14 +95,14 @@
         <g id="Graphic_787">
           <rect x="362.16647" y="326.15673" width="111.009" height="29.107495" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
           <text transform="translate(368.16647 329.45848)" fill="black">
-            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">kind: “text”</tspan>
-            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">model: Locale</tspan>
+            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">kind: “dictionary”</tspan>
+            <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252" xml:space="preserve">model: Locales</tspan>
           </text>
         </g>
         <g id="Graphic_786">
           <rect x="362.16647" y="308.6945" width="111.009" height="17.462228" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(395.33297 311.7951)" fill="black">
-            <tspan font-family="Helvetica Neue" font-weight="bold" font-size="9" fill="black" x="0" y="9" xml:space="preserve">TextShape</tspan>
+          <text transform="translate(382.25597 311.7951)" fill="black">
+            <tspan font-family="Helvetica Neue" font-weight="bold" font-size="9" fill="black" x="881073e-18" y="9" xml:space="preserve">DictionaryShape</tspan>
           </text>
         </g>
       </g>

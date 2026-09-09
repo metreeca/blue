@@ -39,13 +39,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as a named property
 - Add `classes` constraint on `ResourceShape` for accumulating parent class IRIs across inheritance
 - Add `url()` string factory as a convenience alias for `iri({ variant: "hierarchical" })`
-- Add `plain()` and `markdown()` string factories — `plain()` accepts space-normalised single-line content, while
+- Add `text()` and `markdown()` string factories — `text()` accepts space-normalised single-line content, while
   `markdown()` accepts any string, leaving significant whitespace untouched; both take optional length bounds through
   the new `StringLengthConstraints` interface, also extended by `StringConstraints`
 - Add `tag()` string factory — accepts BCP 47 language tags, from a bare language subtag to a fully qualified tag with
   script, region, variant, extension and private-use subtags, matched case-insensitively; grandfathered tags are not
   accepted
-- Add `const` type parameters to `localised()`, `number()`, and `string()` constraint overloads — non-empty array
+- Add `const` type parameters to `dictionary()`, `number()`, and `string()` constraint overloads — non-empty array
   constraints (`in`, `hasValue`, `languageIn`) are now inferred as tuples without explicit casts
 - Add `model` field to `SetShape` — holds the runtime prototype value, computed from the shape model and cardinality
 - Add shape introspection accessors — `model` (retrieval template), `getShapeVariants` (union variants),
@@ -79,9 +79,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Breaking:** Rename `ValuesShape` to `SetShape` and change `kind` discriminator from `"values"` to `"set"` (Closes
   #17)
 - **Breaking:** Split `ValueShape` into `ValueShape` (scalar-or-set shapes) and `ValuesShape` (all concrete value shapes
-  including `LocalisedShape`)
-- **Breaking:** Unify `local()`/`locals()` into single `localised()` factory — cardinality of the enclosing `SetShape`
-  determines whether each tag holds a scalar or an array; `minCount`/`maxCount` apply per tag (Closes #16)
+  including `DictionaryShape`)
+- **Breaking:** Unify `local()`/`locals()` into a single `dictionary()` factory — cardinality of the enclosing
+  `SetShape` determines whether each tag holds a scalar or an array; `minCount`/`maxCount` apply per tag; the
+  `@metreeca/blue/local` entry point becomes `@metreeca/blue/dictionary`, the shape is `DictionaryShape` with
+  `DictionaryConstraints`, and the `kind` discriminator is `"dictionary"`, matching the `Dictionary`/`Locales`
+  vocabulary of `@metreeca/qest` (Closes #16)
+- **Breaking:** Rename `TextualConstraints` to `StringValueConstraints` and `NumericConstraints` to
+  `NumberRangeConstraints`, naming each shared constraint set after the shape family it serves and the facet it bounds
 - **Breaking:** Multi-valued union entries now represent values as a single indexed record with per-variant arrays
   instead of an array of single-variant containers
 - **Breaking:** Union property values must always be indexed objects — bare scalar values are no longer accepted
@@ -120,8 +125,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Remove `validate()` entry scope
 - Remove `validate()` query mode — queries are now validated as nested components within template validation
 - Remove `tag()` — replaced by seal-based idempotency in `validate()`
-- Remove `local()` and `locals()` factories, `LocalShape`, `LocalsShape`, and related types — replaced by unified
-  `localised()` factory
+- Remove `local()` and `locals()` factories, `LocalShape`, `LocalsShape`, and related types — replaced by the unified
+  `dictionary()` factory
 - Replace `url()` and `uri()` string factories with `iri()` accepting a `variant` parameter
 - Remove `Binding` from `ResourceShape.entries` and `Members` key types; remove `Projection` type utility
 - Remove `temporal()` factory — temporal shapes are identified by their model values
@@ -147,7 +152,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Align property-value absence with qest's documented contract in resource validation: `undefined` and `[]` are absent
   on any slot; `{}` is absent on slots accepting a nested Resource (`reference` / `resource` kinds, or unions containing
   one) and remains a `{kind}` type mismatch on literal slots; `{}`, `{ und: [] }`, and language maps with
-  all-empty-array entries are absent on `localised` slots; `{}` elements are dropped from a multi-valued Resource-
+  all-empty-array entries are absent on `dictionary` slots; `{}` elements are dropped from a multi-valued Resource-
   accepting slot's array before per-element validation and cardinality checks
 - Widen the `sum` transform's effective type to the bare `integer` / `decimal` datatype — a summation escapes the
   element domain and datatype range (qest), so its result no longer carries the input's value-domain facets; integral

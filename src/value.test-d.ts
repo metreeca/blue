@@ -15,7 +15,7 @@
  */
 
 import type { IRI } from "@metreeca/core/resource";
-import type { Text } from "@metreeca/qest/resource";
+import type { Dictionary } from "@metreeca/qest/resource";
 import type { Selection } from "@metreeca/qest/template";
 import { assertType, describe, expectTypeOf, test } from "vitest";
 import type { BooleanShape } from "./boolean.js";
@@ -23,7 +23,7 @@ import { integer, type NumberShape } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import { property, resource, type ResourceShape } from "./resource.js";
 import { string, type StringShape } from "./string.js";
-import { text, type TextShape } from "./text.js";
+import { dictionary, type DictionaryShape } from "./dictionary.js";
 import { union } from "./union.js";
 import { type Bounds, cardinality, multiple, optional, repeatable, required, type State } from "./value.js";
 
@@ -44,16 +44,16 @@ describe("State", () => {
 			expectTypeOf<State<StringShape>>().toEqualTypeOf<string>();
 		});
 
-		test("TextShape → Text", () => {
-			expectTypeOf<State<TextShape>>().toEqualTypeOf<Text>();
+		test("DictionaryShape → Dictionary", () => {
+			expectTypeOf<State<DictionaryShape>>().toEqualTypeOf<Dictionary>();
 		});
 
-		test("TextShape rejects string shorthand", () => {
-			expectTypeOf<string>().not.toExtend<State<TextShape>>();
+		test("DictionaryShape rejects string shorthand", () => {
+			expectTypeOf<string>().not.toExtend<State<DictionaryShape>>();
 		});
 
-		test("TextShape rejects string array shorthand", () => {
-			expectTypeOf<readonly string[]>().not.toExtend<State<TextShape>>();
+		test("DictionaryShape rejects string array shorthand", () => {
+			expectTypeOf<readonly string[]>().not.toExtend<State<DictionaryShape>>();
 		});
 
 		test("ReferenceShape → Reference", () => {
@@ -68,7 +68,7 @@ describe("State", () => {
 			expectTypeOf<State<BooleanShape>>().toExtend<boolean>();
 			expectTypeOf<State<NumberShape>>().toExtend<number>();
 			expectTypeOf<State<StringShape>>().toExtend<string>();
-			expectTypeOf<State<TextShape>>().toExtend<Text>();
+			expectTypeOf<State<DictionaryShape>>().toExtend<Dictionary>();
 			expectTypeOf<State<ReferenceShape>>().toExtend<IRI>();
 		});
 
@@ -203,8 +203,8 @@ describe("State", () => {
 	describe("locals", () => {
 
 		const Shape = resource({
-			title: required(text()),
-			keywords: multiple(text())
+			title: required(dictionary()),
+			keywords: multiple(dictionary())
 		});
 
 		test("infers { readonly [tag: string]: string } type for scalar cardinality", () => {
@@ -642,28 +642,28 @@ describe("Bounds", () => {
 			expectTypeOf<Bounds<NumberShape, 1, undefined>>().toEqualTypeOf<readonly [number]>();
 		});
 
-		describe("Text", () => {
+		describe("Dictionary", () => {
 
 			test("required scalar → { [tag]: string }", () => {
-				expectTypeOf<Bounds<TextShape, 1, 1>>().toEqualTypeOf<
+				expectTypeOf<Bounds<DictionaryShape, 1, 1>>().toEqualTypeOf<
 					{ readonly [tag: string]: string }
 				>();
 			});
 
 			test("optional scalar adds undefined arm", () => {
-				expectTypeOf<Bounds<TextShape, undefined, 1>>().toEqualTypeOf<
+				expectTypeOf<Bounds<DictionaryShape, undefined, 1>>().toEqualTypeOf<
 					undefined | { readonly [tag: string]: string }
 				>();
 			});
 
 			test("repeatable → { [tag]: readonly [string] }", () => {
-				expectTypeOf<Bounds<TextShape, 1, undefined>>().toEqualTypeOf<
+				expectTypeOf<Bounds<DictionaryShape, 1, undefined>>().toEqualTypeOf<
 					{ readonly [tag: string]: readonly [string] }
 				>();
 			});
 
 			test("multiple adds undefined arm", () => {
-				expectTypeOf<Bounds<TextShape, undefined, undefined>>().toEqualTypeOf<
+				expectTypeOf<Bounds<DictionaryShape, undefined, undefined>>().toEqualTypeOf<
 					undefined | { readonly [tag: string]: readonly [string] }
 				>();
 			});
@@ -688,18 +688,18 @@ describe("selection injection", () => {
 
 	test("scalar factory rejects selection parameter", () => {
 		const factory = cardinality(1, 1);
-		// @ts-expect-error - selection not accepted when U extends 1 for non-Text
+		// @ts-expect-error - selection not accepted when U extends 1 for non-Dictionary
 		factory(string(), { "#": 10 });
 	});
 
-	test("scalar factory accepts selection for Text shape", () => {
+	test("scalar factory accepts selection for Dictionary shape", () => {
 		const factory = cardinality(1, 1);
-		factory(text({ en: "", it: "" }), { "#": 10 } satisfies Selection);
+		factory(dictionary({ en: "", it: "" }), { "#": 10 } satisfies Selection);
 	});
 
-	test("Text factory accepts selection with undefined upper", () => {
+	test("Dictionary factory accepts selection with undefined upper", () => {
 		const factory = cardinality(1);
-		factory(text({ en: "", it: "" }), { "#": 10 } satisfies Selection);
+		factory(dictionary({ en: "", it: "" }), { "#": 10 } satisfies Selection);
 	});
 
 	test("selection does not surface in SetShape type", () => {
@@ -707,8 +707,8 @@ describe("selection injection", () => {
 		expectTypeOf(range.model).toEqualTypeOf<readonly [string]>();
 	});
 
-	test("selection does not surface in Text SetShape type", () => {
-		const range = cardinality(1, 1)(text({ en: "", it: "" }), { "#": 10 });
+	test("selection does not surface in Dictionary SetShape type", () => {
+		const range = cardinality(1, 1)(dictionary({ en: "", it: "" }), { "#": 10 });
 		expectTypeOf(range.model).toEqualTypeOf<{ readonly en: string; readonly it: string }>();
 	});
 

@@ -16,17 +16,17 @@
 
 import { describe, test } from "vitest";
 import { string } from "./string.js";
-import { text } from "./text.js";
+import { dictionary } from "./dictionary.js";
 import { union } from "./union.js";
 
 
 describe("union", () => {
 
-	test("rejects a text variant", () => {
-		// @ts-expect-error - localised text is a whole-property type, never a union variant
-		union(text());
-		// @ts-expect-error - localised text is a whole-property type, never a union variant
-		union(string(), text());
+	test("rejects a dictionary variant", () => {
+		// @ts-expect-error - localised dictionary is a whole-property type, never a union variant
+		union(dictionary());
+		// @ts-expect-error - localised dictionary is a whole-property type, never a union variant
+		union(string(), dictionary());
 	});
 
 });

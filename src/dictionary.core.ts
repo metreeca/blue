@@ -15,7 +15,7 @@
  */
 
 /**
- * Localised text shape operators.
+ * Dictionary shape operators.
  *
  * @module
  */
@@ -23,17 +23,17 @@
 import { isArray, isObject, isString, opt as fold } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
 import { isTag, isTagRange, matchTag, type Tag } from "@metreeca/core/language";
-import type { Text } from "@metreeca/qest/resource";
-import { type Locale, type Placeholders, type Selection } from "@metreeca/qest/template";
+import type { Dictionary } from "@metreeca/qest/resource";
+import { type Locales, type Placeholders, type Selection } from "@metreeca/qest/template";
 import { all, array, fail, length, object, test, type Trace, TraceError } from "@metreeca/core/trace";
-import type { TextConstraints, TextShape } from "./text.js";
+import type { DictionaryConstraints, DictionaryShape } from "./dictionary.js";
 
 
 /**
- * Checks internal consistency of a {@link TextShape} declaration.
+ * Checks internal consistency of a {@link DictionaryShape} declaration.
  *
  * Verifies that the optional `minLength` does not exceed the optional `maxLength`, and that the
- * optional {@link Locale} `model` is a well-formed prototype declaration. Used by shape factories
+ * optional {@link Locales} `model` is a well-formed prototype declaration. Used by shape factories
  * to reject malformed declarations at construction time.
  *
  * @param constraints The constraint fields to check
@@ -43,7 +43,7 @@ import type { TextConstraints, TextShape } from "./text.js";
  *
  * @returns A keyed trace of violations, or `undefined` if the declaration is consistent
  */
-export function checkText(constraints: Partial<TextShape>): undefined | Trace {
+export function checkDictionary(constraints: Partial<DictionaryShape>): undefined | Trace {
 
 	return all<typeof constraints>(
 		test(({ minLength, maxLength }) => {
@@ -55,14 +55,14 @@ export function checkText(constraints: Partial<TextShape>): undefined | Trace {
 		}),
 		test(({ model }) => {
 
-			return model === undefined || fold(checkTextModel(model), trace => [{ "{model}": trace }]) || true;
+			return model === undefined || fold(checkDictionaryModel(model), trace => [{ "{model}": trace }]) || true;
 
 		})
 	)(constraints);
 
 
 	/**
-	 * Validates a localised text shape's {@link Locale} model.
+	 * Validates a dictionary shape's {@link Locales} model.
 	 *
 	 * The model declares the property's per-tag cardinality, so it admits a tag-range-keyed map whose
 	 * per-tag values are either uniformly single strings (single-string-per-tag) or uniformly singleton
@@ -70,8 +70,8 @@ export function checkText(constraints: Partial<TextShape>): undefined | Trace {
 	 * cardinality or the other, never both. Keys must be basic language ranges (a sequence of subtags or
 	 * the standalone `*` wildcard); extended ranges such as `en-*` are not accepted, and any key that
 	 * fails `isTagRange` is reported as `invalid tag range`. Unlike the placeholder validators
-	 * ({@link validateLocaleString} / {@link validateLocaleStrings}), which match a value against a property's
-	 * already-declared cardinality, this checks the declaration itself at shape construction. {@link checkText}
+	 * ({@link validateLocalesString} / {@link validateLocalesStrings}), which match a value against a property's
+	 * already-declared cardinality, this checks the declaration itself at shape construction. {@link checkDictionary}
 	 * invokes it under the `{model}` key, folding model legality into its overall declaration check.
 	 *
 	 * @param value The localised model to validate
@@ -81,7 +81,7 @@ export function checkText(constraints: Partial<TextShape>): undefined | Trace {
 	 *
 	 * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
 	 */
-	function checkTextModel(value: unknown): undefined | Trace {
+	function checkDictionaryModel(value: unknown): undefined | Trace {
 
 		if ( isObject(value) ) {
 
@@ -102,7 +102,7 @@ export function checkText(constraints: Partial<TextShape>): undefined | Trace {
 
 		} else {
 
-			return ["expected <text> value"];
+			return ["expected <dictionary> value"];
 
 		}
 
@@ -112,7 +112,7 @@ export function checkText(constraints: Partial<TextShape>): undefined | Trace {
 
 
 /**
- * Reports whether an overriding text shape narrows an inherited base shape.
+ * Reports whether an overriding dictionary shape narrows an inherited base shape.
  *
  * Tests the override relation without building the merged shape: returns `undefined` when `target` only tightens
  * `source` (lengths not widened, `languageIn` intersection non-empty, merged constraints consistent), or a keyed
@@ -123,9 +123,9 @@ export function checkText(constraints: Partial<TextShape>): undefined | Trace {
  *
  * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function narrowsText(target: TextShape, source: TextShape): undefined | Trace {
+export function narrowsDictionary(target: DictionaryShape, source: DictionaryShape): undefined | Trace {
 
-	return all<TextShape>(
+	return all<DictionaryShape>(
 		test(({ minLength }) => {
 
 			return minLength === undefined || source.minLength === undefined || minLength >= source.minLength || [
@@ -149,7 +149,7 @@ export function narrowsText(target: TextShape, source: TextShape): undefined | T
 				];
 
 		}),
-		() => checkText({ // post-merge constraint consistency
+		() => checkDictionary({ // post-merge constraint consistency
 
 			minLength: target.minLength ?? source.minLength,
 			maxLength: target.maxLength ?? source.maxLength
@@ -160,7 +160,7 @@ export function narrowsText(target: TextShape, source: TextShape): undefined | T
 }
 
 /**
- * Merges an overriding text shape with an inherited base shape.
+ * Merges an overriding dictionary shape with an inherited base shape.
  *
  * Combines constraints from `source` into `target`, enforcing that overrides only narrow inherited definitions.
  *
@@ -171,12 +171,12 @@ export function narrowsText(target: TextShape, source: TextShape): undefined | T
  *
  * @throws {TraceError} On incompatible overrides
  */
-export function mergeText(target: TextShape, source: TextShape): TextShape {
+export function mergeDictionary(target: DictionaryShape, source: DictionaryShape): DictionaryShape {
 
-	const trace = narrowsText(target, source);
+	const trace = narrowsDictionary(target, source);
 
 	if ( trace !== undefined ) {
-		throw new TraceError("incompatible text shape override", trace);
+		throw new TraceError("incompatible dictionary shape override", trace);
 	}
 
 	// conjunctive: languageIn — intersection
@@ -209,20 +209,20 @@ export function mergeText(target: TextShape, source: TextShape): TextShape {
 /**
  * Derives the default localised prototype model.
  *
- * Produces a {@link Locale} placeholder keyed by every {@link TextConstraints.languageIn | languageIn} range mapped to
- * empty content, so retrieval requests all permitted languages; when no language constraint is set the placeholder is
- * the single `*` wildcard standing for any language. The result is a legal placeholder rather than a legal value,
- * since the content is empty and the keys are basic ranges rather than concrete tags.
+ * Produces a {@link Locales} placeholder keyed by every {@link DictionaryConstraints.languageIn | languageIn} range
+ * mapped to empty content, so retrieval requests all permitted languages; when no language constraint is set the
+ * placeholder is the single `*` wildcard standing for any language. The result is a legal placeholder rather than a
+ * legal value, since the content is empty and the keys are basic ranges rather than concrete tags.
  *
- * @param constraints The text constraints whose language constraint selects the placeholder ranges
+ * @param constraints The dictionary constraints whose language constraint selects the placeholder ranges
  *
  * @returns The default localised prototype model
  */
-export function deriveText({
+export function deriveDictionary({
 
 	languageIn
 
-}: TextConstraints): Locale {
+}: DictionaryConstraints): Locales {
 
 	return immutable(Object.fromEntries((languageIn ?? ["*"]).map(range => [range, ""])));
 
@@ -232,11 +232,11 @@ export function deriveText({
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Validates {@link Text | localised state values} against a {@link TextShape}.
+ * Validates {@link Dictionary | localised state values} against a {@link DictionaryShape}.
  *
- * Tries the two {@link Text} arms in turn (the single-string-per-tag form via
- * {@link validateTextString} and the string-array-per-tag form via
- * {@link validateTextStrings}), succeeding if either form passes. When both arms fail,
+ * Tries the two {@link Dictionary} arms in turn (the single-string-per-tag form via
+ * {@link validateDictionaryString} and the string-array-per-tag form via
+ * {@link validateDictionaryStrings}), succeeding if either form passes. When both arms fail,
  * returns whichever sub-trace carries structured per-tag detail (preferring object traces
  * over plain `{kind}` errors), so that downstream consumers see the specific tag-level
  * violations instead of a generic "neither arm matched" message.
@@ -246,14 +246,14 @@ export function deriveText({
  * to one of the per-arm validators.
  *
  * @param values The values to validate
- * @param shape The text shape to validate against
+ * @param shape The dictionary shape to validate against
  *
  * @returns A trace of violations, or `undefined` when either arm accepts the value
  */
-export function validateText(values: readonly unknown[], shape: TextShape): undefined | Trace {
+export function validateDictionary(values: readonly unknown[], shape: DictionaryShape): undefined | Trace {
 
-	const stringTrace = validateTextString(values, shape);
-	const stringsTrace = validateTextStrings(values, shape);
+	const stringTrace = validateDictionaryString(values, shape);
+	const stringsTrace = validateDictionaryStrings(values, shape);
 
 	// either arm accepts; otherwise prefer the structurally richer trace (one carrying a keyed record)
 
@@ -265,26 +265,26 @@ export function validateText(values: readonly unknown[], shape: TextShape): unde
 }
 
 /**
- * Validates a localised {@link Text} value set against a {@link TextShape} under set cardinality bounds.
+ * Validates a localised {@link Dictionary} value set against a {@link DictionaryShape} under set cardinality bounds.
  *
  * Commits to a single per-tag form based on the expected cardinality: the single-string-per-tag arm
- * ({@link validateTextString}) when `maxCount === 1`, the string-array-per-tag arm ({@link validateTextStrings})
- * otherwise. It then enforces the `minCount` / `maxCount` bounds against each language tag's value count. An empty tag
- * map, or one whose every tag holds an empty array, counts as an absent value and satisfies the shape unless
- * `minCount >= 1` requires at least one language tag.
+ * ({@link validateDictionaryString}) when `maxCount === 1`, the string-array-per-tag arm
+ * ({@link validateDictionaryStrings}) otherwise. It then enforces the `minCount` / `maxCount` bounds against each
+ * language tag's value count. An empty tag map, or one whose every tag holds an empty array, counts as an absent
+ * value and satisfies the shape unless `minCount >= 1` requires at least one language tag.
  *
- * Unlike {@link validateText}, which probes both arms where the per-tag form cannot be predicted from cardinality, this
- * entry point is cardinality-aware and commits to a single arm.
+ * Unlike {@link validateDictionary}, which probes both arms where the per-tag form cannot be predicted from
+ * cardinality, this entry point is cardinality-aware and commits to a single arm.
  *
  * @param value The value to validate, with `undefined` and empty-array absence already normalised away
  * @param bounds The set-level cardinality bounds
  * @param bounds.minCount Minimum number of values required per language tag
  * @param bounds.maxCount Maximum number of values admitted per language tag
- * @param shape The text shape carrying per-tag length and language constraints
+ * @param shape The dictionary shape carrying per-tag length and language constraints
  *
  * @returns A keyed trace of violations, or `undefined` when the value matches
  */
-export function validateTextSet(value: unknown, {
+export function validateDictionarySet(value: unknown, {
 
 	minCount,
 	maxCount
@@ -294,7 +294,7 @@ export function validateTextSet(value: unknown, {
 	readonly minCount?: number
 	readonly maxCount?: number
 
-}, shape: TextShape): undefined | Trace {
+}, shape: DictionaryShape): undefined | Trace {
 
 	const present = isObject(value) && (
 		Object.keys(value).length === 0
@@ -304,8 +304,8 @@ export function validateTextSet(value: unknown, {
 	const values = present === undefined ? [] : [present];
 
 	const structural = maxCount === 1
-		? validateTextString(values, shape)
-		: validateTextStrings(values, shape);
+		? validateDictionaryString(values, shape)
+		: validateDictionaryStrings(values, shape);
 
 	if ( structural !== undefined ) {
 
@@ -320,7 +320,7 @@ export function validateTextSet(value: unknown, {
 	} else {
 
 		// validator contract: structural arm passed and present !== undefined, so present
-		// is a non-array object (see validateTextString/validateTextStrings)
+		// is a non-array object (see validateDictionaryString/validateDictionaryStrings)
 
 		const entries = present as Record<string, unknown>;
 
@@ -346,31 +346,31 @@ export function validateTextSet(value: unknown, {
 }
 
 /**
- * Validates the single-string-per-tag arm of a {@link Text} state value against a
- * {@link TextShape}.
+ * Validates the single-string-per-tag arm of a {@link Dictionary} state value against a
+ * {@link DictionaryShape}.
  *
  * Expects at most one value, structured as a map with concrete language {@link Tag} keys
  * mapping to single string values. Per-tag array values are rejected: those belong to the
- * string-array arm, validated by {@link validateTextStrings}. The per-tag string
+ * string-array arm, validated by {@link validateDictionaryStrings}. The per-tag string
  * length and language constraints declared on the shape (`minLength`, `maxLength`,
  * `languageIn`) are enforced; tag keys that fail `isTag` are reported as `invalid tag`.
  *
  * @param values The values to validate (zero or one element)
- * @param shape The text shape carrying length and language constraints
+ * @param shape The dictionary shape carrying length and language constraints
  *
  * @returns A keyed trace of per-tag violations, or `undefined` when the value matches the
  *     single-string-per-tag arm
  *
  * @see {@link https://www.rfc-editor.org/rfc/rfc5646.html RFC 5646 - Tags for Identifying Languages}
  */
-export function validateTextString(values: readonly unknown[], {
+export function validateDictionaryString(values: readonly unknown[], {
 
 	minLength,
 	maxLength,
 
 	languageIn
 
-}: TextShape): undefined | Trace {
+}: DictionaryShape): undefined | Trace {
 
 	const [value] = values;
 
@@ -380,11 +380,11 @@ export function validateTextString(values: readonly unknown[], {
 
 	} else if ( values.length > 1 ) {
 
-		return ["{kind} expected at most one <text> value"];
+		return ["{kind} expected at most one <dictionary> value"];
 
 	} else if ( !isObject(value) ) {
 
-		return ["{kind} expected <text> value"];
+		return ["{kind} expected <dictionary> value"];
 
 	} else {
 
@@ -403,33 +403,33 @@ export function validateTextString(values: readonly unknown[], {
 }
 
 /**
- * Validates the string-array-per-tag arm of a {@link Text} state value against a
- * {@link TextShape}.
+ * Validates the string-array-per-tag arm of a {@link Dictionary} state value against a
+ * {@link DictionaryShape}.
  *
  * Expects at most one value, structured as a map with concrete language {@link Tag} keys
  * mapping to string arrays. Per-tag scalar string values are rejected: those belong to the
- * single-string arm, validated by {@link validateTextString}. The per-tag string
+ * single-string arm, validated by {@link validateDictionaryString}. The per-tag string
  * length and language constraints declared on the shape (`minLength`, `maxLength`,
  * `languageIn`) are enforced over each element of the array; tag keys that fail `isTag` are
  * reported as `invalid tag`. Empty arrays per tag are accepted as absent (vacuous truth on
  * the length checks) matching the "empty arrays are ignored" rule.
  *
  * @param values The values to validate (zero or one element)
- * @param shape The text shape carrying length and language constraints
+ * @param shape The dictionary shape carrying length and language constraints
  *
  * @returns A keyed trace of per-tag violations, or `undefined` when the value matches the
  *     string-array-per-tag arm
  *
  * @see {@link https://www.rfc-editor.org/rfc/rfc5646.html RFC 5646 - Tags for Identifying Languages}
  */
-export function validateTextStrings(values: readonly unknown[], {
+export function validateDictionaryStrings(values: readonly unknown[], {
 
 	minLength,
 	maxLength,
 
 	languageIn
 
-}: TextShape): undefined | Trace {
+}: DictionaryShape): undefined | Trace {
 
 	const [value] = values;
 
@@ -439,11 +439,11 @@ export function validateTextStrings(values: readonly unknown[], {
 
 	} else if ( values.length > 1 ) {
 
-		return ["{kind} expected at most one <text> value"];
+		return ["{kind} expected at most one <dictionary> value"];
 
 	} else if ( !isObject(value) ) {
 
-		return ["{kind} expected <text> value"];
+		return ["{kind} expected <dictionary> value"];
 
 	} else {
 
@@ -463,16 +463,16 @@ export function validateTextStrings(values: readonly unknown[], {
 
 
 /**
- * Validates a {@link Locale} placeholder against both per-tag arms.
+ * Validates a {@link Locales} placeholder against both per-tag arms.
  *
- * Tries the two {@link Locale} arms in turn (the single-string-per-tag form via
- * {@link validateLocaleString} and the string-array-per-tag form via {@link validateLocaleStrings}),
+ * Tries the two {@link Locales} arms in turn (the single-string-per-tag form via
+ * {@link validateLocalesString} and the string-array-per-tag form via {@link validateLocalesStrings}),
  * succeeding if either form passes. When both arms fail, returns whichever sub-trace carries
  * structured per-tag detail (preferring object traces over plain string errors), so that downstream
  * consumers see the specific tag-level violations instead of a generic "neither arm matched" message.
  *
- * Symmetric to {@link validateText}, the localised-value counterpart: where {@link validateText}
- * probes both arms of an actual localised value against a {@link TextShape}, this probes both arms of a
+ * Symmetric to {@link validateDictionary}, the localised-value counterpart: where {@link validateDictionary}
+ * probes both arms of an actual localised value against a {@link DictionaryShape}, this probes both arms of a
  * localised placeholder, enforcing no length or language constraints since template values are
  * placeholders.
  *
@@ -480,7 +480,7 @@ export function validateTextStrings(values: readonly unknown[], {
  *
  * @returns A trace of violations, or `undefined` when either arm accepts the value
  */
-export function validateLocale(values: readonly unknown[]): undefined | Trace {
+export function validateLocales(values: readonly unknown[]): undefined | Trace {
 
 	if ( values.length === 0 ) {
 
@@ -488,14 +488,14 @@ export function validateLocale(values: readonly unknown[]): undefined | Trace {
 
 	} else if ( values.length > 1 ) {
 
-		return ["{kind} expected at most one <text> value"];
+		return ["{kind} expected at most one <dictionary> value"];
 
 	} else {
 
 		const [value] = values;
 
-		const stringTrace = validateLocaleString(value);
-		const stringsTrace = validateLocaleStrings(value);
+		const stringTrace = validateLocalesString(value);
+		const stringsTrace = validateLocalesStrings(value);
 
 		// either arm accepts; otherwise prefer the structurally richer trace (one carrying a keyed record)
 
@@ -509,13 +509,13 @@ export function validateLocale(values: readonly unknown[]): undefined | Trace {
 }
 
 /**
- * Validates the single-string-per-tag arm of a {@link Locale} placeholder.
+ * Validates the single-string-per-tag arm of a {@link Locales} placeholder.
  *
  * Accepts either a tag-range-keyed map of single string values — the single-string arm of a
- * localised property's {@link Locale} {@link Placeholders} — or a bare string, the coalesced scalar
+ * localised property's {@link Locales} {@link Placeholders} — or a bare string, the coalesced scalar
  * placeholder a single-string-per-tag localised property reduces to under language negotiation.
  * Per-tag array values are rejected: those belong to the string-array arm, validated by
- * {@link validateLocaleStrings}. Keys must be basic language ranges (a sequence of subtags or the
+ * {@link validateLocalesStrings}. Keys must be basic language ranges (a sequence of subtags or the
  * standalone `*` wildcard); extended ranges such as `en-*` are not accepted, and any key that fails
  * `isTagRange` is reported as `invalid tag range`. A localised property carries no inline
  * {@link Selection}, so an operator-prefixed key is simply an invalid tag range. Template values are
@@ -529,7 +529,7 @@ export function validateLocale(values: readonly unknown[]): undefined | Trace {
  *
  * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
  */
-export function validateLocaleString(value: unknown): undefined | Trace {
+export function validateLocalesString(value: unknown): undefined | Trace {
 
 	if ( isString(value) ) {
 
@@ -547,20 +547,20 @@ export function validateLocaleString(value: unknown): undefined | Trace {
 
 	} else {
 
-		return ["expected <text> value"];
+		return ["expected <dictionary> value"];
 
 	}
 
 }
 
 /**
- * Validates the string-array-per-tag arm of a {@link Locale} placeholder.
+ * Validates the string-array-per-tag arm of a {@link Locales} placeholder.
  *
  * Accepts either a tag-range-keyed map whose per-tag values are uniformly singleton string tuples —
- * the string-array arm of a localised property's {@link Locale} {@link Placeholders} — or a bare
+ * the string-array arm of a localised property's {@link Locales} {@link Placeholders} — or a bare
  * single-element string array, the coalesced array placeholder an array-per-tag localised property
  * reduces to under language negotiation. Per-tag single string values are rejected: those belong to
- * the single-string arm, validated by {@link validateLocaleString}. Keys must be basic language ranges
+ * the single-string arm, validated by {@link validateLocalesString}. Keys must be basic language ranges
  * (a sequence of subtags or the standalone `*` wildcard); extended ranges such as `en-*` are not
  * accepted, and any key that fails `isTagRange` is reported as `invalid tag range`. A localised
  * property carries no inline {@link Selection}, so an operator-prefixed key is simply an invalid tag
@@ -574,7 +574,7 @@ export function validateLocaleString(value: unknown): undefined | Trace {
  *
  * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
  */
-export function validateLocaleStrings(value: unknown): undefined | Trace {
+export function validateLocalesStrings(value: unknown): undefined | Trace {
 
 	if ( isArray(value, [isString]) ) {
 
@@ -592,7 +592,7 @@ export function validateLocaleStrings(value: unknown): undefined | Trace {
 
 	} else {
 
-		return ["expected <text> value"];
+		return ["expected <dictionary> value"];
 
 	}
 

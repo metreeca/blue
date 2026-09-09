@@ -23,7 +23,7 @@
  * **Shape Hierarchy**
  *
  * - {@link Shape} — discriminated union of all value and union shapes
- * - {@link ValuesShape} — value shapes plus localised {@link TextShape} language-tagged maps
+ * - {@link ValuesShape} — value shapes plus localised {@link DictionaryShape} language-tagged maps
  * - {@link ValueShape} — the concrete value shapes:
  *   - {@link BooleanShape} — boolean values
  *   - {@link NumberShape} — numeric values
@@ -87,11 +87,11 @@ import { type Instance, type Probe, type Selection } from "@metreeca/qest/templa
 
 import type { Trace } from "@metreeca/core/trace";
 import type { BooleanShape } from "./boolean.js";
+import type { DictionaryShape } from "./dictionary.js";
 import { type NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
 import type { ResourceShape } from "./resource.js";
 import { type StringShape } from "./string.js";
-import type { TextShape } from "./text.js";
 import type { UnionShape } from "./union.js";
 import { eager, effective, model } from "./value.core.js";
 
@@ -111,14 +111,14 @@ export type Shape =
 /**
  * Discriminated union of all concrete value shapes, including those that always describe a set.
  *
- * Extends {@link ValueShape} with {@link TextShape}, whose language-map semantics inherently describe
+ * Extends {@link ValueShape} with {@link DictionaryShape}, whose language-map semantics inherently describe
  * a set of values regardless of cardinality.
  *
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.3.1 Node Shapes}
  */
 export type ValuesShape =
 	| ValueShape
-	| TextShape;
+	| DictionaryShape;
 
 /**
  * Discriminated union of value shapes that may describe either a scalar or a set.
@@ -197,7 +197,7 @@ export type SetShape<
 	 * Prototype value for runtime model assembly.
 	 *
 	 * Scalar value sets hold the shape model directly; multi-valued sets hold an `[element, Selection?]` tuple.
-	 * {@link TextShape | Text} shapes always hold a single language map because cardinality
+	 * {@link DictionaryShape | Dictionary} shapes always hold a single language map because cardinality
 	 * applies per tag within the map, not to the map itself. The type is unioned with `undefined`
 	 * when `minCount` is `0` or `undefined`, reflecting the optional arm on the template side. See
 	 * {@link Bounds} for the projection rules.
@@ -249,7 +249,7 @@ export type SetShape<
  * bounds. An optional {@link @metreeca/qest!Selection | Selection} parameter is accepted when
  * the shape inherently represents a collection — either because the upper bound is not `1`
  * (multi-valued model held as a singleton tuple) or because the shape is a
- * {@link TextShape | Text} (always a set, regardless of cardinality). The selection is
+ * {@link DictionaryShape | Dictionary} (always a set, regardless of cardinality). The selection is
  * silently merged into the runtime model without surfacing in the {@link SetShape} type.
  *
  * @typeParam L The {@link SetShape.minCount | minCount} bound
@@ -264,7 +264,7 @@ export type SetFactory<
  * Conditional {@link @metreeca/qest!Selection | Selection} parameter type for shape factories.
  *
  * {@link @metreeca/qest!Selection | Selection} for shapes that inherently represent a
- * collection, namely {@link TextShape | text} shapes (always a set, regardless of
+ * collection, namely {@link DictionaryShape | dictionary} shapes (always a set, regardless of
  * cardinality) or multi-valued ranges (`maxCount !== 1`), and `never` for scalar shapes,
  * preventing callers from passing selection where it would have no effect.
  *
@@ -275,7 +275,7 @@ export type SetSelection<
 	S extends Lazy<Shape>,
 	U extends undefined | number = undefined
 > =
-	S extends Lazy<TextShape> ? Selection
+	S extends Lazy<DictionaryShape> ? Selection
 		: U extends 1 ? never
 			: Selection;
 
@@ -285,14 +285,15 @@ export type SetSelection<
  *
  * Carries the cardinality bounds ({@link RangeShape.minCount | minCount} / {@link RangeShape.maxCount | maxCount})
  * accumulated across the traversed steps, and {@link RangeShape.variants | variants}: the value shapes the path can
- * reach, a never-empty disjunction over the text-including {@link ValuesShape} alphabet. The `"range"`
+ * reach, a never-empty disjunction over the dictionary-including {@link ValuesShape} alphabet. The `"range"`
  * {@link RangeShape.kind | kind} distinguishes a resolved range from the atomic {@link Trace} string an
  * {@link effective} result otherwise carries.
  *
  * > [!NOTE]
  * > A path can reach a mix no declared shape expresses: for `creator.name` with `creator: union(Person,
- * > Organization)`, `Person.name: string()`, `Organization.name: text()`, it reaches both string and text, which a
- * > declared property cannot hold (a value-variant union and whole-property text never combine).
+ * > Organization)`, `Person.name: string()`, `Organization.name: dictionary()`, it reaches both string and
+ * > dictionary, which a declared property cannot hold (a value-variant union and whole-property dictionary never
+ * > combine).
  *
  * @see {@link effective}
  */
@@ -369,10 +370,10 @@ export type Resolved<S extends Lazy<Shape | RangeShape>> =
  * Pairs a value or union shape with its cardinality bounds to yield the type that the matching
  * {@link SetShape.model | template slot} carries: the bare model value for scalar ranges
  * (`maxCount === 1`), a singleton tuple for multi-valued ranges, unioned with `undefined`
- * whenever the minimum cardinality permits absence. {@link TextShape | Text} shapes
+ * whenever the minimum cardinality permits absence. {@link DictionaryShape | Dictionary} shapes
  * project to a tag-keyed map — a single-string-per-tag map for scalar cardinality and a
  * string-array-per-tag map for multi-valued cardinality; when the model declares a specific tag set (for example
- * `text({ en: "" })`), the map narrows to that key set so undeclared tags are rejected,
+ * `dictionary({ en: "" })`), the map narrows to that key set so undeclared tags are rejected,
  * falling back to the open {@link TagRange}-indexed map when the model is unconstrained. Reach
  * for `Bounds` when a test or derived type needs to spell out the exact template type of a
  * property; for runtime values, use {@link State}.
@@ -388,7 +389,7 @@ export type Bounds<
 > =
 	S extends Lazy<infer T extends Shape>
 		? (L extends undefined | 0 ? undefined : never) | (
-		T extends TextShape
+		T extends DictionaryShape
 			? { readonly [K in keyof T["model"] & string]: Boxed<string, U> }
 			: Boxed<T["model"], U>
 		)
@@ -419,7 +420,7 @@ export type Boxed<V, U extends undefined | number> =
  * into the runtime model.
  *
  * > [!WARNING]
- * > For {@link TextShape | text} shapes, each tag in the map holds a string array.
+ * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds a string array.
  * > `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags. This differs from
  * > vanilla SHACL aggregate counting, though expressible via per-tag property shapes.
  *
@@ -444,7 +445,7 @@ export function multiple<S extends Lazy<Shape>>(shape: S, selection?: Selection)
  * into the runtime model.
  *
  * > [!WARNING]
- * > For {@link TextShape | text} shapes, each tag in the map holds a non-empty string
+ * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds a non-empty string
  * > array and the map must contain at least one tag. `minCount`/`maxCount` apply **per tag**, not as
  * > an aggregate across all tags. This differs from vanilla SHACL aggregate counting, though
  * > expressible via per-tag property shapes.
@@ -466,11 +467,11 @@ export function repeatable<S extends Lazy<Shape>>(shape: S, selection?: Selectio
  * Creates a {@link SetShape} for at most one value (0..1).
  *
  * Allows zero or one value, resulting in an optional scalar type (`undefined | V`).
- * For {@link TextShape | text} shapes, accepts an optional
+ * For {@link DictionaryShape | dictionary} shapes, accepts an optional
  * {@link @metreeca/qest!Selection | Selection} that is silently merged into the runtime model.
  *
  * > [!WARNING]
- * > For {@link TextShape | text} shapes, each tag in the map holds a single string.
+ * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds a single string.
  * > `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags. This differs from
  * > vanilla SHACL aggregate counting, though expressible via per-tag property shapes.
  *
@@ -478,7 +479,7 @@ export function repeatable<S extends Lazy<Shape>>(shape: S, selection?: Selectio
  *
  * @param shape The {@link Lazy} {@link Shape} to constrain
  * @param selection Optional {@link @metreeca/qest!Selection | Selection} to merge into the model
- *     (accepted only for {@link TextShape | text} shapes)
+ *     (accepted only for {@link DictionaryShape | dictionary} shapes)
  *
  * @returns An immutable {@link SetShape} with no minimum count and maxCount=1
  */
@@ -492,11 +493,11 @@ export function optional<S extends Lazy<Shape>>(shape: S, selection?: SetSelecti
  * Creates a {@link SetShape} for exactly one value (1..1).
  *
  * Requires exactly one value, resulting in a required scalar type (`V`).
- * For {@link TextShape | text} shapes, accepts an optional
+ * For {@link DictionaryShape | dictionary} shapes, accepts an optional
  * {@link @metreeca/qest!Selection | Selection} that is silently merged into the runtime model.
  *
  * > [!WARNING]
- * > For {@link TextShape | text} shapes, each tag in the map holds exactly one string and
+ * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds exactly one string and
  * > the map must contain at least one tag. `minCount`/`maxCount` apply **per tag**, not as an
  * > aggregate across all tags. This differs from vanilla SHACL aggregate counting, though
  * > expressible via per-tag property shapes.
@@ -505,7 +506,7 @@ export function optional<S extends Lazy<Shape>>(shape: S, selection?: SetSelecti
  *
  * @param shape The {@link Lazy} {@link Shape} to constrain
  * @param selection Optional {@link @metreeca/qest!Selection | Selection} to merge into the model
- *     (accepted only for {@link TextShape | text} shapes)
+ *     (accepted only for {@link DictionaryShape | dictionary} shapes)
  *
  * @returns An immutable {@link SetShape} with minCount=1 and maxCount=1
  */
@@ -522,9 +523,9 @@ export function required<S extends Lazy<Shape>>(shape: S, selection?: SetSelecti
  * bounds. The returned factory accepts an optional
  * {@link @metreeca/qest!Selection | Selection} when the shape inherently represents a
  * collection — either because the upper bound is not `1` or because the shape is a
- * {@link TextShape | Text}. For a multi-valued shape the selection is paired with the
+ * {@link DictionaryShape | Dictionary}. For a multi-valued shape the selection is paired with the
  * element model as the second slot of a two-element `[element, Selection]` tuple, the collection
- * form of the {@link @metreeca/qest!Query | Query} grammar; a {@link TextShape | Text}
+ * form of the {@link @metreeca/qest!Query | Query} grammar; a {@link DictionaryShape | Dictionary}
  * model merges the selection into its language map.
  *
  * @typeParam L The minimum count constraint type
@@ -569,7 +570,7 @@ export function cardinality<
 
 		const resolved = eager(shape);
 
-		const model = resolved.kind === "text"
+		const model = resolved.kind === "dictionary"
 			? {
 				...Object.fromEntries(Object.entries(resolved.model).map(([key, value]) =>
 					[key, upper === 1 ? value : [value]]

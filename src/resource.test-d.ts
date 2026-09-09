@@ -49,7 +49,7 @@ import {
 	type
 } from "./resource.js";
 import type { StringShape } from "./string.js";
-import { text } from "./text.js";
+import { dictionary } from "./dictionary.js";
 import { union } from "./union.js";
 import { multiple, optional, repeatable, required, type SetShape } from "./value.js";
 
@@ -317,10 +317,10 @@ describe("nested model inference", () => {
 
 		});
 
-		test("nested resource with localised field preserves Locale projection", () => {
+		test("nested resource with localised field preserves Locales projection", () => {
 
 			const Inner = resource({
-				label: required(text())
+				label: required(dictionary())
 			});
 
 			expectTypeOf(resource({

@@ -15,45 +15,45 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { string } from "./string.js";
 import {
-	checkText,
-	deriveText,
-	mergeText,
-	narrowsText,
-	validateLocale,
-	validateLocaleString,
-	validateLocaleStrings,
-	validateText,
-	validateTextString,
-	validateTextStrings
-} from "./text.core.js";
-import { text } from "./text.js";
+	checkDictionary,
+	deriveDictionary,
+	mergeDictionary,
+	narrowsDictionary,
+	validateDictionary,
+	validateDictionaryString,
+	validateDictionaryStrings,
+	validateLocales,
+	validateLocalesString,
+	validateLocalesStrings
+} from "./dictionary.core.js";
+import { dictionary } from "./dictionary.js";
+import { string } from "./string.js";
 
 
 describe("factories", () => {
 
-	describe("text", () => {
+	describe("dictionary", () => {
 
 		describe("shape", () => {
 
-			it("returns a shape with kind 'text'", async () => {
+			it("returns a shape with kind 'dictionary'", async () => {
 
-				expect(text().kind).toBe("text");
-				expect(text({ "*": "example" }).kind).toBe("text");
-				expect(text({ minLength: 1 }).kind).toBe("text");
+				expect(dictionary().kind).toBe("dictionary");
+				expect(dictionary({ "*": "example" }).kind).toBe("dictionary");
+				expect(dictionary({ minLength: 1 }).kind).toBe("dictionary");
 
 			});
 
 			it.each<[string, () => Record<string, unknown>, Record<string, unknown>]>([
-				["no arguments", () => text().model, { "*": "" }],
-				["empty constraints", () => text({}).model, { "*": "" }],
-				["a scalar model argument", () => text({ "*": "example" }).model, { "*": "example" }],
-				["a multi-tag model argument", () => text({ en: "hello", fr: "bonjour" }).model, {
+				["no arguments", () => dictionary().model, { "*": "" }],
+				["empty constraints", () => dictionary({}).model, { "*": "" }],
+				["a scalar model argument", () => dictionary({ "*": "example" }).model, { "*": "example" }],
+				["a multi-tag model argument", () => dictionary({ en: "hello", fr: "bonjour" }).model, {
 					en: "hello",
 					fr: "bonjour"
 				}],
-				["a languageIn constraint", () => text({ languageIn: ["en", "it"] }).model, { en: "", it: "" }]
+				["a languageIn constraint", () => dictionary({ languageIn: ["en", "it"] }).model, { en: "", it: "" }]
 			])("resolves model from %s", async (_label, model, expected) => {
 
 				expect(model()).toEqual(expected);
@@ -62,7 +62,7 @@ describe("factories", () => {
 
 			it("returns an immutable shape", async () => {
 
-				const shape = text();
+				const shape = dictionary();
 
 				expect(() => (shape as any).kind = "string").toThrow();
 				expect(() => (shape as any).model = { "*": "test" }).toThrow();
@@ -74,19 +74,19 @@ describe("factories", () => {
 		describe("model validation", () => {
 
 			it("rejects the banned @none key", async () => {
-				expect(() => text({ "@none": "x" })).toThrow();
+				expect(() => dictionary({ "@none": "x" })).toThrow();
 			});
 
 			it("rejects an invalid tag-range key", async () => {
-				expect(() => text({ "123": "y" })).toThrow();
+				expect(() => dictionary({ "123": "y" })).toThrow();
 			});
 
 			it("rejects a model mixing scalar and array values", async () => {
-				expect(() => text({ en: "x", fr: ["y"] } as any)).toThrow();
+				expect(() => dictionary({ en: "x", fr: ["y"] } as any)).toThrow();
 			});
 
 			it("accepts und and zxx tags", async () => {
-				expect(text({ und: "", zxx: "" }).model).toEqual({ und: "", zxx: "" });
+				expect(dictionary({ und: "", zxx: "" }).model).toEqual({ und: "", zxx: "" });
 			});
 
 		});
@@ -95,7 +95,7 @@ describe("factories", () => {
 
 	describe.each([
 
-		["text", text]
+		["dictionary", dictionary]
 
 	] as const)("%s constraints", (_name, factory) => {
 
@@ -165,41 +165,41 @@ function at(trace: unknown, ...path: readonly string[]): unknown {
 
 describe("operators", () => {
 
-	describe("checkText", () => {
+	describe("checkDictionary", () => {
 
 		it("returns undefined for consistent constraints", async () => {
 
-			expect(checkText({ minLength: 1, maxLength: 10 })).toBeUndefined();
+			expect(checkDictionary({ minLength: 1, maxLength: 10 })).toBeUndefined();
 
 		});
 
 		it("returns undefined when minLength equals maxLength", async () => {
 
-			expect(checkText({ minLength: 5, maxLength: 5 })).toBeUndefined();
+			expect(checkDictionary({ minLength: 5, maxLength: 5 })).toBeUndefined();
 
 		});
 
 		it("returns undefined when only minLength is provided", async () => {
 
-			expect(checkText({ minLength: 5 })).toBeUndefined();
+			expect(checkDictionary({ minLength: 5 })).toBeUndefined();
 
 		});
 
 		it("returns undefined when only maxLength is provided", async () => {
 
-			expect(checkText({ maxLength: 5 })).toBeUndefined();
+			expect(checkDictionary({ maxLength: 5 })).toBeUndefined();
 
 		});
 
 		it("returns undefined when no constraints are provided", async () => {
 
-			expect(checkText({})).toBeUndefined();
+			expect(checkDictionary({})).toBeUndefined();
 
 		});
 
 		it("returns trace when minLength > maxLength", async () => {
 
-			const trace = checkText({ minLength: 10, maxLength: 5 });
+			const trace = checkDictionary({ minLength: 10, maxLength: 5 });
 
 			expect(trace).toContainEqual(expect.stringContaining("{minLength/maxLength}"));
 
@@ -209,38 +209,38 @@ describe("operators", () => {
 
 			it("rejects plain string (no bare-string shorthand)", async () => {
 
-				expect(at(checkText({ model: "hello" } as any), "{model}")).toBeDefined();
-				expect(at(checkText({ model: "" } as any), "{model}")).toBeDefined();
+				expect(at(checkDictionary({ model: "hello" } as any), "{model}")).toBeDefined();
+				expect(at(checkDictionary({ model: "" } as any), "{model}")).toBeDefined();
 
 			});
 
 			it("rejects singleton string array (no bare-array shorthand)", async () => {
 
-				expect(at(checkText({ model: ["hello"] } as any), "{model}")).toBeDefined();
+				expect(at(checkDictionary({ model: ["hello"] } as any), "{model}")).toBeDefined();
 
 			});
 
 			it("rejects multi-element string array", async () => {
 
-				expect(at(checkText({ model: ["hello", "world"] } as any), "{model}")).toBeDefined();
+				expect(at(checkDictionary({ model: ["hello", "world"] } as any), "{model}")).toBeDefined();
 
 			});
 
 			it("accepts object with string values", async () => {
 
-				expect(checkText({ model: { "en": "hello" } } as any)).toBeUndefined();
+				expect(checkDictionary({ model: { "en": "hello" } } as any)).toBeUndefined();
 
 			});
 
 			it("accepts object with singleton string array values", async () => {
 
-				expect(checkText({ model: { "en": ["hello"] } } as any)).toBeUndefined();
+				expect(checkDictionary({ model: { "en": ["hello"] } } as any)).toBeUndefined();
 
 			});
 
 			it("rejects object with multi-element string array values", async () => {
 
-				const trace = checkText({ model: { "en": ["hello", "world"] } } as any);
+				const trace = checkDictionary({ model: { "en": ["hello", "world"] } } as any);
 
 				expect(at(trace, "{model}", "en")).toBeDefined();
 
@@ -248,34 +248,34 @@ describe("operators", () => {
 
 			it("accepts object with valid tag range keys", async () => {
 
-				expect(checkText({ model: { "*": ["hello"] } } as any)).toBeUndefined();
-				expect(checkText({ model: { "en-US": ["hello"] } } as any)).toBeUndefined();
+				expect(checkDictionary({ model: { "*": ["hello"] } } as any)).toBeUndefined();
+				expect(checkDictionary({ model: { "en-US": ["hello"] } } as any)).toBeUndefined();
 
 			});
 
 			it("accepts empty object", async () => {
 
-				expect(checkText({ model: {} } as any)).toBeUndefined();
+				expect(checkDictionary({ model: {} } as any)).toBeUndefined();
 
 			});
 
 			it("rejects non-string non-array non-object value", async () => {
 
-				expect(at(checkText({ model: 42 } as any), "{model}")).toBeDefined();
-				expect(at(checkText({ model: true } as any), "{model}")).toBeDefined();
-				expect(at(checkText({ model: null } as any), "{model}")).toBeDefined();
+				expect(at(checkDictionary({ model: 42 } as any), "{model}")).toBeDefined();
+				expect(at(checkDictionary({ model: true } as any), "{model}")).toBeDefined();
+				expect(at(checkDictionary({ model: null } as any), "{model}")).toBeDefined();
 
 			});
 
 			it("reports invalid tag range keys", async () => {
 
-				const trace = checkText({ model: { "123": ["hello"] } } as any);
+				const trace = checkDictionary({ model: { "123": ["hello"] } } as any);
 
 				expect(at(trace, "{model}", "123")).toBeDefined();
 
 				// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
 
-				const extended = checkText({ model: { "en-*": ["hello"] } } as any);
+				const extended = checkDictionary({ model: { "en-*": ["hello"] } } as any);
 
 				expect(at(extended, "{model}", "en-*")).toBeDefined();
 
@@ -283,7 +283,7 @@ describe("operators", () => {
 
 			it("reports non-string non-array values", async () => {
 
-				const trace = checkText({ model: { en: 42 } } as any);
+				const trace = checkDictionary({ model: { en: 42 } } as any);
 
 				expect(at(trace, "{model}", "en")).toBeDefined();
 
@@ -291,7 +291,7 @@ describe("operators", () => {
 
 			it("reports only invalid entries in mixed object", async () => {
 
-				const trace = checkText({ model: { en: ["hello"], "123": ["bad"], fr: 42 } } as any);
+				const trace = checkDictionary({ model: { en: ["hello"], "123": ["bad"], fr: 42 } } as any);
 
 				expect(at(trace, "{model}", "123")).toBeDefined();
 				expect(at(trace, "{model}", "fr")).toBeDefined();
@@ -301,22 +301,22 @@ describe("operators", () => {
 
 			it("rejects mixed scalar and singleton-array values across tag-range keys", async () => {
 
-				// qest's Locale type defines `{ TagRange: string }` and `{ TagRange: [string] }` as
+				// qest's Locales type defines `{ TagRange: string }` and `{ TagRange: [string] }` as
 				// distinct arms; a single map with both shapes satisfies neither
 
-				expect(at(checkText({ model: { en: "hello", fr: ["bonjour"] } } as any), "{model}")).toBeDefined();
+				expect(at(checkDictionary({ model: { en: "hello", fr: ["bonjour"] } } as any), "{model}")).toBeDefined();
 
 			});
 
 			describe("selection operator keys rejected", () => {
 
-				// localised entries carry no inline Selection — Locale is its own Placeholders
-				// arm, not a Locale & Selection branch — so an operator-prefixed key is just an
+				// localised entries carry no inline Selection — Locales is its own Placeholders
+				// arm, not a Locales & Selection branch — so an operator-prefixed key is just an
 				// invalid tag range
 
 				it("reports a selection key alongside tag-range keys as an invalid tag range", async () => {
 
-					const trace = checkText({ model: { en: ["hi"], ">=length:": 5 } } as any);
+					const trace = checkDictionary({ model: { en: ["hi"], ">=length:": 5 } } as any);
 
 					expect(at(trace, "{model}", ">=length:")).toBeDefined();
 					expect(at(trace, "{model}", "en")).toBeUndefined();
@@ -325,7 +325,7 @@ describe("operators", () => {
 
 				it("rejects an object with only selection keys", async () => {
 
-					expect(at(checkText({ model: { ">=length:": 5 } } as any), "{model}")).toBeDefined();
+					expect(at(checkDictionary({ model: { ">=length:": 5 } } as any), "{model}")).toBeDefined();
 
 				});
 
@@ -336,7 +336,7 @@ describe("operators", () => {
 					["pagination limit", { en: ["hi"], "#": 10 }]
 				])("rejects %s selection key", async (_label, value) => {
 
-					expect(at(checkText({ model: value } as any), "{model}")).toBeDefined();
+					expect(at(checkDictionary({ model: value } as any), "{model}")).toBeDefined();
 
 				});
 
@@ -346,42 +346,42 @@ describe("operators", () => {
 
 	});
 
-	describe("narrowsText", () => {
+	describe("narrowsDictionary", () => {
 
 		it("accepts a child that tightens minLength", async () => {
 
-			expect(narrowsText(text({ minLength: 5 }), text())).toBeUndefined();
+			expect(narrowsDictionary(dictionary({ minLength: 5 }), dictionary())).toBeUndefined();
 
 		});
 
 		it("rejects a child that widens minLength", async () => {
 
-			expect(narrowsText(text({ minLength: 1 }), text({ minLength: 5 }))).toBeDefined();
+			expect(narrowsDictionary(dictionary({ minLength: 1 }), dictionary({ minLength: 5 }))).toBeDefined();
 
 		});
 
 		it("rejects a child with a disjoint languageIn", async () => {
 
-			expect(narrowsText(text({ languageIn: ["en"] }), text({ languageIn: ["fr"] }))).toBeDefined();
+			expect(narrowsDictionary(dictionary({ languageIn: ["en"] }), dictionary({ languageIn: ["fr"] }))).toBeDefined();
 
 		});
 
 	});
 
-	describe("mergeText", () => {
+	describe("mergeDictionary", () => {
 
 		describe.each([
 
-			["mergeText (scalar)", mergeText, text, "text", { "*": "" },
+			["mergeDictionary (scalar)", mergeDictionary, dictionary, "dictionary", { "*": "" },
 				{ target: { en: "hello", fr: "bonjour" }, source: { en: "hello", fr: "bonjour" } },
 				{ equal: { en: "hello", fr: "bonjour" } },
 				{ target: { en: "hello" }, source: { fr: "bonjour" }, expected: { en: "hello" } }
 			],
 
-			["mergeText (array)", mergeText, (constraints: any = {}) => ({
-				...text(),
+			["mergeDictionary (array)", mergeDictionary, (constraints: any = {}) => ({
+				...dictionary(),
 				...constraints
-			}), "text", { "*": "" },
+			}), "dictionary", { "*": "" },
 				{
 					target: { model: { en: ["hello"], fr: ["bonjour"] } },
 					source: { model: { en: ["hello"], fr: ["bonjour"] } }
@@ -573,17 +573,17 @@ describe("operators", () => {
 
 	});
 
-	describe("deriveText", () => {
+	describe("deriveDictionary", () => {
 
 		it("derives the wildcard placeholder when no language constraint is set", async () => {
 
-			expect(deriveText({})).toEqual({ "*": "" });
+			expect(deriveDictionary({})).toEqual({ "*": "" });
 
 		});
 
 		it("derives an empty placeholder keyed by every languageIn range", async () => {
 
-			expect(deriveText({ languageIn: ["en", "it"] })).toEqual({ en: "", it: "" });
+			expect(deriveDictionary({ languageIn: ["en", "it"] })).toEqual({ en: "", it: "" });
 
 		});
 
@@ -593,7 +593,7 @@ describe("operators", () => {
 
 describe("validators", () => {
 
-	describe("validateText", () => {
+	describe("validateDictionary", () => {
 
 		it("propagates per-tag detail when both arms reject the value", async () => {
 
@@ -601,7 +601,7 @@ describe("validators", () => {
 			// value is not a string array); the merged trace should preserve the per-tag detail
 			// rather than returning a single top-level kind error
 
-			const trace = validateText([{ en: 42 }], text());
+			const trace = validateDictionary([{ en: 42 }], dictionary());
 
 			expect(trace).toBeDefined();
 			expect(JSON.stringify(trace)).toContain("en");
@@ -612,7 +612,7 @@ describe("validators", () => {
 
 		it("rejects the banned @none tag", async () => {
 
-			const trace = validateText([{ "@none": "x" }], text());
+			const trace = validateDictionary([{ "@none": "x" }], dictionary());
 
 			expect(trace).toBeDefined();
 			expect(JSON.stringify(trace)).toContain("@none");
@@ -620,46 +620,46 @@ describe("validators", () => {
 		});
 
 		it("accepts the und tag", async () => {
-			expect(validateText([{ und: "Acme" }], text())).toBeUndefined();
+			expect(validateDictionary([{ und: "Acme" }], dictionary())).toBeUndefined();
 		});
 
 		it("accepts the zxx tag", async () => {
-			expect(validateText([{ zxx: "H2O" }], text())).toBeUndefined();
+			expect(validateDictionary([{ zxx: "H2O" }], dictionary())).toBeUndefined();
 		});
 
 		it("rejects a map mixing scalar and array values", async () => {
-			expect(validateText([{ en: "x", fr: ["y"] }], text())).toBeDefined();
+			expect(validateDictionary([{ en: "x", fr: ["y"] }], dictionary())).toBeDefined();
 		});
 
 		it("accepts a uniform scalar map", async () => {
-			expect(validateText([{ en: "x", fr: "y" }], text())).toBeUndefined();
+			expect(validateDictionary([{ en: "x", fr: "y" }], dictionary())).toBeUndefined();
 		});
 
 		it("accepts a uniform array map", async () => {
-			expect(validateText([{ en: ["x"], fr: ["y"] }], text())).toBeUndefined();
+			expect(validateDictionary([{ en: ["x"], fr: ["y"] }], dictionary())).toBeUndefined();
 		});
 
 	});
 
-	describe("validateTextString", () => {
+	describe("validateDictionaryString", () => {
 
 		describe("type filtering", () => {
 
 			it("returns undefined for valid local values", async () => {
 
-				expect(validateTextString([{ "en": "hello" }], text())).toBeUndefined();
+				expect(validateDictionaryString([{ "en": "hello" }], dictionary())).toBeUndefined();
 
 			});
 
 			it("rejects plain string (no und shorthand)", async () => {
 
-				expect(validateTextString(["hello"], text())).toContainEqual(expect.stringContaining("{kind}"));
+				expect(validateDictionaryString(["hello"], dictionary())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
 			it("returns undefined for empty values array", async () => {
 
-				expect(validateTextString([], text())).toBeUndefined();
+				expect(validateDictionaryString([], dictionary())).toBeUndefined();
 
 			});
 
@@ -669,13 +669,13 @@ describe("validators", () => {
 				["mixed valid and non-object values", [{ "en": "hello" }, 42]]
 			])("returns a kind trace for %s", async (_label, values) => {
 
-				expect(validateTextString(values, text())).toContainEqual(expect.stringContaining("{kind}"));
+				expect(validateDictionaryString(values, dictionary())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
 			it("rejects multiple object values", async () => {
 
-				expect(validateTextString([{ "en": "hello" }, { "fr": "bonjour" }], text())).toBeDefined();
+				expect(validateDictionaryString([{ "en": "hello" }, { "fr": "bonjour" }], dictionary())).toBeDefined();
 
 			});
 
@@ -685,13 +685,13 @@ describe("validators", () => {
 
 			it("returns undefined for empty object", async () => {
 
-				expect(validateTextString([{}], text())).toBeUndefined();
+				expect(validateDictionaryString([{}], dictionary())).toBeUndefined();
 
 			});
 
 			it("returns trace for object with invalid tag key", async () => {
 
-				const result = validateTextString([{ "123": "hello" }], text());
+				const result = validateDictionaryString([{ "123": "hello" }], dictionary());
 
 				expect(result).toBeDefined();
 				expect(at(result, "123")).toBeDefined();
@@ -700,7 +700,7 @@ describe("validators", () => {
 
 			it("returns trace for object with non-string value", async () => {
 
-				const result = validateTextString([{ en: 42 }], text());
+				const result = validateDictionaryString([{ en: 42 }], dictionary());
 
 				expect(result).toBeDefined();
 				expect(at(result, "en")).toBeDefined();
@@ -709,7 +709,7 @@ describe("validators", () => {
 
 			it("reports only invalid entries in mixed object", async () => {
 
-				const result = validateTextString([{ en: "hello", "123": "bad tag", fr: 42 }], text());
+				const result = validateDictionaryString([{ en: "hello", "123": "bad tag", fr: 42 }], dictionary());
 
 				expect(result).toBeDefined();
 				expect(at(result, "123")).toBeDefined();
@@ -720,7 +720,7 @@ describe("validators", () => {
 
 			it("validates structural issues alongside constraint violations", async () => {
 
-				const result = validateTextString([{ en: "hi", "123": "bad" }], text({ minLength: 5 }));
+				const result = validateDictionaryString([{ en: "hi", "123": "bad" }], dictionary({ minLength: 5 }));
 
 				expect(result).toBeDefined();
 				expect(at(result, "123")).toBeDefined(); // invalid tag
@@ -730,7 +730,7 @@ describe("validators", () => {
 
 			it("does not apply constraints to structurally invalid entries", async () => {
 
-				const result = validateTextString([{ en: 42 }], text({ minLength: 5 }));
+				const result = validateDictionaryString([{ en: 42 }], dictionary({ minLength: 5 }));
 
 				// structural error, not a constraint error
 
@@ -744,16 +744,16 @@ describe("validators", () => {
 
 			it("returns undefined when all strings meet minimum length", async () => {
 
-				expect(validateTextString([{
+				expect(validateDictionaryString([{
 					en: "hello",
 					fr: "bonjour"
-				}], text({ minLength: 3 }))).toBeUndefined();
+				}], dictionary({ minLength: 3 }))).toBeUndefined();
 
 			});
 
 			it("returns trace when any string is below minimum length", async () => {
 
-				const result = validateTextString([{ en: "hi", fr: "bonjour" }], text({ minLength: 5 }));
+				const result = validateDictionaryString([{ en: "hi", fr: "bonjour" }], dictionary({ minLength: 5 }));
 
 				expect(at(result, "en")).toBeDefined();
 				expect(at(result, "fr")).toBeUndefined();
@@ -762,7 +762,7 @@ describe("validators", () => {
 
 			it("returns trace for empty string when minLength > 0", async () => {
 
-				expect(at(validateTextString([{ en: "" }], text({ minLength: 1 })), "en")).toBeDefined();
+				expect(at(validateDictionaryString([{ en: "" }], dictionary({ minLength: 1 })), "en")).toBeDefined();
 
 			});
 
@@ -772,19 +772,19 @@ describe("validators", () => {
 
 			it("returns undefined when all strings are within maximum length", async () => {
 
-				expect(validateTextString([{
+				expect(validateDictionaryString([{
 					en: "hello",
 					fr: "bonjour"
-				}], text({ maxLength: 10 }))).toBeUndefined();
+				}], dictionary({ maxLength: 10 }))).toBeUndefined();
 
 			});
 
 			it("returns trace when any string exceeds maximum length", async () => {
 
-				const result = validateTextString([{
+				const result = validateDictionaryString([{
 					en: "hello",
 					fr: "bonjour"
-				}], text({ maxLength: 5 }));
+				}], dictionary({ maxLength: 5 }));
 
 				expect(at(result, "fr")).toBeDefined();
 
@@ -796,19 +796,19 @@ describe("validators", () => {
 
 			it("returns undefined when all tags match allowed languages", async () => {
 
-				expect(validateTextString([{
+				expect(validateDictionaryString([{
 					en: "hello",
 					fr: "bonjour"
-				}], text({ languageIn: ["en", "fr"] }))).toBeUndefined();
+				}], dictionary({ languageIn: ["en", "fr"] }))).toBeUndefined();
 
 			});
 
 			it("returns trace when tag is not in allowed languages", async () => {
 
-				const result = validateTextString([{
+				const result = validateDictionaryString([{
 					en: "hello",
 					de: "hallo"
-				}], text({ languageIn: ["en", "fr"] }));
+				}], dictionary({ languageIn: ["en", "fr"] }));
 
 				expect(at(result, "de")).toBeDefined();
 				expect(at(result, "en")).toBeUndefined();
@@ -817,16 +817,16 @@ describe("validators", () => {
 
 			it("handles language range matching", async () => {
 
-				const shape = text({ languageIn: ["en"] });
+				const shape = dictionary({ languageIn: ["en"] });
 
-				expect(validateTextString([{ "en-US": "color" }], shape)).toBeUndefined();
-				expect(validateTextString([{ "en-GB": "colour" }], shape)).toBeUndefined();
+				expect(validateDictionaryString([{ "en-US": "color" }], shape)).toBeUndefined();
+				expect(validateDictionaryString([{ "en-GB": "colour" }], shape)).toBeUndefined();
 
 			});
 
 			it("returns trace for base language when only subtag allowed", async () => {
 
-				expect(at(validateTextString([{ en: "hello" }], text({ languageIn: ["en-US"] })), "en")).toBeDefined();
+				expect(at(validateDictionaryString([{ en: "hello" }], dictionary({ languageIn: ["en-US"] })), "en")).toBeDefined();
 
 			});
 
@@ -836,7 +836,7 @@ describe("validators", () => {
 
 			it("returns undefined when all constraints are satisfied", async () => {
 
-				expect(validateTextString([{ en: "hello", fr: "bonjour" }], text({
+				expect(validateDictionaryString([{ en: "hello", fr: "bonjour" }], dictionary({
 					minLength: 2,
 					maxLength: 10,
 					languageIn: ["en", "fr"]
@@ -846,7 +846,7 @@ describe("validators", () => {
 
 			it("returns trace when length constraint fails", async () => {
 
-				const result = validateTextString([{ en: "hello" }], text({
+				const result = validateDictionaryString([{ en: "hello" }], dictionary({
 					minLength: 10,
 					languageIn: ["en"]
 				}));
@@ -857,7 +857,7 @@ describe("validators", () => {
 
 			it("returns trace when language constraint fails", async () => {
 
-				const result = validateTextString([{ fr: "bonjour" }], text({
+				const result = validateDictionaryString([{ fr: "bonjour" }], dictionary({
 					minLength: 2,
 					languageIn: ["en"]
 				}));
@@ -872,13 +872,13 @@ describe("validators", () => {
 
 			it("rejects plain string values (no und shorthand)", async () => {
 
-				expect(validateTextString(["hello"], text())).toContainEqual(expect.stringContaining("{kind}"));
+				expect(validateDictionaryString(["hello"], dictionary())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
 			it("rejects empty plain string values", async () => {
 
-				expect(validateTextString([""], text())).toContainEqual(expect.stringContaining("{kind}"));
+				expect(validateDictionaryString([""], dictionary())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -886,25 +886,25 @@ describe("validators", () => {
 
 	});
 
-	describe("validateTextStrings", () => {
+	describe("validateDictionaryStrings", () => {
 
 		describe("type filtering", () => {
 
 			it("returns undefined for valid locals values", async () => {
 
-				expect(validateTextStrings([{ "en": ["hello"] }], text())).toBeUndefined();
+				expect(validateDictionaryStrings([{ "en": ["hello"] }], dictionary())).toBeUndefined();
 
 			});
 
 			it("rejects plain string array (no und shorthand)", async () => {
 
-				expect(validateTextStrings([["hello"]], text())).toContainEqual(expect.stringContaining("{kind}"));
+				expect(validateDictionaryStrings([["hello"]], dictionary())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
 			it("returns undefined for empty values array", async () => {
 
-				expect(validateTextStrings([], text())).toBeUndefined();
+				expect(validateDictionaryStrings([], dictionary())).toBeUndefined();
 
 			});
 
@@ -914,19 +914,19 @@ describe("validators", () => {
 				["mixed valid and non-object values", [{ "en": ["hello"] }, 42]]
 			])("returns a kind trace for %s", async (_label, values) => {
 
-				expect(validateTextStrings(values, text())).toContainEqual(expect.stringContaining("{kind}"));
+				expect(validateDictionaryStrings(values, dictionary())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
 			it("accepts scalar string value for array-model shape", async () => {
 
-				expect(validateText([{ "en": "hello" }], text())).toBeUndefined();
+				expect(validateDictionary([{ "en": "hello" }], dictionary())).toBeUndefined();
 
 			});
 
 			it("rejects multiple object values", async () => {
 
-				expect(validateTextStrings([{ "en": ["hello"] }, { "fr": ["bonjour"] }], text())).toBeDefined();
+				expect(validateDictionaryStrings([{ "en": ["hello"] }, { "fr": ["bonjour"] }], dictionary())).toBeDefined();
 
 			});
 
@@ -936,13 +936,13 @@ describe("validators", () => {
 
 			it("returns undefined for empty object", async () => {
 
-				expect(validateTextStrings([{}], text())).toBeUndefined();
+				expect(validateDictionaryStrings([{}], dictionary())).toBeUndefined();
 
 			});
 
 			it("returns trace for object with invalid tag key", async () => {
 
-				const result = validateTextStrings([{ "123": ["hello"] }], text());
+				const result = validateDictionaryStrings([{ "123": ["hello"] }], dictionary());
 
 				expect(result).toBeDefined();
 				expect(at(result, "123")).toBeDefined();
@@ -951,7 +951,7 @@ describe("validators", () => {
 
 			it("returns trace for object with non-string non-array value", async () => {
 
-				const result = validateTextStrings([{ en: 42 }], text());
+				const result = validateDictionaryStrings([{ en: 42 }], dictionary());
 
 				expect(result).toBeDefined();
 				expect(at(result, "en")).toBeDefined();
@@ -960,7 +960,7 @@ describe("validators", () => {
 
 			it("reports only invalid entries in mixed object", async () => {
 
-				const result = validateTextStrings([{ en: ["hello"], "123": ["bad tag"], fr: 42 }], text());
+				const result = validateDictionaryStrings([{ en: ["hello"], "123": ["bad tag"], fr: 42 }], dictionary());
 
 				expect(result).toBeDefined();
 				expect(at(result, "123")).toBeDefined();
@@ -971,7 +971,7 @@ describe("validators", () => {
 
 			it("does not apply constraints to structurally invalid entries", async () => {
 
-				const result = validateTextStrings([{ en: 42 }], { ...text(), minLength: 5 } as any);
+				const result = validateDictionaryStrings([{ en: 42 }], { ...dictionary(), minLength: 5 } as any);
 
 				// structural error, not a constraint error
 
@@ -985,17 +985,17 @@ describe("validators", () => {
 
 			it("returns undefined when all strings meet minimum length", async () => {
 
-				expect(validateTextStrings([{
+				expect(validateDictionaryStrings([{
 					en: ["hello", "world"],
 					fr: ["bonjour"]
-				}], { ...text(), minLength: 3 } as any)).toBeUndefined();
+				}], { ...dictionary(), minLength: 3 } as any)).toBeUndefined();
 
 			});
 
 			it("returns trace when any string is below minimum length", async () => {
 
-				const result = validateTextStrings([{ en: ["hello", "hi"] }], {
-					...text(),
+				const result = validateDictionaryStrings([{ en: ["hello", "hi"] }], {
+					...dictionary(),
 					minLength: 5
 				} as any);
 
@@ -1009,17 +1009,17 @@ describe("validators", () => {
 
 			it("returns undefined when all strings are within maximum length", async () => {
 
-				expect(validateTextStrings([{
+				expect(validateDictionaryStrings([{
 					en: ["hello", "hi"],
 					fr: ["bonjour"]
-				}], { ...text(), maxLength: 10 } as any)).toBeUndefined();
+				}], { ...dictionary(), maxLength: 10 } as any)).toBeUndefined();
 
 			});
 
 			it("returns trace when any string exceeds maximum length", async () => {
 
-				const result = validateTextStrings([{ en: ["hello", "greetings"] }], {
-					...text(),
+				const result = validateDictionaryStrings([{ en: ["hello", "greetings"] }], {
+					...dictionary(),
 					maxLength: 5
 				} as any);
 
@@ -1033,19 +1033,19 @@ describe("validators", () => {
 
 			it("returns undefined when all tags match allowed languages", async () => {
 
-				expect(validateTextStrings([{
+				expect(validateDictionaryStrings([{
 					en: ["hello"],
 					fr: ["bonjour"]
-				}], { ...text(), languageIn: ["en", "fr"] } as any)).toBeUndefined();
+				}], { ...dictionary(), languageIn: ["en", "fr"] } as any)).toBeUndefined();
 
 			});
 
 			it("returns trace when tag is not in allowed languages", async () => {
 
-				const result = validateTextStrings([{
+				const result = validateDictionaryStrings([{
 					en: ["hello"],
 					de: ["hallo"]
-				}], { ...text(), languageIn: ["en", "fr"] } as any);
+				}], { ...dictionary(), languageIn: ["en", "fr"] } as any);
 
 				expect(at(result, "de")).toBeDefined();
 				expect(at(result, "en")).toBeUndefined();
@@ -1054,8 +1054,8 @@ describe("validators", () => {
 
 			it("handles language range matching", async () => {
 
-				expect(validateTextStrings([{ "en-US": ["color"] }], {
-					...text(),
+				expect(validateDictionaryStrings([{ "en-US": ["color"] }], {
+					...dictionary(),
 					languageIn: ["en"]
 				} as any)).toBeUndefined();
 
@@ -1067,8 +1067,8 @@ describe("validators", () => {
 
 			it("returns undefined when all constraints are satisfied", async () => {
 
-				expect(validateTextStrings([{ en: ["hello", "world"], fr: ["bonjour"] }], {
-					...text(),
+				expect(validateDictionaryStrings([{ en: ["hello", "world"], fr: ["bonjour"] }], {
+					...dictionary(),
 					minLength: 2,
 					maxLength: 10,
 					languageIn: ["en", "fr"]
@@ -1078,8 +1078,8 @@ describe("validators", () => {
 
 			it("returns trace when any constraint fails", async () => {
 
-				const result = validateTextStrings([{ en: ["hello"] }], {
-					...text(),
+				const result = validateDictionaryStrings([{ en: ["hello"] }], {
+					...dictionary(),
 					minLength: 10,
 					languageIn: ["en"]
 				} as any);
@@ -1094,8 +1094,8 @@ describe("validators", () => {
 
 			it("rejects plain string array values (no und shorthand)", async () => {
 
-				expect(validateTextStrings([["hello", "world"]], {
-					...text(),
+				expect(validateDictionaryStrings([["hello", "world"]], {
+					...dictionary(),
 					minLength: 3
 				} as any)).toContainEqual(expect.stringContaining("{kind}"));
 
@@ -1103,7 +1103,7 @@ describe("validators", () => {
 
 			it("rejects single-element plain string array", async () => {
 
-				expect(validateTextStrings([["hello"]], text())).toContainEqual(expect.stringContaining("{kind}"));
+				expect(validateDictionaryStrings([["hello"]], dictionary())).toContainEqual(expect.stringContaining("{kind}"));
 
 			});
 
@@ -1117,7 +1117,7 @@ describe("validators", () => {
 				["only failing texts", ["ab", "hello", "c"], { minLength: 3 }]
 			])("keys per-element length violations for %s", async (_label, values, constraints) => {
 
-				const result = validateTextStrings([{ en: values }], { ...text(), ...constraints } as any);
+				const result = validateDictionaryStrings([{ en: values }], { ...dictionary(), ...constraints } as any);
 
 				expect(JSON.stringify(at(result, "en"))).toContain("{length}");
 
@@ -1128,46 +1128,46 @@ describe("validators", () => {
 	});
 
 
-	describe("validateLocale", () => {
+	describe("validateLocales", () => {
 
 		it("returns undefined for an empty values array", async () => {
-			expect(validateLocale([])).toBeUndefined();
+			expect(validateLocales([])).toBeUndefined();
 		});
 
 		it("rejects more than one value", async () => {
-			expect(validateLocale(["a", "b"])).toBeDefined();
+			expect(validateLocales(["a", "b"])).toBeDefined();
 		});
 
-		it("reports an arity violation under the kind key, as the text arms do", async () => {
-			expect(validateLocale(["a", "b"])).toEqual(["{kind} expected at most one <text> value"]);
+		it("reports an arity violation under the kind key, as the dictionary arms do", async () => {
+			expect(validateLocales(["a", "b"])).toEqual(["{kind} expected at most one <dictionary> value"]);
 		});
 
 		it("accepts a bare string (coalesced scalar placeholder)", async () => {
-			expect(validateLocale(["hello"])).toBeUndefined();
-			expect(validateLocale([""])).toBeUndefined();
+			expect(validateLocales(["hello"])).toBeUndefined();
+			expect(validateLocales([""])).toBeUndefined();
 		});
 
 		it("accepts a bare singleton string array (coalesced array placeholder)", async () => {
-			expect(validateLocale([["hello"]])).toBeUndefined();
+			expect(validateLocales([["hello"]])).toBeUndefined();
 		});
 
 		it("accepts a single-string-per-tag map", async () => {
-			expect(validateLocale([{ en: "hello" }])).toBeUndefined();
-			expect(validateLocale([{ "*": "hello" }])).toBeUndefined();
+			expect(validateLocales([{ en: "hello" }])).toBeUndefined();
+			expect(validateLocales([{ "*": "hello" }])).toBeUndefined();
 		});
 
 		it("accepts an array-per-tag map", async () => {
-			expect(validateLocale([{ en: ["hello"] }])).toBeUndefined();
+			expect(validateLocales([{ en: ["hello"] }])).toBeUndefined();
 		});
 
-		it("rejects a non-text scalar", async () => {
-			expect(validateLocale([42])).toBeDefined();
-			expect(validateLocale([true])).toBeDefined();
+		it("rejects a non-dictionary scalar", async () => {
+			expect(validateLocales([42])).toBeDefined();
+			expect(validateLocales([true])).toBeDefined();
 		});
 
 		it("propagates per-tag detail when both arms reject the value", async () => {
 
-			const trace = validateLocale([{ en: 42 }]);
+			const trace = validateLocales([{ en: 42 }]);
 
 			expect(trace).toBeDefined();
 			expect(JSON.stringify(trace)).toContain("en");
@@ -1176,7 +1176,7 @@ describe("validators", () => {
 
 		it("reports an invalid tag range", async () => {
 
-			const trace = validateLocale([{ "123": "hello" }]);
+			const trace = validateLocales([{ "123": "hello" }]);
 
 			expect(trace).toBeDefined();
 			expect(JSON.stringify(trace)).toContain("123");
@@ -1185,53 +1185,53 @@ describe("validators", () => {
 
 	});
 
-	describe("validateLocaleString", () => {
+	describe("validateLocalesString", () => {
 
 		it("accepts bare string as coalesced scalar placeholder", async () => {
 
-			expect(validateLocaleString("")).toBeUndefined();
-			expect(validateLocaleString("hello")).toBeUndefined();
+			expect(validateLocalesString("")).toBeUndefined();
+			expect(validateLocalesString("hello")).toBeUndefined();
 
 		});
 
 		it("accepts object with valid tag range keys", async () => {
 
-			expect(validateLocaleString({ "en": "hello" })).toBeUndefined();
-			expect(validateLocaleString({ "*": "hello" })).toBeUndefined();
-			expect(validateLocaleString({ "en-US": "hello" })).toBeUndefined();
+			expect(validateLocalesString({ "en": "hello" })).toBeUndefined();
+			expect(validateLocalesString({ "*": "hello" })).toBeUndefined();
+			expect(validateLocalesString({ "en-US": "hello" })).toBeUndefined();
 
 		});
 
 		it("accepts empty object", async () => {
 
-			expect(validateLocaleString({})).toBeUndefined();
+			expect(validateLocalesString({})).toBeUndefined();
 
 		});
 
 		it("rejects non-string non-object value", async () => {
 
-			expect(validateLocaleString(42)).toBeDefined();
-			expect(validateLocaleString(true)).toBeDefined();
-			expect(validateLocaleString(null)).toBeDefined();
+			expect(validateLocalesString(42)).toBeDefined();
+			expect(validateLocalesString(true)).toBeDefined();
+			expect(validateLocalesString(null)).toBeDefined();
 
 		});
 
 		it("rejects array value", async () => {
 
-			expect(validateLocaleString(["hello"])).toBeDefined();
+			expect(validateLocalesString(["hello"])).toBeDefined();
 
 		});
 
 		it("reports invalid tag range keys", async () => {
 
-			const result = validateLocaleString({ "123": "hello" });
+			const result = validateLocalesString({ "123": "hello" });
 
 			expect(result).toBeDefined();
 			expect(at(result, "123")).toBeDefined();
 
 			// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
 
-			const extended = validateLocaleString({ "en-*": "hello" });
+			const extended = validateLocalesString({ "en-*": "hello" });
 
 			expect(extended).toBeDefined();
 			expect(at(extended, "en-*")).toBeDefined();
@@ -1240,7 +1240,7 @@ describe("validators", () => {
 
 		it("reports non-string values", async () => {
 
-			const result = validateLocaleString({ en: 42 });
+			const result = validateLocalesString({ en: 42 });
 
 			expect(result).toBeDefined();
 			expect(at(result, "en")).toBeDefined();
@@ -1249,7 +1249,7 @@ describe("validators", () => {
 
 		it("reports only invalid entries in mixed object", async () => {
 
-			const result = validateLocaleString({ en: "hello", "123": "bad", fr: 42 });
+			const result = validateLocalesString({ en: "hello", "123": "bad", fr: 42 });
 
 			expect(result).toBeDefined();
 			expect(at(result, "123")).toBeDefined();
@@ -1260,13 +1260,13 @@ describe("validators", () => {
 
 		describe("selection operator keys rejected", () => {
 
-			// localised entries carry no inline Selection — Locale is its own Placeholders
-			// arm, not a Locale & Selection branch — so an operator-prefixed key is just an
+			// localised entries carry no inline Selection — Locales is its own Placeholders
+			// arm, not a Locales & Selection branch — so an operator-prefixed key is just an
 			// invalid tag range
 
 			it("reports a selection key alongside tag-range keys as an invalid tag range", async () => {
 
-				const result = validateLocaleString({ en: "hi", ">=length:": 5 });
+				const result = validateLocalesString({ en: "hi", ">=length:": 5 });
 
 				expect(at(result, ">=length:")).toBeDefined();
 				expect(at(result, "en")).toBeUndefined();
@@ -1275,7 +1275,7 @@ describe("validators", () => {
 
 			it("rejects an object with only selection keys", async () => {
 
-				expect(validateLocaleString({ ">=length:": 5 })).toBeDefined();
+				expect(validateLocalesString({ ">=length:": 5 })).toBeDefined();
 
 			});
 
@@ -1286,7 +1286,7 @@ describe("validators", () => {
 				["pagination limit", { en: "hi", "#": 10 }]
 			])("rejects %s selection key", async (_label, value) => {
 
-				expect(validateLocaleString(value)).toBeDefined();
+				expect(validateLocalesString(value)).toBeDefined();
 
 			});
 
@@ -1294,39 +1294,39 @@ describe("validators", () => {
 
 	});
 
-	describe("validateLocaleStrings", () => {
+	describe("validateLocalesStrings", () => {
 
 		it("rejects plain string (no bare-string shorthand)", async () => {
 
-			expect(validateLocaleStrings("hello")).toBeDefined();
-			expect(validateLocaleStrings("")).toBeDefined();
+			expect(validateLocalesStrings("hello")).toBeDefined();
+			expect(validateLocalesStrings("")).toBeDefined();
 
 		});
 
 		it("accepts bare singleton array as coalesced array placeholder", async () => {
 
-			expect(validateLocaleStrings(["hello"])).toBeUndefined();
-			expect(validateLocaleStrings([""])).toBeUndefined();
+			expect(validateLocalesStrings(["hello"])).toBeUndefined();
+			expect(validateLocalesStrings([""])).toBeUndefined();
 
 		});
 
 		it("rejects bare multi-element array", async () => {
 
-			expect(validateLocaleStrings(["hello", "world"])).toBeDefined();
+			expect(validateLocalesStrings(["hello", "world"])).toBeDefined();
 
 		});
 
 		it("accepts object with singleton-tuple tag values", async () => {
 
-			expect(validateLocaleStrings({ "en": ["hello"] })).toBeUndefined();
-			expect(validateLocaleStrings({ "*": ["hello"] })).toBeUndefined();
-			expect(validateLocaleStrings({ "en-US": ["hello"] })).toBeUndefined();
+			expect(validateLocalesStrings({ "en": ["hello"] })).toBeUndefined();
+			expect(validateLocalesStrings({ "*": ["hello"] })).toBeUndefined();
+			expect(validateLocalesStrings({ "en-US": ["hello"] })).toBeUndefined();
 
 		});
 
 		it("rejects single-string tag values (the single-string arm)", async () => {
 
-			const result = validateLocaleStrings({ "en": "hello" });
+			const result = validateLocalesStrings({ "en": "hello" });
 
 			expect(result).toBeDefined();
 			expect(at(result, "en")).toBeDefined();
@@ -1335,7 +1335,7 @@ describe("validators", () => {
 
 		it("rejects multi-element tuple tag values", async () => {
 
-			const result = validateLocaleStrings({ "en": ["hello", "world"] });
+			const result = validateLocalesStrings({ "en": ["hello", "world"] });
 
 			expect(result).toBeDefined();
 			expect(at(result, "en")).toBeDefined();
@@ -1344,28 +1344,28 @@ describe("validators", () => {
 
 		it("accepts empty object", async () => {
 
-			expect(validateLocaleStrings({})).toBeUndefined();
+			expect(validateLocalesStrings({})).toBeUndefined();
 
 		});
 
 		it("rejects non-object value", async () => {
 
-			expect(validateLocaleStrings(42)).toBeDefined();
-			expect(validateLocaleStrings(true)).toBeDefined();
-			expect(validateLocaleStrings(null)).toBeDefined();
+			expect(validateLocalesStrings(42)).toBeDefined();
+			expect(validateLocalesStrings(true)).toBeDefined();
+			expect(validateLocalesStrings(null)).toBeDefined();
 
 		});
 
 		it("reports invalid tag range keys", async () => {
 
-			const result = validateLocaleStrings({ "123": ["hello"] });
+			const result = validateLocalesStrings({ "123": ["hello"] });
 
 			expect(result).toBeDefined();
 			expect(at(result, "123")).toBeDefined();
 
 			// extended ranges (RFC 4647 § 2.2) are not basic ranges and are rejected
 
-			const extended = validateLocaleStrings({ "en-*": ["hello"] });
+			const extended = validateLocalesStrings({ "en-*": ["hello"] });
 
 			expect(extended).toBeDefined();
 			expect(at(extended, "en-*")).toBeDefined();

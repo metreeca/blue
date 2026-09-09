@@ -77,10 +77,10 @@ export { getShapeVariants, getStateVariant, getBoundVariant, getModelVariants } 
  * variant (`sh:xone`), rejected when it fits several (ambiguous) or none (unsatisfiable); a `model` placeholder
  * (retrieval) need only match at least one variant by kind (`sh:or`), requesting each it fits and rejected only when
  * it fits none. Order is preserved for deterministic error reporting but does not imply priority. Each variant is a
- * {@link ValueShape} (a literal, reference, or resource); localised {@link text!text | text} is a whole-property type
- * and is not a {@link ValueShape}, so a text variant is a compile-time type error. In a retrieval template a
- * union-typed slot is addressed only through the indexed {@link @metreeca/qest!Union | Union} form (`{"0": ..., "1":
- * ...}`); a plain placeholder over it is rejected.
+ * {@link ValueShape} (a literal, reference, or resource); a localised {@link dictionary!dictionary | dictionary} is a
+ * whole-property type and is not a {@link ValueShape}, so a dictionary variant is a compile-time type error. In a
+ * retrieval template a union-typed slot is addressed only through the indexed
+ * {@link @metreeca/qest!Union | Union} form (`{"0": ..., "1": ...}`); a plain placeholder over it is rejected.
  *
  * > [!IMPORTANT]
  * > Variants are expected to be **disjoint**: a well-formed union declares branches that no single legal value can

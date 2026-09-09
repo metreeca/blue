@@ -20,7 +20,7 @@ import { byte, decimal, integer } from "./number.js";
 import { reference } from "./reference.js";
 import { resource } from "./resource.js";
 import { date, email, string, year } from "./string.js";
-import { text } from "./text.js";
+import { dictionary } from "./dictionary.js";
 import { deriveUnion, getBoundVariant, mergeUnion, narrowsUnion } from "./union.core.js";
 import { union } from "./union.js";
 import { required } from "./value.js";
@@ -38,17 +38,17 @@ describe("factories", () => {
 
 		});
 
-		it("rejects a text variant at the type level", async () => {
+		it("rejects a dictionary variant at the type level", async () => {
 
-			// localised text is a whole-property type, never a union variant: a single language map
+			// localised dictionary is a whole-property type, never a union variant: a single language map
 			// cannot mix into the value set alongside the literals, references, and resources of the
-			// other branches. Text is not a ValueShape, so rejection is purely static — no runtime
+			// other branches. Dictionary is not a ValueShape, so rejection is purely static — no runtime
 			// guard re-checks the type constraint
 
-			// @ts-expect-error - text is not a ValueShape and cannot be a union variant
-			union(string(), text());
-			// @ts-expect-error - text is not a ValueShape and cannot be a union variant
-			union(text());
+			// @ts-expect-error - dictionary is not a ValueShape and cannot be a union variant
+			union(string(), dictionary());
+			// @ts-expect-error - dictionary is not a ValueShape and cannot be a union variant
+			union(dictionary());
 
 		});
 

@@ -331,7 +331,7 @@ import { createNamespace, type IRI, isIRI, type Namespace } from "@metreeca/core
 import { immutable } from "@metreeca/core/structures";
 import { type Trace, TraceError, type Validator } from "@metreeca/core/trace";
 import { app } from "@metreeca/qest";
-import type { Reference, Resource, Text } from "@metreeca/qest/resource";
+import type { Dictionary, Reference, Resource } from "@metreeca/qest/resource";
 import type { Template } from "@metreeca/qest/template";
 import { checkSingletons, flatten } from "./resource.core.js";
 import { eager, type Schema, type SetShape, type State } from "./value.js";
@@ -486,7 +486,7 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.1 sh:name}
 	 */
-	readonly name?: Text;
+	readonly name?: Dictionary;
 
 	/**
 	 * Human-readable description of the shape.
@@ -499,7 +499,7 @@ export interface ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.2 sh:description}
 	 */
-	readonly description?: Text;
+	readonly description?: Dictionary;
 
 
 	/**
@@ -859,7 +859,7 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.1 sh:name}
 	 */
-	readonly name?: Text;
+	readonly name?: Dictionary;
 
 	/**
 	 * Human-readable description of the property.
@@ -870,7 +870,7 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 6.1.2 sh:description}
 	 */
-	readonly description?: Text;
+	readonly description?: Dictionary;
 
 
 	/**
@@ -1074,7 +1074,7 @@ export type Inheritance<C> =
  *
  * Subtracting `keyof E` from the inherited side before intersection is required because TypeScript intersection is
  * order-insensitive: without the subtraction the parent's contribution is retained alongside the child's narrowing,
- * leaving residue such as `string & { readonly "0": string; readonly "1": Locale }` on slots narrowed via
+ * leaving residue such as `string & { readonly "0": string; readonly "1": Locales }` on slots narrowed via
  * single-variant {@link union!UnionShape | union} narrowing (Form 1).
  *
  * @typeParam E The local entries record type

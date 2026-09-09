@@ -24,7 +24,7 @@ import { byte, decimal, double, float, int, integer, long, number, short } from 
 import { reference } from "./reference.js";
 import { id, resource, type ResourceShape, type } from "./resource.js";
 import { date, duration, instant, string, time, timestamp, year } from "./string.js";
-import { text } from "./text.js";
+import { dictionary } from "./dictionary.js";
 import { union } from "./union.js";
 import { effective, multiple, optional, type RangeShape, repeatable, required, type ValuesShape } from "./value.js";
 
@@ -90,9 +90,9 @@ describe("apply", () => {
 
 			});
 
-			it("accepts localised text shape", async () => {
+			it("accepts localised dictionary shape", async () => {
 
-				expect(range(transformRange(["count"], text())).variants[0]).toEqual(integer());
+				expect(range(transformRange(["count"], dictionary())).variants[0]).toEqual(integer());
 
 			});
 
@@ -122,9 +122,9 @@ describe("apply", () => {
 
 			});
 
-			it("coalesces single-string-per-tag localised text shape to string", async () => {
+			it("coalesces single-string-per-tag localised dictionary shape to string", async () => {
 
-				expect(range(transformRange(["max"], text())).variants[0]).toEqual(string());
+				expect(range(transformRange(["max"], dictionary())).variants[0]).toEqual(string());
 
 			});
 
@@ -257,9 +257,9 @@ describe("apply", () => {
 		// a non-empty pipe is coalesced access: a single-string-per-tag localised leaf contributes its
 		// coalesced string, an ordinary xsd:string thereafter; out-of-domain transforms still drop it
 
-		it("coalesces single-string-per-tag localised text to string for string transforms", async () => {
+		it("coalesces single-string-per-tag localised dictionary to string for string transforms", async () => {
 
-			const s = text();
+			const s = dictionary();
 
 			expect(range(transformRange(["lower"], s)).variants[0]).toEqual(string());
 			expect(range(transformRange(["upper"], s)).variants[0]).toEqual(string());
@@ -267,9 +267,9 @@ describe("apply", () => {
 
 		});
 
-		it("reports incompatible transform input for out-of-domain transforms on coalesced localised text", async () => {
+		it("reports incompatible transform input for out-of-domain transforms on coalesced dictionary", async () => {
 
-			const s = text();
+			const s = dictionary();
 
 			expect(transformRange(["year"], s)).toEqual("incompatible transform input");    // temporal
 			expect(transformRange(["sum"], s)).toEqual("incompatible transform input");     // numeric total
@@ -277,7 +277,7 @@ describe("apply", () => {
 		});
 
 		it.each([
-			["text", text()]
+			["dictionary", dictionary()]
 		] as const)("accepts count (any value) on %s yielding integer", async (_label, s) => {
 
 			expect(range(transformRange(["count"], s)).variants[0]).toEqual(integer());
@@ -648,7 +648,7 @@ describe("apply", () => {
 				value: required(union(string(), integer()))
 			});
 
-			// "year" requires temporal strings — neither text nor num qualifies
+			// "year" requires temporal strings — neither dictionary nor num qualifies
 
 			expect(effective(s, probe(["value"], ["year"]))).toEqual("incompatible transform input");
 
@@ -902,7 +902,7 @@ describe("apply", () => {
 			["boolean", boolean()],
 			["number", integer()],
 			["string", string()],
-			["text", text()]
+			["dictionary", dictionary()]
 		])("resolves empty path for %s shape", async (_label, s) => {
 
 			const result = effective(s, probe([]));
@@ -1378,7 +1378,7 @@ describe("validation", () => {
 
 			it("accepts local object shorthand on optional property", async () => {
 
-				const shape = resource({ label: optional(text()) });
+				const shape = resource({ label: optional(dictionary()) });
 				const result = validate({ label: { en: "hello" } }, { shape });
 
 				expect(result({ value: v => v })).toEqual({ label: { en: "hello" } });
@@ -1391,7 +1391,7 @@ describe("validation", () => {
 
 			it("accepts tag map with array-valued tag on multi property", async () => {
 
-				const shape = resource({ labels: multiple(text()) });
+				const shape = resource({ labels: multiple(dictionary()) });
 				const result = validate({ labels: { en: ["hello"] } }, { shape });
 
 				expect(result({ value: v => v })).toEqual({ labels: { en: ["hello"] } });
@@ -2433,7 +2433,7 @@ describe("validation", () => {
 
 			it("preserves localised tag map collection", async () => {
 
-				const shape = resource({ labels: multiple(text()) });
+				const shape = resource({ labels: multiple(dictionary()) });
 
 				const result = validate({ labels: { en: ["hello"] } }, { model: true, shape, limit: 50 });
 				expect(result({ value: v => v })).toEqual({ labels: { en: ["hello"] } });

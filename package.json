@@ -30,7 +30,7 @@
     "./boolean": "./dist/boolean.js",
     "./number": "./dist/number.js",
     "./string": "./dist/string.js",
-    "./text": "./dist/text.js",
+    "./dictionary": "./dist/dictionary.js",
     "./reference": "./dist/reference.js",
     "./resource": "./dist/resource.js"
   },

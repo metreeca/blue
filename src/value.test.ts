@@ -23,7 +23,7 @@ import { byte, decimal, double, float, int, integer, long, number, short } from 
 import { reference } from "./reference.js";
 import { id, resource, type ResourceShape, type } from "./resource.js";
 import { date, duration, instant, string, time, timestamp, year } from "./string.js";
-import { text } from "./text.js";
+import { dictionary } from "./dictionary.js";
 import { union, type UnionShape } from "./union.js";
 import {
 	checkValues,
@@ -207,7 +207,7 @@ describe("factories", () => {
 			it("spreads selection into localised dictionary model", async () => {
 
 				const selection: Selection = { "#": 10 };
-				const range = cardinality(2, 5)(text({ en: "", it: "" }), selection);
+				const range = cardinality(2, 5)(dictionary({ en: "", it: "" }), selection);
 
 				expect(range.model).toEqual({
 					en: [""],
@@ -220,7 +220,7 @@ describe("factories", () => {
 			it("spreads selection into scalar localised dictionary model", async () => {
 
 				const selection: Selection = { "#": 10 };
-				const range = cardinality(1, 1)(text({ en: "", it: "" }), selection);
+				const range = cardinality(1, 1)(dictionary({ en: "", it: "" }), selection);
 
 				expect(range.model).toEqual({
 					en: "",
@@ -236,7 +236,7 @@ describe("factories", () => {
 
 			it("wraps default tag map for scalar cardinality", async () => {
 
-				const range = required(text());
+				const range = required(dictionary());
 
 				expect(range.model).toEqual({ "*": "" });
 
@@ -244,7 +244,7 @@ describe("factories", () => {
 
 			it("wraps default tag map for optional cardinality", async () => {
 
-				const range = optional(text());
+				const range = optional(dictionary());
 
 				expect(range.model).toEqual({ "*": "" });
 
@@ -252,7 +252,7 @@ describe("factories", () => {
 
 			it("boxes default tag values into singleton tuples for collection cardinality", async () => {
 
-				const range = multiple(text());
+				const range = multiple(dictionary());
 
 				expect(range.model).toEqual({ "*": [""] });
 
@@ -260,7 +260,7 @@ describe("factories", () => {
 
 			it("boxes default tag values into singleton tuples for repeatable cardinality", async () => {
 
-				const range = repeatable(text());
+				const range = repeatable(dictionary());
 
 				expect(range.model).toEqual({ "*": [""] });
 
@@ -268,7 +268,7 @@ describe("factories", () => {
 
 			it("boxes default tag values into singleton tuples for custom bounds", async () => {
 
-				const range = cardinality(2, 5)(text());
+				const range = cardinality(2, 5)(dictionary());
 
 				expect(range.model).toEqual({ "*": [""] });
 
@@ -277,7 +277,7 @@ describe("factories", () => {
 			it("hosts selection alongside default tag map for collection cardinality", async () => {
 
 				const selection: Selection = { "#": 10 };
-				const range = cardinality(2, 5)(text(), selection);
+				const range = cardinality(2, 5)(dictionary(), selection);
 
 				expect(range.model).toEqual({ "*": [""], ...selection });
 
@@ -286,7 +286,7 @@ describe("factories", () => {
 			it("hosts selection alongside default tag map for scalar cardinality", async () => {
 
 				const selection: Selection = { "#": 10 };
-				const range = cardinality(1, 1)(text(), selection);
+				const range = cardinality(1, 1)(dictionary(), selection);
 
 				expect(range.model).toEqual({ "*": "", ...selection });
 
@@ -377,15 +377,15 @@ describe("utilities", () => {
 
 		});
 
-		it("returns the wildcard placeholder for a constrained text shape", async () => {
+		it("returns the wildcard placeholder for a constrained dictionary shape", async () => {
 
-			expect(model(text({ minLength: 1 }))).toEqual({ "*": "" });
+			expect(model(dictionary({ minLength: 1 }))).toEqual({ "*": "" });
 
 		});
 
-		it("returns a concrete localised model for a text shape", async () => {
+		it("returns a concrete localised model for a dictionary shape", async () => {
 
-			expect(model(text({ und: "Default" }))).toEqual({ und: "Default" });
+			expect(model(dictionary({ und: "Default" }))).toEqual({ und: "Default" });
 
 		});
 
@@ -485,9 +485,9 @@ describe("utilities", () => {
 
 				});
 
-				it("accepts localised text shape", async () => {
+				it("accepts localised dictionary shape", async () => {
 
-					expect(range(transformRange(["count"], text())).variants[0]).toEqual(integer());
+					expect(range(transformRange(["count"], dictionary())).variants[0]).toEqual(integer());
 
 				});
 
@@ -526,9 +526,9 @@ describe("utilities", () => {
 
 				});
 
-				it("coalesces single-string-per-tag localised text shape to string", async () => {
+				it("coalesces single-string-per-tag localised dictionary shape to string", async () => {
 
-					expect(range(transformRange(["max"], text())).variants[0]).toEqual(string());
+					expect(range(transformRange(["max"], dictionary())).variants[0]).toEqual(string());
 
 				});
 
@@ -672,9 +672,9 @@ describe("utilities", () => {
 			// value(s) as an ordinary xsd:string of the leaf's per-tag cardinality (one value for
 			// single-string-per-tag, the winning tag's set for array-per-tag), domain-matched thereafter
 
-			it("coalesces single-string-per-tag localised text to string for string transforms", async () => {
+			it("coalesces single-string-per-tag localised dictionary to string for string transforms", async () => {
 
-				const s = text();
+				const s = dictionary();
 
 				expect(range(transformRange(["lower"], s)).variants[0]).toEqual(string());
 				expect(range(transformRange(["upper"], s)).variants[0]).toEqual(string());
@@ -683,9 +683,9 @@ describe("utilities", () => {
 
 			});
 
-			it("reports incompatible transform input for out-of-domain transforms on coalesced localised text", async () => {
+			it("reports incompatible transform input for out-of-domain transforms on coalesced localised dictionary", async () => {
 
-				const s = text();
+				const s = dictionary();
 
 				expect(transformRange(["year"], s)).toEqual("incompatible transform input");    // temporal
 				expect(transformRange(["abs"], s)).toEqual("incompatible transform input");     // numeric
@@ -694,17 +694,17 @@ describe("utilities", () => {
 			});
 
 			it.each([
-				["text", text()]
+				["dictionary", dictionary()]
 			] as const)("accepts count (any value) on %s yielding integer", async (_label, s) => {
 
 				expect(range(transformRange(["count"], s)).variants[0]).toEqual(integer());
 
 			});
 
-			it("coalesces array-per-tag localised text to a multi-valued string set", async () => {
+			it("coalesces array-per-tag localised dictionary to a multi-valued string set", async () => {
 
 				function arrayPerTagRange(pipe: readonly Transform[]): RangeShape | string {
-					return effective(resource({ _: repeatable(text()) }), probe(["_"], pipe));
+					return effective(resource({ _: repeatable(dictionary()) }), probe(["_"], pipe));
 				}
 
 				// the winning tag's value set is a multi-valued xsd:string: a scalar transform preserves
@@ -727,8 +727,8 @@ describe("utilities", () => {
 			// key resolves multi-valued and the sort/focus single-valued gates reject it (closes #26)
 
 			const Item = resource({
-				label: required(text()),
-				labels: repeatable(text())
+				label: required(dictionary()),
+				labels: repeatable(dictionary())
 			});
 
 			const Wrapper = resource({ items: multiple(reference(Item)) });
@@ -751,13 +751,13 @@ describe("utilities", () => {
 
 			});
 
-			it("coalesces single-string-per-tag localised text behind a multi-valued prefix", async () => {
+			it("coalesces single-string-per-tag localised dictionary behind a multi-valued prefix", async () => {
 
 				expect(range(effective(Wrapper, probe(["items", "label"], ["lower"]))).variants[0]).toEqual(string());
 
 			});
 
-			it("coalesces array-per-tag localised text behind a multi-valued prefix to a multi-valued string set", async () => {
+			it("coalesces array-per-tag localised dictionary behind a multi-valued prefix to a multi-valued string set", async () => {
 
 				expect(range(effective(Wrapper, probe(["items", "labels"], ["lower"]))).variants[0]).toEqual(string());
 				expect(range(effective(Wrapper, probe(["items", "labels"], ["lower"]))).maxCount).toBeUndefined();
@@ -1115,23 +1115,23 @@ describe("utilities", () => {
 
 			});
 
-			it("resolves path through union to localised leaves preserving text variants", async () => {
+			it("resolves path through union to localised leaves preserving dictionary variants", async () => {
 
 				const s = resource({
 					value: required(union(
-						resource({ label: required(text()) }),
+						resource({ label: required(dictionary()) }),
 						resource({ label: required(integer()) })
 					))
 				});
 
-				// the localised variant contributes a `text` shape to the effective range — a union
-				// range carrying a `text` variant only ever arises here, via traversal, never from a
-				// union shape declared directly (its variants exclude `text`)
+				// the localised variant contributes a `dictionary` shape to the effective range — a union
+				// range carrying a `dictionary` variant only ever arises here, via traversal, never from a
+				// union shape declared directly (its variants exclude `dictionary`)
 
 				const result = probeRange(probe(["value", "label"]), s);
 
 				expect(range(result).variants).toHaveLength(2);
-				expect(range(result).variants.map(variant => variant.kind)).toContain("text");
+				expect(range(result).variants.map(variant => variant.kind)).toContain("dictionary");
 				expect(range(result).variants).toContainEqual(integer());
 
 			});
@@ -1255,7 +1255,7 @@ describe("utilities", () => {
 					value: required(union(string(), integer()))
 				});
 
-				// "year" requires temporal strings — neither text nor num qualifies
+				// "year" requires temporal strings — neither dictionary nor num qualifies
 
 				expect(effective(s, probe(["value"], ["year"]))).toEqual("incompatible transform input");
 
@@ -1858,7 +1858,7 @@ describe("utilities", () => {
 				["boolean", boolean()],
 				["number", integer()],
 				["string", string()],
-				["text", text()]
+				["dictionary", dictionary()]
 			])("resolves empty path for %s shape", async (_label, s) => {
 
 				const result = effective(s, probe([]));
@@ -2085,15 +2085,15 @@ describe("internals", () => {
 
 		});
 
-		it("accepts a child that tightens a text length", async () => {
+		it("accepts a child that tightens a dictionary length", async () => {
 
-			expect(narrowsValue(text({ minLength: 5 }), text())).toBeUndefined();
+			expect(narrowsValue(dictionary({ minLength: 5 }), dictionary())).toBeUndefined();
 
 		});
 
-		it("rejects a text child that widens a length bound", async () => {
+		it("rejects a dictionary child that widens a length bound", async () => {
 
-			expect(narrowsValue(text({ minLength: 1 }), text({ minLength: 5 }))).toBeDefined();
+			expect(narrowsValue(dictionary({ minLength: 1 }), dictionary({ minLength: 5 }))).toBeDefined();
 
 		});
 
@@ -2440,7 +2440,7 @@ describe("internals", () => {
 
 		it("derives a localised model", async () => {
 
-			expect(deriveValue(text())).toEqual({ "*": "" });
+			expect(deriveValue(dictionary())).toEqual({ "*": "" });
 
 		});
 
@@ -2468,7 +2468,7 @@ describe("internals", () => {
 
 		it("derives a per-tag array placeholder for a multi-valued localised set", async () => {
 
-			expect(deriveValues(multiple(text()))).toEqual({ "*": [""] });
+			expect(deriveValues(multiple(dictionary()))).toEqual({ "*": [""] });
 
 		});
 
@@ -2476,7 +2476,7 @@ describe("internals", () => {
 
 			// a multi-valued stored model overridden to scalar cardinality: the form is derived, not read from model
 
-			const set: SetShape = { ...multiple(text()), maxCount: 1 };
+			const set: SetShape = { ...multiple(dictionary()), maxCount: 1 };
 
 			expect(deriveValues(set)).toEqual({ "*": "" });
 
@@ -2484,19 +2484,19 @@ describe("internals", () => {
 
 		it("derives a per-tag array placeholder for every languageIn range", async () => {
 
-			expect(deriveValues(multiple(text({ languageIn: ["en", "it"] })))).toEqual({ en: [""], it: [""] });
+			expect(deriveValues(multiple(dictionary({ languageIn: ["en", "it"] })))).toEqual({ en: [""], it: [""] });
 
 		});
 
 		it("honours a stored localised model for a scalar set", async () => {
 
-			expect(deriveValues(required(text({ en: "" })))).toEqual({ en: "" });
+			expect(deriveValues(required(dictionary({ en: "" })))).toEqual({ en: "" });
 
 		});
 
 		it("honours a stored localised model for a multi-valued set", async () => {
 
-			expect(deriveValues(multiple(text({ en: "" })))).toEqual({ en: [""] });
+			expect(deriveValues(multiple(dictionary({ en: "" })))).toEqual({ en: [""] });
 
 		});
 
@@ -2510,31 +2510,31 @@ describe("validators", () => {
 
 		it("returns undefined for valid local value", async () => {
 
-			expect(validateValue([{ "en": "hello" }], text())).toBeUndefined();
+			expect(validateValue([{ "en": "hello" }], dictionary())).toBeUndefined();
 
 		});
 
 		it("rejects plain string for local shape (no und shorthand)", async () => {
 
-			expect(validateValue(["hello"], text())).toBeDefined();
+			expect(validateValue(["hello"], dictionary())).toBeDefined();
 
 		});
 
 		it("rejects non-localised value for localised shape", async () => {
 
-			expect(validateValue([42], text())).toBeDefined();
+			expect(validateValue([42], dictionary())).toBeDefined();
 
 		});
 
 		it("returns undefined for valid localised array value", async () => {
 
-			expect(validateValue([{ "en": ["hello"] }], text())).toBeUndefined();
+			expect(validateValue([{ "en": ["hello"] }], dictionary())).toBeUndefined();
 
 		});
 
 		it("returns undefined for valid localised scalar value", async () => {
 
-			expect(validateValue([{ "en": "hello" }], text())).toBeUndefined();
+			expect(validateValue([{ "en": "hello" }], dictionary())).toBeUndefined();
 
 		});
 

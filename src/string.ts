@@ -27,7 +27,7 @@
  * | XSD Datatype ¹    | Factory             | Description                        | Format                        |
  * | ----------------- | ------------------- | ---------------------------------- | ----------------------------- |
  * | [string][]        | {@link string}      | Unicode character sequence         |                               |
- * | string            | {@link plain}       | Single-line plain text             |                               |
+ * | string            | {@link text}        | Single-line plain text             |                               |
  * | string            | {@link markdown}    | [Markdown][] formatted text        |                               |
  * | string            | {@link email}       | [RFC 5321][] email address         |                               |
  * | string            | {@link phone}       | [ITU-T E.164][] telephone number   |                               |
@@ -82,7 +82,7 @@
  * ```typescript
  * import { string } from '@metreeca/blue/string';
  *
- * const text = string();                                                  // unconstrained string
+ * const value = string();                                                 // unconstrained string
  * const name = string({ model: "name", minLength: 1, maxLength: 100 });   // length-constrained
  * const code = string({ model: "ABC-1234", pattern: /^[A-Z]{3}-\d{4}$/ });// pattern-constrained
  * const status = string({ in: ["active", "inactive"] });                  // enumeration-constrained
@@ -97,10 +97,10 @@
  *
  * ```typescript
  * import {
- *   plain, markdown, email, iri, url, tag, date, time, instant, timestamp, duration
+ *   text, markdown, email, iri, url, tag, date, time, instant, timestamp, duration
  * } from '@metreeca/blue/string';
  *
- * const label = plain();        // single-line plain text
+ * const label = text();         // single-line plain text
  * const body = markdown();      // Markdown formatted text
  * const contact = email();      // RFC 5321 email address
  * const identifier = iri();     // RFC 3987 IRI reference
@@ -217,10 +217,10 @@ export interface StringShape extends StringConstraints {
  * Constraints for the {@link string} shape factory.
  *
  * Adds the prototype model value, the RDF datatype and the lexical pattern, which only the general-purpose factory
- * accepts, to the {@link StringLengthConstraints length} and {@link TextualConstraints value} constraints shared with
- * the specialised factories.
+ * accepts, to the {@link StringLengthConstraints length} and {@link StringValueConstraints value} constraints shared
+ * with the specialised factories.
  */
-export interface StringConstraints extends StringLengthConstraints, TextualConstraints {
+export interface StringConstraints extends StringLengthConstraints, StringValueConstraints {
 
 	/**
 	 * Explicit prototype value for runtime model assembly.
@@ -269,7 +269,7 @@ export interface StringConstraints extends StringLengthConstraints, TextualConst
  * Length bounds for textual shape factories.
  *
  * Bounds the number of characters admitted by a shape, independently of its lexical format. Accepted on its own by the
- * free-form {@link plain} and {@link markdown} factories, whose content has no fixed length, and included in the full
+ * free-form {@link text} and {@link markdown} factories, whose content has no fixed length, and included in the full
  * {@link StringConstraints} set.
  *
  * @see {@link https://www.w3.org/TR/shacl/#core-components-string SHACL § 4.3 String-based Constraint Components}
@@ -309,7 +309,7 @@ export interface StringLengthConstraints {
  *
  * @see {@link https://www.w3.org/TR/shacl/#core-components-value SHACL § 4.5 Value Constraint Components}
  */
-export interface TextualConstraints {
+export interface StringValueConstraints {
 
 	/**
 	 * Allowed values (closed enumeration).
@@ -371,7 +371,7 @@ export function string<M extends string>(model: M): StringShape & { readonly mod
  * @example
  *
  * ```typescript
- * const text = string();
+ * const value = string();
  * const name = string({ minLength: 1, maxLength: 100 });
  * const code = string({ model: "ABC-1234", pattern: /^[A-Z]{3}-\d{4}$/ });
  * ```
@@ -428,7 +428,7 @@ export function string(constraints: string | StringConstraints = {}): StringShap
  *
  * @throws {TraceError} If `constraints` contains contradictory values
  */
-export function plain(constraints: StringLengthConstraints = {}): StringShape {
+export function text(constraints: StringLengthConstraints = {}): StringShape {
 
 	return string({
 		model: "txt",
@@ -447,7 +447,7 @@ export function plain(constraints: StringLengthConstraints = {}): StringShape {
  * Accepts any string within the requested length bounds. Whitespace carries meaning throughout Markdown, from
  * indentation and blank lines to the trailing spaces that encode a hard break, so no lexical constraint is imposed and
  * authored content survives ingestion verbatim. Use it for descriptions, abstracts and other long-form values whose
- * formatting is meaningful; reach for {@link plain} when the content must stay a single unformatted line.
+ * formatting is meaningful; reach for {@link text} when the content must stay a single unformatted line.
  *
  * @param constraints Optional {@link StringLengthConstraints length bounds}
  *
@@ -472,7 +472,7 @@ export function markdown(constraints: StringLengthConstraints = {}): StringShape
  *
  * Defaults the datatype to `xsd:string`.
  *
- * @param constraints Optional {@link TextualConstraints validation constraints}
+ * @param constraints Optional {@link StringValueConstraints validation constraints}
  *
  * @returns An immutable shape for validating email addresses
  *
@@ -480,7 +480,7 @@ export function markdown(constraints: StringLengthConstraints = {}): StringShape
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc5321 RFC 5321 - Simple Mail Transfer Protocol}
  */
-export function email(constraints: TextualConstraints = {}): StringShape {
+export function email(constraints: StringValueConstraints = {}): StringShape {
 
 	return string({
 		model: "user@example.net",
@@ -499,7 +499,7 @@ export function email(constraints: TextualConstraints = {}): StringShape {
  * Accepts numbers in ITU-T E.164 notation: a leading `+`, a non-zero country code digit, and up to 14 further digits,
  * with no spaces or separators (for example, `+15555550123`).
  *
- * @param constraints Optional {@link TextualConstraints validation constraints}
+ * @param constraints Optional {@link StringValueConstraints validation constraints}
  *
  * @returns An immutable shape for validating E.164 telephone numbers
  *
@@ -507,7 +507,7 @@ export function email(constraints: TextualConstraints = {}): StringShape {
  *
  * @see {@link https://www.itu.int/rec/T-REC-E.164 ITU-T E.164 - International public telecommunication numbering plan}
  */
-export function phone(constraints: TextualConstraints = {}): StringShape {
+export function phone(constraints: StringValueConstraints = {}): StringShape {
 
 	return string({
 		model: "+15555550123",
@@ -527,7 +527,7 @@ export function phone(constraints: TextualConstraints = {}): StringShape {
  * constraint controls which subset of the IRI hierarchy is accepted: `hierarchical` (URLs/IRLs with authority),
  * `absolute` (scheme-based URIs/IRIs), `internal` (absolute or root-relative), or `relative` (any valid reference).
  *
- * @param constraints Optional {@link TextualConstraints} validation constraints and IRI {@link Variant | variant}
+ * @param constraints Optional {@link StringValueConstraints} validation constraints and IRI {@link Variant | variant}
  *
  * @returns An immutable shape for validating IRIs
  *
@@ -536,7 +536,7 @@ export function phone(constraints: TextualConstraints = {}): StringShape {
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3987 RFC 3987 - Internationalized Resource Identifiers}
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
  */
-export function iri(constraints: TextualConstraints & {
+export function iri(constraints: StringValueConstraints & {
 
 	readonly  variant?: Variant
 
@@ -576,7 +576,7 @@ export function iri(constraints: TextualConstraints & {
  * Convenience alias for {@link iri} with `variant: "hierarchical"`, accepting only URLs with a scheme and authority
  * component (for example, `https://example.net/path`).
  *
- * @param constraints Optional {@link TextualConstraints} validation constraints
+ * @param constraints Optional {@link StringValueConstraints} validation constraints
  *
  * @returns An immutable shape for validating hierarchical URLs
  *
@@ -585,7 +585,7 @@ export function iri(constraints: TextualConstraints & {
  * @see {@link iri}
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
  */
-export function url(constraints: TextualConstraints = {}): StringShape {
+export function url(constraints: StringValueConstraints = {}): StringShape {
 
 	return iri({ variant: "hierarchical", ...constraints });
 
@@ -601,9 +601,9 @@ export function url(constraints: TextualConstraints = {}): StringShape {
  * subtags are matched case-insensitively, as the standard prescribes, and grandfathered tags are not accepted.
  *
  * Reach for it wherever an entry records the language of a value; language *ranges*, which select values rather than
- * identify a language, are constrained by {@link text!TextConstraints.languageIn | languageIn} instead.
+ * identify a language, are constrained by {@link dictionary!DictionaryConstraints.languageIn | languageIn} instead.
  *
- * @param constraints Optional {@link TextualConstraints validation constraints}
+ * @param constraints Optional {@link StringValueConstraints validation constraints}
  *
  * @returns An immutable shape for validating language tags
  *
@@ -612,7 +612,7 @@ export function url(constraints: TextualConstraints = {}): StringShape {
  * @see {@link https://www.rfc-editor.org/info/bcp47 BCP 47 - Tags for Identifying Languages}
  * @see {@link https://www.rfc-editor.org/rfc/rfc5646.html RFC 5646 - Tags for Identifying Languages}
  */
-export function tag(constraints: TextualConstraints = {}): StringShape {
+export function tag(constraints: StringValueConstraints = {}): StringShape {
 
 	return string({
 		model: "en",
@@ -633,7 +633,7 @@ export function tag(constraints: TextualConstraints = {}): StringShape {
  *
  * Supports optional timezone indicators (Z for UTC or ±hh:mm offset).
  *
- * @param constraints Optional {@link TextualConstraints validation constraints}
+ * @param constraints Optional {@link StringValueConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 year strings
  *
@@ -645,7 +645,7 @@ export function tag(constraints: TextualConstraints = {}): StringShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#gYear XSD 1.0 Part 2: Datatypes § 3.2.11 gYear}
  */
-export function year(constraints: TextualConstraints = {}): StringShape {
+export function year(constraints: StringValueConstraints = {}): StringShape {
 
 	return string({
 		model: "1970",
@@ -661,7 +661,7 @@ export function year(constraints: TextualConstraints = {}): StringShape {
  *
  * Defaults the datatype to `xsd:date`.
  *
- * @param constraints Optional {@link TextualConstraints validation constraints}
+ * @param constraints Optional {@link StringValueConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 date strings
  *
@@ -669,7 +669,7 @@ export function year(constraints: TextualConstraints = {}): StringShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#date XSD 1.0 Part 2: Datatypes § 3.2.9 date}
  */
-export function date(constraints: TextualConstraints = {}): StringShape {
+export function date(constraints: StringValueConstraints = {}): StringShape {
 
 	return string({
 		model: "1970-01-01",
@@ -685,7 +685,7 @@ export function date(constraints: TextualConstraints = {}): StringShape {
  *
  * Defaults the datatype to `xsd:time`.
  *
- * @param constraints Optional {@link TextualConstraints validation constraints}
+ * @param constraints Optional {@link StringValueConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 time strings
  *
@@ -693,7 +693,7 @@ export function date(constraints: TextualConstraints = {}): StringShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#time XSD 1.0 Part 2: Datatypes § 3.2.8 time}
  */
-export function time(constraints: TextualConstraints = {}): StringShape {
+export function time(constraints: StringValueConstraints = {}): StringShape {
 
 	return string({
 		model: "00:00:00",
@@ -709,7 +709,7 @@ export function time(constraints: TextualConstraints = {}): StringShape {
  *
  * Defaults the datatype to `xsd:dateTime`.
  *
- * @param constraints Optional {@link TextualConstraints validation constraints}
+ * @param constraints Optional {@link StringValueConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 datetime strings
  *
@@ -717,7 +717,7 @@ export function time(constraints: TextualConstraints = {}): StringShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
-export function instant(constraints: TextualConstraints = {}): StringShape {
+export function instant(constraints: StringValueConstraints = {}): StringShape {
 
 	return string({
 		model: "1970-01-01T00:00:00",
@@ -736,7 +736,7 @@ export function instant(constraints: TextualConstraints = {}): StringShape {
  *
  * Requires exactly 3 fractional second digits (millisecond precision) and UTC timezone (`Z` only).
  *
- * @param constraints Optional {@link TextualConstraints validation constraints}
+ * @param constraints Optional {@link StringValueConstraints validation constraints}
  *
  * @returns An immutable shape for validating UTC timestamp strings
  *
@@ -744,7 +744,7 @@ export function instant(constraints: TextualConstraints = {}): StringShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
-export function timestamp(constraints: TextualConstraints = {}): StringShape {
+export function timestamp(constraints: StringValueConstraints = {}): StringShape {
 
 	return string({
 		model: "1970-01-01T00:00:00.000Z",
@@ -760,7 +760,7 @@ export function timestamp(constraints: TextualConstraints = {}): StringShape {
  *
  * Defaults the datatype to `xsd:duration`.
  *
- * @param constraints Optional {@link TextualConstraints validation constraints}
+ * @param constraints Optional {@link StringValueConstraints validation constraints}
  *
  * @returns An immutable shape for validating ISO 8601 duration strings
  *
@@ -768,7 +768,7 @@ export function timestamp(constraints: TextualConstraints = {}): StringShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#duration XSD 1.0 Part 2: Datatypes § 3.2.6 duration}
  */
-export function duration(constraints: TextualConstraints = {}): StringShape {
+export function duration(constraints: StringValueConstraints = {}): StringShape {
 
 	return string({
 		model: "PT0S",

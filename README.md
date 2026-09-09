@@ -53,7 +53,7 @@ npm install @metreeca/blue
 > | [@metreeca/blue/boolean]       | Boolean shape and factories                |
 > | [@metreeca/blue/number]        | Numeric shape and factories                |
 > | [@metreeca/blue/string]        | Textual shape and factories                |
-> | [@metreeca/blue/text]          | Localised text shape and factories         |
+> | [@metreeca/blue/dictionary]    | Dictionary shape and factories             |
 > | [@metreeca/blue/reference]     | Reference shape and factories              |
 > | [@metreeca/blue/resource]      | Resource shape and factories               |
 
@@ -67,7 +67,7 @@ npm install @metreeca/blue
 
 [@metreeca/blue/string]: https://metreeca.github.io/blue/modules/string.html
 
-[@metreeca/blue/text]: https://metreeca.github.io/blue/modules/text.html
+[@metreeca/blue/dictionary]: https://metreeca.github.io/blue/modules/dictionary.html
 
 [@metreeca/blue/reference]: https://metreeca.github.io/blue/modules/reference.html
 
@@ -83,7 +83,7 @@ import { multiple, optional, required, union } from "@metreeca/blue/value";
 import { boolean } from "@metreeca/blue/boolean";
 import { number } from "@metreeca/blue/number";
 import { string, url } from "@metreeca/blue/string";
-import { text } from "@metreeca/blue/text";
+import { dictionary } from "@metreeca/blue/dictionary";
 import { reference } from "@metreeca/blue/reference";
 import { id, resource, type } from "@metreeca/blue/resource";
 
@@ -96,8 +96,8 @@ function Thing() {
 
 function Product() {
 	return resource({ extends: Thing }, {
-		name: required(text()),
-		description: optional(text()),
+		name: required(dictionary()),
+		description: optional(dictionary()),
 		price: required(number({ minInclusive: 0 })),
 		inStock: required(boolean()),
 		tags: multiple(string()),
@@ -126,9 +126,9 @@ function Vendor() {
 }
 ```
 
-Shape factories like `string()`, `number()`, `boolean()`, `text()`, and `reference()` define the expected value type and
-optional constraints for each property. Cardinality helpers wrap shape factories to control how many values are expected
-and to determine the inferred TypeScript type:
+Shape factories like `string()`, `number()`, `boolean()`, `dictionary()`, and `reference()` define the expected value
+type and optional constraints for each property. Cardinality helpers wrap shape factories to control how many values
+are expected and to determine the inferred TypeScript type:
 
 | Factory         | Cardinality | TypeScript Type             |
 |-----------------|-------------|-----------------------------|
@@ -150,8 +150,8 @@ when it fits several (ambiguous) or none (unsatisfiable); a retrieval **placehol
 must fit **at least one** variant (`sh:or`), may fit several, and is rejected only when it fits none (see
 [Validating Templates](#validating-templates)). A multi-valued property matches each of its values independently. At
 runtime, values are stored directly with no variant wrapping. Each variant is a literal, reference, or resource shape;
-localised `text()` is a whole-property type and is never a union variant, so `union()` rejects a text shape. Either of
-the following representations is accepted at the same `address` position:
+a localised `dictionary()` is a whole-property type and is never a union variant, so `union()` rejects a dictionary
+shape. Either of the following representations is accepted at the same `address` position:
 
 ```json
 { "address": "12 Harbour Street, Copenhagen" }
@@ -230,8 +230,8 @@ type ProductType = State<typeof Product>;
 // {
 //     id: Reference,
 //     type: Reference,
-//     name: Text,
-//     description?: undefined | Text,
+//     name: Dictionary,
+//     description?: undefined | Dictionary,
 //     price: number,
 //     inStock: boolean,
 //     tags?: undefined | readonly string[],

@@ -26,9 +26,9 @@ import {
 	iri,
 	markdown,
 	phone,
-	plain,
 	string,
 	tag,
+	text,
 	time,
 	timestamp,
 	url,
@@ -175,11 +175,11 @@ describe("factories", () => {
 
 	});
 
-	describe("plain", () => {
+	describe("text", () => {
 
 		it("returns a shape with plain text model", async () => {
 
-			const shape = plain();
+			const shape = text();
 
 			expect(shape.kind).toBe("string");
 			expect(shape.model).toBe("txt");
@@ -188,7 +188,7 @@ describe("factories", () => {
 
 		it("returns a shape with single-line pattern", async () => {
 
-			const shape = plain();
+			const shape = text();
 
 			expect(shape.pattern).toBe("^\\S+(?: \\S+)*$");
 
@@ -199,7 +199,7 @@ describe("factories", () => {
 			["space-separated words", "two words three"]
 		])("accepts %s", async (_label, value) => {
 
-			expect(value).toMatch(new RegExp(plain().pattern ?? ""));
+			expect(value).toMatch(new RegExp(text().pattern ?? ""));
 
 		});
 
@@ -212,13 +212,13 @@ describe("factories", () => {
 			["a tab", "two\twords"]
 		])("rejects %s", async (_label, value) => {
 
-			expect(value).not.toMatch(new RegExp(plain().pattern ?? ""));
+			expect(value).not.toMatch(new RegExp(text().pattern ?? ""));
 
 		});
 
 		it("passes through constraints", async () => {
 
-			const shape = plain({ minLength: 1, maxLength: 100 });
+			const shape = text({ minLength: 1, maxLength: 100 });
 
 			expect(shape.minLength).toBe(1);
 			expect(shape.maxLength).toBe(100);
@@ -227,7 +227,7 @@ describe("factories", () => {
 
 		it("sets the xsd:string datatype", async () => {
 
-			expect(plain().datatype).toBe(xsd.string);
+			expect(text().datatype).toBe(xsd.string);
 
 		});
 

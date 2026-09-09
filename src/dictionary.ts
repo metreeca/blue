@@ -15,7 +15,7 @@
  */
 
 /**
- * Localised text shape and factories.
+ * Dictionary shape and factories.
  *
  * Defines shapes and factories for validating language-tagged string values, mapping
  * [JSON-LD language maps](https://www.w3.org/TR/json-ld11/#language-maps) to
@@ -48,26 +48,26 @@
  *
  * ```typescript
  * import { required, optional, multiple } from '@metreeca/blue/value';
- * import { text } from '@metreeca/blue/text';
+ * import { dictionary } from '@metreeca/blue/dictionary';
  *
- * const label = required(text());                                   // scalar, default model: { "*": "" }
- * const title = required(text({ und: "Untitled" }));                // scalar with default content
- * const name = required(text({ minLength: 1, maxLength: 200 }));    // constrained scalar
- * const description = optional(text({ languageIn: ["en", "it"] })); // language-restricted scalar
- * const keywords = multiple(text({ languageIn: ["en"] }));          // array per tag
+ * const label = required(dictionary());                                   // scalar, default model: { "*": "" }
+ * const title = required(dictionary({ und: "Untitled" }));                // scalar with default content
+ * const name = required(dictionary({ minLength: 1, maxLength: 200 }));    // constrained scalar
+ * const description = optional(dictionary({ languageIn: ["en", "it"] })); // language-restricted scalar
+ * const keywords = multiple(dictionary({ languageIn: ["en"] }));          // array per tag
  * ```
  *
  * **Using in Resource Shapes**
  *
  * ```typescript
  * import { required, optional, multiple } from '@metreeca/blue/value';
- * import { text } from '@metreeca/blue/text';
+ * import { dictionary } from '@metreeca/blue/dictionary';
  * import { resource } from '@metreeca/blue/resource';
  *
  * const Article = resource({
- *   title: required(text({ minLength: 1 })),
- *   abstract: optional(text()),
- *   keywords: multiple(text({ languageIn: ["en", "fr", "de"] }))
+ *   title: required(dictionary({ minLength: 1 })),
+ *   abstract: optional(dictionary()),
+ *   keywords: multiple(dictionary({ languageIn: ["en", "fr", "de"] }))
  * });
  * ```
  *
@@ -80,11 +80,11 @@
 import { isObject } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
 import type { Tag, TagRange } from "@metreeca/core/language";
-import type { Locale } from "@metreeca/qest/template";
+import type { Locales } from "@metreeca/qest/template";
 
 
 import { TraceError } from "@metreeca/core/trace";
-import { checkText, deriveText } from "./text.core.js";
+import { checkDictionary, deriveDictionary } from "./dictionary.core.js";
 
 
 /**
@@ -114,14 +114,14 @@ import { checkText, deriveText } from "./text.core.js";
  * @see {@link https://www.w3.org/TR/shacl/#UniqueLangConstraintComponent SHACL § 4.8.1 sh:uniqueLang}
  * @see {@link https://www.w3.org/TR/shacl/#LanguageInConstraintComponent SHACL § 4.8.2 sh:languageIn}
  */
-export interface TextShape extends TextConstraints {
+export interface DictionaryShape extends DictionaryConstraints {
 
 	/**
 	 * Discriminator identifying this as a language-tagged shape.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 */
-	readonly kind: "text";
+	readonly kind: "dictionary";
 
 	/**
 	 * Prototype value for runtime model assembly.
@@ -133,14 +133,14 @@ export interface TextShape extends TextConstraints {
 	 *
 	 * @defaultValue `{ "*": "" }` (wildcard tag range bound to an empty string)
 	 */
-	readonly model: Locale;
+	readonly model: Locales;
 
 }
 
 /**
- * Constraints for the {@link text} shape factory.
+ * Constraints for the {@link dictionary} shape factory.
  */
-export interface TextConstraints {
+export interface DictionaryConstraints {
 
 	/**
 	 * Minimum string length in characters.
@@ -187,9 +187,9 @@ export interface TextConstraints {
 //// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Creates a language-tagged map shape with a typed model value and no other constraints.
+ * Creates a dictionary shape with a typed model value and no other constraints.
  *
- * @typeParam M The scalar {@link Locale} type of the model
+ * @typeParam M The scalar {@link Locales} type of the model
  *
  * @param model Scalar localised prototype value for runtime model assembly: a tag-keyed map
  *     associating each language tag (or tag range) with its content
@@ -202,62 +202,62 @@ export interface TextConstraints {
  * @example
  *
  * ```typescript
- * const title = text({ en: "Untitled", it: "Senza titolo" } as const);
- * const name = text({ und: "Default" });  // language-neutral content under `und`
+ * const title = dictionary({ en: "Untitled", it: "Senza titolo" } as const);
+ * const name = dictionary({ und: "Default" });  // language-neutral content under `und`
  * ```
  */
-export function text<
+export function dictionary<
 	M extends { readonly [tag: Tag]: string }
->(model: M): Omit<TextShape, "model"> & { readonly model: M };
+>(model: M): Omit<DictionaryShape, "model"> & { readonly model: M };
 
 /**
- * Creates a language-tagged map shape with optional validation constraints.
+ * Creates a dictionary shape with optional validation constraints.
  *
- * @param constraints Optional shape {@link TextConstraints constraints}
+ * @param constraints Optional shape {@link DictionaryConstraints constraints}
  *
- * @returns An immutable shape with `model` typed as `Locale`
+ * @returns An immutable shape with `model` typed as `Locales`
  *
  * @throws {TraceError} If `constraints` contains contradictory values
  *
  * @example
  *
  * ```typescript
- * const label = text();
- * const name = text({ minLength: 1, maxLength: 100 });
- * const restricted = text({ languageIn: ["en", "it"] });
+ * const label = dictionary();
+ * const name = dictionary({ minLength: 1, maxLength: 100 });
+ * const restricted = dictionary({ languageIn: ["en", "it"] });
  * ```
  */
-export function text<const C extends TextConstraints>(constraints?: C): TextShape;
+export function dictionary<const C extends DictionaryConstraints>(constraints?: C): DictionaryShape;
 
 /**
- * Creates a language-tagged map shape.
+ * Creates a dictionary shape.
  */
-export function text(a: Locale | TextConstraints = {}): TextShape {
+export function dictionary(a: Locales | DictionaryConstraints = {}): DictionaryShape {
 
-	function isTextConstraints(value: unknown): value is TextConstraints {
+	function isDictionaryConstraints(value: unknown): value is DictionaryConstraints {
 		return isObject(value, (v, k) =>
 			["minLength", "maxLength", "languageIn"].includes(k)
 		);
 	}
 
-	const withConstraints = isTextConstraints(a);
+	const withConstraints = isDictionaryConstraints(a);
 
-	const model: Locale = withConstraints ? deriveText(a) : a;
+	const model: Locales = withConstraints ? deriveDictionary(a) : a;
 	const constraints = withConstraints ? a : {};
 
-	const shape: TextShape = immutable({
+	const shape: DictionaryShape = immutable({
 
-		kind: "text",
+		kind: "dictionary",
 		model,
 
 		...constraints
 
 	});
 
-	const trace = checkText(shape);
+	const trace = checkDictionary(shape);
 
 	if ( trace !== undefined ) {
-		throw new TraceError("inconsistent text shape constraints", trace);
+		throw new TraceError("inconsistent dictionary shape constraints", trace);
 	}
 
 	return shape;

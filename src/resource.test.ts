@@ -44,7 +44,7 @@ import {
 } from "./resource.core.js";
 import { id, property, type Property, resource, type ResourceShape, type } from "./resource.js";
 import { date, email, string } from "./string.js";
-import { text } from "./text.js";
+import { dictionary } from "./dictionary.js";
 import { union, type UnionShape } from "./union.js";
 import { cardinality, eager, multiple, optional, repeatable, required, type SetShape } from "./value.js";
 
@@ -2207,8 +2207,8 @@ describe("utilities", () => {
 
 			it("reports conflicting localised model without child override", async () => {
 
-				const parentA = resource({ label: required(text({ en: "hello" })) });
-				const parentB = resource({ label: required(text({ fr: "bonjour" })) });
+				const parentA = resource({ label: required(dictionary({ en: "hello" })) });
+				const parentB = resource({ label: required(dictionary({ fr: "bonjour" })) });
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeDefined();
@@ -2217,8 +2217,8 @@ describe("utilities", () => {
 
 			it("returns undefined when parents agree on localised model", async () => {
 
-				const parentA = resource({ label: required(text({ en: "hello" })) });
-				const parentB = resource({ label: required(text({ en: "hello" })) });
+				const parentA = resource({ label: required(dictionary({ en: "hello" })) });
+				const parentB = resource({ label: required(dictionary({ en: "hello" })) });
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
@@ -2227,9 +2227,9 @@ describe("utilities", () => {
 
 			it("returns undefined when child overrides conflicting localised model", async () => {
 
-				const parentA = resource({ label: required(text({ en: "hello" })) });
-				const parentB = resource({ label: required(text({ fr: "bonjour" })) });
-				const child = resource({ label: required(text({ de: "hallo" })) });
+				const parentA = resource({ label: required(dictionary({ en: "hello" })) });
+				const parentB = resource({ label: required(dictionary({ fr: "bonjour" })) });
+				const child = resource({ label: required(dictionary({ de: "hallo" })) });
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
 
@@ -2672,7 +2672,7 @@ describe("utilities", () => {
 
 				it("returns localised scalar unchanged", async () => {
 
-					const shape = resource({ label: optional(text()) });
+					const shape = resource({ label: optional(dictionary()) });
 
 					expect(enforce({ label: "hello" }, shape, { limit }))
 						.toEqual({ label: "hello" });
@@ -2795,7 +2795,7 @@ describe("utilities", () => {
 
 				it("leaves multi-valued localised array unchanged", async () => {
 
-					const shape = resource({ labels: multiple(text()) });
+					const shape = resource({ labels: multiple(dictionary()) });
 
 					expect(enforce({ labels: ["hello"] }, shape, { limit }))
 						.toEqual({ labels: ["hello"] });
@@ -2804,7 +2804,7 @@ describe("utilities", () => {
 
 				it("leaves localised per-tag map collection unchanged", async () => {
 
-					const shape = resource({ labels: multiple(text()) });
+					const shape = resource({ labels: multiple(dictionary()) });
 
 					expect(enforce({ labels: { en: "hi" } }, shape, { limit }))
 						.toEqual({ labels: { en: "hi" } });
@@ -4634,8 +4634,8 @@ describe("validators", () => {
 
 			describe("absence forms", () => {
 
-				// canonical absence forms per qest's Resource / Values / Text contract:
-				// `undefined`, `[]`, `{}` on Resource/Text slots, and language maps whose
+				// canonical absence forms per qest's Resource / Values / Dictionary contract:
+				// `undefined`, `[]`, `{}` on Resource/Dictionary slots, and language maps whose
 				// tag entries are all empty arrays
 
 				const Target = resource({ id: id() });
@@ -4648,7 +4648,7 @@ describe("validators", () => {
 						["optional integer", { age: optional(integer()) }, "age"],
 						["optional boolean", { flag: optional(boolean()) }, "flag"],
 						["optional reference", { parent: optional(reference(Target)) }, "parent"],
-						["optional localised", { label: optional(text()) }, "label"],
+						["optional localised", { label: optional(dictionary()) }, "label"],
 						["multiple string", { aliases: multiple(string()) }, "aliases"]
 					] as const)("accepts undefined on %s", async (_label, props, key) => {
 
@@ -4663,7 +4663,7 @@ describe("validators", () => {
 						["optional integer", { age: optional(integer()) }, "age"],
 						["optional boolean", { flag: optional(boolean()) }, "flag"],
 						["optional reference", { parent: optional(reference(Target)) }, "parent"],
-						["optional localised", { label: optional(text()) }, "label"],
+						["optional localised", { label: optional(dictionary()) }, "label"],
 						["multiple string", { aliases: multiple(string()) }, "aliases"]
 					] as const)("accepts empty array on %s", async (_label, props, key) => {
 
@@ -4688,7 +4688,7 @@ describe("validators", () => {
 
 					it("accepts `{}` on optional localised (empty language map)", async () => {
 
-						const shape = resource({ label: optional(text()) });
+						const shape = resource({ label: optional(dictionary()) });
 
 						expect(validateResource([{ label: {} }], shape)).toBeUndefined();
 
@@ -4716,7 +4716,7 @@ describe("validators", () => {
 
 				describe("empty language maps on localised slots", () => {
 
-					const shape = resource({ label: optional(text()) });
+					const shape = resource({ label: optional(dictionary()) });
 
 
 					it("accepts `{ und: [] }`", async () => {
@@ -4733,7 +4733,7 @@ describe("validators", () => {
 
 					it("does not treat partially-empty language map as absent", async () => {
 
-						const required = resource({ label: repeatable(text()) });
+						const required = resource({ label: repeatable(dictionary()) });
 
 						// `fr` carries a value, so the map is not absent — normal validation runs
 						// and flags `en` against its per-tag minCount
@@ -5014,7 +5014,7 @@ describe("validators", () => {
 				{
 					type: "local",
 					field: "label",
-					range: required(text()),
+					range: required(dictionary()),
 					valid: [{ label: { "en": "Hello" } }],
 					invalid: { label: 42 }
 				},
@@ -5022,7 +5022,7 @@ describe("validators", () => {
 				{
 					type: "text",
 					field: "labels",
-					range: repeatable(text()),
+					range: repeatable(dictionary()),
 					valid: [{ labels: { en: ["Hello"] } }, { labels: { und: ["Hello"] } }],
 					invalid: { labels: 42 }
 				}
@@ -5918,7 +5918,7 @@ describe("validators", () => {
 			it("accepts projected localised field with language-tagged map", async () => {
 
 				const shape = resource({
-					label: required(text())
+					label: required(dictionary())
 				});
 
 				expect(validateResult([{ label: { en: "hello" } }], {
@@ -5936,7 +5936,7 @@ describe("validators", () => {
 
 				it("accepts string response on coalesced localised slot", async () => {
 
-					const shape = resource({ label: required(text()) });
+					const shape = resource({ label: required(dictionary()) });
 
 					expect(validateResult([{ label: "Widget" }], { shape, model: { label: "" } })).toBeUndefined();
 
@@ -5944,7 +5944,7 @@ describe("validators", () => {
 
 				it("rejects tag-map response on coalesced localised slot", async () => {
 
-					const shape = resource({ label: required(text()) });
+					const shape = resource({ label: required(dictionary()) });
 
 					expect(validateResult([{ label: { en: "Widget" } }], {
 						shape,
@@ -5955,7 +5955,7 @@ describe("validators", () => {
 
 				it("rejects coalesced response shorter than shape's minLength", async () => {
 
-					const shape = resource({ label: required(text({ minLength: 3 })) });
+					const shape = resource({ label: required(dictionary({ minLength: 3 })) });
 
 					expect(unflat(validateResult([{ label: "ab" }], { shape, model: { label: "" } }))).toEqual({
 						"[0]": { label: "{minLength} expected string length >= <3>" }
@@ -5965,7 +5965,7 @@ describe("validators", () => {
 
 				it("rejects coalesced response longer than shape's maxLength", async () => {
 
-					const shape = resource({ label: required(text({ maxLength: 3 })) });
+					const shape = resource({ label: required(dictionary({ maxLength: 3 })) });
 
 					expect(validateResult([{ label: "abcd" }], { shape, model: { label: "" } })).toBeDefined();
 
@@ -5973,7 +5973,7 @@ describe("validators", () => {
 
 				it("skips languageIn on coalesced response", async () => {
 
-					const shape = resource({ label: required(text({ languageIn: ["en"] })) });
+					const shape = resource({ label: required(dictionary({ languageIn: ["en"] })) });
 
 					expect(validateResult([{ label: "Widget" }], { shape, model: { label: "" } })).toBeUndefined();
 
@@ -5981,7 +5981,7 @@ describe("validators", () => {
 
 				it("treats absent value as missing on required coalesced slot", async () => {
 
-					const shape = resource({ label: required(text()) });
+					const shape = resource({ label: required(dictionary()) });
 
 					expect(validateResult([{}], { shape, model: { label: "" } })).toBeDefined();
 
@@ -5989,7 +5989,7 @@ describe("validators", () => {
 
 				it("accepts absent value on optional coalesced slot", async () => {
 
-					const shape = resource({ label: optional(text()) });
+					const shape = resource({ label: optional(dictionary()) });
 
 					expect(validateResult([{}], { shape, model: { label: "" } })).toBeUndefined();
 
@@ -6005,7 +6005,7 @@ describe("validators", () => {
 
 				it("accepts string-array response on coalesced array localised slot", async () => {
 
-					const shape = resource({ keywords: repeatable(text()) });
+					const shape = resource({ keywords: repeatable(dictionary()) });
 
 					expect(validateResult([{ keywords: ["alpha", "beta"] }], {
 						shape,
@@ -6016,7 +6016,7 @@ describe("validators", () => {
 
 				it("rejects tag-map response on coalesced array localised slot", async () => {
 
-					const shape = resource({ keywords: repeatable(text()) });
+					const shape = resource({ keywords: repeatable(dictionary()) });
 
 					expect(validateResult([{ keywords: { en: ["alpha"] } }], {
 						shape,
@@ -6027,7 +6027,7 @@ describe("validators", () => {
 
 				it("rejects scalar string response on coalesced array localised slot", async () => {
 
-					const shape = resource({ keywords: repeatable(text()) });
+					const shape = resource({ keywords: repeatable(dictionary()) });
 
 					expect(validateResult([{ keywords: "alpha" }], { shape, model: { keywords: [""] } })).toBeDefined();
 
@@ -6035,7 +6035,7 @@ describe("validators", () => {
 
 				it("rejects coalesced array element shorter than shape's minLength", async () => {
 
-					const shape = resource({ keywords: repeatable(text({ minLength: 3 })) });
+					const shape = resource({ keywords: repeatable(dictionary({ minLength: 3 })) });
 
 					expect(validateResult([{ keywords: ["ab"] }], { shape, model: { keywords: [""] } })).toBeDefined();
 
@@ -6043,7 +6043,7 @@ describe("validators", () => {
 
 				it("skips languageIn on coalesced array response", async () => {
 
-					const shape = resource({ keywords: repeatable(text({ languageIn: ["en"] })) });
+					const shape = resource({ keywords: repeatable(dictionary({ languageIn: ["en"] })) });
 
 					expect(validateResult([{ keywords: ["alpha", "beta"] }], {
 						shape,
@@ -6908,7 +6908,7 @@ describe("validators", () => {
 				// tag-maps to a canonical `und` form and then reject its object elements
 
 				const shape = resource({
-					keywords: multiple(text())
+					keywords: multiple(dictionary())
 				});
 
 				expect(validateResult([{ keywords: [{ en: "foo" }, { en: "bar" }] }], {
@@ -6924,7 +6924,7 @@ describe("validators", () => {
 				// value at runtime, not only to canonical-form responses
 
 				const shape = resource({
-					keywords: multiple(text({ minLength: 3 }))
+					keywords: multiple(dictionary({ minLength: 3 }))
 				});
 
 				expect(validateResult([{ keywords: [{ en: "ab" }] }], {
@@ -6940,7 +6940,7 @@ describe("validators", () => {
 				// value at runtime, not only to canonical-form responses
 
 				const shape = resource({
-					keywords: multiple(text({ maxLength: 3 }))
+					keywords: multiple(dictionary({ maxLength: 3 }))
 				});
 
 				expect(validateResult([{ keywords: [{ en: "abcd" }] }], {
@@ -6956,7 +6956,7 @@ describe("validators", () => {
 				// key at runtime, matching the behaviour of canonical-form validation
 
 				const shape = resource({
-					keywords: multiple(text({ languageIn: ["en"] }))
+					keywords: multiple(dictionary({ languageIn: ["en"] }))
 				});
 
 				expect(validateResult([{ keywords: [{ fr: "foo" }] }], {
@@ -6968,13 +6968,13 @@ describe("validators", () => {
 
 			it("accepts per-element tag-map array for wildcard tag-range projection", async () => {
 
-				// `multiple(text())` auto-generates the wildcard model `{ "*": [""] }`,
+				// `multiple(dictionary())` auto-generates the wildcard model `{ "*": [""] }`,
 				// requesting per-tag map-array form. The validator MUST recognise the wildcard
 				// as a per-element tag-map projection and accept the array-of-tag-maps response
 				// instead of falling back to the canonical und-keyed shape.
 
 				const shape = resource({
-					keywords: multiple(text())
+					keywords: multiple(dictionary())
 				});
 
 				expect(validateResult([{ keywords: [{ en: "foo" }, { en: "bar" }] }], {
@@ -6991,7 +6991,7 @@ describe("validators", () => {
 				// missing-tag checks against the projected tag set.
 
 				const shape = resource({
-					description: optional(text({ en: "" }))
+					description: optional(dictionary({ en: "" }))
 				});
 
 				expect(validateResult([{ description: {} }], {
@@ -7007,7 +7007,7 @@ describe("validators", () => {
 				// equivalent to omission and MUST NOT trigger element-presence checks.
 
 				const shape = resource({
-					keywords: multiple(text({ en: "" }))
+					keywords: multiple(dictionary({ en: "" }))
 				});
 
 				expect(validateResult([{ keywords: [] }], {
@@ -7479,7 +7479,7 @@ describe("validators", () => {
 
 					it("accepts bare string template on scalar localised property (coalesced placeholder)", async () => {
 
-						const shape = resource({ label: required(text()) });
+						const shape = resource({ label: required(dictionary()) });
 
 						expect(validateTemplate([{ label: "hello" }], shape, { depth: 0 })).toBeUndefined();
 
@@ -7487,7 +7487,7 @@ describe("validators", () => {
 
 					it("accepts tag-range map on scalar property", async () => {
 
-						const shape = resource({ label: required(text()) });
+						const shape = resource({ label: required(dictionary()) });
 
 						expect(validateTemplate([{ label: { en: "hello" } }], shape, { depth: 0 })).toBeUndefined();
 
@@ -7497,7 +7497,7 @@ describe("validators", () => {
 
 						// single-string-per-tag pins the structural map to the single-string arm
 
-						const shape = resource({ label: required(text()) });
+						const shape = resource({ label: required(dictionary()) });
 
 						expect(validateTemplate([{ label: { en: ["hello"] } }], shape, { depth: 0 })).toBeDefined();
 
@@ -7512,7 +7512,7 @@ describe("validators", () => {
 						// `[""]` is the array-per-tag coalesced placeholder, the counterpart of the bare
 						// string on a single-string-per-tag slot (qest §5.3)
 
-						const shape = resource({ labels: repeatable(text()) });
+						const shape = resource({ labels: repeatable(dictionary()) });
 
 						expect(validateTemplate([{ labels: ["hello"] }], shape, { depth: 0 })).toBeUndefined();
 
@@ -7520,7 +7520,7 @@ describe("validators", () => {
 
 					it("accepts tag-range map with array values on array property", async () => {
 
-						const shape = resource({ labels: repeatable(text()) });
+						const shape = resource({ labels: repeatable(dictionary()) });
 
 						expect(validateTemplate([{ labels: { en: ["hello"] } }], shape, { depth: 0 })).toBeUndefined();
 
@@ -7530,7 +7530,7 @@ describe("validators", () => {
 
 						// array-per-tag pins the structural map to the singleton-tuple arm
 
-						const shape = resource({ labels: repeatable(text()) });
+						const shape = resource({ labels: repeatable(dictionary()) });
 
 						expect(validateTemplate([{ labels: { en: "hello" } }], shape, { depth: 0 })).toBeDefined();
 
@@ -7538,7 +7538,7 @@ describe("validators", () => {
 
 					it("rejects bare multi-element array template on array property", async () => {
 
-						const shape = resource({ labels: multiple(text()) });
+						const shape = resource({ labels: multiple(dictionary()) });
 
 						expect(validateTemplate([{ labels: ["alpha", "beta"] }], shape, { depth: 0 })).toBeDefined();
 
@@ -7553,7 +7553,7 @@ describe("validators", () => {
 					// Expression, never inside the tag-range map — so an operator-prefixed key is an
 					// invalid tag range
 
-					const shape = resource({ labels: multiple(text()) });
+					const shape = resource({ labels: multiple(dictionary()) });
 
 					it("reports a selection key as an invalid tag range", async () => {
 
@@ -7587,7 +7587,7 @@ describe("validators", () => {
 
 					it("rejects bare string on required local property", async () => {
 
-						const shape = resource({ label: required(text()) });
+						const shape = resource({ label: required(dictionary()) });
 
 						expect(validateResource([{ label: "ToyMaster GmbH" }], shape)).toHaveProperty([0, "0", 0, "label"]);
 
@@ -7595,7 +7595,7 @@ describe("validators", () => {
 
 					it("rejects empty local object on required property", async () => {
 
-						const shape = resource({ label: required(text()) });
+						const shape = resource({ label: required(dictionary()) });
 
 						expect(validateResource([{ label: {} }], shape)).toHaveProperty([0, "0", 0, "label"]);
 
@@ -7603,7 +7603,7 @@ describe("validators", () => {
 
 					it("accepts multi-tag local on required property", async () => {
 
-						const shape = resource({ label: required(text()) });
+						const shape = resource({ label: required(dictionary()) });
 
 						expect(validateResource([{
 							label: {
@@ -7616,7 +7616,7 @@ describe("validators", () => {
 
 					it("rejects array-per-tag local on required property", async () => {
 
-						const shape = resource({ label: required(text()) });
+						const shape = resource({ label: required(dictionary()) });
 
 						expect(validateResource([{
 							label: {
@@ -7632,7 +7632,7 @@ describe("validators", () => {
 
 					it("rejects bare string array on required localised property", async () => {
 
-						const shape = resource({ labels: repeatable(text()) });
+						const shape = resource({ labels: repeatable(dictionary()) });
 
 						expect(validateResource([{ labels: ["hello"] }], shape)).toHaveProperty([0, "0", 0, "labels"]);
 
@@ -7640,7 +7640,7 @@ describe("validators", () => {
 
 					it("rejects empty localised object on required property", async () => {
 
-						const shape = resource({ labels: repeatable(text()) });
+						const shape = resource({ labels: repeatable(dictionary()) });
 
 						expect(validateResource([{ labels: {} }], shape)).toHaveProperty([0, "0", 0, "labels"]);
 
@@ -7648,7 +7648,7 @@ describe("validators", () => {
 
 					it("accepts multi-tag localised on required property", async () => {
 
-						const shape = resource({ labels: repeatable(text()) });
+						const shape = resource({ labels: repeatable(dictionary()) });
 
 						expect(validateResource([{
 							labels: {
@@ -7661,7 +7661,7 @@ describe("validators", () => {
 
 					it("rejects empty-array tag on required property", async () => {
 
-						const shape = resource({ labels: repeatable(text()) });
+						const shape = resource({ labels: repeatable(dictionary()) });
 
 						expect(validateResource([{
 							labels: {
@@ -8150,22 +8150,22 @@ describe("validators", () => {
 
 				describe("localised model rejected", () => {
 
-					// a union property retrieved directly in a resource template never carries a `text`
-					// branch (union shapes exclude `text`), so a `Locale` map model is rejected on every
-					// branch regardless of variant — text-as-Locale only arises in a projection, where a
+					// a union property retrieved directly in a resource template never carries a `dictionary`
+					// branch (union shapes exclude `dictionary`), so a `Locales` map model is rejected on every
+					// branch regardless of variant — dictionary-as-Locales only arises in a projection, where a
 					// binding path traverses into a localised property (see "projection union forms")
 
 					const refOrText = resource({
 						link: required(union(reference(resource({ name: required(string()) })), string()))
 					});
 
-					it("rejects a Locale map on the reference branch", async () => {
+					it("rejects a Locales map on the reference branch", async () => {
 
 						expect(validateTemplate([{ link: { "0": { en: "hi" } } }], refOrText, {})).toBeDefined();
 
 					});
 
-					it("rejects a Locale map on the primitive branch", async () => {
+					it("rejects a Locales map on the primitive branch", async () => {
 
 						expect(validateTemplate([{ value: { "0": { en: "hi" } } }], textOrCount, { depth: 0 })).toBeDefined();
 
@@ -9037,7 +9037,7 @@ describe("validators", () => {
 
 			it("reports malformed selection probe in projection tuple under the offending key", async () => {
 
-				// parity with Locale and [Union & Selection] — malformed probes routed through
+				// parity with Locales and [Union & Selection] — malformed probes routed through
 				// `validateSelectionEntry` must surface under the offending key
 
 				const Target = resource({ name: required(string()) });
@@ -9226,7 +9226,7 @@ describe("validators", () => {
 
 			it.each([
 				["comparison filter", { ">=age": 18 }],
-				["text search filter", { "~name": "alice" }],
+				["dictionary search filter", { "~name": "alice" }],
 				["disjunctive filter", { "?status": "active" }],
 				["conjunctive filter", { "!tags": "urgent" }],
 				["focus ordering", { "+status": ["active"] }],
@@ -9441,7 +9441,7 @@ describe("validators", () => {
 
 				});
 
-				it("accepts text search filter on string property", async () => {
+				it("accepts dictionary search filter on string property", async () => {
 
 					const Target = resource({ name: required(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
@@ -9550,7 +9550,7 @@ describe("validators", () => {
 
 				it("accepts bare sort on single-valued localised property", async () => {
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{}, { "^label": "asc" }] }], Wrapper, {})).toBeUndefined();
@@ -9559,7 +9559,7 @@ describe("validators", () => {
 
 				it("rejects bare sort on multi-valued localised property", async () => {
 
-					const Target = resource({ labels: repeatable(text()) });
+					const Target = resource({ labels: repeatable(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{}, { "^labels": "asc" }] }], Wrapper, {})).toBeDefined();
@@ -9568,7 +9568,7 @@ describe("validators", () => {
 
 				it("accepts scalar-transformed sort on coalesced localised property", async () => {
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					// `lower` is coalesced access: the single-string-per-tag property contributes its
@@ -9580,7 +9580,7 @@ describe("validators", () => {
 
 				it("rejects malformed order on scalar-transformed coalesced localised sort key", async () => {
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					// the coalesced key is a real string sort key, so the order operand is checked
@@ -9592,7 +9592,7 @@ describe("validators", () => {
 
 				it("accepts aggregate sort on coalesced localised property", async () => {
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{}, { "^min:label": "asc" }] }], Wrapper, {})).toBeUndefined();
@@ -9966,7 +9966,7 @@ describe("validators", () => {
 
 					// single-string-per-tag's structural map carries single strings per tag (qest §5.3)
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
@@ -9980,7 +9980,7 @@ describe("validators", () => {
 					// a single-valued localised binding coalesces, so a bare string stands in for its
 					// negotiated value (the Section 5.3 scalar placeholder)
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
@@ -9994,7 +9994,7 @@ describe("validators", () => {
 					// an array-per-tag binding coalesces through the `[""]` coalesced array placeholder, so a
 					// bare string (the single-string-per-tag form) is the wrong shape for its cardinality
 
-					const Target = resource({ keywords: multiple(text()) });
+					const Target = resource({ keywords: multiple(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
@@ -10006,9 +10006,9 @@ describe("validators", () => {
 				it("accepts coalesced array placeholder projection binding on multi-valued localised property", async () => {
 
 					// `[""]` is the array-per-tag coalesced placeholder: a single-element string array fanning
-					// out per value, distinct from the generic collection placeholder a non-text array rejects
+					// out per value, distinct from the generic collection placeholder a non-dictionary array rejects
 
-					const Target = resource({ keywords: multiple(text()) });
+					const Target = resource({ keywords: multiple(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
@@ -10022,7 +10022,7 @@ describe("validators", () => {
 					// `[""]` is the array-per-tag form; over a single-string-per-tag property the bare string
 					// `""` is the matching coalesced placeholder, so the array shape is rejected
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
@@ -10037,7 +10037,7 @@ describe("validators", () => {
 					// cardinality: a single string over an array-per-tag property is a mismatch (the row-level
 					// "one cell, no fan-out" rule is a separate axis from the per-tag value shape)
 
-					const Target = resource({ keywords: multiple(text()) });
+					const Target = resource({ keywords: multiple(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
@@ -10050,7 +10050,7 @@ describe("validators", () => {
 
 					// array-per-tag's structural map carries single-element string arrays per tag (qest §5.3)
 
-					const Target = resource({ keywords: multiple(text()) });
+					const Target = resource({ keywords: multiple(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
@@ -10064,7 +10064,7 @@ describe("validators", () => {
 					// single-string-per-tag's structural map carries single strings per tag, so a
 					// singleton-tuple value is a per-tag cardinality mismatch (qest §5.3)
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
@@ -10073,12 +10073,12 @@ describe("validators", () => {
 
 				});
 
-				it("rejects mixed-shape Locale projection binding", async () => {
+				it("rejects mixed-shape Locales projection binding", async () => {
 
 					// array-per-tag pins every tag value to a singleton tuple (qest §5.3), so the
 					// single-string `en` entry is a per-tag cardinality mismatch
 
-					const Target = resource({ keywords: multiple(text()) });
+					const Target = resource({ keywords: multiple(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
@@ -10237,7 +10237,7 @@ describe("validators", () => {
 
 				it("preserves local model validation", async () => {
 
-					const Wrapper = resource({ label: required(text()) });
+					const Wrapper = resource({ label: required(dictionary()) });
 
 					expect(validateTemplate([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeUndefined();
 
@@ -10245,7 +10245,7 @@ describe("validators", () => {
 
 				it("preserves localised model validation", async () => {
 
-					const Wrapper = resource({ labels: repeatable(text()) });
+					const Wrapper = resource({ labels: repeatable(dictionary()) });
 
 					expect(validateTemplate([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
 
@@ -10255,7 +10255,7 @@ describe("validators", () => {
 
 					// array-per-tag pins the structural map to the singleton-tuple arm
 
-					const Wrapper = resource({ label: multiple(text()) });
+					const Wrapper = resource({ label: multiple(dictionary()) });
 
 					expect(validateTemplate([{ label: { "en": "Hello" } }], Wrapper, { depth: 0 })).toBeDefined();
 
@@ -10263,7 +10263,7 @@ describe("validators", () => {
 
 				it("accepts localised shape in collections", async () => {
 
-					const Wrapper = resource({ labels: multiple(text()) });
+					const Wrapper = resource({ labels: multiple(dictionary()) });
 
 					expect(validateTemplate([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
 
@@ -10779,12 +10779,12 @@ describe("validators", () => {
 				// a transform pipe is coalesced access: a localised property contributes the winning
 				// tag's value(s) as an ordinary xsd:string of its per-tag cardinality, so string-domain
 				// transforms apply under ordinary string semantics; an out-of-domain transform, having no
-				// surviving variant, is reported. After a transform the range is a plain string, not a Locale,
+				// surviving variant, is reported. After a transform the range is a plain string, not a Locales,
 				// so a transform-derived array-per-tag binding takes the ordinary string placeholder
 
 				it("accepts string placeholder for lower transform on coalesced localised property", async () => {
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{ "alias=lower:label": "" }] }], Wrapper, {})).toBeUndefined();
@@ -10793,7 +10793,7 @@ describe("validators", () => {
 
 				it("rejects locale placeholder for lower transform on coalesced localised property", async () => {
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{ "alias=lower:label": { "en": "hello" } }] }], Wrapper, {})).toBeDefined();
@@ -10802,7 +10802,7 @@ describe("validators", () => {
 
 				it("accepts string placeholder for upper transform on coalesced localised property", async () => {
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{ "alias=upper:label": "" }] }], Wrapper, {})).toBeUndefined();
@@ -10811,7 +10811,7 @@ describe("validators", () => {
 
 				it("accepts number placeholder for length transform on coalesced localised property", async () => {
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{ "alias=length:label": 5 }] }], Wrapper, {})).toBeUndefined();
@@ -10820,7 +10820,7 @@ describe("validators", () => {
 
 				it("rejects string placeholder for length transform on coalesced localised property", async () => {
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{ "alias=length:label": "x" }] }], Wrapper, {})).toBeDefined();
@@ -10829,7 +10829,7 @@ describe("validators", () => {
 
 				it("reports incompatible transform input for abs on coalesced localised property (out of domain)", async () => {
 
-					const Target = resource({ label: required(text()) });
+					const Target = resource({ label: required(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(unflat(validateTemplate([{ items: [{ "alias=abs:label": 0 }] }], Wrapper, {}))).toEqual({
@@ -10843,7 +10843,7 @@ describe("validators", () => {
 					// array-per-tag coalesces to a multi-valued string; a transform-derived string range
 					// takes the ordinary bare placeholder, fanning out per value
 
-					const Target = resource({ labels: repeatable(text()) });
+					const Target = resource({ labels: repeatable(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{ "alias=lower:labels": "" }] }], Wrapper, {})).toBeUndefined();
@@ -10852,9 +10852,9 @@ describe("validators", () => {
 
 				it("rejects locale placeholder for lower transform on array-per-tag localised property", async () => {
 
-					// after the transform the range is a plain string, not a Locale, so the tag-map form is rejected
+					// after the transform the range is a plain string, not a Locales, so the tag-map form is rejected
 
-					const Target = resource({ labels: repeatable(text()) });
+					const Target = resource({ labels: repeatable(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{ "alias=lower:labels": { "en": "hello" } }] }], Wrapper, {})).toBeDefined();
@@ -10932,7 +10932,7 @@ describe("validators", () => {
 
 				describe("default form rejected", () => {
 
-					// a projection cell admits only Placeholder | Union | Locale; the default form
+					// a projection cell admits only Placeholder | Union | Locales; the default form
 					// `{ "": Scalar }` is none of these (it is the Query scalar-collection branch)
 
 					it("rejects default form projection regardless of variant match", async () => {
@@ -11019,17 +11019,17 @@ describe("validators", () => {
 				describe("localised variant", () => {
 
 					// a projection binding may traverse a union of references whose branches resolve to a
-					// localised property: `effective` then yields a union range carrying a `text` variant
-					// (the only way a union range carries `text`, since union shapes exclude it directly). A
-					// `Locale` map is admitted on that text branch, mirroring qest's `Union` branch widening
-					// to `Placeholder | Locale` within a `Projection`
+					// localised property: `effective` then yields a union range carrying a `dictionary` variant
+					// (the only way a union range carries `dictionary`, since union shapes exclude it directly). A
+					// `Locales` map is admitted on that dictionary branch, mirroring qest's `Union` branch widening
+					// to `Placeholder | Locales` within a `Projection`
 
-					const Loc = resource({ field: required(text()) });
+					const Loc = resource({ field: required(dictionary()) });
 					const Num = resource({ field: required(integer()) });
 					const Item = resource({ ref: required(union(reference(Loc), reference(Num))) });
 					const Wrapper = resource({ items: multiple(reference(Item)) });
 
-					it("accepts Locale branch over a text-resolving union variant", async () => {
+					it("accepts Locales branch over a dictionary-resolving union variant", async () => {
 
 						expect(validateTemplate([{
 							items: [{ "label=ref.field": { "0": { en: "hi" }, "1": 42 } }]
@@ -11037,7 +11037,7 @@ describe("validators", () => {
 
 					});
 
-					it("accepts subset selecting only the text branch as a Locale map", async () => {
+					it("accepts subset selecting only the dictionary branch as a Locales map", async () => {
 
 						expect(validateTemplate([{
 							items: [{ "label=ref.field": { "0": { en: "hi" } } }]
@@ -11045,7 +11045,7 @@ describe("validators", () => {
 
 					});
 
-					it("accepts a coalesced bare string on the text branch", async () => {
+					it("accepts a coalesced bare string on the dictionary branch", async () => {
 
 						expect(validateTemplate([{
 							items: [{ "label=ref.field": { "0": "plain" } }]
@@ -11055,7 +11055,7 @@ describe("validators", () => {
 
 					it("matches a number to the integer branch regardless of key", async () => {
 
-						// key "0" does not force the text branch: a number placeholder singles out the integer
+						// key "0" does not force the dictionary branch: a number placeholder singles out the integer
 						// branch by shape
 						expect(validateTemplate([{
 							items: [{ "label=ref.field": { "0": 42 } }]
@@ -11063,7 +11063,7 @@ describe("validators", () => {
 
 					});
 
-					it("matches a Locale map to the text branch regardless of key", async () => {
+					it("matches a Locales map to the dictionary branch regardless of key", async () => {
 
 						expect(validateTemplate([{
 							items: [{ "label=ref.field": { "1": { en: "hi" } } }]
@@ -11073,7 +11073,7 @@ describe("validators", () => {
 
 					it("rejects a placeholder matching no variant", async () => {
 
-						// a boolean placeholder fits neither the text nor the integer branch — unsatisfiable
+						// a boolean placeholder fits neither the dictionary nor the integer branch — unsatisfiable
 						expect(validateTemplate([{
 							items: [{ "label=ref.field": { "0": true } }]
 						}], Wrapper, {})).toBeDefined();
@@ -11232,24 +11232,24 @@ describe("validators", () => {
 					name: required(string()),
 					age: optional(integer()),
 					active: optional(boolean()),
-					label: required(text()),
-					labels: repeatable(text()),
+					label: required(dictionary()),
+					labels: repeatable(dictionary()),
 					link: optional(reference(resource({ id: id(), label: required(string()) })))
 				});
 				const Wrapper = resource({ items: multiple(reference(Target)) });
 
 
-				describe("text search operator (~)", () => {
+				describe("dictionary search operator (~)", () => {
 
-					it("accepts text search on string property", async () => {
+					it("accepts dictionary search on string property", async () => {
 						expect(validateTemplate([{ items: [{}, { "~name": "alice" }] }], Wrapper, {})).toBeUndefined();
 					});
 
-					it("accepts text search on local property", async () => {
+					it("accepts dictionary search on local property", async () => {
 						expect(validateTemplate([{ items: [{}, { "~label": "hello" }] }], Wrapper, {})).toBeUndefined();
 					});
 
-					it("accepts text search on multi-valued localised property", async () => {
+					it("accepts dictionary search on multi-valued localised property", async () => {
 						// array-per-tag coalesces to a multi-valued string set; `~` searches it existentially
 						expect(validateTemplate([{ items: [{}, { "~labels": "hello" }] }], Wrapper, {})).toBeUndefined();
 					});
@@ -11258,19 +11258,19 @@ describe("validators", () => {
 						expect(validateTemplate([{ items: [{}, { "~label": 42 }] }], Wrapper, {})).toBeDefined();
 					});
 
-					it("rejects text search on number property", async () => {
+					it("rejects dictionary search on number property", async () => {
 						expect(validateTemplate([{ items: [{}, { "~age": "42" }] }], Wrapper, {})).toBeDefined();
 					});
 
-					it("rejects text search on boolean property", async () => {
+					it("rejects dictionary search on boolean property", async () => {
 						expect(validateTemplate([{ items: [{}, { "~active": "true" }] }], Wrapper, {})).toBeDefined();
 					});
 
-					it("rejects text search on reference property", async () => {
+					it("rejects dictionary search on reference property", async () => {
 						expect(validateTemplate([{ items: [{}, { "~link": "test" }] }], Wrapper, {})).toBeDefined();
 					});
 
-					it("rejects text search on undefined property", async () => {
+					it("rejects dictionary search on undefined property", async () => {
 
 						expect(unflat(validateTemplate([{ items: [{}, { "~missing": "x" }] }], Wrapper, {}))).toEqual({
 							"[0]": { "items": { "~missing": "undefined property path" } }
@@ -11302,11 +11302,11 @@ describe("validators", () => {
 					});
 					const UnionWrapper = resource({ items: multiple(reference(UnionTarget)) });
 
-					it("accepts text search matching string union variant", async () => {
+					it("accepts dictionary search matching string union variant", async () => {
 						expect(validateTemplate([{ items: [{}, { "~value": "hello" }] }], UnionWrapper, {})).toBeUndefined();
 					});
 
-					it("rejects text search matching no textual union variant", async () => {
+					it("rejects dictionary search matching no textual union variant", async () => {
 
 						const NumericUnion = resource({
 							value: required(union(integer(), boolean()))
@@ -11486,13 +11486,13 @@ describe("validators", () => {
 					// sort/focus single-valued gates reject it (closes #26)
 
 					const Product = resource({
-						label: required(text()),
-						labels: repeatable(text())
+						label: required(dictionary()),
+						labels: repeatable(dictionary())
 					});
 					const Vendor = resource({ products: multiple(reference(Product)) });
 					const DeepWrapper = resource({ items: multiple(reference(Vendor)) });
 
-					it("accepts text search on coalescible leaf behind multi-valued prefix", async () => {
+					it("accepts dictionary search on coalescible leaf behind multi-valued prefix", async () => {
 						expect(validateTemplate([{ items: [{}, { "~products.label": "widget" }] }], DeepWrapper, {})).toBeUndefined();
 					});
 
@@ -11846,7 +11846,7 @@ describe("validators", () => {
 						expect(validateTemplate([{ items: [{}, { ">=year:released": 2020 }] }], W, {})).toBeUndefined();
 					});
 
-					it("rejects text search on transform-derived number", async () => {
+					it("rejects dictionary search on transform-derived number", async () => {
 
 						// count transform → effective kind is "number"
 
@@ -11856,7 +11856,7 @@ describe("validators", () => {
 						expect(validateTemplate([{ items: [{}, { "~count:price": "x" }] }], W, {})).toBeDefined();
 					});
 
-					it("accepts text search on transform-preserving string", async () => {
+					it("accepts dictionary search on transform-preserving string", async () => {
 
 						// lower transform on string → effective kind is "string"
 

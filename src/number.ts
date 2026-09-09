@@ -116,10 +116,11 @@ import { TraceError } from "@metreeca/core/trace";
 import { checkNumber } from "./number.core.js";
 
 
-const BYTE_MAX = 2**7-1;
-const SHORT_MAX = 2**15-1;
-const INT_MAX = 2**31-1;
-const FLOAT_MAX = (2-2** -23)*2**127;
+const ByteLimit = 2**7-1;
+const ShortLimit = 2**15-1;
+const IntLimit = 2**31-1;
+const LongLimit = Number.MAX_SAFE_INTEGER;
+const FloatLimit = (2-2** -23)*2**127;
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -187,9 +188,10 @@ export interface NumberShape extends NumberConstraints {
 /**
  * Constraints for the {@link number} shape factory.
  *
- * Extends {@link NumericConstraints} with the prototype model value.
+ * Adds the prototype model value, the RDF datatype and the integrality flag, which only the general-purpose factory
+ * accepts, to the {@link NumberRangeConstraints range} constraints shared with the specialised factories.
  */
-export interface NumberConstraints extends NumericConstraints {
+export interface NumberConstraints extends NumberRangeConstraints {
 
 	/**
 	 * Explicit prototype value for runtime model assembly.
@@ -233,11 +235,14 @@ export interface NumberConstraints extends NumericConstraints {
 }
 
 /**
- * Constraints for numeric shape factories.
+ * Value range bounds for numeric shape factories.
+ *
+ * Bounds the magnitudes admitted by a shape, independently of its datatype. Accepted on its own by the specialised
+ * factories, whose datatype and integrality are already fixed, and included in the full {@link NumberConstraints} set.
  *
  * @see {@link https://www.w3.org/TR/shacl/#core-components-range SHACL § 4.4 Value Range Constraint Components}
  */
-export interface NumericConstraints {
+export interface NumberRangeConstraints {
 
 	/**
 	 * Exclusive minimum value (value must be strictly greater).
@@ -387,7 +392,7 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
  * - Marks the shape {@link NumberConstraints.integral | integral}.
  * - Defaults the range to `[-128, 127]`; supplied bounds in `constraints` override the defaults.
  *
- * @param constraints Optional {@link NumericConstraints validation constraints}
+ * @param constraints Optional {@link NumberRangeConstraints validation constraints}
  *
  * @returns An immutable shape for validating 8-bit signed integers
  *
@@ -395,15 +400,15 @@ export function number(constraints: number | NumberConstraints = {}): NumberShap
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#byte XSD 1.0 Part 2: Datatypes § 3.3.19 byte}
  */
-export function byte(constraints: NumericConstraints = {}): NumberShape {
+export function byte(constraints: NumberRangeConstraints = {}): NumberShape {
 
 	return number({
 
 		datatype: xsd.byte,
 		integral: true,
 
-		minInclusive: -BYTE_MAX-1,
-		maxInclusive: BYTE_MAX,
+		minInclusive: -ByteLimit-1,
+		maxInclusive: ByteLimit,
 
 		...constraints
 
@@ -418,7 +423,7 @@ export function byte(constraints: NumericConstraints = {}): NumberShape {
  * - Marks the shape {@link NumberConstraints.integral | integral}.
  * - Defaults the range to `[-32768, 32767]`; supplied bounds in `constraints` override the defaults.
  *
- * @param constraints Optional {@link NumericConstraints validation constraints}
+ * @param constraints Optional {@link NumberRangeConstraints validation constraints}
  *
  * @returns An immutable shape for validating 16-bit signed integers
  *
@@ -426,15 +431,15 @@ export function byte(constraints: NumericConstraints = {}): NumberShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#short XSD 1.0 Part 2: Datatypes § 3.3.18 short}
  */
-export function short(constraints: NumericConstraints = {}): NumberShape {
+export function short(constraints: NumberRangeConstraints = {}): NumberShape {
 
 	return number({
 
 		datatype: xsd.short,
 		integral: true,
 
-		minInclusive: -SHORT_MAX-1,
-		maxInclusive: SHORT_MAX,
+		minInclusive: -ShortLimit-1,
+		maxInclusive: ShortLimit,
 
 		...constraints
 
@@ -449,7 +454,7 @@ export function short(constraints: NumericConstraints = {}): NumberShape {
  * - Marks the shape {@link NumberConstraints.integral | integral}.
  * - Defaults the range to `[-2147483648, 2147483647]`; supplied bounds in `constraints` override the defaults.
  *
- * @param constraints Optional {@link NumericConstraints validation constraints}
+ * @param constraints Optional {@link NumberRangeConstraints validation constraints}
  *
  * @returns An immutable shape for validating 32-bit signed integers
  *
@@ -457,15 +462,15 @@ export function short(constraints: NumericConstraints = {}): NumberShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#int XSD 1.0 Part 2: Datatypes § 3.3.17 int}
  */
-export function int(constraints: NumericConstraints = {}): NumberShape {
+export function int(constraints: NumberRangeConstraints = {}): NumberShape {
 
 	return number({
 
 		datatype: xsd.int,
 		integral: true,
 
-		minInclusive: -INT_MAX-1,
-		maxInclusive: INT_MAX,
+		minInclusive: -IntLimit-1,
+		maxInclusive: IntLimit,
 
 		...constraints
 
@@ -482,7 +487,7 @@ export function int(constraints: NumericConstraints = {}): NumberShape {
  *   `number`. Supplied bounds in `constraints` override the defaults.
  * - Marks the shape {@link NumberConstraints.integral | integral}.
  *
- * @param constraints Optional {@link NumericConstraints validation constraints}
+ * @param constraints Optional {@link NumberRangeConstraints validation constraints}
  *
  * @returns An immutable shape for validating 64-bit signed integers
  *
@@ -490,15 +495,15 @@ export function int(constraints: NumericConstraints = {}): NumberShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#long XSD 1.0 Part 2: Datatypes § 3.3.16 long}
  */
-export function long(constraints: NumericConstraints = {}): NumberShape {
+export function long(constraints: NumberRangeConstraints = {}): NumberShape {
 
 	return number({
 
 		datatype: xsd.long,
 		integral: true,
 
-		minInclusive: Number.MIN_SAFE_INTEGER,
-		maxInclusive: Number.MAX_SAFE_INTEGER,
+		minInclusive: -LongLimit,
+		maxInclusive: LongLimit,
 
 		...constraints
 
@@ -513,7 +518,7 @@ export function long(constraints: NumericConstraints = {}): NumberShape {
  * - Defaults the range to the finite single-precision interval `±(2 − 2⁻²³) × 2¹²⁷`; supplied bounds in `constraints`
  *   override the defaults.
  *
- * @param constraints Optional {@link NumericConstraints validation constraints}
+ * @param constraints Optional {@link NumberRangeConstraints validation constraints}
  *
  * @returns An immutable shape for validating single-precision floats
  *
@@ -521,14 +526,14 @@ export function long(constraints: NumericConstraints = {}): NumberShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#float XSD 1.0 Part 2: Datatypes § 3.2.4 float}
  */
-export function float(constraints: NumericConstraints = {}): NumberShape {
+export function float(constraints: NumberRangeConstraints = {}): NumberShape {
 
 	return number({
 
 		datatype: xsd.float,
 
-		minInclusive: -FLOAT_MAX,
-		maxInclusive: FLOAT_MAX,
+		minInclusive: -FloatLimit,
+		maxInclusive: FloatLimit,
 
 		...constraints
 
@@ -541,7 +546,7 @@ export function float(constraints: NumericConstraints = {}): NumberShape {
  *
  * Defaults the datatype to `xsd:double`.
  *
- * @param constraints Optional {@link NumericConstraints validation constraints}
+ * @param constraints Optional {@link NumberRangeConstraints validation constraints}
  *
  * @returns An immutable shape for validating double-precision floats
  *
@@ -549,7 +554,7 @@ export function float(constraints: NumericConstraints = {}): NumberShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#double XSD 1.0 Part 2: Datatypes § 3.2.5 double}
  */
-export function double(constraints: NumericConstraints = {}): NumberShape {
+export function double(constraints: NumberRangeConstraints = {}): NumberShape {
 
 	return number({ datatype: xsd.double, ...constraints });
 
@@ -560,7 +565,7 @@ export function double(constraints: NumericConstraints = {}): NumberShape {
  *
  * Defaults the datatype to `xsd:integer` and marks the shape {@link NumberConstraints.integral | integral}.
  *
- * @param constraints Optional {@link NumericConstraints validation constraints}
+ * @param constraints Optional {@link NumberRangeConstraints validation constraints}
  *
  * @returns An immutable shape for validating arbitrary-precision integers
  *
@@ -568,7 +573,7 @@ export function double(constraints: NumericConstraints = {}): NumberShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#integer XSD 1.0 Part 2: Datatypes § 3.3.13 integer}
  */
-export function integer(constraints: NumericConstraints = {}): NumberShape {
+export function integer(constraints: NumberRangeConstraints = {}): NumberShape {
 
 	return number({ datatype: xsd.integer, integral: true, ...constraints });
 
@@ -579,7 +584,7 @@ export function integer(constraints: NumericConstraints = {}): NumberShape {
  *
  * Defaults the datatype to `xsd:decimal`.
  *
- * @param constraints Optional {@link NumericConstraints validation constraints}
+ * @param constraints Optional {@link NumberRangeConstraints validation constraints}
  *
  * @returns An immutable shape for validating arbitrary-precision decimals
  *
@@ -587,7 +592,7 @@ export function integer(constraints: NumericConstraints = {}): NumberShape {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#decimal XSD 1.0 Part 2: Datatypes § 3.2.3 decimal}
  */
-export function decimal(constraints: NumericConstraints = {}): NumberShape {
+export function decimal(constraints: NumberRangeConstraints = {}): NumberShape {
 
 	return number({ datatype: xsd.decimal, ...constraints });
 
