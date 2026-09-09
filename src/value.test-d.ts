@@ -19,11 +19,11 @@ import type { Dictionary } from "@metreeca/qest/resource";
 import type { Selection } from "@metreeca/qest/template";
 import { assertType, describe, expectTypeOf, test } from "vitest";
 import type { BooleanShape } from "./boolean.js";
+import { dictionary, type DictionaryShape } from "./dictionary.js";
 import { integer, type NumberShape } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import { property, resource, type ResourceShape } from "./resource.js";
 import { string, type StringShape } from "./string.js";
-import { dictionary, type DictionaryShape } from "./dictionary.js";
 import { union } from "./union.js";
 import { type Bounds, cardinality, multiple, optional, repeatable, required, type State } from "./value.js";
 

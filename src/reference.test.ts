@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from "vitest";
-
 import { TraceError } from "@metreeca/core/trace";
+import { describe, expect, it } from "vitest";
 import { mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import { reference, type ReferenceConstraints } from "./reference.js";
 import { resource } from "./resource.js";

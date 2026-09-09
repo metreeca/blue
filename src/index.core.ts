@@ -52,7 +52,7 @@ export const sh: Namespace = createNamespace("http://www.w3.org/ns/shacl#");
  *
  * @see [Unions — Design](./union.md)
  */
-export type Scope=
+export type Scope =
 	| "state"
 	| "bound"
 	| "model"

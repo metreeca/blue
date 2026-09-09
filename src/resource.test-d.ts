@@ -27,16 +27,17 @@ import type { IRI, Namespace } from "@metreeca/core/resource";
 import { type Reference } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import type { BooleanShape } from "./boolean.js";
+import { dictionary } from "./dictionary.js";
 import { validate } from "./index.js";
 import type { NumberShape } from "./number.js";
 import {
 	type Content,
 	type Declared,
-	type Member,
 	type Id,
 	id,
 	type Inheritance,
 	type Intersected,
+	type Member,
 	type Override,
 	property,
 	type Property,
@@ -49,7 +50,6 @@ import {
 	type
 } from "./resource.js";
 import type { StringShape } from "./string.js";
-import { dictionary } from "./dictionary.js";
 import { union } from "./union.js";
 import { multiple, optional, repeatable, required, type SetShape } from "./value.js";
 

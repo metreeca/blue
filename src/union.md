@@ -55,9 +55,9 @@ able to reach every branch that could answer.
 
 ## Traversal must route nested branches
 
-Collection retrieval projects across paths, and a path can cross several union-valued entries while applying
-transforms along the way. Branch templates then compound, and the caller must keep each branch addressable through the
-whole traversal.
+Collection retrieval projects across paths, and a path can cross several union-valued entries while applying transforms
+along the way. Branch templates then compound, and the caller must keep each branch addressable through the whole
+traversal.
 
 # Solution
 
@@ -73,12 +73,12 @@ membership** against **all** shape constraints, so the value is a legal member o
 on **storage class**: the value's literal datatype or node kind separates a string branch from the nodes and tells
 differently-typed branches apart. Where branches share a storage class, a finer value-borne trait must separate them: a
 string `pattern`, a numeric `integral` flag, a reference's target-identifier pattern, or, for nodes, the branch's own
-structure (class and required entries). A value matching no branch is **unsatisfiable** and a value matching several
-is **ambiguous**, and both are rejected. In a multi-valued union each value is matched independently, so the property
-may span several branches with one branch fixed per value.
+structure (class and required entries). A value matching no branch is **unsatisfiable** and a value matching several is
+**ambiguous**, and both are rejected. In a multi-valued union each value is matched independently, so the property may
+span several branches with one branch fixed per value.
 
-Branch shapes may share or omit entries, so a partial value can fit several branches at once. Blue does not try to
-prove the branches distinguishable when the shape is built: in general, `pattern` and IRI disjointness are undecidable.
+Branch shapes may share or omit entries, so a partial value can fit several branches at once. Blue does not try to prove
+the branches distinguishable when the shape is built: in general, `pattern` and IRI disjointness are undecidable.
 **Disjointness is therefore a modelling requirement:** branches sharing a storage class must carry disjoint
 discriminating traits, so a legal value fits exactly one branch and an ambiguous value is rejected at runtime rather
 than refused at construction. The modeller owns disjointness; the writer, in turn, must carry enough data to single out

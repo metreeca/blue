@@ -21,11 +21,11 @@
  */
 
 import { isArray, isObject, isString, opt as fold } from "@metreeca/core";
-import { immutable } from "@metreeca/core/structures";
 import { isTag, isTagRange, matchTag, type Tag } from "@metreeca/core/language";
+import { immutable } from "@metreeca/core/structures";
+import { all, array, fail, length, object, test, type Trace, TraceError } from "@metreeca/core/trace";
 import type { Dictionary } from "@metreeca/qest/resource";
 import { type Locales, type Placeholders, type Selection } from "@metreeca/qest/template";
-import { all, array, fail, length, object, test, type Trace, TraceError } from "@metreeca/core/trace";
 import type { DictionaryConstraints, DictionaryShape } from "./dictionary.js";
 
 

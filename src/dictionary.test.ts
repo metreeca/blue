@@ -304,7 +304,12 @@ describe("operators", () => {
 				// qest's Locales type defines `{ TagRange: string }` and `{ TagRange: [string] }` as
 				// distinct arms; a single map with both shapes satisfies neither
 
-				expect(at(checkDictionary({ model: { en: "hello", fr: ["bonjour"] } } as any), "{model}")).toBeDefined();
+				expect(at(checkDictionary({
+					model: {
+						en: "hello",
+						fr: ["bonjour"]
+					}
+				} as any), "{model}")).toBeDefined();
 
 			});
 

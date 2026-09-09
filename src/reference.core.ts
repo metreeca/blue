@@ -21,10 +21,10 @@
  */
 
 import { type Lazy, map } from "@metreeca/core";
-import { equals, immutable } from "@metreeca/core/structures";
 import { isIRI } from "@metreeca/core/resource";
-import { isReference } from "@metreeca/qest/resource";
+import { equals, immutable } from "@metreeca/core/structures";
 import { all, array, domain, test, type Trace, TraceError, type, values as contains } from "@metreeca/core/trace";
+import { isReference } from "@metreeca/qest/resource";
 import { type Scope } from "./index.core.js";
 import type { ReferenceShape } from "./reference.js";
 import { match } from "./resource.core.js";

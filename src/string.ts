@@ -137,10 +137,10 @@
 import { isRegExp, isString } from "@metreeca/core";
 import { xsd } from "@metreeca/core/datatype";
 import { TagPattern } from "@metreeca/core/language";
-import { immutable } from "@metreeca/core/structures";
 import { type Variant } from "@metreeca/core/resource";
-import type { Reference } from "@metreeca/qest/resource";
+import { immutable } from "@metreeca/core/structures";
 import { TraceError } from "@metreeca/core/trace";
+import type { Reference } from "@metreeca/qest/resource";
 import { checkString } from "./string.core.js";
 
 

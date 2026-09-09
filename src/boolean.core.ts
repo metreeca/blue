@@ -22,7 +22,7 @@
 
 import { isBoolean } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
-import { array, test, type, type Trace, TraceError } from "@metreeca/core/trace";
+import { array, test, type Trace, TraceError, type } from "@metreeca/core/trace";
 import type { BooleanShape } from "./boolean.js";
 import type { Scope } from "./index.core.js";
 

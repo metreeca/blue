@@ -16,15 +16,14 @@
 
 import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
-import type { Trace } from "@metreeca/core/trace";
 import { boolean } from "./boolean.js";
+import { dictionary } from "./dictionary.js";
 import { sh } from "./index.core.js";
 import { validate } from "./index.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { reference } from "./reference.js";
 import { id, resource, type ResourceShape, type } from "./resource.js";
 import { date, duration, instant, string, time, timestamp, year } from "./string.js";
-import { dictionary } from "./dictionary.js";
 import { union } from "./union.js";
 import { effective, multiple, optional, type RangeShape, repeatable, required, type ValuesShape } from "./value.js";
 

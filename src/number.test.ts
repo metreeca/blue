@@ -286,14 +286,23 @@ describe("operators", () => {
 
 		it("returns trace for minExclusive >= maxExclusive", async () => {
 
-			expect(checkNumber({ minExclusive: 10, maxExclusive: 10 })).toContainEqual(expect.stringContaining("{minExclusive/maxExclusive}"));
-			expect(checkNumber({ minExclusive: 10, maxExclusive: 5 })).toContainEqual(expect.stringContaining("{minExclusive/maxExclusive}"));
+			expect(checkNumber({
+				minExclusive: 10,
+				maxExclusive: 10
+			})).toContainEqual(expect.stringContaining("{minExclusive/maxExclusive}"));
+			expect(checkNumber({
+				minExclusive: 10,
+				maxExclusive: 5
+			})).toContainEqual(expect.stringContaining("{minExclusive/maxExclusive}"));
 
 		});
 
 		it("returns trace for minInclusive > maxInclusive", async () => {
 
-			expect(checkNumber({ minInclusive: 10, maxInclusive: 5 })).toContainEqual(expect.stringContaining("{minInclusive/maxInclusive}"));
+			expect(checkNumber({
+				minInclusive: 10,
+				maxInclusive: 5
+			})).toContainEqual(expect.stringContaining("{minInclusive/maxInclusive}"));
 
 		});
 
@@ -305,21 +314,36 @@ describe("operators", () => {
 
 		it("returns trace for minExclusive >= maxInclusive", async () => {
 
-			expect(checkNumber({ minExclusive: 10, maxInclusive: 10 })).toContainEqual(expect.stringContaining("{minExclusive/maxInclusive}"));
-			expect(checkNumber({ minExclusive: 10, maxInclusive: 5 })).toContainEqual(expect.stringContaining("{minExclusive/maxInclusive}"));
+			expect(checkNumber({
+				minExclusive: 10,
+				maxInclusive: 10
+			})).toContainEqual(expect.stringContaining("{minExclusive/maxInclusive}"));
+			expect(checkNumber({
+				minExclusive: 10,
+				maxInclusive: 5
+			})).toContainEqual(expect.stringContaining("{minExclusive/maxInclusive}"));
 
 		});
 
 		it("returns trace for minInclusive >= maxExclusive", async () => {
 
-			expect(checkNumber({ minInclusive: 10, maxExclusive: 10 })).toContainEqual(expect.stringContaining("{minInclusive/maxExclusive}"));
-			expect(checkNumber({ minInclusive: 10, maxExclusive: 5 })).toContainEqual(expect.stringContaining("{minInclusive/maxExclusive}"));
+			expect(checkNumber({
+				minInclusive: 10,
+				maxExclusive: 10
+			})).toContainEqual(expect.stringContaining("{minInclusive/maxExclusive}"));
+			expect(checkNumber({
+				minInclusive: 10,
+				maxExclusive: 5
+			})).toContainEqual(expect.stringContaining("{minInclusive/maxExclusive}"));
 
 		});
 
 		it("returns trace for hasValue entries not in the in set", async () => {
 
-			expect(checkNumber({ hasValue: [5], in: [1, 2, 3] })).toContainEqual(expect.stringContaining("{hasValue/in}"));
+			expect(checkNumber({
+				hasValue: [5],
+				in: [1, 2, 3]
+			})).toContainEqual(expect.stringContaining("{hasValue/in}"));
 
 		});
 
@@ -348,10 +372,22 @@ describe("operators", () => {
 
 		it("returns trace for fractional bounds when integral", async () => {
 
-			expect(checkNumber({ integral: true, minInclusive: 1.5 })).toContainEqual(expect.stringContaining("{minInclusive}"));
-			expect(checkNumber({ integral: true, maxInclusive: 9.5 })).toContainEqual(expect.stringContaining("{maxInclusive}"));
-			expect(checkNumber({ integral: true, minExclusive: 0.5 })).toContainEqual(expect.stringContaining("{minExclusive}"));
-			expect(checkNumber({ integral: true, maxExclusive: 8.5 })).toContainEqual(expect.stringContaining("{maxExclusive}"));
+			expect(checkNumber({
+				integral: true,
+				minInclusive: 1.5
+			})).toContainEqual(expect.stringContaining("{minInclusive}"));
+			expect(checkNumber({
+				integral: true,
+				maxInclusive: 9.5
+			})).toContainEqual(expect.stringContaining("{maxInclusive}"));
+			expect(checkNumber({
+				integral: true,
+				minExclusive: 0.5
+			})).toContainEqual(expect.stringContaining("{minExclusive}"));
+			expect(checkNumber({
+				integral: true,
+				maxExclusive: 8.5
+			})).toContainEqual(expect.stringContaining("{maxExclusive}"));
 
 		});
 
@@ -363,7 +399,10 @@ describe("operators", () => {
 
 		it("returns trace for a fractional hasValue member when integral", async () => {
 
-			expect(checkNumber({ integral: true, hasValue: [1.5] })).toContainEqual(expect.stringContaining("{hasValue}"));
+			expect(checkNumber({
+				integral: true,
+				hasValue: [1.5]
+			})).toContainEqual(expect.stringContaining("{hasValue}"));
 
 		});
 
@@ -1119,10 +1158,12 @@ describe("validators", () => {
 
 				const shape = number({ minInclusive: 5, in: [7, 8, 9] });
 
-				expect(validateNumber([4], shape)).toEqual([{ "0": [
-					expect.stringContaining("{gte}"),
-					expect.stringContaining("{domain}")
-				] }]);
+				expect(validateNumber([4], shape)).toEqual([{
+					"0": [
+						expect.stringContaining("{gte}"),
+						expect.stringContaining("{domain}")
+					]
+				}]);
 				expect(validateNumber([7], shape)).toBeUndefined();
 
 			});

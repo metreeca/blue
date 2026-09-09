@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-import { isTag } from "@metreeca/core/language";
 import { assert } from "@metreeca/core";
+import { isTag } from "@metreeca/core/language";
 import { createNamespace } from "@metreeca/core/resource";
+import { type Trace, TraceError } from "@metreeca/core/trace";
 import { app } from "@metreeca/qest";
 import type { Resource } from "@metreeca/qest/resource";
 import { describe, expect, it } from "vitest";
-import { type Trace, TraceError } from "@metreeca/core/trace";
 import { boolean } from "./boolean.js";
+import { dictionary } from "./dictionary.js";
 import { integer } from "./number.js";
 import { reference } from "./reference.js";
 import {
@@ -44,7 +45,6 @@ import {
 } from "./resource.core.js";
 import { id, property, type Property, resource, type ResourceShape, type } from "./resource.js";
 import { date, email, string } from "./string.js";
-import { dictionary } from "./dictionary.js";
 import { union, type UnionShape } from "./union.js";
 import { cardinality, eager, multiple, optional, repeatable, required, type SetShape } from "./value.js";
 
@@ -74,7 +74,8 @@ function flat(expected: unknown): any {
 			.map(([k, v]) => [k.replace(/^\[(\d+)]$/, "$1"), flat(v)]))];
 }
 
-// convert a new array-shaped trace back to the old object shape (numeric keys re-bracketed, single-message leaves unwrapped)
+// convert a new array-shaped trace back to the old object shape (numeric keys re-bracketed, single-message leaves
+// unwrapped)
 
 function unflat(trace: unknown): any {
 	if ( !Array.isArray(trace) ) { return trace; }
@@ -6533,7 +6534,8 @@ describe("validators", () => {
 
 				it("accepts two templates singling out the same variant", async () => {
 
-					// several placeholders MAY resolve to the same union branch — injectivity is not required (Section 5.4)
+					// several placeholders MAY resolve to the same union branch — injectivity is not required (Section
+					// 5.4)
 					const stringOrInt = resource({
 						value: required(union(string(), integer()))
 					});
@@ -7557,7 +7559,12 @@ describe("validators", () => {
 
 					it("reports a selection key as an invalid tag range", async () => {
 
-						expect(unflat(validateTemplate([{ labels: { en: ["hi"], ">=length:": 5 } }], shape, {}))).toEqual({
+						expect(unflat(validateTemplate([{
+							labels: {
+								en: ["hi"],
+								">=length:": 5
+							}
+						}], shape, {}))).toEqual({
 							"[0]": { "labels": { ">=length:": "invalid tag range" } }
 						});
 

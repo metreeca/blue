@@ -32,9 +32,10 @@ import {
 	opt as fold
 } from "@metreeca/core";
 import { union } from "@metreeca/core/arrays";
-import { equals, immutable, seal } from "@metreeca/core/structures";
 import { isTagRange, matchTag } from "@metreeca/core/language";
 import { type IRI, isIRI } from "@metreeca/core/resource";
+import { equals, immutable, seal } from "@metreeca/core/structures";
+import { all, array, fail, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { app } from "@metreeca/qest";
 import { isReference, type Reference, type Resource } from "@metreeca/qest/resource";
 import {
@@ -58,10 +59,12 @@ import {
 	type Template,
 	type Union
 } from "@metreeca/qest/template";
-import { all, array, fail, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { validateBoolean } from "./boolean.core.js";
 import {
-	validateDictionary, validateDictionarySet, validateLocalesString, validateLocalesStrings
+	validateDictionary,
+	validateDictionarySet,
+	validateLocalesString,
+	validateLocalesStrings
 } from "./dictionary.core.js";
 import type { DictionaryShape } from "./dictionary.js";
 import { validateNumber } from "./number.core.js";
@@ -599,9 +602,9 @@ export function mergeProperty(target: Property, source: Property): Property {
  * Derives the retrieval template for a resource shape.
  *
  * Projects each property to its retrieval placeholder, deriving the per-property value through
- * {@link value!deriveValue | deriveValue}; `id` and `type` entries project the {@link app | default base IRI}. Cardinality
- * wrapping (a scalar for `maxCount === 1`, otherwise a singleton `[value]` tuple carrying any selection) and the
- * per-tag localised form mirror the {@link value!cardinality | cardinality} projection.
+ * {@link value!deriveValue | deriveValue}; `id` and `type` entries project the {@link app | default base IRI}.
+ * Cardinality wrapping (a scalar for `maxCount === 1`, otherwise a singleton `[value]` tuple carrying any selection)
+ * and the per-tag localised form mirror the {@link value!cardinality | cardinality} projection.
  *
  * @param shape The resource shape whose template to derive
  *

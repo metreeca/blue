@@ -15,8 +15,8 @@
  */
 
 import { describe, test } from "vitest";
-import { string } from "./string.js";
 import { dictionary } from "./dictionary.js";
+import { string } from "./string.js";
 import { union } from "./union.js";
 
 

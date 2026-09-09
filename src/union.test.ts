@@ -16,11 +16,11 @@
 
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
+import { dictionary } from "./dictionary.js";
 import { byte, decimal, integer } from "./number.js";
 import { reference } from "./reference.js";
 import { resource } from "./resource.js";
 import { date, email, string, year } from "./string.js";
-import { dictionary } from "./dictionary.js";
 import { deriveUnion, getBoundVariant, mergeUnion, narrowsUnion } from "./union.core.js";
 import { union } from "./union.js";
 import { required } from "./value.js";
@@ -325,7 +325,8 @@ describe("operators", () => {
 
 		it("returns undefined when several variants match, absent literal disjointness", async () => {
 
-			// plain string subsumes email, so the two branches are not literally disjoint and a matching bound is ambiguous
+			// plain string subsumes email, so the two branches are not literally disjoint and a matching bound is
+			// ambiguous
 
 			expect(getBoundVariant("user@example.com", [string(), email()])).toBeUndefined();
 

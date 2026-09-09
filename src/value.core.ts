@@ -24,13 +24,17 @@ import { assert, error, type Identifier, isArray, isFunction, isString, type Laz
 import { unique } from "@metreeca/core/arrays";
 import { xsd } from "@metreeca/core/datatype";
 import { equals, immutable } from "@metreeca/core/structures";
+import { all, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { app } from "@metreeca/qest";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/template";
-import { all, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
 import type { BooleanShape } from "./boolean.js";
 import {
-	deriveDictionary, mergeDictionary, narrowsDictionary, validateDictionary, validateLocales
+	deriveDictionary,
+	mergeDictionary,
+	narrowsDictionary,
+	validateDictionary,
+	validateLocales
 } from "./dictionary.core.js";
 import type { DictionaryShape } from "./dictionary.js";
 import { type Scope, sh } from "./index.core.js";

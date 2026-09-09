@@ -127,8 +127,8 @@ function Vendor() {
 ```
 
 Shape factories like `string()`, `number()`, `boolean()`, `dictionary()`, and `reference()` define the expected value
-type and optional constraints for each property. Cardinality helpers wrap shape factories to control how many values
-are expected and to determine the inferred TypeScript type:
+type and optional constraints for each property. Cardinality helpers wrap shape factories to control how many values are
+expected and to determine the inferred TypeScript type:
 
 | Factory         | Cardinality | TypeScript Type             |
 |-----------------|-------------|-----------------------------|
@@ -144,14 +144,14 @@ Resource entries link to other resources in two ways. A `reference()` wrapper li
 independently identified and managed entity like `Vendor`. A direct shape inclusion defines an **embedded resource**, a
 nested object with no independent identity, created and managed together with its parent like `Rating`.
 
-Properties that accept multiple types are modelled as unions of positional variants. Matching splits by regime: a
-stored **value** must single out **exactly one** variant (`sh:xone`), tested against all constraints, and is rejected
-when it fits several (ambiguous) or none (unsatisfiable); a retrieval **placeholder** is tested by JSON type alone and
-must fit **at least one** variant (`sh:or`), may fit several, and is rejected only when it fits none (see
+Properties that accept multiple types are modelled as unions of positional variants. Matching splits by regime: a stored
+**value** must single out **exactly one** variant (`sh:xone`), tested against all constraints, and is rejected when it
+fits several (ambiguous) or none (unsatisfiable); a retrieval **placeholder** is tested by JSON type alone and must fit
+**at least one** variant (`sh:or`), may fit several, and is rejected only when it fits none (see
 [Validating Templates](#validating-templates)). A multi-valued property matches each of its values independently. At
-runtime, values are stored directly with no variant wrapping. Each variant is a literal, reference, or resource shape;
-a localised `dictionary()` is a whole-property type and is never a union variant, so `union()` rejects a dictionary
-shape. Either of the following representations is accepted at the same `address` position:
+runtime, values are stored directly with no variant wrapping. Each variant is a literal, reference, or resource shape; a
+localised `dictionary()` is a whole-property type and is never a union variant, so `union()` rejects a dictionary shape.
+Either of the following representations is accepted at the same `address` position:
 
 ```json
 { "address": "12 Harbour Street, Copenhagen" }
@@ -168,10 +168,10 @@ shape. Either of the following representations is accepted at the same `address`
 
 ## Extending Schemas
 
-Use `extends` to inherit entries and constraints from a parent shape. Local entries augment the parent and may
-override inherited ones, but only by *narrowing*: overrides may restrict inherited constraints, never relax them.
-Cardinality narrows monotonically (`required` may override `optional`, but not the reverse), per-kind constraints
-intersect, and the override is rejected at the call site when the child relaxes the parent.
+Use `extends` to inherit entries and constraints from a parent shape. Local entries augment the parent and may override
+inherited ones, but only by *narrowing*: overrides may restrict inherited constraints, never relax them. Cardinality
+narrows monotonically (`required` may override `optional`, but not the reverse), per-kind constraints intersect, and the
+override is rejected at the call site when the child relaxes the parent.
 
 ```ts
 const NamedThing = resource({
@@ -263,9 +263,9 @@ validate(data, { shape: Product })({
 ```
 
 All constraints are enforced, including type, cardinality, closed-shape checks, and custom validators. Unknown and
-missing entries are both rejected. On success, the value is an immutable copy validated against a verified and
-flattened copy of the shape. The function is idempotent on a specific shape: re-validation against the same shape trusts
-the previous result without repeating the validation process.
+missing entries are both rejected. On success, the value is an immutable copy validated against a verified and flattened
+copy of the shape. The function is idempotent on a specific shape: re-validation against the same shape trusts the
+previous result without repeating the validation process.
 
 ## Validating Projections
 

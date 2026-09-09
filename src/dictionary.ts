@@ -78,12 +78,10 @@
  */
 
 import { isObject } from "@metreeca/core";
-import { immutable } from "@metreeca/core/structures";
 import type { Tag, TagRange } from "@metreeca/core/language";
-import type { Locales } from "@metreeca/qest/template";
-
-
+import { immutable } from "@metreeca/core/structures";
 import { TraceError } from "@metreeca/core/trace";
+import type { Locales } from "@metreeca/qest/template";
 import { checkDictionary, deriveDictionary } from "./dictionary.core.js";
 
 
