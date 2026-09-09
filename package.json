@@ -1,6 +1,6 @@
 {
   "name": "@metreeca/blue",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "Declarative blueprints for model-driven linked data processing.",
   "keywords": [
     "typescript",
