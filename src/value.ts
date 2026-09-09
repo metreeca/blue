@@ -169,6 +169,10 @@ export type ValueShape =
  * | `maxCount` | Child ≤ parent, narrowing the maximum cardinality                                          |
  * | `shape`    | `kind` must match; a non-union child may narrow a {@link UnionShape | union} parent to one |
  *
+ * A child holding a nested resource or a {@link reference!ReferenceShape | reference} refines the slot by naming a
+ * target that extends the inherited target: the refining target carries the inherited definition through its own
+ * inheritance chain, which is never restated.
+ *
  * **Cross-Field Validation**
  *
  * - merged `minCount` must be ≤ merged `maxCount`
@@ -235,7 +239,9 @@ export type SetShape<
 	 *
 	 * **Inheritance** — child `shape.kind` must match parent `shape.kind`, with one exception: when parent is a
 	 * {@link UnionShape | union}, child may supply a non-union value shape that narrows exactly one parent variant
-	 * (single-variant narrowing). Otherwise delegated to value shape or {@link UnionShape | union} merge rules.
+	 * (single-variant narrowing). A nested resource or {@link reference!ReferenceShape | reference} child may name a
+	 * target extending the inherited target, refining what the slot admits without restating the inherited definition.
+	 * Otherwise delegated to value shape or {@link UnionShape | union} merge rules.
 	 */
 	readonly shape: Shape & { readonly model: State<S> };
 

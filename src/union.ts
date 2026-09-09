@@ -36,11 +36,11 @@
  * variants it keeps, but never add new ones. Narrowing is the construction-time counterpart of the union's exclusive
  * discrimination: each child variant must *narrow* exactly one parent variant, where narrowing is the value-shape
  * override relation that governs non-union shapes — matching `kind` (and `datatype` for `string` / `number`, plus
- * `pattern` for `string` and `integral` for `number`), only-tightening constraints, and, for `reference` / `resource`,
- * a matching target shape or a subtype class. The
- * pairing is order-independent and injective; either form is rejected when a child variant narrows no parent variant
- * (unsatisfiable), several (ambiguous), or a parent already taken by another child variant (split). The child's form
- * fixes the outcome:
+ * `pattern` for `string` and `integral` for `number`), only-tightening constraints, and, for a `reference`, the parent
+ * variant's target shape or one extending it, or, for a nested `resource`, a shape declaring every class the parent
+ * variant declares. The pairing is order-independent and injective; either form is rejected when a child variant
+ * narrows no parent variant (unsatisfiable), several (ambiguous), or a parent already taken by another child variant
+ * (split). The child's form fixes the outcome:
  *
  * 1. **Single-variant narrowing** (Form 1) — the child is a non-union value shape; it narrows its one parent variant
  *    and the result collapses to that merged shape, so the enclosing {@link value!SetShape.shape | SetShape.shape} is
@@ -183,8 +183,8 @@ export type Variants<V extends readonly Lazy<ValueShape>[]> = {
  * At extends-time each child variant must *narrow* exactly one parent variant, so a parent declaring
  * `union(reference(Person), reference(Organization))` can be narrowed on either alternative independently. Because
  * matching is by narrowing rather than a precomputed key, parent variants that no child variant can single out (for
- * example two `reference` variants with the same target shape) cannot be narrowed individually — a child narrowing
- * such a variant is rejected as ambiguous.
+ * example two `reference` variants whose targets are the same shape, or one extending the other) cannot be narrowed
+ * individually — a child narrowing such a variant is rejected as ambiguous.
  *
  * @typeParam V The variants tuple type
  *

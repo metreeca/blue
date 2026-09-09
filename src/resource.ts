@@ -206,6 +206,13 @@
  * > `in`, `hasValue`, `languageIn`, and `validators` — are enforced at compile time and not
  * > re-validated at runtime.
  *
+ * **Refining nested targets**
+ *
+ * A slot holding a nested resource or a {@link reference!reference | reference} is refined by re-pointing it at a shape
+ * extending the inherited target: the refinement declares only what it adds or narrows, as the refined target carries
+ * the inherited definition through its own {@link ResourceConstraints.extends | extends}. Any other target, the
+ * inherited target's own parent included, is rejected at the call site.
+ *
  * **Narrowing union slots**
  *
  * When a parent declares a {@link union!union | union}-typed slot, an extending shape may drop variants and tighten the
@@ -213,8 +220,9 @@
  *
  * 1. **Single-variant narrowing** (Form 1) — the child supplies a non-union value shape that narrows exactly one of
  *    the parent's variants (by `kind`, only-tightening constraints, a matching `datatype` for `string` / `number`, and
- *    a matching target shape for `reference` or a subtype `class` for `resource`). The merged slot becomes a bare value
- *    shape; consumers see the variant's plain model rather than the union's variant-keyed model.
+ *    the variant's target shape or one extending it for `reference`, or a subtype `class` for `resource`). The merged
+ *    slot becomes a bare value shape; consumers see the variant's plain model rather than the union's variant-keyed
+ *    model.
  * 2. **Union subsetting** (Form 2) — the child supplies a smaller {@link union!union | union} whose variants each
  *    narrow a distinct parent variant. The pairing is order-independent and injective; surviving variants are merged
  *    and unpaired parent variants are dropped.
@@ -390,6 +398,13 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | `hasValue`    | Union of parent and child required values; child must require all parent values         |
  * | `validators`  | Union of parent and child validators; all apply                                         |
  * | `entries`  | Union; clashing keys merged per property rules; `kind` mismatch is reported as an error |
+ *
+ * **Refinement as a Nested Value**
+ *
+ * A shape embedded in a property slot is refined by an extending shape: on top of the rules above, the refining shape
+ * must declare every {@link ResourceShape.class | class} the inherited shape declares, since a value of a different
+ * class is not a value of the inherited shape. Extending the inherited shape satisfies this on its own, and carries
+ * its definition along, so the refinement declares only what it adds or narrows.
  *
  * **Cross-Field Validation**
  *

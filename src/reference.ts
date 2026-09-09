@@ -107,7 +107,7 @@ export { getShapeTarget } from "./reference.core.js";
  * | `model`    | Must be strictly equal — mismatch signals incompatible shapes            |
  * | `foreign`  | Cannot be overridden                                                     |
  * | `captive`  | Cannot be overridden                                                     |
- * | `shape`    | Cannot be overridden                                                     |
+ * | `shape`    | May be re-pointed at a target extending the inherited target             |
  *
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
  */
@@ -139,7 +139,10 @@ export interface ReferenceShape extends ReferenceConstraints {
 	 *
 	 * Accepts a lazy value to support circular and self-referential definitions.
 	 *
-	 * **Inheritance** — cannot be overridden.
+	 * **Inheritance** — may be re-pointed at a target that {@link resource!ResourceConstraints.extends | extends} the
+	 * inherited target, so an extending shape refines what a reference admits by naming the narrower target alone; the
+	 * inherited definition reaches the refined target through its own inheritance chain and is never restated. Any
+	 * other target is rejected.
 	 */
 	readonly shape: Lazy<ResourceShape>;
 

@@ -9,6 +9,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Accept an inherited reference re-pointed at a target extending the inherited target: an extending shape refines what
+  a reference admits by naming the narrower target alone, with the merged entry keeping that target; any other target
+  is rejected
 - Accept a plain string for `name` and `description` on `ResourceConstraints` and `PropertyConstraints` as a shorthand
   for the English-only case — expanded to `{ en: <value> }` on the built shape, where both fields remain localised
   dictionaries

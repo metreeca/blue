@@ -35,9 +35,11 @@ import { eager, type Shape } from "./value.js";
 /**
  * Reports whether an overriding reference shape narrows an inherited base shape.
  *
- * Tests the override relation without building the merged shape: a reference carries no tightenable constraints, so
- * `target` narrows `source` exactly when their `model` matches, the non-overridable fields (`foreign`, `captive`) are
- * not redefined, and the target shapes are equal. Returns a {@link Trace} describing the obstacles otherwise.
+ * Tests the override relation without building the merged shape: a reference carries no tightenable constraints of its
+ * own, so `target` narrows `source` exactly when their `model` matches, the non-overridable fields (`foreign`,
+ * `captive`) are not redefined, and the overriding target shape is the inherited one or
+ * {@link resource!ResourceConstraints.extends | extends} it, directly or transitively. Returns a {@link Trace}
+ * describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
@@ -70,20 +72,36 @@ export function narrowsReference(target: ReferenceShape, source: ReferenceShape)
 		}),
 		test(({ shape }) => {
 
-			return equals(eager(shape), eager(source.shape)) || [
-				`{shape} unexpected <shape> redefinition`
+			const inherited = eager(source.shape);
+
+			return lineage(eager(shape)).some(ancestor => equals(ancestor, inherited)) || [
+				`{shape} incompatible <shape> override`
 			];
 
 		})
 	)(target);
+
+
+	/**
+	 * Lists a resource shape and its ancestors.
+	 *
+	 * @param shape The resource shape to walk
+	 *
+	 * @returns `shape` followed by every shape it extends, directly or transitively
+	 */
+	function lineage(shape: ResourceShape): readonly ResourceShape[] {
+		return [shape, ...[shape.extends ?? []].flat().flatMap(parent => lineage(eager(parent)))];
+	}
 
 }
 
 /**
  * Merges an overriding reference shape with an inherited base shape.
  *
- * Validates `model` strict equality and rejects redefinition of non-overridable fields (`foreign`, `captive`, `shape`).
- * Non-overridable fields are inherited from the source; `kind` and `model` are structural.
+ * Validates `model` strict equality and rejects redefinition of non-overridable fields (`foreign`, `captive`) and any
+ * target shape unrelated to the inherited one. Non-overridable fields are inherited from the source; `kind` and `model`
+ * are structural; the merged reference keeps the overriding target, which already carries the inherited definition
+ * through its own inheritance chain.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
@@ -108,7 +126,7 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 		...source.foreign !== undefined && { foreign: source.foreign },
 		...source.captive !== undefined && { captive: source.captive },
 
-		shape: source.shape
+		shape: target.shape
 
 	});
 

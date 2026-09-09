@@ -185,18 +185,50 @@ const Vendor = resource({ extends: NamedThing }, {
 });
 ```
 
+### Refining nested targets
+
+A slot holding a nested resource or a `reference(...)` is refined by re-pointing it at a shape that extends the
+inherited target. The refining shape declares only what it adds or narrows: it reaches the inherited definition through
+its own `extends`, so the parent definition is never restated. A target that doesn't extend the inherited one, the
+inherited target's own parent included, is rejected at the call site.
+
+```ts
+const Organization = resource({ class: "https://schema.org/Organization" }, {
+    id: id(),
+    name: required(string())
+});
+
+const University = resource({ extends: Organization, class: "https://ec2u.eu/University" }, {
+    country: required(string())
+});
+
+const Unit = resource({
+    id: id(),
+    unitOf: required(reference(Organization)), // referenced target
+    host: required(Organization)               // embedded target
+});
+
+const ResearchUnit = resource({ extends: Unit }, {
+    unitOf: required(reference(University)),   // re-pointed at the extending target
+    host: required(University)
+});
+```
+
+Extending the inherited target is what makes the refinement legal for an embedded slot: a nested resource value must
+carry every `class` the inherited target declares, so a standalone shape that merely repeats its entries is rejected.
+
 ### Narrowing union slots
 
 When the parent declares a `union(...)` slot, an extending shape may narrow it in two forms:
 
 - **Single-variant narrowing** — the child supplies a non-union value shape that narrows exactly one of the parent's
-  variants (matched by `kind`, by `datatype` / `pattern` / `integral` for literals, or by target shape or subtype
-  `class` for `reference` / `resource`). The merged slot becomes a bare value shape; consumers see the variant's plain
-  model rather than the indexed-record form.
+  variants (matched by `kind`, by `datatype` / `pattern` / `integral` for literals, by the variant's target shape or one
+  extending it for `reference`, or by a subtype `class` for `resource`). The merged slot becomes a bare value shape;
+  consumers see the variant's plain model rather than the indexed-record form.
 - **Union subsetting** — the child supplies a smaller `union(...)`; each child variant narrows a distinct parent variant
   (an injective pairing), the paired variants are merged, and unpaired parent variants are dropped. A parent variant
-  that no child variant can single out, such as one of two variants sharing a target shape, cannot be narrowed
-  individually.
+  that no child variant can single out, such as one of two variants whose targets are the same shape or one extending
+  the other, cannot be narrowed individually.
 
 ```ts
 const Entity = resource({

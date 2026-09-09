@@ -17,8 +17,8 @@
 import { TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
 import { mergeReference, narrowsReference, validateReference } from "./reference.core.js";
-import { reference, type ReferenceConstraints } from "./reference.js";
-import { resource } from "./resource.js";
+import { getShapeTarget, reference, type ReferenceConstraints } from "./reference.js";
+import { id, resource, type ResourceShape } from "./resource.js";
 import { string } from "./string.js";
 import { multiple, optional, repeatable, required } from "./value.js";
 
@@ -116,11 +116,42 @@ describe("operators", () => {
 
 	describe("narrowsReference", () => {
 
+		const Wider = resource({ name: required(string()) });
+		const Narrower = resource({ extends: Wider }, { name: required(string({ minLength: 1 })) });
+		const Narrowest = resource({ extends: Narrower }, {});
+
 		it("accepts an identical child", async () => {
 
 			const Target = resource({ name: required(string()) });
 
 			expect(narrowsReference(reference(Target), reference(Target))).toBeUndefined();
+
+		});
+
+		it("accepts a child targeting an extending shape", async () => {
+
+			expect(narrowsReference(reference(Narrower), reference(Wider))).toBeUndefined();
+
+		});
+
+		it("accepts a child targeting a transitively extending shape", async () => {
+
+			expect(narrowsReference(reference(Narrowest), reference(Wider))).toBeUndefined();
+
+		});
+
+		it("accepts a child targeting a shape extending one of several inherited parents", async () => {
+
+			const Other = resource({ code: required(string()) });
+			const Multiple = resource({ extends: [Other, Wider] }, {});
+
+			expect(narrowsReference(reference(Multiple), reference(Wider))).toBeUndefined();
+
+		});
+
+		it("rejects a child targeting an extended shape", async () => {
+
+			expect(narrowsReference(reference(Wider), reference(Narrower))).toBeDefined();
 
 		});
 
@@ -208,6 +239,17 @@ describe("operators", () => {
 
 			});
 
+			it("keeps the extending target shape", async () => {
+
+				const Wider = resource({ name: required(string()) });
+				const Narrower = resource({ extends: Wider }, { name: required(string({ minLength: 1 })) });
+
+				const merged = mergeReference(reference(Narrower), reference(Wider));
+
+				expect(merged.shape).toBe(Narrower);
+
+			});
+
 			it("rejects a divergent target shape", async () => {
 
 				expect(() => mergeReference(
@@ -218,6 +260,55 @@ describe("operators", () => {
 			});
 
 		});
+
+	});
+
+});
+
+describe("inheritance", () => {
+
+	const Wider = resource({ id: id(), label: required(string()) });
+	const Narrower = resource({ extends: Wider }, { label: required(string({ minLength: 1 })) });
+
+	const Parent = resource({ id: id(), link: required(reference(Wider)) });
+
+	function target(shape: ResourceShape, entry: string): undefined | ResourceShape {
+
+		const member = shape.entries[entry];
+
+		return member?.kind === "property" ? getShapeTarget(member.range.shape) : undefined;
+
+	}
+
+	it("re-points an inherited reference at an extending target", async () => {
+
+		const Child = resource({ extends: Parent }, { link: required(reference(Narrower)) });
+
+		expect(target(Child, "link")).toBe(Narrower);
+
+	});
+
+	it("re-points an inherited reference at a lazily declared extending target", async () => {
+
+		const Child = resource({ extends: Parent }, { link: required(reference(() => Narrower)) });
+
+		expect(target(Child, "link")).toBe(Narrower);
+
+	});
+
+	it("retains the inherited target definition without restating it", async () => {
+
+		const Child = resource({ extends: Parent }, { link: required(reference(Narrower)) });
+
+		expect(Object.keys(target(Child, "link")?.entries ?? {})).toEqual(expect.arrayContaining(["id", "label"]));
+
+	});
+
+	it("rejects re-pointing at an unrelated target", async () => {
+
+		const Unrelated = resource({ id: id(), code: required(string()) });
+
+		expect(() => resource({ extends: Parent }, { link: required(reference(Unrelated)) })).toThrow(TraceError);
 
 	});
 
