@@ -23,6 +23,7 @@ import {
 	type Content,
 	type Id,
 	id,
+	type Inheritance,
 	type Instance,
 	type NumberShape,
 	number,
@@ -115,6 +116,10 @@ describe("Content", () => {
 		expectTypeOf<Content<Property<StringShape>>>().toEqualTypeOf<string>();
 	});
 
+	test("Property → the state of a lazy range", () => {
+		expectTypeOf<Content<Property<() => StringShape<"one">>>>().toEqualTypeOf<"one">();
+	});
+
 	test("Property → the state of a resource range", () => {
 		expectTypeOf<Content<Property<ResourceShape<{ readonly label: string }>>>>()
 			.toEqualTypeOf<{ readonly label: string }>();
@@ -157,6 +162,32 @@ describe("Instance", () => {
 });
 
 
+describe("Inheritance", () => {
+
+	test("no shapes → an unconstrained state", () => {
+		expectTypeOf<Inheritance<[]>>().toEqualTypeOf<unknown>();
+	});
+
+	test("single shape → its state", () => {
+		expectTypeOf<Inheritance<[ResourceShape<{ readonly label: string }>]>>()
+			.toEqualTypeOf<{ readonly label: string }>();
+	});
+
+	test("multiple shapes → the intersection of their states", () => {
+		expectTypeOf<Inheritance<[
+			ResourceShape<{ readonly id: Reference }>,
+			ResourceShape<{ readonly label: string }>
+		]>>().toEqualTypeOf<{ readonly id: Reference } & { readonly label: string }>();
+	});
+
+	test("lazy shape → the state of the shape it returns", () => {
+		expectTypeOf<Inheritance<[() => ResourceShape<{ readonly label: string }>]>>()
+			.toEqualTypeOf<{ readonly label: string }>();
+	});
+
+});
+
+
 describe("resource", () => {
 
 	test("infers the instance type from its members", () => {
@@ -184,6 +215,60 @@ describe("resource", () => {
 	test("rejects a non-member value", () => {
 		// @ts-expect-error - a shape is not a member
 		resource({ label: string() });
+	});
+
+
+	test("merges the state of an extended shape into the instance", () => {
+		expectTypeOf(resource(resource({ id: id() }), { label: property(string()) }))
+			.toEqualTypeOf<ResourceShape<{ readonly id: Reference } & { readonly label: string }>>();
+	});
+
+	test("merges the state of every extended shape", () => {
+		expectTypeOf(resource(
+			resource({ id: id() }),
+			resource({ type: typed() }),
+			{ label: property(string()) }
+		)).toEqualTypeOf<ResourceShape<
+			{ readonly id: Reference } & { readonly type: Optional<Reference> } & { readonly label: string }
+		>>();
+	});
+
+	test("resolves a lazy extended shape", () => {
+		const base=resource({ id: id() });
+
+		expectTypeOf(resource(() => base, { label: property(string()) }))
+			.toEqualTypeOf<ResourceShape<{ readonly id: Reference } & { readonly label: string }>>();
+	});
+
+	test("accepts constraints after the members", () => {
+		expectTypeOf(resource(resource({ id: id() }), { label: property(string()) }, {}))
+			.toEqualTypeOf<ResourceShape<{ readonly id: Reference } & { readonly label: string }>>();
+	});
+
+	test("resolves a lazy property range", () => {
+		expectTypeOf(resource({ label: property(() => string<"one">()) })).toEqualTypeOf<ResourceShape<{
+			readonly label: "one"
+		}>>();
+	});
+
+	test("links mutually recursive shapes through lazy ranges", () => {
+		const left: ResourceShape<{ readonly right: { readonly label: string } }>=
+			resource({ right: property(() => right) });
+
+		const right: ResourceShape<{ readonly label: string }>=
+			resource({ label: property(string()) });
+
+		expectTypeOf(left).toEqualTypeOf<ResourceShape<{ readonly right: { readonly label: string } }>>();
+	});
+
+	test("rejects a non-shape as an extended shape", () => {
+		// @ts-expect-error - a string shape is not a resource shape
+		resource(string(), { label: property(string()) });
+	});
+
+	test("rejects an extended shape as the members", () => {
+		// @ts-expect-error - a resource shape is not a member map
+		resource(resource({ id: id() }));
 	});
 
 });

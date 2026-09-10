@@ -15,7 +15,8 @@
  */
 
 import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
-import type { Reference, Resource } from "@metreeca/qest/resource";
+import type { Namespace } from "@metreeca/core/resource";
+import type { Dictionary, Reference, Resource } from "@metreeca/qest/resource";
 
 
 export type Shape =
@@ -49,6 +50,120 @@ export type ResourceShape<T extends Resource = Resource> = {
 
 }
 
+export type ResourceConstraints = {
+
+	/**
+	 * Human-readable name for the shape.
+	 *
+	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a plain
+	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
+	 * {@link ResourceShape.name | built shape}.
+	 *
+	 * **Inheritance** — always from child; not inherited.
+	 *
+	 * @remarks
+	 *
+	 * SHACL defines sh:name only for property shapes; extended here to node shapes.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
+	 */
+	readonly name?: string | Dictionary;
+
+	/**
+	 * Human-readable description of the shape.
+	 *
+	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a
+	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
+	 * {@link ResourceShape.description | built shape}.
+	 *
+	 * **Inheritance** — always from child; not inherited.
+	 *
+	 * @remarks
+	 *
+	 * SHACL defines sh:description only for property shapes; extended here to node shapes.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
+	 */
+	readonly description?: string | Dictionary;
+
+
+	/**
+	 * Default namespace for converting property names to IRIs.
+	 *
+	 * Property names without explicit IRI mappings are resolved relative to this namespace.
+	 *
+	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
+	 *
+	 * @defaultValue {@link defaultNamespace}
+	 */
+	readonly namespace?: Namespace;
+
+	/**
+	 * Target class for resource instances.
+	 *
+	 * The absolute IRI identifying the primary class that resource instances must belong to. Shape-specific and not
+	 * inherited. If defined, this value is exposed through the property mapped to `@type` using {@link type}.
+	 *
+	 * **Inheritance** — shape-specific target class; outside inheritance scope.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#targetClass SHACL § 2.1.3.2 sh:targetClass}
+	 */
+	readonly class?: Reference;
+
+
+	/**
+	 * IRI path pattern that resource {@link Id identifiers} must match.
+	 *
+	 * Patterns are IRI-like templates using `{name}` placeholders for single path segments and `/*` for trailing
+	 * wildcards. Patterns may be absolute or root-relative; root-relative patterns match absolute IRIs, ignoring the
+	 * origin.
+	 *
+	 * **Inheritance** — only the trailing `/*` wildcard admits narrowing: a child may replace `/*` with more specific
+	 * segments (for example, `/products/*` to `/products/{id}/reviews/{rid}`), provided the fixed prefix matches.
+	 * All other cases require exact equality; a mismatch is reported as an error.
+	 *
+	 * @defaultValue `undefined` (no pattern constraint)
+	 *
+	 * @example
+	 * ```
+	 * https://example.org/products/{sku}  → https://example.org/products/ABC-456
+	 * https://example.org/categories/*    → https://example.org/categories/electronics/phones
+	 *
+	 * /employees/{id}                     → https://example.org/employees/123
+	 * /departments/*                      → https://example.org/departments/sales/emea
+	 * ```
+	 */
+	readonly pattern?: string;
+
+	/**
+	 * Allowed resource {@link Id identifiers} (closed enumeration).
+	 *
+	 * When specified, resource identifiers must be members of this list. IRIs must be absolute. Empty arrays are
+	 * ignored.
+	 *
+	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
+	 *
+	 * @defaultValue `undefined` (no enumeration constraint)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.8.3 sh:in}
+	 */
+	readonly in?: readonly Reference[];
+
+	/**
+	 * Required resource {@link Id identifiers} that must be present.
+	 *
+	 * When specified, all listed resource identifiers must appear. IRIs must be absolute. Empty arrays are ignored.
+	 *
+	 * **Inheritance** — union of parent and child required values; child must require all parent values.
+	 *
+	 * @defaultValue `undefined` (no required values)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.8.2 sh:hasValue}
+	 */
+	readonly hasValue?: readonly Reference[];
+
+}
+
 
 export type Member =
 	| Id
@@ -74,7 +189,7 @@ export type Type<T extends Optional<Reference> = Optional<Reference>> = { // !!!
 
 }
 
-export type Property<S extends Shape = Shape> = {
+export type Property<S extends Lazy<Shape> = Lazy<Shape>> = {
 
 	readonly kind: "property"
 
@@ -90,6 +205,19 @@ export type State<S extends Lazy<Shape>> =
 				: Eager<S> extends ResourceShape<infer T> ? T
 					: never
 
+/**
+ * Resolves the state contributed by a list of extended shapes.
+ *
+ * Yields the intersection of the states the extended shapes describe, that is the inherited members an extending
+ * resource is required to expose alongside its own.
+ *
+ * @typeParam I The extended shapes, possibly deferred to break definition cycles
+ */
+export type Inheritance<I extends readonly Lazy<ResourceShape>[]> =
+	I extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends readonly Lazy<ResourceShape>[]]
+		? State<H> & Inheritance<T>
+		: unknown
+
 export type Instance<M extends Members> = {
 
 	readonly [field in keyof M]: Content<M[field]>
@@ -99,7 +227,7 @@ export type Instance<M extends Members> = {
 export type Content<M extends Member> =
 	M extends Id<infer T> ? T
 		: M extends Type<infer T> ? T
-			: M extends Property<infer R extends Shape> ? State<R>
+			: M extends Property<infer R extends Lazy<Shape>> ? State<R>
 				: never
 
 
@@ -135,7 +263,15 @@ export function dictionary() {}
 
 export function reference() {}
 
-export function resource<M extends Members>(members: M): ResourceShape<Instance<M>> {
+export function resource<I extends readonly Lazy<ResourceShape>[], M extends Members>(
+	...args: [...inheritance: I, members: M]
+): ResourceShape<Inheritance<I> & Instance<M>>
+
+export function resource<I extends readonly Lazy<ResourceShape>[], M extends Members>(
+	...args: [...inheritance: I, members: M, constraints: ResourceConstraints]
+): ResourceShape<Inheritance<I> & Instance<M>>
+
+export function resource(...args: readonly unknown[]): ResourceShape {
 	throw new Error(";( to be implemented");
 }
 
@@ -148,6 +284,45 @@ export function type<T extends Optional<Reference>>(): Type<T> {
 	throw new Error(";( to be implemented");
 }
 
-export function property<R extends Shape>(range: R): Property<R> {
+export function property<R extends Lazy<Shape>>(range: R): Property<R> {
 	throw new Error(";( to be implemented");
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+type SchemeState={
+
+	readonly id: Reference,
+	readonly label: string,
+	readonly hasTopConcept: ConceptState
+
+}
+
+type ConceptState={
+
+	readonly id: Reference,
+	readonly label: string,
+	readonly inScheme: SchemeState
+
+}
+
+
+const Scheme: ResourceShape<SchemeState>=resource({
+
+	id: id(),
+
+	label: property(string()),
+
+	hasTopConcept: property(() => Concept)
+
+});
+
+const Concept=resource({
+
+	id: id(),
+
+	label: property(string()),
+
+	inScheme: property(() => Scheme)
+
+});
