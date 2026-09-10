@@ -417,85 +417,33 @@ export function property<R extends Lazy<Shape>, const C extends PropertyBounds =
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Retrieved<S extends Lazy<Shape>> = Joined<
-	& { readonly [field in keyof Carried<S> as Omitted<Carried<S>[field]> extends true ? never : field]: Content<Carried<S>[field]> }
-	& { readonly [field in keyof Carried<S> as Omitted<Carried<S>[field]> extends true ? field : never]?: Content<Carried<S>[field]> }
->
+export type Retrieved<S extends Lazy<Shape>> = {
 
-/**
- * Resolves the value a submitted resource satisfies.
- *
- * Maps the members the shape carries to their payload, dropping the ones the submitter does not own and leaving
- * optional the ones a submitter may {@link Spared | leave out}.
- *
- * @typeParam S The describing shape, possibly deferred to break definition cycles
- */
-export type Submitted<S extends Lazy<Shape>> = Joined<
-	& { readonly [field in keyof Owned<S> as Spared<Owned<S>[field]> extends true ? never : field]: Input<Owned<S>[field]> }
-	& { readonly [field in keyof Owned<S> as Spared<Owned<S>[field]> extends true ? field : never]?: Input<Owned<S>[field]> }
->
-
-/**
- * Joins the parts of a record into a single one.
- *
- * Yields one record carrying every member the parts declare, with its modifiers, so that a resource resolved from
- * required and optional members reads and compares as one type rather than as an intersection.
- *
- * @typeParam T The parts to join
- */
-export type Joined<T> = {
-
-	[field in keyof T]: T[field]
+	readonly [field in keyof Loose<Carried<S>>]: Content<Loose<Carried<S>>[field]>
 
 }
 
 /**
- * Checks whether a member may be left out of a retrieved resource.
+ * Resolves the value a submitted resource satisfies.
  *
- * Yields `true` for a type and for a property whose lower bound is {@link Omissible | omissible}, so that a resource
- * states only the members it is bound to carry. A voided member is never left out, so that a conflict surfaces where
- * the state is resolved.
+ * Maps the members the submitter {@link Owned | owns} to their payload, leaving optional the ones a submitter may
+ * {@link Omitted | leave out}, as the system {@link Managed | fills them in} or the resource may do without them.
  *
- * @typeParam M The member to check
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Omitted<M> =
-	[M] extends [never] ? false
-		: M extends Type ? true
-			: M extends Property<Lazy<Shape>, infer L, Count> ? Omissible<L>
-				: false
+export type Submitted<S extends Lazy<Shape>> = {
 
-/**
- * Checks whether a member may be left out of a submitted resource.
- *
- * Yields `true` for a member a retrieved resource may {@link Omitted | leave out} and for one the system
- * {@link Managed | fills in}.
- *
- * @typeParam M The member to check
- */
-export type Spared<M> =
-	M extends Managed ? true : Omitted<M>
+	readonly [field in keyof Loose<Owned<S>, Managed>]: Input<Loose<Owned<S>, Managed>[field]>
+
+}
 
 /**
  * Resolves the members a submitter owns: every member the shape carries but a {@link Foreign | foreign} one.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Owned<S extends Lazy<Shape>> = {
-
-	readonly [field in keyof Carried<S> as Carried<S>[field] extends Foreign ? never : field]: Carried<S>[field]
-
-}
-
-/**
- * Resolves the members a resource carries.
- *
- * Yields the members the shape declares merged over the ones it inherits, and no member at all for a shape that
- * describes something other than a resource.
- *
- * @typeParam S The describing shape, possibly deferred to break definition cycles
- */
-export type Carried<S extends Lazy<Shape>> =
-	Eager<S> extends ResourceShape<infer P, infer M> ? Merged<P, M> : {}
+export type Owned<S extends Lazy<Shape>> =
+	Dropped<Carried<S>, Foreign>
 
 /**
  * A member a submission does not accept, as the resources it points at own it.
@@ -513,6 +461,62 @@ export type Managed =
 	| Id
 	| { readonly computed: true }
 
+
+/**
+ * Marks optional the members a resource may leave out.
+ *
+ * Yields the members as they stand, optional where a resource may {@link Omitted | leave them out}, so that a value
+ * mapped over them requires exactly the members the resource is bound to carry.
+ *
+ * @typeParam M The members to mark
+ * @typeParam X The members left out on top of the ones a retrieved resource may leave out
+ */
+export type Loose<M, X = never> = Joined<
+	& { readonly [field in keyof M as Omitted<M[field], X> extends true ? never : field]: M[field] }
+	& { readonly [field in keyof M as Omitted<M[field], X> extends true ? field : never]?: M[field] }
+>
+
+/**
+ * Drops the members of a kind from a record.
+ *
+ * @typeParam M The members to filter
+ * @typeParam X The members to drop
+ */
+export type Dropped<M, X> = {
+
+	readonly [field in keyof M as M[field] extends X ? never : field]: M[field]
+
+}
+
+/**
+ * Joins the parts of a record into a single one.
+ *
+ * Yields one record carrying every member the parts declare, with its modifiers, so that a resource resolved from
+ * required and optional members reads and compares as one type rather than as an intersection.
+ *
+ * @typeParam T The parts to join
+ */
+export type Joined<T> = {
+
+	[field in keyof T]: T[field]
+
+}
+
+/**
+ * Checks whether a member may be left out of a resource.
+ *
+ * Yields `true` for a type, for a member of the kinds a transfer names and for a property whose lower bound is
+ * {@link Omissible | omissible}, so that a resource states only the members it is bound to carry. A voided member is
+ * never left out, so that a conflict surfaces where the state is resolved.
+ *
+ * @typeParam M The member to check
+ * @typeParam X The members a transfer lets out on top of the ones any resource may leave out
+ */
+export type Omitted<M, X = never> =
+	[M] extends [never] ? false
+		: M extends Type | X ? true
+			: M extends Property<Lazy<Shape>, infer L, Count> ? Omissible<L>
+				: false
 
 /**
  * Resolves the value a retrieved member carries.
@@ -545,34 +549,46 @@ export type Input<M> =
 //// Resource Inheritance ////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Merges declared members over inherited ones.
+ * Resolves the members a resource carries.
  *
- * Retains a member that restricts the one it overrides and voids any other, so an extending resource may tighten what
- * it inherits but never relax it. Members the extended shapes do not declare pass through untouched.
+ * Yields the members the shape declares merged over the ones it inherits, and no member at all for a shape that
+ * describes something other than a resource. A declared member that restricts the one it overrides is retained and
+ * any other is voided, so an extending resource may tighten what it inherits but never relax it.
  *
- * @typeParam P The extended shapes, possibly deferred to break definition cycles
- * @typeParam M The members the extending resource declares in its own right
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Merged<P extends Parents, M extends Members> = Omit<Inherited<P>, keyof M> & {
-
-	readonly [field in keyof M]: field extends keyof Inherited<P>
-		? Outline<M[field]> extends Outline<Inherited<P>[field]> ? M[field] : never
-		: M[field]
-
-}
+export type Carried<S extends Lazy<Shape>> =
+	Eager<S> extends ResourceShape<infer P, infer M> ? Merged<Inherited<P>, M> : {}
 
 /**
  * Resolves the members a list of extended shapes contributes.
  *
- * Yields the members the extended shapes declare, together with those they inherit in turn, so that a constraint
- * stated anywhere up the chain reaches every extending resource.
+ * Yields the members every extended shape {@link Carried | carries}, so that a constraint stated anywhere up the
+ * chain reaches every extending resource and shapes agreeing on a member pass it on as it stands.
  *
  * @typeParam P The extended shapes, possibly deferred to break definition cycles
  */
 export type Inherited<P extends Parents> =
 	P extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends Parents]
-		? (Eager<H> extends ResourceShape<infer G, infer M> ? Inherited<G> & M : {}) & Inherited<T>
+		? Carried<H> & Inherited<T>
 		: {}
+
+/**
+ * Merges declared members over inherited ones.
+ *
+ * Retains a declared member whose {@link Outline | outline} restricts the one it overrides and voids any other;
+ * inherited members left undeclared pass through untouched.
+ *
+ * @typeParam I The inherited members
+ * @typeParam M The members the extending resource declares in its own right
+ */
+export type Merged<I, M> = Omit<I, keyof M> & {
+
+	readonly [field in keyof M]: field extends keyof I
+		? Outline<M[field]> extends Outline<I[field]> ? M[field] : never
+		: M[field]
+
+}
 
 /**
  * Resolves the outline a member may be narrowed within.
@@ -594,15 +610,15 @@ export type Outline<M> =
  * Resolves the form a value takes when repeated within a cardinality.
  *
  * Yields a bare value where the property is limited to one, an array otherwise, marking the form optional unless at
- * least one value is required. Bounds beyond the four the cardinality factories name are honoured all the same, so a
- * lower bound of two admits the same non-empty form as one.
+ * least one value is {@link Omissible | known to be required}. Bounds beyond the four the cardinality factories name
+ * are honoured all the same, so a lower bound of two admits the same non-empty form as one.
  *
  * @typeParam V The value the property range describes
  * @typeParam L The least number of values admitted
  * @typeParam U The greatest number of values admitted
  */
 export type Repeated<V, L extends Count, U extends Count> =
-	Single<U> extends true
+	[U] extends [1]
 		? Omissible<L> extends true ? undefined | V : V
 		: Omissible<L> extends true ? undefined | readonly V[]
 			: readonly [V, ...V[]]
@@ -616,17 +632,7 @@ export type Repeated<V, L extends Count, U extends Count> =
  * @typeParam L The least number of values admitted
  */
 export type Omissible<L extends Count> =
-	[undefined] extends [L] ? true
-		: [0] extends [L] ? true
-			: false
-
-/**
- * Checks whether an upper bound limits a property to a single value.
- *
- * @typeParam U The greatest number of values admitted
- */
-export type Single<U extends Count> =
-	[U] extends [1] ? true : false
+	0 extends L ? true : undefined extends L ? true : false
 
 /**
  * Resolves a cardinality bound stated in a constraints object.
@@ -637,5 +643,5 @@ export type Single<U extends Count> =
  * @typeParam C The stated constraints
  * @typeParam K The bound to resolve
  */
-export type Declared<C, K extends string> =
-	K extends keyof C ? (C[K] extends Count ? C[K] : undefined) : undefined
+export type Declared<C extends PropertyBounds, K extends keyof PropertyBounds> =
+	K extends keyof C ? C[K] : undefined

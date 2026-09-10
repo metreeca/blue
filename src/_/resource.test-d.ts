@@ -358,6 +358,16 @@ describe("inheritance", () => {
 
 	});
 
+	test("carries a member an extending shape narrows down to the ones extending it", () => {
+
+		const top=resource({ shared: optional(string()) });
+		const middle=resource(top, { shared: required(string()) });
+		const bottom=resource(middle, {});
+
+		expectTypeOf<Instance<typeof bottom>["shared"]>().toEqualTypeOf<string>();
+
+	});
+
 	test("voids an upper bound the child tightens across arity", () => {
 
 		const parent=resource({ shared: multiple(string()) });
