@@ -34,7 +34,7 @@ import {
 	reference,
 	type ReferenceShape,
 	type ResourceShape,
-	repeatable,
+	nonempty,
 	required,
 	resource,
 	type State,
@@ -401,8 +401,8 @@ describe("shape factories", () => {
 		expectTypeOf(optional(string())).toEqualTypeOf<Property<StringShape, undefined, 1>>();
 	});
 
-	test("repeatable → at least one value", () => {
-		expectTypeOf(repeatable(string())).toEqualTypeOf<Property<StringShape, 1, undefined>>();
+	test("nonempty → at least one value", () => {
+		expectTypeOf(nonempty(string())).toEqualTypeOf<Property<StringShape, 1, undefined>>();
 	});
 
 	test("multiple → any number of values", () => {

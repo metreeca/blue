@@ -255,7 +255,7 @@ export function multiple<R extends Lazy<Shape>>(
 	throw new Error(";( to be implemented");
 }
 
-export function repeatable<R extends Lazy<Shape>>(
+export function nonempty<R extends Lazy<Shape>>(
 	range: R, constraints?: PropertyConstrains
 ): Property<R, 1, undefined> {
 	throw new Error(";( to be implemented");
