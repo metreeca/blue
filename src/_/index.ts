@@ -66,23 +66,23 @@ export type RangeCount =
 	Optional<number>
 
 
-//// Range Cardinality ///////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Resolves the form a value takes when repeated within a cardinality.
+ * Resolves the form a value takes at the arity its bounds admit.
  *
  * Yields a bare value where the range admits at most one, an array otherwise, marking the form optional unless at
- * least one value is {@link Omissible | known to be required}. Bounds beyond the four the cardinality factories name
+ * least one value is {@link Skippable | known to be required}. Bounds beyond the four the cardinality factories name
  * are honoured all the same, so a lower bound of two admits the same non-empty form as one.
  *
  * @typeParam V The value the range describes
  * @typeParam L The least number of values admitted
  * @typeParam U The greatest number of values admitted
  */
-export type Repeated<V, L extends RangeCount, U extends RangeCount> =
+export type Arity<V, L extends RangeCount, U extends RangeCount> =
 	[U] extends [1]
-		? Omissible<L> extends true ? undefined | V : V
-		: Omissible<L> extends true ? undefined | readonly V[]
+		? Skippable<L> extends true ? undefined | V : V
+		: Skippable<L> extends true ? undefined | readonly V[]
 			: readonly [V, ...V[]]
 
 /**
@@ -93,7 +93,7 @@ export type Repeated<V, L extends RangeCount, U extends RangeCount> =
  *
  * @typeParam L The least number of values admitted
  */
-export type Omissible<L extends RangeCount> =
-	0 extends L ? true
-		: undefined extends L ? true
+export type Skippable<L extends RangeCount> =
+	undefined extends L ? true
+		: 0 extends L ? true
 			: false

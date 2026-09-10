@@ -18,7 +18,7 @@ import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
 import type { Instance, Proposal, Shape } from "./_.js";
-import type { RangeCount, Omissible, Range, Repeated } from "./index.js";
+import type { Arity, Range, RangeCount, Skippable } from "./index.js";
 import type { ReferenceShape } from "./reference.js";
 
 
@@ -481,7 +481,7 @@ export type Joined<T> = {
  * Checks whether a member may be left out of a resource.
  *
  * Yields `true` for a type, for a member of the kinds a transfer names and for a property whose lower bound is
- * {@link Omissible | omissible}, so that a resource states only the members it is bound to carry. A voided member is
+ * {@link Skippable | skippable}, so that a resource states only the members it is bound to carry. A voided member is
  * never left out, so that a conflict surfaces where the state is resolved.
  *
  * @typeParam M The member to check
@@ -490,7 +490,7 @@ export type Joined<T> = {
 export type Omitted<M, X = never> =
 	[M] extends [never] ? false
 		: M extends Type | X ? true
-			: M extends Property<Lazy<Shape>, infer L, RangeCount> ? Omissible<L>
+			: M extends Property<Lazy<Shape>, infer L, RangeCount> ? Skippable<L>
 				: false
 
 /**
@@ -504,7 +504,7 @@ export type Omitted<M, X = never> =
 export type Content<M> =
 	M extends Id ? Reference
 		: M extends Type ? Optional<Reference>
-			: M extends Property<infer R, infer L, infer U> ? Repeated<Instance<R>, L, U>
+			: M extends Property<infer R, infer L, infer U> ? Arity<Instance<R>, L, U>
 				: never
 
 /**
@@ -517,7 +517,7 @@ export type Content<M> =
  */
 export type Input<M> =
 	M extends { readonly captive: true } & Property<Lazy<ReferenceShape<infer T>>, infer L, infer U>
-		? Repeated<Reference | Proposal<T>, L, U>
+		? Arity<Reference | Proposal<T>, L, U>
 		: Content<M>
 
 
@@ -576,7 +576,7 @@ export type Merged<I, M> = Omit<I, keyof M> & {
  * @typeParam M The member to outline
  */
 export type Outline<M> =
-	M extends Property<infer R, infer L, infer U> ? Repeated<Eager<R>["kind"], L, U> : M
+	M extends Property<infer R, infer L, infer U> ? Arity<Eager<R>["kind"], L, U> : M
 
 
 //// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
