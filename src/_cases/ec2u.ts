@@ -15,15 +15,16 @@
  */
 
 import { createNamespace } from "@metreeca/core/resource";
+import { number } from "../_/number.js";
 import { id, optional, required, resource } from "../_/resource.js";
 import { markdown, text } from "../_/string.js";
-import { Point, wgs } from "./wgs.js";
 
 
 export const base = "https://data.ec2u.eu"; // the EC2U Knowledge Hub id space
 
 export const ec2u = createNamespace(`${base}/terms#`);
 export const rdfs = createNamespace("http://www.w3.org/2000/01/rdf-schema#");
+export const wgs = createNamespace("http://www.w3.org/2003/01/geo/wgs84_pos#");
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -39,6 +40,20 @@ export function Entity() {
 	}, {
 
 		space: rdfs
+
+	});
+}
+
+
+export function Point() {
+	return resource({
+
+		longitude: required(number, { forward: wgs.long }),
+		latitude: required(number, { forward: wgs.lat })
+
+	}, {
+
+		space: wgs
 
 	});
 }

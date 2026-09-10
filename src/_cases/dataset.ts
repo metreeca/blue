@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
+import { createNamespace } from "@metreeca/core/resource";
 import { boolean } from "../_/boolean.js";
 import { reference } from "../_/reference.js";
 import { multiple, optional, required, resource } from "../_/resource.js";
 import { markdown, text } from "../_/string.js";
-import { dct } from "./dct.js";
 import { ec2u, Entity, rdfs } from "./ec2u.js";
+
+
+export const dct = createNamespace("http://purl.org/dc/terms/");
 
 
 export function Dataset() {
