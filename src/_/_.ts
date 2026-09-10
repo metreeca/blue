@@ -58,8 +58,6 @@ export type State<S extends Lazy<Shape>> =
  * written.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
- *
- * @see {@link https://github.com/metreeca/keep/issues/4 keep#4}
  */
 export type Draft<S extends Lazy<Shape>> =
 	Resolved<S, Submission<Carried<S>>>
