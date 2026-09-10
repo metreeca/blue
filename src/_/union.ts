@@ -15,7 +15,7 @@
  */
 
 import type { Eager, Lazy } from "@metreeca/core";
-import type { Instance, Proposal, Shape } from "./_.js";
+import type { Shape } from "./_.js";
 
 
 /**
@@ -23,7 +23,7 @@ import type { Instance, Proposal, Shape } from "./_.js";
  *
  * Admits whatever any of its branches admits, so that a property whose vocabulary ranges over unrelated types (a plain
  * string or any of several structured resources, say) is described by a single shape. A branch is a shape in its own
- * right but never a union, so a value is always matched against a flat set of alternatives.
+ * right, a union included, possibly deferred to break definition cycles.
  *
  * **Matching**
  *
@@ -93,6 +93,20 @@ export type UnionBranches =
 	readonly Lazy<Shape>[]
 
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the alternatives a union describes.
+ *
+ * Yields every branch at once, each as declared, so that a value of the union is resolved by resolving each branch in
+ * turn, as {@link _!Instance} and {@link _!Proposal} do; a shape that is not a union has no branch at all.
+ *
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
+ */
+export type Branch<S extends Lazy<Shape>> =
+	Eager<S> extends UnionShape<infer B> ? B[number] : never
+
+
 //// Factories ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -119,28 +133,3 @@ export type UnionBranches =
 export function union<B extends readonly [Lazy<Shape>, ...Lazy<Shape>[]]>(...branches: B): UnionShape<B> {
 	throw new Error(";( to be implemented");
 }
-
-
-//// Union Values ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Resolves the value a union describes, as retrieved.
- *
- * Yields the value of every branch at once, as a retrieved value belongs to the branch it was stored under and the
- * reader is told which one only by the value itself.
- *
- * @typeParam S The describing shape, possibly deferred to break definition cycles
- */
-export type Drawn<S extends Lazy<Shape>> =
-	Eager<S> extends UnionShape<infer B> ? { [index in keyof B]: Instance<B[index]> }[number] : never
-
-/**
- * Resolves the value a union describes, as submitted.
- *
- * Yields the payload of every branch at once, as a submitted value is expected to single out the one branch it is
- * stored under.
- *
- * @typeParam S The describing shape, possibly deferred to break definition cycles
- */
-export type Offered<S extends Lazy<Shape>> =
-	Eager<S> extends UnionShape<infer B> ? { [index in keyof B]: Proposal<B[index]> }[number] : never

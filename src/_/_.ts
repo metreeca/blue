@@ -21,7 +21,7 @@ import type { NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
 import type { ResourceShape, Retrieved, Submitted } from "./resource.js";
 import type { StringShape } from "./string.js";
-import type { Drawn, Offered, UnionShape } from "./union.js";
+import type { Branch, UnionShape } from "./union.js";
 
 
 /**
@@ -49,16 +49,18 @@ export type Shape =
  * Yields the type a retrieved instance of the shape exposes: the {@link Plain} value for a scalar or reference shape,
  * for a resource shape a record of the members it declares merged over the ones it inherits, and for a union shape the
  * value of every branch at once, as the stored value alone tells the reader which branch it belongs to. A reference
- * contributes the target IRI alone, keeping a linked resource out of the state it points at. Reach for `Instance`
- * wherever a resource is read.
+ * contributes the target IRI alone, keeping a linked resource out of the state it points at. A shape left wholly
+ * undescribed, admitting any shape at all, resolves to no value. Reach for `Instance` wherever a resource is read.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type Instance<S extends Lazy<Shape>> =
-	[Eager<S>] extends [never] ? never
-		: Eager<S> extends ResourceShape ? Retrieved<S>
-			: Eager<S> extends UnionShape ? Drawn<S>
-				: Plain<S>
+	Shape extends Eager<S> ? never
+		: Eager<S> extends infer E extends Shape
+			? E extends ResourceShape ? Retrieved<E>
+				: E extends UnionShape ? Instance<Branch<E>>
+					: Plain<E>
+			: never
 
 /**
  * Resolves the value a shape describes, as submitted.
@@ -73,10 +75,12 @@ export type Instance<S extends Lazy<Shape>> =
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type Proposal<S extends Lazy<Shape>> =
-	[Eager<S>] extends [never] ? never
-		: Eager<S> extends ResourceShape ? Submitted<S>
-			: Eager<S> extends UnionShape ? Offered<S>
-				: Plain<S>
+	Shape extends Eager<S> ? never
+		: Eager<S> extends infer E extends Shape
+			? E extends ResourceShape ? Submitted<E>
+				: E extends UnionShape ? Proposal<Branch<E>>
+					: Plain<E>
+			: never
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

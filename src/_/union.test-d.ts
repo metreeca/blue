@@ -21,7 +21,7 @@ import { type NumberShape } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import { id, type Id, multiple, type Property, required, resource } from "./resource.js";
 import { string, type StringShape } from "./string.js";
-import { type Drawn, type Offered, union, type UnionShape } from "./union.js";
+import { type Branch, union, type UnionShape } from "./union.js";
 
 
 type LinkShape={
@@ -37,44 +37,52 @@ type LinkShape={
 }
 
 
-describe("Drawn", () => {
+describe("Branch", () => {
 
-	test("union shape → the value of every branch", () => {
-		expectTypeOf<Drawn<UnionShape<[StringShape, ReferenceShape]>>>().toEqualTypeOf<string | Reference>();
+	test("union shape → the shape of every branch", () => {
+		expectTypeOf<Branch<UnionShape<[StringShape, ReferenceShape]>>>().toEqualTypeOf<StringShape | ReferenceShape>();
 	});
 
-	test("resource branch → the instance it describes", () => {
-		expectTypeOf<Drawn<UnionShape<[StringShape, LinkShape]>>>().toEqualTypeOf<string | Instance<LinkShape>>();
+	test("lazy union → the branches of the shape it returns", () => {
+		expectTypeOf<Branch<() => UnionShape<[StringShape]>>>().toEqualTypeOf<StringShape>();
 	});
 
-	test("lazy branch → the value of the shape it returns", () => {
-		expectTypeOf<Drawn<UnionShape<[() => LinkShape]>>>().toEqualTypeOf<Instance<LinkShape>>();
+	test("lazy branch → the deferred shape as declared", () => {
+		expectTypeOf<Branch<UnionShape<[() => LinkShape]>>>().toEqualTypeOf<() => LinkShape>();
 	});
 
-	test("narrowed branch → the values it enumerates", () => {
-		expectTypeOf<Drawn<UnionShape<[StringShape<"home" | "work">, NumberShape]>>>()
-			.toEqualTypeOf<"home" | "work" | number>();
-	});
-
-	test("non-union shape → no value at all", () => {
-		expectTypeOf<Drawn<StringShape>>().toBeNever();
+	test("non-union shape → no branch at all", () => {
+		expectTypeOf<Branch<StringShape>>().toBeNever();
 	});
 
 });
 
 
-describe("Offered", () => {
+describe("union values", () => {
 
-	test("union shape → the payload of every branch", () => {
-		expectTypeOf<Offered<UnionShape<[StringShape, LinkShape]>>>().toEqualTypeOf<string | Proposal<LinkShape>>();
+	test("retrieves the value of every branch", () => {
+		expectTypeOf<Instance<UnionShape<[StringShape, ReferenceShape]>>>().toEqualTypeOf<string | Reference>();
 	});
 
-	test("resource branch → its submitted form rather than its retrieved one", () => {
-		expectTypeOf<Offered<UnionShape<[LinkShape]>>>().not.toEqualTypeOf<Drawn<UnionShape<[LinkShape]>>>();
+	test("retrieves a resource branch as the instance it describes", () => {
+		expectTypeOf<Instance<UnionShape<[StringShape, LinkShape]>>>().toEqualTypeOf<string | Instance<LinkShape>>();
 	});
 
-	test("non-union shape → no value at all", () => {
-		expectTypeOf<Offered<StringShape>>().toBeNever();
+	test("retrieves a lazy branch as the value of the shape it returns", () => {
+		expectTypeOf<Instance<UnionShape<[() => LinkShape]>>>().toEqualTypeOf<Instance<LinkShape>>();
+	});
+
+	test("retrieves a narrowed branch as the values it enumerates", () => {
+		expectTypeOf<Instance<UnionShape<[StringShape<"home" | "work">, NumberShape]>>>()
+			.toEqualTypeOf<"home" | "work" | number>();
+	});
+
+	test("submits the payload of every branch", () => {
+		expectTypeOf<Proposal<UnionShape<[StringShape, LinkShape]>>>().toEqualTypeOf<string | Proposal<LinkShape>>();
+	});
+
+	test("submits a resource branch in its submitted form rather than its retrieved one", () => {
+		expectTypeOf<Proposal<UnionShape<[LinkShape]>>>().not.toEqualTypeOf<Instance<UnionShape<[LinkShape]>>>();
 	});
 
 });
