@@ -28,7 +28,7 @@ import type { StringShape } from "./string.js";
  *
  * Describes a plain value, a reference to a resource or a resource in its own right; a resource shape names the
  * members its instances carry and may extend other resource shapes. The type of the value a shape describes is
- * derived from the shape itself, as {@link State} or {@link Draft}, so that the two cannot drift.
+ * derived from the shape itself, as {@link Instance} or {@link Proposal}, so that the two cannot drift.
  */
 export type Shape =
 	| BooleanShape
@@ -45,12 +45,12 @@ export type Shape =
  *
  * Yields the type a retrieved instance of the shape exposes: the {@link Plain} value for a scalar or reference shape,
  * and for a resource shape a record of the members it declares merged over the ones it inherits. A reference
- * contributes the target IRI alone, keeping a linked resource out of the state it points at. Reach for `State`
+ * contributes the target IRI alone, keeping a linked resource out of the state it points at. Reach for `Instance`
  * wherever a resource is read.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type State<S extends Lazy<Shape>> = // !!! name
+export type Instance<S extends Lazy<Shape>> =
 	[Eager<S>] extends [never] ? never
 		: Eager<S> extends ResourceShape ? Retrieved<S>
 			: Plain<S>
@@ -58,15 +58,15 @@ export type State<S extends Lazy<Shape>> = // !!! name
 /**
  * Resolves the value a shape describes, as submitted.
  *
- * Yields the type a resource being created or updated satisfies. It differs from the {@link State | retrieved} one in
- * what the submitter is responsible for: an identifier and a system-managed member may be left out, a member owned by
- * the resources it points at is not accepted at all, and a captive target may be supplied inline rather than by IRI,
- * so that a resource and the ones it holds captive travel together. A {@link Plain} value is submitted as it is
- * retrieved. Reach for `Draft` wherever a resource is written.
+ * Yields the type a resource being created or updated satisfies. It differs from the {@link Instance | retrieved}
+ * one in what the submitter is responsible for: an identifier and a system-managed member may be left out, a member
+ * owned by the resources it points at is not accepted at all, and a captive target may be supplied inline rather than
+ * by IRI, so that a resource and the ones it holds captive travel together. A {@link Plain} value is submitted as it
+ * is retrieved. Reach for `Proposal` wherever a resource is written.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Draft<S extends Lazy<Shape>> = // !!! name
+export type Proposal<S extends Lazy<Shape>> =
 	[Eager<S>] extends [never] ? never
 		: Eager<S> extends ResourceShape ? Submitted<S>
 			: Plain<S>

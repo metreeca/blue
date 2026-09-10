@@ -15,37 +15,33 @@
  */
 
 import { createNamespace } from "@metreeca/core/resource";
+import type { Instance } from "../_/_.js";
 import { reference } from "../_/reference.js";
 import { multiple, optional, required, resource } from "../_/resource.js";
 import { markdown, string, text } from "../_/string.js";
 
 
-export const skos = createNamespace("http://www.w3.org/2004/02/skos/core#", [
-
-	"Concept",
-	"ConceptScheme",
-
-	"notation",
-
-	"prefLabel",
-	"altLabel",
-	"hiddenLabel",
-	"definition",
-
-	"inScheme",
-	"topConceptOf",
-	"hasTopConcept",
-
-	"broader",
-	"broaderTransitive",
-	"narrower",
-	"related",
-	"exactMatch"
-
-]);
+export const skos = createNamespace("http://www.w3.org/2004/02/skos/core#");
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export type Concept=Instance<typeof Concept>
+
+// const c: Concept= {
+// 	notation: undefined,
+// 	prefLabel: "",
+// 	altLabel: undefined,
+// 	hiddenLabel: undefined,
+// 	inScheme: "",
+// 	topConceptOf: undefined,
+// 	broader: undefined,
+// 	broaderTransitive: undefined,
+// 	narrower: undefined,
+// 	related: undefined,
+// 	exactMatch: undefined
+// }
+
 
 export function ConceptScheme() {
 	return resource({

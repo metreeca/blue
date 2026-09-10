@@ -15,7 +15,7 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type State } from "./_.js";
+import { type Instance } from "./_.js";
 import { type BooleanShape, boolean } from "./boolean.js";
 
 
@@ -26,7 +26,7 @@ describe("boolean", () => {
 	});
 
 	test("BooleanShape → boolean", () => {
-		expectTypeOf<State<BooleanShape>>().toEqualTypeOf<boolean>();
+		expectTypeOf<Instance<BooleanShape>>().toEqualTypeOf<boolean>();
 	});
 
 });

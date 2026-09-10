@@ -15,7 +15,7 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type Draft, type State } from "./_.js";
+import { type Instance, type Proposal } from "./_.js";
 import { byte, decimal, double, float, int, integer, long, type NumberShape, number, short } from "./number.js";
 import { multiple, optional, required, resource } from "./resource.js";
 
@@ -59,14 +59,14 @@ describe("number", () => {
 	});
 
 	test("NumberShape → number", () => {
-		expectTypeOf<State<NumberShape>>().toEqualTypeOf<number>();
+		expectTypeOf<Instance<NumberShape>>().toEqualTypeOf<number>();
 	});
 
 	test("enumerated NumberShape → admitted values", () => {
 
 		const shape=number({ in: [1, 2] });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<1 | 2>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<1 | 2>();
 
 	});
 
@@ -74,7 +74,7 @@ describe("number", () => {
 
 		const shape=byte({ in: [1, 2] });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<1 | 2>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<1 | 2>();
 
 	});
 
@@ -82,7 +82,7 @@ describe("number", () => {
 
 		const shape=number({ minInclusive: 0 });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<number>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<number>();
 
 	});
 
@@ -90,7 +90,7 @@ describe("number", () => {
 
 		const shape=number({ in: [] });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<number>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<number>();
 
 	});
 
@@ -99,7 +99,7 @@ describe("number", () => {
 		const values: readonly number[]=[1, 2];
 		const shape=number({ in: values });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<number>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<number>();
 
 	});
 
@@ -108,7 +108,7 @@ describe("number", () => {
 		const values: readonly (1 | 2)[]=[1, 2];
 		const shape=number({ in: values });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<1 | 2>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<1 | 2>();
 
 	});
 
@@ -125,7 +125,7 @@ describe("number", () => {
 		// @ts-expect-error - the state is stated through the constraints, not on its own
 		const shape=number<1 | 2>();
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<number>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<number>();
 
 	});
 
@@ -134,7 +134,7 @@ describe("number", () => {
 		// @ts-expect-error - the stated enumeration doesn't admit the supplied values
 		const shape=number<{ readonly in: readonly [1, 2] }>({ in: [1] });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<1 | 2>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<1 | 2>();
 
 	});
 
@@ -151,22 +151,22 @@ describe("members", () => {
 
 	test("carries the admitted values through cardinality", () => {
 
-		expectTypeOf<State<typeof Product>["code"]>().toEqualTypeOf<number>();
-		expectTypeOf<State<typeof Product>["rating"]>().toEqualTypeOf<undefined | 1 | 2 | 3>();
-		expectTypeOf<State<typeof Product>["scores"]>().toEqualTypeOf<undefined | readonly (1 | 2)[]>();
-		expectTypeOf<State<typeof Product>["price"]>().toEqualTypeOf<undefined | number>();
+		expectTypeOf<Instance<typeof Product>["code"]>().toEqualTypeOf<number>();
+		expectTypeOf<Instance<typeof Product>["rating"]>().toEqualTypeOf<undefined | 1 | 2 | 3>();
+		expectTypeOf<Instance<typeof Product>["scores"]>().toEqualTypeOf<undefined | readonly (1 | 2)[]>();
+		expectTypeOf<Instance<typeof Product>["price"]>().toEqualTypeOf<undefined | number>();
 
 	});
 
 	test("carries the admitted values into a submission", () => {
-		expectTypeOf<Draft<typeof Product>["rating"]>().toEqualTypeOf<undefined | 1 | 2 | 3>();
+		expectTypeOf<Proposal<typeof Product>["rating"]>().toEqualTypeOf<undefined | 1 | 2 | 3>();
 	});
 
 	test("carries the admitted values through inheritance", () => {
 
 		const Rated=resource(Product, { rating: required(integer({ in: [1, 2] })) });
 
-		expectTypeOf<State<typeof Rated>["rating"]>().toEqualTypeOf<1 | 2>();
+		expectTypeOf<Instance<typeof Rated>["rating"]>().toEqualTypeOf<1 | 2>();
 
 	});
 

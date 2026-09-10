@@ -17,7 +17,7 @@
 import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
-import type { Draft, Shape, State } from "./_.js";
+import type { Instance, Proposal, Shape } from "./_.js";
 import type { ReferenceShape } from "./reference.js";
 
 
@@ -484,7 +484,7 @@ export type Managed =
 export type Content<M> =
 	M extends Id ? Reference
 		: M extends Type ? Optional<Reference>
-			: M extends Property<infer R, infer L, infer U> ? Repeated<State<R>, L, U>
+			: M extends Property<infer R, infer L, infer U> ? Repeated<Instance<R>, L, U>
 				: never
 
 /**
@@ -497,7 +497,7 @@ export type Content<M> =
  */
 export type Input<M> =
 	M extends { readonly captive: true } & Property<Lazy<ReferenceShape<infer T>>, infer L, infer U>
-		? Repeated<Reference | Draft<T>, L, U>
+		? Repeated<Reference | Proposal<T>, L, U>
 		: Content<M>
 
 

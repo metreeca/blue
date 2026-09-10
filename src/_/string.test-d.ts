@@ -15,7 +15,7 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type Draft, type State } from "./_.js";
+import { type Instance, type Proposal } from "./_.js";
 import { multiple, optional, required, resource } from "./resource.js";
 import {
 	date,
@@ -95,14 +95,14 @@ describe("string", () => {
 	});
 
 	test("StringShape → string", () => {
-		expectTypeOf<State<StringShape>>().toEqualTypeOf<string>();
+		expectTypeOf<Instance<StringShape>>().toEqualTypeOf<string>();
 	});
 
 	test("enumerated StringShape → admitted values", () => {
 
 		const shape=string({ in: ["active", "closed"] });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<"active" | "closed">();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<"active" | "closed">();
 
 	});
 
@@ -110,7 +110,7 @@ describe("string", () => {
 
 		const shape=tag({ in: ["en", "it"] });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<"en" | "it">();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<"en" | "it">();
 
 	});
 
@@ -118,7 +118,7 @@ describe("string", () => {
 
 		const shape=string({ minLength: 1, pattern: /^\S+$/ });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<string>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<string>();
 
 	});
 
@@ -126,7 +126,7 @@ describe("string", () => {
 
 		const shape=string({ in: [] });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<string>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<string>();
 
 	});
 
@@ -135,7 +135,7 @@ describe("string", () => {
 		const values: readonly string[]=["active", "closed"];
 		const shape=string({ in: values });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<string>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<string>();
 
 	});
 
@@ -144,7 +144,7 @@ describe("string", () => {
 		const values: readonly ("active" | "closed")[]=["active", "closed"];
 		const shape=string({ in: values });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<"active" | "closed">();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<"active" | "closed">();
 
 	});
 
@@ -169,7 +169,7 @@ describe("string", () => {
 		// @ts-expect-error - the state is stated through the constraints, not on its own
 		const shape=string<"active" | "closed">();
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<string>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<string>();
 
 	});
 
@@ -178,7 +178,7 @@ describe("string", () => {
 		// @ts-expect-error - the stated enumeration doesn't admit the supplied values
 		const shape=string<{ readonly in: readonly ["active", "closed"] }>({ in: ["active"] });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<"active" | "closed">();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<"active" | "closed">();
 
 	});
 
@@ -195,22 +195,22 @@ describe("members", () => {
 
 	test("carries the admitted values through cardinality", () => {
 
-		expectTypeOf<State<typeof Ticket>["title"]>().toEqualTypeOf<string>();
-		expectTypeOf<State<typeof Ticket>["status"]>().toEqualTypeOf<undefined | "open" | "closed">();
-		expectTypeOf<State<typeof Ticket>["labels"]>().toEqualTypeOf<undefined | readonly ("en" | "it")[]>();
-		expectTypeOf<State<typeof Ticket>["opened"]>().toEqualTypeOf<undefined | string>();
+		expectTypeOf<Instance<typeof Ticket>["title"]>().toEqualTypeOf<string>();
+		expectTypeOf<Instance<typeof Ticket>["status"]>().toEqualTypeOf<undefined | "open" | "closed">();
+		expectTypeOf<Instance<typeof Ticket>["labels"]>().toEqualTypeOf<undefined | readonly ("en" | "it")[]>();
+		expectTypeOf<Instance<typeof Ticket>["opened"]>().toEqualTypeOf<undefined | string>();
 
 	});
 
 	test("carries the admitted values into a submission", () => {
-		expectTypeOf<Draft<typeof Ticket>["status"]>().toEqualTypeOf<undefined | "open" | "closed">();
+		expectTypeOf<Proposal<typeof Ticket>["status"]>().toEqualTypeOf<undefined | "open" | "closed">();
 	});
 
 	test("carries the admitted values through inheritance", () => {
 
 		const Open=resource(Ticket, { status: required(string({ in: ["open"] })) });
 
-		expectTypeOf<State<typeof Open>["status"]>().toEqualTypeOf<"open">();
+		expectTypeOf<Instance<typeof Open>["status"]>().toEqualTypeOf<"open">();
 
 	});
 

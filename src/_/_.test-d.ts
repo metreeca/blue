@@ -18,8 +18,8 @@ import type { Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import {
-	type Draft,
-	type State
+	type Proposal,
+	type Instance
 } from "./_.js";
 import { type BooleanShape } from "./boolean.js";
 import { reference, type ReferenceShape } from "./reference.js";
@@ -54,12 +54,12 @@ type LabelShape={
 type LabelState={ readonly label: string }
 
 
-describe("State", () => {
+describe("Instance", () => {
 
 	describe("reference shapes", () => {
 
 		test("ReferenceShape → an IRI", () => {
-			expectTypeOf<State<ReferenceShape>>().toEqualTypeOf<Reference>();
+			expectTypeOf<Instance<ReferenceShape>>().toEqualTypeOf<Reference>();
 		});
 
 	});
@@ -67,11 +67,11 @@ describe("State", () => {
 	describe("resource shapes", () => {
 
 		test("ResourceShape → the instance its members describe", () => {
-			expectTypeOf<State<LabelShape>>().toEqualTypeOf<LabelState>();
+			expectTypeOf<Instance<LabelShape>>().toEqualTypeOf<LabelState>();
 		});
 
 		test("unconstrained ResourceShape → Resource", () => {
-			expectTypeOf<State<ResourceShape>>().toExtend<Resource>();
+			expectTypeOf<Instance<ResourceShape>>().toExtend<Resource>();
 		});
 
 	});
@@ -79,24 +79,24 @@ describe("State", () => {
 	describe("lazy shapes", () => {
 
 		test("thunk → the state of the shape it returns", () => {
-			expectTypeOf<State<() => LabelShape>>().toEqualTypeOf<LabelState>();
+			expectTypeOf<Instance<() => LabelShape>>().toEqualTypeOf<LabelState>();
 		});
 
 		test("thunk and shape agree", () => {
-			expectTypeOf<State<() => BooleanShape>>().toEqualTypeOf<State<BooleanShape>>();
+			expectTypeOf<Instance<() => BooleanShape>>().toEqualTypeOf<Instance<BooleanShape>>();
 		});
 
 	});
 
 	test("rejects a non-shape", () => {
 		// @ts-expect-error - string is not a shape
-		expectTypeOf<State<string>>().toBeNever();
+		expectTypeOf<Instance<string>>().toBeNever();
 	});
 
 });
 
 
-describe("Draft", () => {
+describe("Proposal", () => {
 
 	function target() {
 		return resource({ id: id(), label: required(string()) });
@@ -116,7 +116,7 @@ describe("Draft", () => {
 
 	});
 
-	type Submitted=Draft<typeof shape>
+	type Submitted=Proposal<typeof shape>
 
 	test("carries a plain member as the state does", () => {
 		expectTypeOf<Submitted["plain"]>().toEqualTypeOf<string>();
@@ -127,16 +127,16 @@ describe("Draft", () => {
 	});
 
 	test("admits a captive target inline alongside its IRI", () => {
-		expectTypeOf<Submitted["owned"]>().toEqualTypeOf<Reference | Draft<ReturnType<typeof target>>>();
+		expectTypeOf<Submitted["owned"]>().toEqualTypeOf<Reference | Proposal<ReturnType<typeof target>>>();
 	});
 
 	test("admits captive targets inline at every cardinality", () => {
 		expectTypeOf<Submitted["many"]>()
-			.toEqualTypeOf<undefined | readonly (Reference | Draft<ReturnType<typeof target>>)[]>();
+			.toEqualTypeOf<undefined | readonly (Reference | Proposal<ReturnType<typeof target>>)[]>();
 	});
 
-	test("drafts a captive target in its own right", () => {
-		expectTypeOf<Draft<ReturnType<typeof target>>["label"]>().toEqualTypeOf<string>();
+	test("proposes a captive target in its own right", () => {
+		expectTypeOf<Proposal<ReturnType<typeof target>>["label"]>().toEqualTypeOf<string>();
 	});
 
 	test("leaves an identifier optional", () => {
@@ -155,8 +155,8 @@ describe("Draft", () => {
 	});
 
 	test("resolves a scalar shape as the state does", () => {
-		expectTypeOf<Draft<StringShape>>().toEqualTypeOf<string>();
-		expectTypeOf<Draft<ReferenceShape>>().toEqualTypeOf<Reference>();
+		expectTypeOf<Proposal<StringShape>>().toEqualTypeOf<string>();
+		expectTypeOf<Proposal<ReferenceShape>>().toEqualTypeOf<Reference>();
 	});
 
 });
