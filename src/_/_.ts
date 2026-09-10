@@ -21,14 +21,16 @@ import type { NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
 import type { ResourceShape, Retrieved, Submitted } from "./resource.js";
 import type { StringShape } from "./string.js";
+import type { Drawn, Offered, UnionShape } from "./union.js";
 
 
 /**
  * A description of a value.
  *
- * Describes a plain value, a reference to a resource or a resource in its own right; a resource shape names the
- * members its instances carry and may extend other resource shapes. The type of the value a shape describes is
- * derived from the shape itself, as {@link Instance} or {@link Proposal}, so that the two cannot drift.
+ * Describes a plain value, a reference to a resource, a resource in its own right or a value drawn from one of several
+ * alternatives; a resource shape names the members its instances carry and may extend other resource shapes. The type
+ * of the value a shape describes is derived from the shape itself, as {@link Instance} or {@link Proposal}, so that the
+ * two cannot drift.
  */
 export type Shape =
 	| BooleanShape
@@ -36,6 +38,7 @@ export type Shape =
 	| StringShape
 	| ReferenceShape
 	| ResourceShape
+	| UnionShape
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +47,8 @@ export type Shape =
  * Resolves the value a shape describes, as retrieved.
  *
  * Yields the type a retrieved instance of the shape exposes: the {@link Plain} value for a scalar or reference shape,
- * and for a resource shape a record of the members it declares merged over the ones it inherits. A reference
+ * for a resource shape a record of the members it declares merged over the ones it inherits, and for a union shape the
+ * value of every branch at once, as the stored value alone tells the reader which branch it belongs to. A reference
  * contributes the target IRI alone, keeping a linked resource out of the state it points at. Reach for `Instance`
  * wherever a resource is read.
  *
@@ -53,7 +57,8 @@ export type Shape =
 export type Instance<S extends Lazy<Shape>> =
 	[Eager<S>] extends [never] ? never
 		: Eager<S> extends ResourceShape ? Retrieved<S>
-			: Plain<S>
+			: Eager<S> extends UnionShape ? Drawn<S>
+				: Plain<S>
 
 /**
  * Resolves the value a shape describes, as submitted.
@@ -62,14 +67,16 @@ export type Instance<S extends Lazy<Shape>> =
  * one in what the submitter is responsible for: an identifier and a system-managed member may be left out, a member
  * owned by the resources it points at is not accepted at all, and a captive target may be supplied inline rather than
  * by IRI, so that a resource and the ones it holds captive travel together. A {@link Plain} value is submitted as it
- * is retrieved. Reach for `Proposal` wherever a resource is written.
+ * is retrieved, and a union shape admits the payload of every branch, as the submitted value is expected to single out
+ * the one branch it is stored under. Reach for `Proposal` wherever a resource is written.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type Proposal<S extends Lazy<Shape>> =
 	[Eager<S>] extends [never] ? never
 		: Eager<S> extends ResourceShape ? Submitted<S>
-			: Plain<S>
+			: Eager<S> extends UnionShape ? Offered<S>
+				: Plain<S>
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -78,8 +85,8 @@ export type Proposal<S extends Lazy<Shape>> =
  * Resolves the plain value a shape describes.
  *
  * Yields a boolean, a number or a string, narrowed to the values the shape enumerates where it does, and the target
- * IRI for a reference shape. A plain value carries no members, so it reads the same whether retrieved or submitted; a
- * resource shape describes no plain value.
+ * IRI for a reference shape. A plain value carries no members, so it reads the same whether retrieved or submitted;
+ * neither a resource shape nor a union shape describes a plain value.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
