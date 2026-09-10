@@ -17,7 +17,7 @@
 import type { Lazy } from "@metreeca/core";
 import { describe, expectTypeOf, test } from "vitest";
 import { type Shape } from "./_.js";
-import { type Count, type Omissible, type Range, type Repeated } from "./index.js";
+import { type RangeCount, type Omissible, type Range, type Repeated } from "./index.js";
 import { type StringShape } from "./string.js";
 
 
@@ -42,7 +42,7 @@ describe("Range", () => {
 	});
 
 	test("admits any shape at any cardinality where nothing is stated", () => {
-		expectTypeOf<Range>().toEqualTypeOf<Range<Lazy<Shape>, Count, Count>>();
+		expectTypeOf<Range>().toEqualTypeOf<Range<Lazy<Shape>, RangeCount, RangeCount>>();
 		expectTypeOf<Range<StringShape, 1, 1>>().toExtend<Range>();
 	});
 
@@ -105,11 +105,11 @@ describe("Omissible", () => {
 describe("Count", () => {
 
 	test("admits a stated bound", () => {
-		expectTypeOf<1>().toExtend<Count>();
+		expectTypeOf<1>().toExtend<RangeCount>();
 	});
 
 	test("admits an unstated bound", () => {
-		expectTypeOf<undefined>().toExtend<Count>();
+		expectTypeOf<undefined>().toExtend<RangeCount>();
 	});
 
 });

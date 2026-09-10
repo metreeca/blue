@@ -30,8 +30,8 @@ import type { Shape } from "./_.js";
  */
 export type Range<
 	R extends Lazy<Shape> = Lazy<Shape>,
-	L extends Count = Count,
-	U extends Count = Count
+	L extends RangeCount = RangeCount,
+	U extends RangeCount = RangeCount
 > = {
 
 	/**
@@ -62,7 +62,7 @@ export type Range<
 /**
  * A cardinality bound, absent where the range states none.
  */
-export type Count =
+export type RangeCount =
 	Optional<number>
 
 
@@ -79,7 +79,7 @@ export type Count =
  * @typeParam L The least number of values admitted
  * @typeParam U The greatest number of values admitted
  */
-export type Repeated<V, L extends Count, U extends Count> =
+export type Repeated<V, L extends RangeCount, U extends RangeCount> =
 	[U] extends [1]
 		? Omissible<L> extends true ? undefined | V : V
 		: Omissible<L> extends true ? undefined | readonly V[]
@@ -93,7 +93,7 @@ export type Repeated<V, L extends Count, U extends Count> =
  *
  * @typeParam L The least number of values admitted
  */
-export type Omissible<L extends Count> =
+export type Omissible<L extends RangeCount> =
 	0 extends L ? true
 		: undefined extends L ? true
 			: false

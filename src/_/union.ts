@@ -70,7 +70,7 @@ import type { Instance, Proposal, Shape } from "./_.js";
  * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.6.4 sh:xone}
  * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.6.2 sh:or}
  */
-export type UnionShape<B extends Branches = Branches> = {
+export type UnionShape<B extends UnionBranches = UnionBranches> = {
 
 	readonly kind: "union"
 
@@ -89,7 +89,7 @@ export type UnionShape<B extends Branches = Branches> = {
  * Retains the order the alternatives were declared in, so that a value matching or failing to match them is reported
  * against a stable sequence; order carries no priority, as every alternative is matched.
  */
-export type Branches =
+export type UnionBranches =
 	readonly Lazy<Shape>[]
 
 

@@ -18,7 +18,7 @@ import type { Lazy, Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import { type Instance, type Proposal, type Shape } from "./_.js";
-import { type Count, type Range } from "./index.js";
+import { type RangeCount, type Range } from "./index.js";
 import { number } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import {
@@ -196,7 +196,7 @@ describe("Content", () => {
 
 describe("Input", () => {
 
-	type Captive<R extends Lazy<Shape>, L extends Count, U extends Count>=
+	type Captive<R extends Lazy<Shape>, L extends RangeCount, U extends RangeCount>=
 		Property<R, L, U> & { readonly captive: true }
 
 	test("Id → its reference type", () => {

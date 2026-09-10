@@ -18,7 +18,7 @@ import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
 import type { Instance, Proposal, Shape } from "./_.js";
-import type { Count, Omissible, Range, Repeated } from "./index.js";
+import type { RangeCount, Omissible, Range, Repeated } from "./index.js";
 import type { ReferenceShape } from "./reference.js";
 
 
@@ -162,8 +162,8 @@ export type Type = {
 
 export type Property<
 	R extends Lazy<Shape> = Lazy<Shape>,
-	L extends Count = Count,
-	U extends Count = Count
+	L extends RangeCount = RangeCount,
+	U extends RangeCount = RangeCount
 > = PropertyConstrains & Range<R, L, U> & {
 
 	readonly kind: "property"
@@ -305,8 +305,8 @@ export type PropertyConstrains = {
  */
 export type PropertyBounds = PropertyConstrains & {
 
-	readonly minCount?: Count
-	readonly maxCount?: Count
+	readonly minCount?: RangeCount
+	readonly maxCount?: RangeCount
 
 }
 
@@ -490,7 +490,7 @@ export type Joined<T> = {
 export type Omitted<M, X = never> =
 	[M] extends [never] ? false
 		: M extends Type | X ? true
-			: M extends Property<Lazy<Shape>, infer L, Count> ? Omissible<L>
+			: M extends Property<Lazy<Shape>, infer L, RangeCount> ? Omissible<L>
 				: false
 
 /**
