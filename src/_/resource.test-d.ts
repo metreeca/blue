@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-import type { Optional } from "@metreeca/core";
+import type { Lazy, Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type State } from "./_.js";
+import { type Draft, type Shape, type State } from "./_.js";
 import { number } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import {
 	type Content,
+	type Count,
 	type Id,
 	id,
 	type Instance,
 	multiple,
+	type Offer,
 	nonempty,
 	optional,
 	type Property,
@@ -180,6 +182,50 @@ describe("Content", () => {
 
 	test("distributes over a member union", () => {
 		expectTypeOf<Content<Id | Property<StringShape, 1, 1>>>()
+			.toEqualTypeOf<Reference | string>();
+	});
+
+});
+
+describe("Offer", () => {
+
+	type Captive<R extends Lazy<Shape>, L extends Count, U extends Count>=
+		Property<R, L, U> & { readonly captive: true }
+
+	test("Id → its reference type", () => {
+		expectTypeOf<Offer<Id>>().toEqualTypeOf<Reference>();
+	});
+
+	test("Type → its optional reference type", () => {
+		expectTypeOf<Offer<Type>>().toEqualTypeOf<Optional<Reference>>();
+	});
+
+	test("Property → the state of its range, as the retrieved value does", () => {
+		expectTypeOf<Offer<Property<StringShape, 1, 1>>>()
+			.toEqualTypeOf<Content<Property<StringShape, 1, 1>>>();
+	});
+
+	test("Property → an IRI for a reference range the submitter does not hold captive", () => {
+		expectTypeOf<Offer<Property<ReferenceShape<LabelShape>, 1, 1>>>()
+			.toEqualTypeOf<Reference>();
+	});
+
+	test("Property → an IRI or an inline draft for a captive reference range", () => {
+		expectTypeOf<Offer<Captive<ReferenceShape<LabelShape>, 1, 1>>>()
+			.toEqualTypeOf<Reference | Draft<LabelShape>>();
+	});
+
+	test("Property → inline drafts at every cardinality", () => {
+		expectTypeOf<Offer<Captive<ReferenceShape<LabelShape>, undefined, undefined>>>()
+			.toEqualTypeOf<undefined | readonly (Reference | Draft<LabelShape>)[]>();
+	});
+
+	test("Property → the state of a captive range that points at nothing", () => {
+		expectTypeOf<Offer<Captive<StringShape, 1, 1>>>().toEqualTypeOf<string>();
+	});
+
+	test("distributes over a member union", () => {
+		expectTypeOf<Offer<Id | Property<StringShape, 1, 1>>>()
 			.toEqualTypeOf<Reference | string>();
 	});
 
