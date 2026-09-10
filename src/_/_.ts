@@ -172,7 +172,7 @@ export type State<S extends Lazy<Shape>> =
 							readonly kind: "resource",
 							readonly extends: infer I extends Parents,
 							readonly members: infer M extends Members
-						} ? Instance<Omit<Inherited<I>, keyof M> & M>
+						} ? Instance<Merged<Inherited<I>, M>>
 						: never
 
 /**
@@ -220,34 +220,34 @@ export type Declared<S extends Lazy<ResourceShape>> =
 		: {}
 
 /**
- * Constrains members against the ones they inherit.
+ * Merges declared members over inherited ones.
  *
- * Retains a member that restricts the inherited one and voids any other, so an extending resource may tighten what it
- * inherits but never relax it: the offending member is rejected where the resource is built rather than silently
- * narrowed back by intersection. Members the extended shapes do not declare pass through untouched.
+ * Retains a member that restricts the one it overrides and voids any other, so an extending resource may tighten what
+ * it inherits but never relax it. Members the extended shapes do not declare pass through untouched.
  *
- * @typeParam M The members the extending resource declares in its own right
  * @typeParam P The members the extended shapes contribute
+ * @typeParam M The members the extending resource declares in its own right
  */
-export type Override<M extends Members, P> = {
+export type Merged<P, M extends Members> = Omit<P, keyof M> & {
 
 	readonly [field in keyof M]: field extends keyof P
 		? Narrows<M[field], P[field]> extends true ? M[field] : never
 		: M[field]
 
-};
+}
 
 /**
  * Checks whether a member restricts another.
  *
  * Compares the member kind, the range and the two cardinality bounds in their own right, rather than the state they
- * project: a restriction that reshapes the state, such as limiting an unbounded property to a single value, is
- * admitted, while two ranges that happen to project the same state are still told apart.
+ * project, so that two ranges which happen to project the same state are told apart. A bound may only be tightened,
+ * and only within the arity it states: raising a lower bound restricts the values admitted, while capping an unbounded
+ * property at a single value swaps an array for a bare value and is refused.
  *
  * @typeParam C The member the extending resource declares
- * @typeParam P The member it inherits
+ * @typeParam P The member it overrides
  */
-export type Narrows<C extends Member, P> =
+export type Narrows<C, P> =
 	[Kinds<C, P>, Ranges<C, P>, Lowers<C, P>, Uppers<C, P>] extends [true, true, true, true] ? true : false
 
 type Kinds<C, P> =
@@ -269,7 +269,7 @@ type Lowers<C, P> =
 
 type Uppers<C, P> =
 	[C, P] extends [{ readonly maxCount: infer C extends Count }, { readonly maxCount: infer P extends Count }]
-		? Single<P> extends true ? Single<C> : true
+		? Single<C> extends Single<P> ? true : false
 		: true
 
 /**
@@ -353,11 +353,11 @@ export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
 }
 
 export function resource<I extends Parents, M extends Members>(
-	...args: [...inheritance: I, members: M & Override<M, Inherited<I>>]
+	...args: [...inheritance: I, members: M]
 ): ResourceShape<I, M>
 
 export function resource<I extends Parents, M extends Members>(
-	...args: [...inheritance: I, members: M & Override<M, Inherited<I>>, constraints: ResourceConstraints]
+	...args: [...inheritance: I, members: M, constraints: ResourceConstraints]
 ): ResourceShape<I, M>
 
 export function resource(...args: readonly unknown[]): ResourceShape {

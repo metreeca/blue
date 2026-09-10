@@ -319,36 +319,18 @@ describe("Inheritance", () => {
 
 	});
 
-	test("rejects a member the child relaxes", () => {
-
-		const parent=resource({ shared: required(string()) });
-
-		// @ts-expect-error - optional relaxes the inherited requirement
-		resource(parent, { shared: optional(string()) });
-
-	});
-
-	test("rejects a member the child retypes", () => {
-
-		const parent=resource({ shared: required(string()) });
-
-		// @ts-expect-error - a number range does not narrow a string one
-		resource(parent, { shared: required(number()) });
-
-	});
-
-	test("rejects a cardinality the child widens", () => {
-
-		const parent=resource({ shared: required(string()) });
-
-		// @ts-expect-error - many values relax the inherited single one
-		resource(parent, { shared: multiple(string()) });
-
-	});
-
-	test("admits an upper bound the child tightens to one", () => {
+	test("voids an upper bound the child tightens across arity", () => {
 
 		const parent=resource({ shared: multiple(string()) });
+		const child=resource(parent, { shared: required(string()) });
+
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
+
+	});
+
+	test("admits a lower bound the child raises within a scalar arity", () => {
+
+		const parent=resource({ shared: optional(string()) });
 		const child=resource(parent, { shared: required(string()) });
 
 		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
@@ -364,22 +346,61 @@ describe("Inheritance", () => {
 
 	});
 
-	test("rejects a range the child swaps for another kind", () => {
+	test("voids a member the child relaxes", () => {
 
-		const target=resource({ id: id() });
 		const parent=resource({ shared: required(string()) });
+		const child=resource(parent, { shared: optional(string()) });
 
-		// @ts-expect-error - a reference range does not narrow a string one
-		resource(parent, { shared: required(reference(target)) });
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
 
 	});
 
-	test("rejects a member kind the child swaps", () => {
+	test("voids a member the child retypes", () => {
 
 		const parent=resource({ shared: required(string()) });
+		const child=resource(parent, { shared: required(number()) });
 
-		// @ts-expect-error - an identifier does not narrow a property
-		resource(parent, { shared: id() });
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
+
+	});
+
+	test("voids a cardinality the child widens", () => {
+
+		const parent=resource({ shared: required(string()) });
+		const child=resource(parent, { shared: multiple(string()) });
+
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
+
+	});
+
+	test("voids a range the child swaps for another kind", () => {
+
+		const target=resource({ id: id() });
+		const parent=resource({ shared: required(string()) });
+		const child=resource(parent, { shared: required(reference(target)) });
+
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
+
+	});
+
+	test("voids a member kind the child swaps", () => {
+
+		const parent=resource({ shared: required(string()) });
+		const child=resource(parent, { shared: id() });
+
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
+
+	});
+
+	test("voids a grandparent constraint an extending shape relaxes", () => {
+
+		const first=resource({ shared: required(string()) });
+		const second=resource({ other: optional(string()) });
+
+		const middle=resource(first, second, {});
+		const bottom=resource(middle, { shared: optional(string()) });
+
+		expectTypeOf<State<typeof bottom>["shared"]>().toBeNever();
 
 	});
 
@@ -403,17 +424,18 @@ describe("Inheritance", () => {
 
 	test("rejects a cycle among extended shapes", () => {
 
-		// gating members against the inherited state surfaces the cycle where it is declared
+		// the shapes themselves are accepted; the cycle surfaces where the state is resolved
 
-		// @ts-expect-error - inheritance cycles resolve indefinitely
 		function alpha() {
 			return resource(beta, { alpha: required(string()) });
 		}
 
-		// @ts-expect-error - inheritance cycles resolve indefinitely
 		function beta() {
 			return resource(alpha, { beta: required(string()) });
 		}
+
+		// @ts-expect-error - inheritance cycles resolve indefinitely
+		expectTypeOf<State<ReturnType<typeof alpha>>>().toBeObject();
 
 		expectTypeOf(alpha).toBeFunction();
 		expectTypeOf(beta).toBeFunction();
@@ -586,6 +608,26 @@ describe("resource", () => {
 
 	});
 
+	test("resolves such a loop whichever end is declared first", () => {
+
+		// the same loop with the referring shape declared first
+
+		function referring() {
+			return resource({ id: id(), back: required(reference(extending)) });
+		}
+
+		function extending() {
+			return resource(referring, { own: required(string()) });
+		}
+
+		expectTypeOf<State<ReturnType<typeof extending>>>().toEqualTypeOf<{
+			readonly id: Reference,
+			readonly back: Reference,
+			readonly own: string
+		}>();
+
+	});
+
 	test("keeps a reference out of the state on both sides of a loop", () => {
 
 		function left() {
@@ -615,18 +657,6 @@ describe("resource", () => {
 
 		expectTypeOf<State<typeof bottom>["shared"]>().toEqualTypeOf<string>();
 		expectTypeOf<State<typeof bottom>["other"]>().toEqualTypeOf<undefined | string>();
-
-	});
-
-	test("rejects a grandparent constraint an extending shape relaxes", () => {
-
-		const first=resource({ shared: required(string()) });
-		const second=resource({ other: optional(string()) });
-
-		const middle=resource(first, second, {});
-
-		// @ts-expect-error - optional relaxes the requirement stated by a grandparent
-		resource(middle, { shared: optional(string()) });
 
 	});
 
