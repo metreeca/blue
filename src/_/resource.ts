@@ -582,13 +582,14 @@ export type Declared<S extends Lazy<ResourceShape>> =
  * @typeParam I The extended shapes, possibly deferred to break definition cycles
  * @typeParam M The members the extending resource declares in its own right
  */
-export type Merged<I extends Parents, M extends Members> = Omit<Inherited<I>, keyof M> & {
+export type Merged<I extends Parents, M extends Members> =
+	Inherited<I> extends infer P ? Omit<P, keyof M> & {
 
-	readonly [field in keyof M]: field extends keyof Inherited<I>
-		? Narrows<M[field], Inherited<I>[field]> extends true ? M[field] : never
-		: M[field]
+			readonly [field in keyof M]: field extends keyof P
+				? Narrows<M[field], P[field]> extends true ? M[field] : never
+				: M[field]
 
-}
+		} : never
 
 /**
  * Checks whether a member restricts another.

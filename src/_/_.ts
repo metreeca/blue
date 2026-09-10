@@ -19,7 +19,7 @@ import type { Reference } from "@metreeca/qest/resource";
 import type { BooleanShape } from "./boolean.js";
 import type { NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
-import type { Instance, Members, Merged, Parents, ResourceShape, Submission } from "./resource.js";
+import type { Instance, Merged, ResourceShape, Submission } from "./resource.js";
 import type { StringShape } from "./string.js";
 
 
@@ -46,16 +46,7 @@ export type Shape =
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type State<S extends Lazy<Shape>> =
-	[Eager<S>] extends [never] ? never
-		: Eager<S> extends BooleanShape ? boolean
-			: Eager<S> extends NumberShape ? number
-				: Eager<S> extends StringShape ? string
-					: Eager<S> extends ReferenceShape ? Reference
-						: Eager<S> extends ResourceShape & {
-								readonly parents: infer I extends Parents,
-								readonly members: infer M extends Members
-							} ? Instance<Merged<I, M>>
-							: never
+	Resolved<S, Instance<Carried<S>>>
 
 /**
  * Resolves the state a shape describes, as submitted.
@@ -71,13 +62,35 @@ export type State<S extends Lazy<Shape>> =
  * @see {@link https://github.com/metreeca/keep/issues/4 keep#4}
  */
 export type Draft<S extends Lazy<Shape>> =
+	Resolved<S, Submission<Carried<S>>>
+
+
+/**
+ * Resolves the state a shape describes, given the value a resource exposes.
+ *
+ * Dispatches on the shape kind, yielding the value type a scalar shape describes in its own right and deferring to
+ * the caller for a resource, so that retrieval and submission share one dispatch and differ only in what a resource
+ * exposes.
+ *
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
+ * @typeParam R The value a resource shape exposes through the members it carries
+ */
+export type Resolved<S extends Lazy<Shape>, R> =
 	[Eager<S>] extends [never] ? never
 		: Eager<S> extends BooleanShape ? boolean
 			: Eager<S> extends NumberShape ? number
 				: Eager<S> extends StringShape ? string
 					: Eager<S> extends ReferenceShape ? Reference
-						: Eager<S> extends ResourceShape & {
-								readonly parents: infer I extends Parents,
-								readonly members: infer M extends Members
-							} ? Submission<Merged<I, M>>
+						: Eager<S> extends ResourceShape ? R
 							: never
+
+/**
+ * Resolves the members a resource carries.
+ *
+ * Yields the members the shape declares merged over the ones it inherits, and no member at all for a shape that
+ * describes something other than a resource.
+ *
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
+ */
+export type Carried<S extends Lazy<Shape>> =
+	Eager<S> extends ResourceShape<infer I, infer M> ? Merged<I, M> : {}
