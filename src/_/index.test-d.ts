@@ -15,10 +15,148 @@
  */
 
 import type { Lazy } from "@metreeca/core";
+import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Shape } from "./_.js";
-import { type Arity, type Range, type RangeCount, type Skippable } from "./index.js";
-import { type StringShape } from "./string.js";
+import { type BooleanShape } from "./boolean.js";
+import {
+	type Arity,
+	type Instance,
+	type Proposal,
+	type Range,
+	type RangeCount,
+	type Shape,
+	type Skippable
+} from "./index.js";
+import { reference, type ReferenceShape } from "./reference.js";
+import { id, multiple, type Property, required, resource, type ResourceShape } from "./resource.js";
+import { type StringShape, string } from "./string.js";
+
+
+type LabelShape={
+
+	readonly kind: "resource",
+	readonly parents: [],
+
+	readonly members: {
+		readonly label: Property<StringShape, 1, 1>
+	}
+
+}
+
+type LabelState={ readonly label: string }
+
+
+describe("Instance", () => {
+
+	describe("reference shapes", () => {
+
+		test("ReferenceShape → an IRI", () => {
+			expectTypeOf<Instance<ReferenceShape>>().toEqualTypeOf<Reference>();
+		});
+
+	});
+
+	describe("resource shapes", () => {
+
+		test("ResourceShape → the instance its members describe", () => {
+			expectTypeOf<Instance<LabelShape>>().toEqualTypeOf<LabelState>();
+		});
+
+		test("unconstrained ResourceShape → Resource", () => {
+			expectTypeOf<Instance<ResourceShape>>().toExtend<Resource>();
+		});
+
+	});
+
+	describe("lazy shapes", () => {
+
+		test("thunk → the state of the shape it returns", () => {
+			expectTypeOf<Instance<() => LabelShape>>().toEqualTypeOf<LabelState>();
+		});
+
+		test("thunk and shape agree", () => {
+			expectTypeOf<Instance<() => BooleanShape>>().toEqualTypeOf<Instance<BooleanShape>>();
+		});
+
+	});
+
+	test("rejects a non-shape", () => {
+		// @ts-expect-error - string is not a shape
+		expectTypeOf<Instance<string>>().toBeNever();
+	});
+
+});
+
+
+describe("Proposal", () => {
+
+	function target() {
+		return resource({ id: id(), label: required(string()) });
+	}
+
+	const shape=resource({
+
+		id: id(),
+
+		plain: required(string()),
+		linked: required(reference(target)),
+		owned: required(reference(target), { captive: true }),
+		many: multiple(reference(target), { captive: true }),
+
+		derived: required(string(), { computed: true }),
+		borrowed: required(reference(target), { foreign: true })
+
+	});
+
+	type Submitted=Proposal<typeof shape>
+
+	test("carries a plain member as the state does", () => {
+		expectTypeOf<Submitted["plain"]>().toEqualTypeOf<string>();
+	});
+
+	test("carries a plain reference as an IRI", () => {
+		expectTypeOf<Submitted["linked"]>().toEqualTypeOf<Reference>();
+	});
+
+	test("admits a captive target inline alongside its IRI", () => {
+		expectTypeOf<Submitted["owned"]>().toEqualTypeOf<Reference | Proposal<ReturnType<typeof target>>>();
+	});
+
+	test("admits captive targets inline at every cardinality", () => {
+		expectTypeOf<Submitted["many"]>()
+			.toEqualTypeOf<undefined | readonly (Reference | Proposal<ReturnType<typeof target>>)[]>();
+	});
+
+	test("proposes a captive target in its own right", () => {
+		expectTypeOf<Proposal<ReturnType<typeof target>>["label"]>().toEqualTypeOf<string>();
+	});
+
+	test("leaves an identifier optional", () => {
+		expectTypeOf<Submitted>().toExtend<{ id?: Reference }>();
+		expectTypeOf<undefined>().toExtend<Submitted["id"]>();
+	});
+
+	test("leaves a computed member optional", () => {
+		expectTypeOf<undefined>().toExtend<Submitted["derived"]>();
+	});
+
+	test("leaves a member optional where it may be left out", () => {
+		expectTypeOf<{}>().toExtend<Pick<Submitted, "many">>();
+		expectTypeOf<{}>().not.toExtend<Pick<Submitted, "plain">>();
+	});
+
+	test("omits a foreign member", () => {
+		expectTypeOf<keyof Submitted>().toEqualTypeOf<
+			"id" | "plain" | "linked" | "owned" | "many" | "derived"
+		>();
+	});
+
+	test("resolves a scalar shape as the state does", () => {
+		expectTypeOf<Proposal<StringShape>>().toEqualTypeOf<string>();
+		expectTypeOf<Proposal<ReferenceShape>>().toEqualTypeOf<Reference>();
+	});
+
+});
 
 
 describe("Range", () => {

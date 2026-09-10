@@ -15,7 +15,7 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Proposal } from "./_.js";
+import { type Instance, type Proposal } from "./index.js";
 import { multiple, optional, required, resource } from "./resource.js";
 import {
 	date,

@@ -17,11 +17,11 @@
 import type { Lazy, Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Proposal, type Shape } from "./_.js";
-import { type Range, type RangeCount } from "./index.js";
+import { type Instance, type Proposal, type Range, type RangeCount, type Shape } from "./index.js";
 import { number } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import {
+	type Carried,
 	type Content,
 	type Id,
 	id,
@@ -283,6 +283,39 @@ describe("Retrieved", () => {
 		expectTypeOf<Retrieved<ResourceShape<[], {
 			readonly label: Property<StringShape, 1, 1>
 		}>>>().toExtend<Resource>();
+	});
+
+});
+
+describe("Carried", () => {
+
+	type NamedShape={
+
+		readonly kind: "resource",
+		readonly parents: [LabelShape],
+
+		readonly members: {
+			readonly name: Property<StringShape, 1, 1>
+		}
+
+	}
+
+	test("ResourceShape → the members it declares", () => {
+		expectTypeOf<keyof Carried<LabelShape>>().toEqualTypeOf<"label">();
+		expectTypeOf<Carried<LabelShape>["label"]>().toEqualTypeOf<Property<StringShape, 1, 1>>();
+	});
+
+	test("ResourceShape → the declared members merged over the inherited ones", () => {
+		expectTypeOf<keyof Carried<NamedShape>>().toEqualTypeOf<"label" | "name">();
+	});
+
+	test("thunk → the members of the shape it returns", () => {
+		expectTypeOf<Carried<() => LabelShape>>().toEqualTypeOf<Carried<LabelShape>>();
+	});
+
+	test("scalar shape → no member at all", () => {
+		expectTypeOf<Carried<StringShape>>().toEqualTypeOf<{}>();
+		expectTypeOf<Carried<ReferenceShape>>().toEqualTypeOf<{}>();
 	});
 
 });

@@ -15,7 +15,7 @@
  */
 
 import type { Eager, Lazy } from "@metreeca/core";
-import type { Shape } from "./_.js";
+import type { Shape } from "./index.js";
 
 
 /**

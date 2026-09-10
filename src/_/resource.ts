@@ -17,8 +17,7 @@
 import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
-import type { Instance, Proposal, Shape } from "./_.js";
-import type { Arity, Range, RangeCount, Skippable } from "./index.js";
+import type { Arity, Instance, Proposal, Range, RangeCount, Shape, Skippable } from "./index.js";
 import type { ReferenceShape } from "./reference.js";
 
 

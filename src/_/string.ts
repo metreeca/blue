@@ -16,7 +16,7 @@
 
 import type { Variant } from "@metreeca/core/resource";
 import type { Reference } from "@metreeca/qest/resource";
-import type { Legal } from "./_.js";
+import type { Legal } from "./index.js";
 
 
 /**

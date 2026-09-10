@@ -15,7 +15,7 @@
  */
 
 import { createNamespace } from "@metreeca/core/resource";
-import type { Instance } from "../_/_.js";
+import type { Instance } from "../_/index.js";
 import { reference } from "../_/reference.js";
 import { multiple, optional, required, resource } from "../_/resource.js";
 import { markdown, string, text } from "../_/string.js";

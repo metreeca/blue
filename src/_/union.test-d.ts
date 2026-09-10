@@ -16,7 +16,7 @@
 
 import type { Reference } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Proposal } from "./_.js";
+import { type Instance, type Proposal } from "./index.js";
 import { type NumberShape } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import { id, type Id, multiple, type Property, required, resource } from "./resource.js";
