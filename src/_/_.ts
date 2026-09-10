@@ -98,9 +98,6 @@ export type Property = PropertyConstrains & {
 
 	readonly kind: "property"
 
-	/**
-	 * Shape describing the values the property admits, possibly deferred to break definition cycles.
-	 */
 	readonly range: Lazy<Shape>
 
 }
@@ -176,11 +173,11 @@ export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
 	throw new Error(";( to be implemented"); // !!!
 }
 
-export function resource<const I extends readonly Lazy<ResourceShape>[], const M extends Members>(
+export function resource<I extends readonly Lazy<ResourceShape>[], M extends Members>(
 	...args: [...inheritance: I, members: M]
 ): { readonly kind: "resource", readonly extends: I, readonly members: M }
 
-export function resource<const I extends readonly Lazy<ResourceShape>[], const M extends Members>(
+export function resource<I extends readonly Lazy<ResourceShape>[], M extends Members>(
 	...args: [...inheritance: I, members: M, constraints: ResourceConstraints]
 ): { readonly kind: "resource", readonly extends: I, readonly members: M }
 
@@ -197,7 +194,7 @@ export function type(): Type {
 	throw new Error(";( to be implemented");
 }
 
-export function property<const R extends Lazy<Shape>>(range: R): { readonly kind: "property", readonly range: R } {
+export function property<R extends Lazy<Shape>>(range: R): { readonly kind: "property", readonly range: R } {
 	throw new Error(";( to be implemented");
 }
 
@@ -227,4 +224,3 @@ function Concept( ){
 
 	})
 }
-
