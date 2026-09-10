@@ -566,6 +566,82 @@ describe("resource", () => {
 
 	});
 
+	test("links a shape referenced by the very shape it extends", () => {
+
+		// the loop runs through inheritance one way and through a reference the other
+
+		function outer() {
+			return resource(inner, { own: required(string()) });
+		}
+
+		function inner() {
+			return resource({ id: id(), back: required(reference(outer)) });
+		}
+
+		expectTypeOf<State<ReturnType<typeof outer>>>().toEqualTypeOf<{
+			readonly id: Reference,
+			readonly back: Reference,
+			readonly own: string
+		}>();
+
+	});
+
+	test("keeps a reference out of the state on both sides of a loop", () => {
+
+		function left() {
+			return resource({ id: id(), right: required(reference(right)) });
+		}
+
+		function right() {
+			return resource({ id: id(), left: required(reference(left)) });
+		}
+
+		expectTypeOf<State<ReturnType<typeof left>>["right"]>()
+			.not.toEqualTypeOf<State<ReturnType<typeof right>>>();
+
+		expectTypeOf<State<ReturnType<typeof right>>["left"]>()
+			.not.toEqualTypeOf<State<ReturnType<typeof left>>>();
+
+	});
+
+	test("carries a constraint from a grandparent reached through one of two parents", () => {
+
+		const first=resource({ shared: optional(string()) });
+		const second=resource({ other: optional(string()) });
+
+		const middle=resource(first, second, {});
+
+		const bottom=resource(middle, { shared: required(string()) });
+
+		expectTypeOf<State<typeof bottom>["shared"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof bottom>["other"]>().toEqualTypeOf<undefined | string>();
+
+	});
+
+	test("rejects a grandparent constraint an extending shape relaxes", () => {
+
+		const first=resource({ shared: required(string()) });
+		const second=resource({ other: optional(string()) });
+
+		const middle=resource(first, second, {});
+
+		// @ts-expect-error - optional relaxes the requirement stated by a grandparent
+		resource(middle, { shared: optional(string()) });
+
+	});
+
+	test("admits an inherited reference repointed at a refining shape", () => {
+
+		const target=resource({ id: id() });
+		const refining=resource(target, { extra: required(string()) });
+
+		const parent=resource({ link: required(reference(target)) });
+		const child=resource(parent, { link: required(reference(refining)) });
+
+		expectTypeOf<State<typeof child>["link"]>().toEqualTypeOf<Reference>();
+
+	});
+
 	test("carries the cardinality of every member into the state", () => {
 
 		function target() {
