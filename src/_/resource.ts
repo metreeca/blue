@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-
-import type { Identifier, Lazy } from "@metreeca/core";
+import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
-import type { Shape } from "./_.js";
+import type { Draft, Shape, State, Transfer } from "./_.js";
+import type { ReferenceShape } from "./reference.js";
 
 
 export type ResourceShape<P extends Parents = Parents, M extends Members = Members> = ResourceConstraints & {
@@ -31,95 +31,6 @@ export type ResourceShape<P extends Parents = Parents, M extends Members = Membe
 	readonly members: M
 
 }
-
-
-export type Parents =
-	readonly Lazy<ResourceShape>[]
-
-export type Member =
-	| Id
-	| Type
-	| Property
-
-export type Members = {
-
-	readonly [field: Identifier]: Member
-
-}
-
-
-export type Id = {
-
-	readonly kind: "id"
-
-}
-
-export type Type = {
-
-	readonly kind: "type"
-
-}
-
-export type Property<
-	R extends Lazy<Shape> = Lazy<Shape>,
-	L extends Count = Count,
-	U extends Count = Count
-> = PropertyConstrains & {
-
-	readonly kind: "property"
-
-	readonly range: R
-
-	/**
-	 * Least number of values the property admits.
-	 *
-	 * @defaultValue `undefined` (no lower bound)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
-	 */
-	readonly minCount: L
-
-	/**
-	 * Greatest number of values the property admits.
-	 *
-	 * @defaultValue `undefined` (no upper bound)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
-	 */
-	readonly maxCount: U
-
-}
-
-/**
- * A cardinality bound, absent where the property states none.
- */
-export type Count =
-	undefined | number
-
-/**
- * Property constraints admitting explicit cardinality bounds.
- *
- * Accepted by {@link property} for bounds beyond the four the cardinality factories name.
- */
-export type PropertyBounds = PropertyConstrains & {
-
-	readonly minCount?: Count
-	readonly maxCount?: Count
-
-}
-
-/**
- * Resolves a cardinality bound stated in a constraints object.
- *
- * Yields the bound where the object states one and `undefined` where it does not, so a property built from
- * constraints carries the bounds it was given rather than the widest ones.
- *
- * @typeParam C The stated constraints
- * @typeParam K The bound to resolve
- */
-export type Stated<C, K extends string> =
-	K extends keyof C ? (C[K] extends Count ? C[K] : undefined) : undefined
-
 
 export type ResourceConstraints = {
 
@@ -232,6 +143,37 @@ export type ResourceConstraints = {
 	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.8.2 sh:hasValue}
 	 */
 	readonly hasValue?: readonly Reference[];
+
+}
+
+
+export type Property<
+	R extends Lazy<Shape> = Lazy<Shape>,
+	L extends Count = Count,
+	U extends Count = Count
+> = PropertyConstrains & {
+
+	readonly kind: "property"
+
+	readonly range: R
+
+	/**
+	 * Least number of values the property admits.
+	 *
+	 * @defaultValue `undefined` (no lower bound)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
+	 */
+	readonly minCount: L
+
+	/**
+	 * Greatest number of values the property admits.
+	 *
+	 * @defaultValue `undefined` (no upper bound)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
+	 */
+	readonly maxCount: U
 
 }
 
@@ -363,6 +305,66 @@ export type PropertyConstrains = {
 
 }
 
+/**
+ * Property constraints admitting explicit cardinality bounds.
+ *
+ * Accepted by {@link property} for bounds beyond the four the cardinality factories name.
+ */
+export type PropertyBounds = PropertyConstrains & {
+
+	readonly minCount?: Count
+	readonly maxCount?: Count
+
+}
+
+/**
+ * A cardinality bound, absent where the property states none.
+ */
+export type Count =
+	undefined | number
+
+
+export type Parents =
+	readonly Lazy<ResourceShape>[]
+
+export type Members = {
+
+	readonly [field: Identifier]: Member
+
+}
+export type Member =
+	| Id
+	| Type
+	| Property
+
+
+export type Id = {
+
+	readonly kind: "id"
+
+}
+
+export type Type = {
+
+	readonly kind: "type"
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves a cardinality bound stated in a constraints object.
+ *
+ * Yields the bound where the object states one and `undefined` where it does not, so a property built from
+ * constraints carries the bounds it was given rather than the widest ones.
+ *
+ * @typeParam C The stated constraints
+ * @typeParam K The bound to resolve
+ */
+export type Stated<C, K extends string> =
+	K extends keyof C ? (C[K] extends Count ? C[K] : undefined) : undefined
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -418,3 +420,197 @@ export function property<R extends Lazy<Shape>, const C extends PropertyBounds =
 ): C & Property<R, Stated<C, "minCount">, Stated<C, "maxCount">> {
 	throw new Error(";( to be implemented");
 }
+
+
+//// Resource Members ////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the members a retrieved resource carries.
+ *
+ * @typeParam M The members the shape describes
+ */
+export type Instance<M extends Members> = {
+
+	readonly [field in keyof M]: Content<M[field]>
+
+};
+
+/**
+ * Resolves the members a submitted resource carries.
+ *
+ * Drops the members the submitter does not own and leaves optional the ones the system supplies, keeping the rest as
+ * the shape states them.
+ *
+ * @typeParam M The members the shape describes
+ */
+export type Submission<M extends Members> =
+	& { readonly [field in keyof M as Duty<M[field]> extends "demanded" ? field : never]: Content<M[field], "submission"> }
+	& { readonly [field in keyof M as Duty<M[field]> extends "spared" ? field : never]?: Content<M[field], "submission"> }
+
+/**
+ * Resolves what a submission owes for a member.
+ *
+ * Yields `refused` for a member the resources it points at own, `spared` for an identifier and for a system-managed
+ * member, both of which a submission may leave out, and `demanded` for every other.
+ *
+ * @typeParam M The member to resolve
+ */
+export type Duty<M> =
+	M extends { readonly foreign: true } ? "refused"
+		: M extends { readonly kind: "id" } ? "spared"
+			: M extends { readonly computed: true } ? "spared"
+				: "demanded"
+
+/**
+ * Resolves the value a member carries.
+ *
+ * @typeParam M The member to resolve
+ * @typeParam T The transfer the value is resolved for
+ */
+export type Content<M extends Member, T extends Transfer = "retrieval"> =
+	M extends Id ? Reference
+		: M extends Type ? Optional<Reference>
+			: M extends {
+					readonly kind: "property",
+					readonly range: infer R extends Lazy<Shape>,
+					readonly minCount: infer L extends Count,
+					readonly maxCount: infer U extends Count
+				} ? Bounded<Ranged<M, R, T>, L, U>
+				: never
+
+/**
+ * Resolves the value a property range admits.
+ *
+ * Admits a captive target inline alongside its IRI where a submission states one, and otherwise carries the state the
+ * range describes.
+ *
+ * @typeParam M The member stating the range
+ * @typeParam R The range it states
+ * @typeParam T The transfer the value is resolved for
+ */
+export type Ranged<M, R extends Lazy<Shape>, T extends Transfer> =
+	[T, M] extends ["submission", { readonly captive: true }]
+		? Eager<R> extends ReferenceShape<infer X> ? Reference | Draft<X> : State<R>
+		: State<R>
+
+
+//// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the form a cardinality admits.
+ *
+ * Yields a bare value where the property is limited to one, an array otherwise, marking the form optional unless at
+ * least one value is required. Bounds beyond the four the cardinality factories name are honoured all the same, so a
+ * lower bound of two admits the same non-empty form as one.
+ *
+ * @typeParam V The value the property range describes
+ * @typeParam L The least number of values admitted
+ * @typeParam U The greatest number of values admitted
+ */
+export type Bounded<V, L extends Count, U extends Count> =
+	[U] extends [1]
+		? Unbounded<L> extends true ? undefined | V : V
+		: Unbounded<L> extends true ? undefined | readonly V[]
+			: readonly [V, ...V[]]
+
+/**
+ * Checks whether a lower bound leaves the property absent.
+ *
+ * Yields `true` unless at least one value is known to be required, so a bound stated as zero and a bound left
+ * unstated both admit absence, as does one stated only as a number.
+ *
+ * @typeParam L The least number of values admitted
+ */
+export type Unbounded<L extends Count> =
+	[undefined] extends [L] ? true
+		: [0] extends [L] ? true
+			: false
+
+/**
+ * Checks whether an upper bound limits a property to a single value.
+ *
+ * @typeParam U The greatest number of values admitted
+ */
+export type Single<U extends Count> =
+	[U] extends [1] ? true : false
+
+
+//// Resource Inheritance ////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the members a list of extended shapes contributes.
+ *
+ * Yields the members the extended shapes declare, together with those they inherit in turn, so that a constraint
+ * stated anywhere up the chain reaches every extending resource.
+ *
+ * @typeParam I The extended shapes, possibly deferred to break definition cycles
+ */
+export type Inherited<I extends Parents> =
+	I extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends Parents]
+		? Declared<H> & Inherited<T>
+		: {}
+
+/**
+ * Resolves the members a single shape contributes.
+ *
+ * @typeParam S The extended shape, possibly deferred to break definition cycles
+ */
+export type Declared<S extends Lazy<ResourceShape>> =
+	Eager<S> extends {
+			readonly extends: infer P extends Parents,
+			readonly members: infer M extends Members
+		} ? Inherited<P> & M
+		: {}
+
+/**
+ * Merges declared members over inherited ones.
+ *
+ * Retains a member that restricts the one it overrides and voids any other, so an extending resource may tighten what
+ * it inherits but never relax it. Members the extended shapes do not declare pass through untouched.
+ *
+ * @typeParam P The members the extended shapes contribute
+ * @typeParam M The members the extending resource declares in its own right
+ */
+export type Merged<P, M extends Members> = Omit<P, keyof M> & {
+
+	readonly [field in keyof M]: field extends keyof P
+		? Narrows<M[field], P[field]> extends true ? M[field] : never
+		: M[field]
+
+}
+
+/**
+ * Checks whether a member restricts another.
+ *
+ * Compares the member kind, the range and the two cardinality bounds in their own right, rather than the state they
+ * project, so that two ranges which happen to project the same state are told apart. A bound may only be tightened,
+ * and only within the arity it states: raising a lower bound restricts the values admitted, while capping an unbounded
+ * property at a single value swaps an array for a bare value and is refused.
+ *
+ * @typeParam C The member the extending resource declares
+ * @typeParam P The member it overrides
+ */
+export type Narrows<C, P> =
+	[Kinds<C, P>, Ranges<C, P>, Lowers<C, P>, Uppers<C, P>] extends [true, true, true, true] ? true : false
+
+type Kinds<C, P> =
+	[C, P] extends [{ readonly kind: infer C }, { readonly kind: infer P }]
+		? C extends P ? true : false
+		: false
+
+type Ranges<C, P> =
+	[C, P] extends [
+			{ readonly range: infer C extends Lazy<Shape> },
+			{ readonly range: infer P extends Lazy<Shape> }
+		] ? Eager<C>["kind"] extends Eager<P>["kind"] ? true : false
+		: true
+
+type Lowers<C, P> =
+	[C, P] extends [{ readonly minCount: infer C extends Count }, { readonly minCount: infer P extends Count }]
+		? Unbounded<C> extends true ? Unbounded<P> : true
+		: true
+
+type Uppers<C, P> =
+	[C, P] extends [{ readonly maxCount: infer C extends Count }, { readonly maxCount: infer P extends Count }]
+		? Single<C> extends Single<P> ? true : false
+		: true
