@@ -19,11 +19,9 @@ import type { Reference } from "@metreeca/qest/resource";
 import type { BooleanShape } from "./boolean.js";
 import type { NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
-import type { Inherited, Instance, Members, Merged, Parents, ResourceShape, Submission } from "./resource.js";
+import type { Instance, Members, Merged, Parents, ResourceShape, Submission } from "./resource.js";
 import type { StringShape } from "./string.js";
 
-
-//// Shapes //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * The shapes a value may be described by.
@@ -35,6 +33,9 @@ export type Shape =
 	| ReferenceShape
 	| ResourceShape
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /**
  * Resolves the state a shape describes, as retrieved.
  *
@@ -45,7 +46,16 @@ export type Shape =
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type State<S extends Lazy<Shape>> =
-	Resolved<S, "retrieval">
+	[Eager<S>] extends [never] ? never
+		: Eager<S> extends BooleanShape ? boolean
+			: Eager<S> extends NumberShape ? number
+				: Eager<S> extends StringShape ? string
+					: Eager<S> extends ReferenceShape ? Reference
+						: Eager<S> extends ResourceShape & {
+								readonly parents: infer I extends Parents,
+								readonly members: infer M extends Members
+							} ? Instance<Merged<I, M>>
+							: never
 
 /**
  * Resolves the state a shape describes, as submitted.
@@ -61,44 +71,13 @@ export type State<S extends Lazy<Shape>> =
  * @see {@link https://github.com/metreeca/keep/issues/4 keep#4}
  */
 export type Draft<S extends Lazy<Shape>> =
-	Resolved<S, "submission">
-
-
-//// Resolution //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * The transfer a state is resolved for.
- *
- * A shape describes two value types, since retrieval and submission differ in what the peer is responsible for.
- */
-export type Transfer =
-	| "retrieval"
-	| "submission"
-
-/**
- * Resolves the state a shape describes for a transfer.
- *
- * @typeParam S The describing shape, possibly deferred to break definition cycles
- * @typeParam T The transfer the state is resolved for
- */
-export type Resolved<S extends Lazy<Shape>, T extends Transfer> =
 	[Eager<S>] extends [never] ? never
 		: Eager<S> extends BooleanShape ? boolean
 			: Eager<S> extends NumberShape ? number
 				: Eager<S> extends StringShape ? string
 					: Eager<S> extends ReferenceShape ? Reference
-						: Eager<S> extends {
-								readonly kind: "resource",
-								readonly extends: infer I extends Parents,
+						: Eager<S> extends ResourceShape & {
+								readonly parents: infer I extends Parents,
 								readonly members: infer M extends Members
-							} ? Exposed<Merged<Inherited<I>, M>, T>
+							} ? Submission<Merged<I, M>>
 							: never
-
-/**
- * Resolves the members a resource carries for a transfer.
- *
- * @typeParam M The members the shape describes
- * @typeParam T The transfer the members are resolved for
- */
-export type Exposed<M extends Members, T extends Transfer> =
-	T extends "submission" ? Submission<M> : Instance<M>

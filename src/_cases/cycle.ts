@@ -19,7 +19,7 @@ import { id, required, resource } from "../_/resource.js";
 import { string } from "../_/string.js";
 
 
-//// A cycle closed by an extends edge one way and a reference the other //////////////////////////////////////////////
+//// A cycle closed by a parents edge one way and a reference the other ///////////////////////////////////////////////
 
 // Both return types are inferred whichever end of the cycle is declared first.
 

@@ -42,7 +42,7 @@ import { type StringShape, string } from "./string.js";
 type LabelShape={
 
 	readonly kind: "resource",
-	readonly extends: [],
+	readonly parents: [],
 
 	readonly members: {
 		readonly label: Property<StringShape, 1, 1>

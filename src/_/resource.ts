@@ -17,7 +17,7 @@
 import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
-import type { Draft, Shape, State, Transfer } from "./_.js";
+import type { Draft, Shape, State } from "./_.js";
 import type { ReferenceShape } from "./reference.js";
 
 
@@ -26,7 +26,7 @@ export type ResourceShape<P extends Parents = Parents, M extends Members = Membe
 	readonly kind: "resource"
 
 
-	readonly extends: P
+	readonly parents: P
 
 	readonly members: M
 
@@ -429,8 +429,8 @@ export type Instance<M extends Members> = {
  * @typeParam M The members the shape describes
  */
 export type Submission<M extends Members> =
-	& { readonly [field in keyof M as Duty<M[field]> extends "demanded" ? field : never]: Content<M[field], "submission"> }
-	& { readonly [field in keyof M as Duty<M[field]> extends "spared" ? field : never]?: Content<M[field], "submission"> }
+	& { readonly [field in keyof M as Duty<M[field]> extends "demanded" ? field : never]: Offer<M[field]> }
+	& { readonly [field in keyof M as Duty<M[field]> extends "spared" ? field : never]?: Offer<M[field]> }
 
 /**
  * Resolves what a submission owes for a member.
@@ -447,12 +447,11 @@ export type Duty<M> =
 				: "demanded"
 
 /**
- * Resolves the value a member carries.
+ * Resolves the value a retrieved member carries.
  *
  * @typeParam M The member to resolve
- * @typeParam T The transfer the value is resolved for
  */
-export type Content<M extends Member, T extends Transfer = "retrieval"> =
+export type Content<M extends Member> =
 	M extends Id ? Reference
 		: M extends Type ? Optional<Reference>
 			: M extends {
@@ -460,21 +459,35 @@ export type Content<M extends Member, T extends Transfer = "retrieval"> =
 					readonly range: infer R extends Lazy<Shape>,
 					readonly minCount: infer L extends Count,
 					readonly maxCount: infer U extends Count
-				} ? Bounded<Ranged<M, R, T>, L, U>
+				} ? Bounded<State<R>, L, U>
 				: never
 
 /**
- * Resolves the value a property range admits.
+ * Resolves the value a submitted member carries.
  *
- * Admits a captive target inline alongside its IRI where a submission states one, and otherwise carries the state the
- * range describes.
+ * @typeParam M The member to resolve
+ */
+export type Offer<M extends Member> =
+	M extends Id ? Reference
+		: M extends Type ? Optional<Reference>
+			: M extends {
+					readonly kind: "property",
+					readonly range: infer R extends Lazy<Shape>,
+					readonly minCount: infer L extends Count,
+					readonly maxCount: infer U extends Count
+				} ? Bounded<Ranged<M, R>, L, U>
+				: never
+
+/**
+ * Resolves the value a submitted property range admits.
+ *
+ * Admits a captive target inline alongside its IRI, and otherwise carries the state the range describes.
  *
  * @typeParam M The member stating the range
  * @typeParam R The range it states
- * @typeParam T The transfer the value is resolved for
  */
-export type Ranged<M, R extends Lazy<Shape>, T extends Transfer> =
-	[T, M] extends ["submission", { readonly captive: true }]
+export type Ranged<M, R extends Lazy<Shape>> =
+	[M] extends [{ readonly captive: true }]
 		? Eager<R> extends ReferenceShape<infer X> ? Reference | Draft<X> : State<R>
 		: State<R>
 
@@ -555,7 +568,7 @@ export type Inherited<I extends Parents> =
  */
 export type Declared<S extends Lazy<ResourceShape>> =
 	Eager<S> extends {
-			readonly extends: infer P extends Parents,
+			readonly parents: infer P extends Parents,
 			readonly members: infer M extends Members
 		} ? Inherited<P> & M
 		: {}
@@ -566,13 +579,13 @@ export type Declared<S extends Lazy<ResourceShape>> =
  * Retains a member that restricts the one it overrides and voids any other, so an extending resource may tighten what
  * it inherits but never relax it. Members the extended shapes do not declare pass through untouched.
  *
- * @typeParam P The members the extended shapes contribute
+ * @typeParam I The extended shapes, possibly deferred to break definition cycles
  * @typeParam M The members the extending resource declares in its own right
  */
-export type Merged<P, M extends Members> = Omit<P, keyof M> & {
+export type Merged<I extends Parents, M extends Members> = Omit<Inherited<I>, keyof M> & {
 
-	readonly [field in keyof M]: field extends keyof P
-		? Narrows<M[field], P[field]> extends true ? M[field] : never
+	readonly [field in keyof M]: field extends keyof Inherited<I>
+		? Narrows<M[field], Inherited<I>[field]> extends true ? M[field] : never
 		: M[field]
 
 }
