@@ -147,6 +147,18 @@ export type ResourceConstraints = {
 }
 
 
+export type Id = {
+
+	readonly kind: "id"
+
+}
+
+export type Type = {
+
+	readonly kind: "type"
+
+}
+
 export type Property<
 	R extends Lazy<Shape> = Lazy<Shape>,
 	L extends Count = Count,
@@ -332,23 +344,11 @@ export type Members = {
 	readonly [field: Identifier]: Member
 
 }
+
 export type Member =
 	| Id
 	| Type
 	| Property
-
-
-export type Id = {
-
-	readonly kind: "id"
-
-}
-
-export type Type = {
-
-	readonly kind: "type"
-
-}
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -452,124 +452,96 @@ export type Exposed<M extends Members> = {
  * @typeParam M The members the shape carries
  */
 export type Offered<M extends Members> =
-	& { readonly [field in keyof M as Duty<M[field]> extends "demanded" ? field : never]: Offer<M[field]> }
-	& { readonly [field in keyof M as Duty<M[field]> extends "spared" ? field : never]?: Offer<M[field]> }
+	& { readonly [field in Demanded<M>]: Offer<M[field]> }
+	& { readonly [field in Spared<M>]?: Offer<M[field]> }
 
 /**
- * Resolves what a submission owes for a member.
+ * Selects the members a submission must supply: every member it owns but the system does not fill in.
  *
- * Yields `refused` for a member the resources it points at own, `spared` for an identifier and for a system-managed
- * member, both of which a submission may leave out, and `demanded` for every other.
- *
- * @typeParam M The member to resolve
+ * @typeParam M The members the shape carries
  */
-export type Duty<M> =
-	M extends { readonly foreign: true } ? "refused"
-		: M extends { readonly kind: "id" } ? "spared"
-			: M extends { readonly computed: true } ? "spared"
-				: "demanded"
+export type Demanded<M extends Members> =
+	Exclude<keyof M, Refused<M> | Spared<M>>
+
+/**
+ * Selects the members a submission may leave out: an identifier and a system-managed member.
+ *
+ * @typeParam M The members the shape carries
+ */
+export type Spared<M extends Members> =
+	Exclude<Fields<M, Id | { readonly computed: true }>, Refused<M>>
+
+/**
+ * Selects the members a submission does not accept: those the resources they point at own.
+ *
+ * @typeParam M The members the shape carries
+ */
+export type Refused<M extends Members> =
+	Fields<M, { readonly foreign: true }>
+
+/**
+ * Selects the members matching a description.
+ *
+ * @typeParam M The members the shape carries
+ * @typeParam D The description a selected member matches
+ */
+export type Fields<M extends Members, D> = {
+
+	[field in keyof M]: M[field] extends D ? field : never
+
+}[keyof M]
+
 
 /**
  * Resolves the value a retrieved member carries.
+ *
+ * Yields an IRI for an identifier, an optional IRI for a type and, for a property, the state its range describes in
+ * the form its cardinality admits.
  *
  * @typeParam M The member to resolve
  */
 export type Content<M extends Member> =
 	M extends Id ? Reference
 		: M extends Type ? Optional<Reference>
-			: M extends {
-					readonly kind: "property",
-					readonly range: infer R extends Lazy<Shape>,
-					readonly minCount: infer L extends Count,
-					readonly maxCount: infer U extends Count
-				} ? Bounded<State<R>, L, U>
+			: M extends Property<infer R, infer L, infer U> ? Bounded<State<R>, L, U>
 				: never
 
 /**
  * Resolves the value a submitted member carries.
  *
+ * Admits a captive target inline alongside its IRI and otherwise carries what the retrieved member does.
+ *
  * @typeParam M The member to resolve
  */
 export type Offer<M extends Member> =
-	M extends Id ? Reference
-		: M extends Type ? Optional<Reference>
-			: M extends {
-					readonly kind: "property",
-					readonly range: infer R extends Lazy<Shape>,
-					readonly minCount: infer L extends Count,
-					readonly maxCount: infer U extends Count
-				} ? Bounded<Ranged<M, R>, L, U>
-				: never
+	M extends { readonly captive: true } & Property<infer R, infer L, infer U> ? Bounded<Inline<R>, L, U>
+		: Content<M>
 
 /**
- * Resolves the value a submitted property range admits.
+ * Resolves the value a captive property range admits.
  *
- * Admits a captive target inline alongside its IRI, and otherwise carries the state the range describes.
+ * Yields the target draft alongside its IRI where the range points at a resource, and the state the range describes
+ * otherwise, as a scalar has nothing to hold captive.
  *
- * @typeParam M The member stating the range
- * @typeParam R The range it states
+ * @typeParam R The captive range
  */
-export type Ranged<M, R extends Lazy<Shape>> =
-	[M] extends [{ readonly captive: true }]
-		? Eager<R> extends ReferenceShape<infer X> ? Reference | Draft<X> : State<R>
-		: State<R>
-
-
-//// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Resolves the form a cardinality admits.
- *
- * Yields a bare value where the property is limited to one, an array otherwise, marking the form optional unless at
- * least one value is required. Bounds beyond the four the cardinality factories name are honoured all the same, so a
- * lower bound of two admits the same non-empty form as one.
- *
- * @typeParam V The value the property range describes
- * @typeParam L The least number of values admitted
- * @typeParam U The greatest number of values admitted
- */
-export type Bounded<V, L extends Count, U extends Count> =
-	[U] extends [1]
-		? Unbounded<L> extends true ? undefined | V : V
-		: Unbounded<L> extends true ? undefined | readonly V[]
-			: readonly [V, ...V[]]
-
-/**
- * Checks whether a lower bound leaves the property absent.
- *
- * Yields `true` unless at least one value is known to be required, so a bound stated as zero and a bound left
- * unstated both admit absence, as does one stated only as a number.
- *
- * @typeParam L The least number of values admitted
- */
-export type Unbounded<L extends Count> =
-	[undefined] extends [L] ? true
-		: [0] extends [L] ? true
-			: false
-
-/**
- * Resolves a cardinality bound stated in a constraints object.
- *
- * Yields the bound where the object states one and `undefined` where it does not, so a property built from
- * constraints carries the bounds it was given rather than the widest ones.
- *
- * @typeParam C The stated constraints
- * @typeParam K The bound to resolve
- */
-export type Stated<C, K extends string> =
-	K extends keyof C ? (C[K] extends Count ? C[K] : undefined) : undefined
-
-
-/**
- * Checks whether an upper bound limits a property to a single value.
- *
- * @typeParam U The greatest number of values admitted
- */
-export type Single<U extends Count> =
-	[U] extends [1] ? true : false
+export type Inline<R extends Lazy<Shape>> =
+	Eager<R> extends ReferenceShape<infer T> ? Reference | Draft<T> : State<R>
 
 
 //// Resource Inheritance ////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Merges declared members over inherited ones.
+ *
+ * Retains a member that restricts the one it overrides and voids any other, so an extending resource may tighten what
+ * it inherits but never relax it. Members the extended shapes do not declare pass through untouched.
+ *
+ * @typeParam I The extended shapes, possibly deferred to break definition cycles
+ * @typeParam M The members the extending resource declares in its own right
+ */
+export type Merged<I extends Parents, M extends Members> =
+	Overridden<Inherited<I>, M>
 
 /**
  * Resolves the members a list of extended shapes contributes.
@@ -590,62 +562,115 @@ export type Inherited<I extends Parents> =
  * @typeParam S The extended shape, possibly deferred to break definition cycles
  */
 export type Declared<S extends Lazy<ResourceShape>> =
-	Eager<S> extends {
-			readonly parents: infer P extends Parents,
-			readonly members: infer M extends Members
-		} ? Inherited<P> & M
-		: {}
+	Eager<S> extends ResourceShape<infer P, infer M> ? Inherited<P> & M : {}
 
 /**
- * Merges declared members over inherited ones.
+ * Lays declared members over the ones they override.
  *
- * Retains a member that restricts the one it overrides and voids any other, so an extending resource may tighten what
- * it inherits but never relax it. Members the extended shapes do not declare pass through untouched.
- *
- * @typeParam I The extended shapes, possibly deferred to break definition cycles
- * @typeParam M The members the extending resource declares in its own right
+ * @typeParam P The overridden members
+ * @typeParam M The declared members
  */
-export type Merged<I extends Parents, M extends Members> =
-	Inherited<I> extends infer P ? Omit<P, keyof M> & {
+export type Overridden<P, M extends Members> = Omit<P, keyof M> & {
 
-			readonly [field in keyof M]: field extends keyof P
-				? Narrows<M[field], P[field]> extends true ? M[field] : never
-				: M[field]
+	readonly [field in keyof M]: field extends keyof P
+		? Narrows<M[field], P[field]> extends true ? M[field] : never
+		: M[field]
 
-		} : never
+}
 
 /**
  * Checks whether a member restricts another.
  *
- * Compares the member kind, the range and the two cardinality bounds in their own right, rather than the state they
- * project, so that two ranges which happen to project the same state are told apart. A bound may only be tightened,
- * and only within the arity it states: raising a lower bound restricts the values admitted, while capping an unbounded
- * property at a single value swaps an array for a bare value and is refused.
+ * A property restricts another when it keeps the kind of its range, holds its lower bound and keeps its arity, so that
+ * two ranges which happen to project the same state are told apart and an unbounded property is never capped at a
+ * single value, which would swap an array for a bare value. An identifier and a type restrict a member of their own
+ * kind alone.
  *
  * @typeParam C The member the extending resource declares
  * @typeParam P The member it overrides
  */
 export type Narrows<C, P> =
-	[Kinds<C, P>, Ranges<C, P>, Lowers<C, P>, Uppers<C, P>] extends [true, true, true, true] ? true : false
+	[C, P] extends [Property<infer R, infer L, infer U>, Property<infer S, infer M, infer V>]
+		? [Kinded<R, S>, Floored<L, M>, Sized<U, V>] extends [true, true, true] ? true : false
+		: [C, P] extends [Id, Id] | [Type, Type] ? true
+			: false
 
-type Kinds<C, P> =
-	[C, P] extends [{ readonly kind: infer C }, { readonly kind: infer P }]
-		? C extends P ? true : false
-		: false
+/**
+ * Checks whether a range keeps the kind of the one it overrides.
+ *
+ * @typeParam R The range the extending resource declares
+ * @typeParam S The range it overrides
+ */
+export type Kinded<R extends Lazy<Shape>, S extends Lazy<Shape>> =
+	Eager<R>["kind"] extends Eager<S>["kind"] ? true : false
 
-type Ranges<C, P> =
-	[C, P] extends [
-			{ readonly range: infer C extends Lazy<Shape> },
-			{ readonly range: infer P extends Lazy<Shape> }
-		] ? Eager<C>["kind"] extends Eager<P>["kind"] ? true : false
-		: true
+/**
+ * Checks whether a lower bound holds the one it overrides, so that a required value is never made optional.
+ *
+ * @typeParam L The lower bound the extending resource declares
+ * @typeParam M The lower bound it overrides
+ */
+export type Floored<L extends Count, M extends Count> =
+	Unbounded<L> extends true ? Unbounded<M> : true
 
-type Lowers<C, P> =
-	[C, P] extends [{ readonly minCount: infer C extends Count }, { readonly minCount: infer P extends Count }]
-		? Unbounded<C> extends true ? Unbounded<P> : true
-		: true
+/**
+ * Checks whether an upper bound keeps the arity of the one it overrides.
+ *
+ * @typeParam U The upper bound the extending resource declares
+ * @typeParam V The upper bound it overrides
+ */
+export type Sized<U extends Count, V extends Count> =
+	Single<U> extends Single<V> ? true : false
 
-type Uppers<C, P> =
-	[C, P] extends [{ readonly maxCount: infer C extends Count }, { readonly maxCount: infer P extends Count }]
-		? Single<C> extends Single<P> ? true : false
-		: true
+
+//// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the form a cardinality admits.
+ *
+ * Yields a bare value where the property is limited to one, an array otherwise, marking the form optional unless at
+ * least one value is required. Bounds beyond the four the cardinality factories name are honoured all the same, so a
+ * lower bound of two admits the same non-empty form as one.
+ *
+ * @typeParam V The value the property range describes
+ * @typeParam L The least number of values admitted
+ * @typeParam U The greatest number of values admitted
+ */
+export type Bounded<V, L extends Count, U extends Count> =
+	Single<U> extends true
+		? Unbounded<L> extends true ? undefined | V : V
+		: Unbounded<L> extends true ? undefined | readonly V[]
+			: readonly [V, ...V[]]
+
+/**
+ * Checks whether a lower bound leaves the property absent.
+ *
+ * Yields `true` unless at least one value is known to be required, so a bound stated as zero and a bound left
+ * unstated both admit absence, as does one stated only as a number.
+ *
+ * @typeParam L The least number of values admitted
+ */
+export type Unbounded<L extends Count> =
+	[undefined] extends [L] ? true
+		: [0] extends [L] ? true
+			: false
+
+/**
+ * Checks whether an upper bound limits a property to a single value.
+ *
+ * @typeParam U The greatest number of values admitted
+ */
+export type Single<U extends Count> =
+	[U] extends [1] ? true : false
+
+/**
+ * Resolves a cardinality bound stated in a constraints object.
+ *
+ * Yields the bound where the object states one and `undefined` where it does not, so a property built from
+ * constraints carries the bounds it was given rather than the widest ones.
+ *
+ * @typeParam C The stated constraints
+ * @typeParam K The bound to resolve
+ */
+export type Stated<C, K extends string> =
+	K extends keyof C ? (C[K] extends Count ? C[K] : undefined) : undefined
