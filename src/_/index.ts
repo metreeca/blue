@@ -80,10 +80,9 @@ export type RangeCount =
  * @typeParam U The greatest number of values admitted
  */
 export type Arity<V, L extends RangeCount, U extends RangeCount> =
-	[U] extends [1]
-		? Skippable<L> extends true ? undefined | V : V
-		: Skippable<L> extends true ? undefined | readonly V[]
-			: readonly [V, ...V[]]
+	Skippable<L> extends true
+		? Optional<[U] extends [1] ? V : readonly V[]>
+		: [U] extends [1] ? V : readonly [V, ...V[]]
 
 /**
  * Checks whether a lower bound lets the values be left out.
@@ -94,6 +93,4 @@ export type Arity<V, L extends RangeCount, U extends RangeCount> =
  * @typeParam L The least number of values admitted
  */
 export type Skippable<L extends RangeCount> =
-	undefined extends L ? true
-		: 0 extends L ? true
-			: false
+	[Extract<Optional<0>, L>] extends [never] ? false : true
