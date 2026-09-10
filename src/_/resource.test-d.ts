@@ -18,11 +18,11 @@ import type { Lazy, Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import { type Instance, type Proposal, type Shape } from "./_.js";
+import { type Count, type Range } from "./index.js";
 import { number } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import {
 	type Content,
-	type Count,
 	type Id,
 	id,
 	type Retrieved,
@@ -113,6 +113,12 @@ describe("resource factories", () => {
 
 	test("Property admits any shape as its range", () => {
 		expectTypeOf<Property["range"]>().toEqualTypeOf<Parameters<typeof property>[0]>();
+	});
+
+	test("Property states the values it admits as a range", () => {
+		expectTypeOf<Property<StringShape, 1, 1>>().toExtend<Range<StringShape, 1, 1>>();
+		expectTypeOf<Property<StringShape, undefined, undefined>>()
+			.toExtend<Range<StringShape, undefined, undefined>>();
 	});
 
 });

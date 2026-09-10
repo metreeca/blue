@@ -18,6 +18,7 @@ import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
 import type { Instance, Proposal, Shape } from "./_.js";
+import type { Count, Omissible, Range, Repeated } from "./index.js";
 import type { ReferenceShape } from "./reference.js";
 
 
@@ -163,29 +164,9 @@ export type Property<
 	R extends Lazy<Shape> = Lazy<Shape>,
 	L extends Count = Count,
 	U extends Count = Count
-> = PropertyConstrains & {
+> = PropertyConstrains & Range<R, L, U> & {
 
 	readonly kind: "property"
-
-	readonly range: R
-
-	/**
-	 * Least number of values the property admits.
-	 *
-	 * @defaultValue `undefined` (no lower bound)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
-	 */
-	readonly minCount: L
-
-	/**
-	 * Greatest number of values the property admits.
-	 *
-	 * @defaultValue `undefined` (no upper bound)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
-	 */
-	readonly maxCount: U
 
 }
 
@@ -343,12 +324,6 @@ export type Member =
 	| Id
 	| Type
 	| Property
-
-/**
- * A cardinality bound, absent where the property states none.
- */
-export type Count =
-	undefined | number
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -605,34 +580,6 @@ export type Outline<M> =
 
 
 //// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Resolves the form a value takes when repeated within a cardinality.
- *
- * Yields a bare value where the property is limited to one, an array otherwise, marking the form optional unless at
- * least one value is {@link Omissible | known to be required}. Bounds beyond the four the cardinality factories name
- * are honoured all the same, so a lower bound of two admits the same non-empty form as one.
- *
- * @typeParam V The value the property range describes
- * @typeParam L The least number of values admitted
- * @typeParam U The greatest number of values admitted
- */
-export type Repeated<V, L extends Count, U extends Count> =
-	[U] extends [1]
-		? Omissible<L> extends true ? undefined | V : V
-		: Omissible<L> extends true ? undefined | readonly V[]
-			: readonly [V, ...V[]]
-
-/**
- * Checks whether a lower bound lets the property be left out.
- *
- * Yields `true` unless at least one value is known to be required, so a bound stated as zero and a bound left
- * unstated both admit absence, as does one stated only as a number.
- *
- * @typeParam L The least number of values admitted
- */
-export type Omissible<L extends Count> =
-	0 extends L ? true : undefined extends L ? true : false
 
 /**
  * Resolves a cardinality bound stated in a constraints object.
