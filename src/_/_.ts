@@ -79,7 +79,7 @@ export type Resolved<S extends Lazy<Shape>, R> =
 	[Eager<S>] extends [never] ? never // !!! why?
 		: Eager<S> extends BooleanShape ? boolean
 			: Eager<S> extends NumberShape<infer V> ? V
-				: Eager<S> extends StringShape ? string
+				: Eager<S> extends StringShape<infer V> ? V
 					: Eager<S> extends ReferenceShape ? Reference
 						: Eager<S> extends ResourceShape ? R
 							: never
@@ -96,3 +96,21 @@ export type Carried<S extends Lazy<Shape>> =
 	Eager<S> extends ResourceShape<infer I, infer M>
 		? Merged<I, M>
 		: {}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the values a constraints object admits.
+ *
+ * Yields the enumerated values where the constraints close the domain to a list, and the whole domain otherwise, so
+ * that a state read from an enumerated shape is limited to the values it may actually take. Values stated too loosely
+ * to be told apart leave the state as the whole domain.
+ *
+ * @typeParam C The stated constraints
+ * @typeParam D The domain the values are drawn from
+ */
+export type Admitted<C, D> =
+	C extends { readonly in: infer V extends readonly D[] }
+		? V[number]
+		: D
