@@ -126,6 +126,30 @@ export type Property<
 export type Count =
 	undefined | number
 
+/**
+ * Property constraints admitting explicit cardinality bounds.
+ *
+ * Accepted by {@link property} for bounds beyond the four the cardinality factories name.
+ */
+export type PropertyBounds = PropertyConstrains & {
+
+	readonly minCount?: Count
+	readonly maxCount?: Count
+
+}
+
+/**
+ * Resolves a cardinality bound stated in a constraints object.
+ *
+ * Yields the bound where the object states one and `undefined` where it does not, so a property built from
+ * constraints carries the bounds it was given rather than the widest ones.
+ *
+ * @typeParam C The stated constraints
+ * @typeParam K The bound to resolve
+ */
+export type Stated<C, K extends string> =
+	K extends keyof C ? (C[K] extends Count ? C[K] : undefined) : undefined
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -184,8 +208,8 @@ export type Content<M extends Member> =
  * Resolves the form a cardinality admits.
  *
  * Yields a bare value where the property is limited to one, an array otherwise, marking the form optional unless at
- * least one value is required. Bounds that are not stated as literals admit the widest form, since exotic bounds
- * constrain validation rather than the shape of the state.
+ * least one value is required. Bounds beyond the four the cardinality factories name are honoured all the same, so a
+ * lower bound of two admits the same non-empty form as one.
  *
  * @typeParam V The value the property range describes
  * @typeParam L The least number of values admitted
@@ -193,9 +217,22 @@ export type Content<M extends Member> =
  */
 export type Bounded<V, L extends Count, U extends Count> =
 	[U] extends [1]
-		? [L] extends [1] ? V : undefined | V
-		: [L] extends [1] ? readonly [V, ...V[]]
-			: undefined | readonly V[]
+		? Unbounded<L> extends true ? undefined | V : V
+		: Unbounded<L> extends true ? undefined | readonly V[]
+			: readonly [V, ...V[]]
+
+/**
+ * Checks whether a lower bound leaves the property absent.
+ *
+ * Yields `true` unless at least one value is known to be required, so a bound stated as zero and a bound left
+ * unstated both admit absence, as does one stated only as a number.
+ *
+ * @typeParam L The least number of values admitted
+ */
+export type Unbounded<L extends Count> =
+	[undefined] extends [L] ? true
+		: [0] extends [L] ? true
+			: false
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -274,9 +311,9 @@ export function required<R extends Lazy<Shape>>(
 }
 
 
-export function property<R extends Lazy<Shape>>(
-	range: R, constraints?: PropertyConstrains & { readonly minCount?: number, readonly maxCount?: number }
-): Property<R> {
+export function property<R extends Lazy<Shape>, const C extends PropertyBounds = {}>(
+	range: R, constraints?: C
+): Property<R, Stated<C, "minCount">, Stated<C, "maxCount">> {
 	throw new Error(";( to be implemented");
 }
 

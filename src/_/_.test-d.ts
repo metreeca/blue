@@ -161,6 +161,20 @@ describe("Content", () => {
 			.toEqualTypeOf<undefined | readonly string[]>();
 	});
 
+	test("Property → a non-empty array where the lower bound exceeds one", () => {
+		expectTypeOf<Content<Property<StringShape, 2, 5>>>()
+			.toEqualTypeOf<readonly [string, ...string[]]>();
+	});
+
+	test("Property → an optional array where the lower bound is zero", () => {
+		expectTypeOf<Content<Property<StringShape, 0, 5>>>()
+			.toEqualTypeOf<undefined | readonly string[]>();
+	});
+
+	test("Property → a bare value where at most one is admitted above a lower bound", () => {
+		expectTypeOf<Content<Property<StringShape, 1, 1>>>().toEqualTypeOf<string>();
+	});
+
 	test("Property → an optional array where the bounds are not literal", () => {
 		expectTypeOf<Content<Property<StringShape, number, number>>>()
 			.toEqualTypeOf<undefined | readonly string[]>();
@@ -415,17 +429,22 @@ describe("shape factories", () => {
 
 	test("property → the bounds it was given", () => {
 		expectTypeOf(property(string(), { minCount: 2, maxCount: 5 }))
-			.toEqualTypeOf<Property<StringShape>>();
+			.toEqualTypeOf<Property<StringShape, 2, 5>>();
 	});
 
-	test("property → a Property carrying its range", () => {
+	test("property → unstated bounds where none are given", () => {
 		expectTypeOf(property(string()))
-			.toEqualTypeOf<Property<StringShape>>();
+			.toEqualTypeOf<Property<StringShape, undefined, undefined>>();
+	});
+
+	test("property → one bound where only one is given", () => {
+		expectTypeOf(property(string(), { minCount: 1 }))
+			.toEqualTypeOf<Property<StringShape, 1, undefined>>();
 	});
 
 	test("property → accepts constraints after the range", () => {
 		expectTypeOf(property(string(), { hidden: true, forward: "https://example.org/label" }))
-			.toEqualTypeOf<Property<StringShape>>();
+			.toEqualTypeOf<Property<StringShape, undefined, undefined>>();
 	});
 
 	test("property → rejects an unknown constraint", () => {
