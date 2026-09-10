@@ -18,7 +18,6 @@ import type { Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import {
-	type Carried,
 	type Draft,
 	type State
 } from "./_.js";
@@ -26,6 +25,7 @@ import { type BooleanShape } from "./boolean.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import { number } from "./number.js";
 import {
+	type Carried,
 	type Id,
 	id,
 	multiple,

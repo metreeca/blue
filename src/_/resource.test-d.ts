@@ -25,15 +25,16 @@ import {
 	type Count,
 	type Id,
 	id,
-	type Exposed,
+	type Retrieved,
 	multiple,
-	type Offer,
+	type Input,
 	nonempty,
 	optional,
 	type Property,
 	property,
 	required,
 	resource,
+	type ResourceShape,
 	type Type,
 	type as typed
 } from "./resource.js";
@@ -187,62 +188,62 @@ describe("Content", () => {
 
 });
 
-describe("Offer", () => {
+describe("Input", () => {
 
 	type Captive<R extends Lazy<Shape>, L extends Count, U extends Count>=
 		Property<R, L, U> & { readonly captive: true }
 
 	test("Id → its reference type", () => {
-		expectTypeOf<Offer<Id>>().toEqualTypeOf<Reference>();
+		expectTypeOf<Input<Id>>().toEqualTypeOf<Reference>();
 	});
 
 	test("Type → its optional reference type", () => {
-		expectTypeOf<Offer<Type>>().toEqualTypeOf<Optional<Reference>>();
+		expectTypeOf<Input<Type>>().toEqualTypeOf<Optional<Reference>>();
 	});
 
 	test("Property → the state of its range, as the retrieved value does", () => {
-		expectTypeOf<Offer<Property<StringShape, 1, 1>>>()
+		expectTypeOf<Input<Property<StringShape, 1, 1>>>()
 			.toEqualTypeOf<Content<Property<StringShape, 1, 1>>>();
 	});
 
 	test("Property → an IRI for a reference range the submitter does not hold captive", () => {
-		expectTypeOf<Offer<Property<ReferenceShape<LabelShape>, 1, 1>>>()
+		expectTypeOf<Input<Property<ReferenceShape<LabelShape>, 1, 1>>>()
 			.toEqualTypeOf<Reference>();
 	});
 
 	test("Property → an IRI or an inline draft for a captive reference range", () => {
-		expectTypeOf<Offer<Captive<ReferenceShape<LabelShape>, 1, 1>>>()
+		expectTypeOf<Input<Captive<ReferenceShape<LabelShape>, 1, 1>>>()
 			.toEqualTypeOf<Reference | Draft<LabelShape>>();
 	});
 
 	test("Property → inline drafts at every cardinality", () => {
-		expectTypeOf<Offer<Captive<ReferenceShape<LabelShape>, undefined, undefined>>>()
+		expectTypeOf<Input<Captive<ReferenceShape<LabelShape>, undefined, undefined>>>()
 			.toEqualTypeOf<undefined | readonly (Reference | Draft<LabelShape>)[]>();
 	});
 
 	test("Property → the state of a captive range that points at nothing", () => {
-		expectTypeOf<Offer<Captive<StringShape, 1, 1>>>().toEqualTypeOf<string>();
+		expectTypeOf<Input<Captive<StringShape, 1, 1>>>().toEqualTypeOf<string>();
 	});
 
 	test("distributes over a member union", () => {
-		expectTypeOf<Offer<Id | Property<StringShape, 1, 1>>>()
+		expectTypeOf<Input<Id | Property<StringShape, 1, 1>>>()
 			.toEqualTypeOf<Reference | string>();
 	});
 
 });
 
-describe("Exposed", () => {
+describe("Retrieved", () => {
 
 	test("empty members → empty record", () => {
-		expectTypeOf<Exposed<{}>>().toEqualTypeOf<{}>();
+		expectTypeOf<Retrieved<ResourceShape<[], {}>>>().toEqualTypeOf<{}>();
 	});
 
 	test("maps each member to its content", () => {
-		expectTypeOf<Exposed<{
+		expectTypeOf<Retrieved<ResourceShape<[], {
 			readonly id: Id,
 			readonly type: Type,
 			readonly label: Property<StringShape, 1, 1>
-		}>>().toEqualTypeOf<{
+		}>>>().toEqualTypeOf<{
 			readonly id: Reference,
 			readonly type: Optional<Reference>,
 			readonly label: string
@@ -250,16 +251,16 @@ describe("Exposed", () => {
 	});
 
 	test("preserves member keys", () => {
-		expectTypeOf<keyof Exposed<{
+		expectTypeOf<keyof Retrieved<ResourceShape<[], {
 			readonly id: Id,
 			readonly label: Property<StringShape, 1, 1>
-		}>>().toEqualTypeOf<"id" | "label">();
+		}>>>().toEqualTypeOf<"id" | "label">();
 	});
 
 	test("satisfies the resource contract", () => {
-		expectTypeOf<Exposed<{
+		expectTypeOf<Retrieved<ResourceShape<[], {
 			readonly label: Property<StringShape, 1, 1>
-		}>>().toExtend<Resource>();
+		}>>>().toExtend<Resource>();
 	});
 
 });

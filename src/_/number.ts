@@ -15,7 +15,7 @@
  */
 
 import type { Reference } from "@metreeca/qest/resource";
-import type { Admitted } from "./_.js";
+import type { Legal } from "./_.js";
 
 
 /**
@@ -207,7 +207,7 @@ export type NumberRangeConstraints<V extends number = number> = {
  *
  * @returns An immutable shape admitting the numbers the constraints bound, narrowed to the values they enumerate
  */
-export function number<const C extends NumberConstraints = {}>(constraints?: C): NumberShape<Admitted<C, number>> {
+export function number<const C extends NumberConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 	throw new Error(";( to be implemented");
 }
 
@@ -228,7 +228,7 @@ export function number<const C extends NumberConstraints = {}>(constraints?: C):
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#byte XSD 1.0 Part 2: Datatypes § 3.3.19 byte}
  */
-export function byte<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Admitted<C, number>> {
+export function byte<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 	throw new Error(";( to be implemented");
 }
 
@@ -246,7 +246,7 @@ export function byte<const C extends NumberRangeConstraints = {}>(constraints?: 
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#short XSD 1.0 Part 2: Datatypes § 3.3.18 short}
  */
-export function short<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Admitted<C, number>> {
+export function short<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 	throw new Error(";( to be implemented");
 }
 
@@ -264,7 +264,7 @@ export function short<const C extends NumberRangeConstraints = {}>(constraints?:
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#int XSD 1.0 Part 2: Datatypes § 3.3.17 int}
  */
-export function int<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Admitted<C, number>> {
+export function int<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 	throw new Error(";( to be implemented");
 }
 
@@ -284,7 +284,7 @@ export function int<const C extends NumberRangeConstraints = {}>(constraints?: C
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#long XSD 1.0 Part 2: Datatypes § 3.3.16 long}
  */
-export function long<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Admitted<C, number>> {
+export function long<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 	throw new Error(";( to be implemented");
 }
 
@@ -302,7 +302,7 @@ export function long<const C extends NumberRangeConstraints = {}>(constraints?: 
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#float XSD 1.0 Part 2: Datatypes § 3.2.4 float}
  */
-export function float<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Admitted<C, number>> {
+export function float<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 	throw new Error(";( to be implemented");
 }
 
@@ -319,7 +319,7 @@ export function float<const C extends NumberRangeConstraints = {}>(constraints?:
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#double XSD 1.0 Part 2: Datatypes § 3.2.5 double}
  */
-export function double<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Admitted<C, number>> {
+export function double<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 	throw new Error(";( to be implemented");
 }
 
@@ -336,7 +336,7 @@ export function double<const C extends NumberRangeConstraints = {}>(constraints?
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#integer XSD 1.0 Part 2: Datatypes § 3.3.13 integer}
  */
-export function integer<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Admitted<C, number>> {
+export function integer<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 	throw new Error(";( to be implemented");
 }
 
@@ -353,6 +353,6 @@ export function integer<const C extends NumberRangeConstraints = {}>(constraints
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#decimal XSD 1.0 Part 2: Datatypes § 3.2.3 decimal}
  */
-export function decimal<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Admitted<C, number>> {
+export function decimal<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 	throw new Error(";( to be implemented");
 }
