@@ -86,6 +86,14 @@ describe("number", () => {
 
 	});
 
+	test("empty enumeration → number", () => {
+
+		const shape=number({ in: [] });
+
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<number>();
+
+	});
+
 	test("unenumerated values → number", () => {
 
 		const values: readonly number[]=[1, 2];

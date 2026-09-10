@@ -122,6 +122,14 @@ describe("string", () => {
 
 	});
 
+	test("empty enumeration → string", () => {
+
+		const shape=string({ in: [] });
+
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<string>();
+
+	});
+
 	test("unenumerated values → string", () => {
 
 		const values: readonly string[]=["active", "closed"];

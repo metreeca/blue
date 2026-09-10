@@ -104,13 +104,13 @@ export type Carried<S extends Lazy<Shape>> =
  * Resolves the values a constraints object admits.
  *
  * Yields the enumerated values where the constraints close the domain to a list, and the whole domain otherwise, so
- * that a state read from an enumerated shape is limited to the values it may actually take. Values stated too loosely
- * to be told apart leave the state as the whole domain.
+ * that a state read from an enumerated shape is limited to the values it may actually take. An empty list closes
+ * nothing, as does a list whose values are stated too loosely to be told apart.
  *
  * @typeParam C The stated constraints
  * @typeParam D The domain the values are drawn from
  */
 export type Admitted<C, D> =
 	C extends { readonly in: infer V extends readonly D[] }
-		? V[number]
+		? [V[number]] extends [never] ? D : V[number]
 		: D
