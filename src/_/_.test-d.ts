@@ -28,10 +28,14 @@ import {
 	type NumberShape,
 	number,
 	type Property,
+	multiple,
+	optional,
 	property,
 	reference,
 	type ReferenceShape,
 	type ResourceShape,
+	repeatable,
+	required,
 	resource,
 	type State,
 	type StringShape,
@@ -47,7 +51,7 @@ type LabelShape={
 	readonly extends: [],
 
 	readonly members: {
-		readonly label: Property<StringShape>
+		readonly label: Property<StringShape, 1, 1>
 	}
 
 }
@@ -124,27 +128,46 @@ describe("Content", () => {
 	});
 
 	test("Property → the state of its range", () => {
-		expectTypeOf<Content<Property<StringShape>>>()
+		expectTypeOf<Content<Property<StringShape, 1, 1>>>()
 			.toEqualTypeOf<string>();
 	});
 
 	test("Property → the state of a lazy range", () => {
-		expectTypeOf<Content<Property<() => StringShape>>>()
+		expectTypeOf<Content<Property<() => StringShape, 1, 1>>>()
 			.toEqualTypeOf<string>();
 	});
 
 	test("Property → an IRI for a reference range", () => {
-		expectTypeOf<Content<Property<ReferenceShape>>>()
+		expectTypeOf<Content<Property<ReferenceShape, 1, 1>>>()
 			.toEqualTypeOf<Reference>();
 	});
 
 	test("Property → the state of a resource range", () => {
-		expectTypeOf<Content<Property<LabelShape>>>()
+		expectTypeOf<Content<Property<LabelShape, 1, 1>>>()
 			.toEqualTypeOf<LabelState>();
 	});
 
+	test("Property → an optional value where at most one is admitted", () => {
+		expectTypeOf<Content<Property<StringShape, undefined, 1>>>().toEqualTypeOf<undefined | string>();
+	});
+
+	test("Property → a non-empty array where at least one is required", () => {
+		expectTypeOf<Content<Property<StringShape, 1, undefined>>>()
+			.toEqualTypeOf<readonly [string, ...string[]]>();
+	});
+
+	test("Property → an optional array where any number is admitted", () => {
+		expectTypeOf<Content<Property<StringShape, undefined, undefined>>>()
+			.toEqualTypeOf<undefined | readonly string[]>();
+	});
+
+	test("Property → an optional array where the bounds are not literal", () => {
+		expectTypeOf<Content<Property<StringShape, number, number>>>()
+			.toEqualTypeOf<undefined | readonly string[]>();
+	});
+
 	test("distributes over a member union", () => {
-		expectTypeOf<Content<Id | Property<StringShape>>>()
+		expectTypeOf<Content<Id | Property<StringShape, 1, 1>>>()
 			.toEqualTypeOf<Reference | string>();
 	});
 
@@ -161,7 +184,7 @@ describe("Instance", () => {
 		expectTypeOf<Instance<{
 			readonly id: Id,
 			readonly type: Type,
-			readonly label: Property<StringShape>
+			readonly label: Property<StringShape, 1, 1>
 		}>>().toEqualTypeOf<{
 			readonly id: Reference,
 			readonly type: Optional<Reference>,
@@ -172,13 +195,13 @@ describe("Instance", () => {
 	test("preserves member keys", () => {
 		expectTypeOf<keyof Instance<{
 			readonly id: Id,
-			readonly label: Property<StringShape>
+			readonly label: Property<StringShape, 1, 1>
 		}>>().toEqualTypeOf<"id" | "label">();
 	});
 
 	test("satisfies the resource contract", () => {
 		expectTypeOf<Instance<{
-			readonly label: Property<StringShape>
+			readonly label: Property<StringShape, 1, 1>
 		}>>().toExtend<Resource>();
 	});
 
@@ -212,7 +235,7 @@ describe("Inheritance", () => {
 describe("resource", () => {
 
 	test("infers the instance type from its members", () => {
-		const shape=resource({ id: id(), type: typed(), label: property(string()) });
+		const shape=resource({ id: id(), type: typed(), label: required(string()) });
 
 		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{
 			readonly id: Reference,
@@ -234,7 +257,7 @@ describe("resource", () => {
 
 
 	test("merges the state of an extended shape into the instance", () => {
-		const shape=resource(resource({ id: id() }), { label: property(string()) });
+		const shape=resource(resource({ id: id() }), { label: required(string()) });
 
 		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference } & LabelState>();
 	});
@@ -243,7 +266,7 @@ describe("resource", () => {
 		const shape=resource(
 			resource({ id: id() }),
 			resource({ type: typed() }),
-			{ label: property(string()) }
+			{ label: required(string()) }
 		);
 
 		expectTypeOf<State<typeof shape>>()
@@ -252,19 +275,19 @@ describe("resource", () => {
 
 	test("resolves a lazy extended shape", () => {
 		const base=resource({ id: id() });
-		const shape=resource(() => base, { label: property(string()) });
+		const shape=resource(() => base, { label: required(string()) });
 
 		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference } & LabelState>();
 	});
 
 	test("accepts constraints after the members", () => {
-		const shape=resource(resource({ id: id() }), { label: property(string()) }, {});
+		const shape=resource(resource({ id: id() }), { label: required(string()) }, {});
 
 		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference } & LabelState>();
 	});
 
 	test("resolves a lazy property range", () => {
-		const shape=resource({ label: property(() => string()) });
+		const shape=resource({ label: required(() => string()) });
 
 		expectTypeOf<State<typeof shape>>().toEqualTypeOf<LabelState>();
 	});
@@ -276,17 +299,17 @@ describe("resource", () => {
 		type LeftShape={
 			readonly kind: "resource",
 			readonly extends: [],
-			readonly members: { readonly right: Property<() => RightShape> }
+			readonly members: { readonly right: Property<() => RightShape, 1, 1> }
 		}
 
 		type RightShape={
 			readonly kind: "resource",
 			readonly extends: [],
-			readonly members: { readonly left: Property<() => LeftShape> }
+			readonly members: { readonly left: Property<() => LeftShape, 1, 1> }
 		}
 
-		const left: LeftShape=resource({ right: property(() => right) });
-		const right: RightShape=resource({ left: property(() => left) });
+		const left: LeftShape=resource({ right: required(() => right) });
+		const right: RightShape=resource({ left: required(() => left) });
 
 		expectTypeOf<State<typeof left>["right"]["left"]["right"]>().toEqualTypeOf<State<typeof right>>();
 
@@ -295,11 +318,11 @@ describe("resource", () => {
 	test("a reference range keeps the target out of the state", () => {
 
 		function left() {
-			return resource({ id: id(), right: property(reference(right)) });
+			return resource({ id: id(), right: required(reference(right)) });
 		}
 
 		function right() {
-			return resource({ id: id(), left: property(reference(left)) });
+			return resource({ id: id(), left: required(reference(left)) });
 		}
 
 		expectTypeOf<State<ReturnType<typeof left>>>().toEqualTypeOf<{
@@ -319,11 +342,11 @@ describe("resource", () => {
 		// hoisted declarations let each shape name the other, so both return types are inferred
 
 		function scheme() {
-			return resource({ id: id(), hasTopConcept: property(reference(concept)) });
+			return resource({ id: id(), hasTopConcept: required(reference(concept)) });
 		}
 
 		function concept() {
-			return resource({ id: id(), inScheme: property(reference(scheme)) });
+			return resource({ id: id(), inScheme: required(reference(scheme)) });
 		}
 
 		expectTypeOf<State<ReturnType<typeof scheme>>["hasTopConcept"]>().toEqualTypeOf<Reference>();
@@ -333,7 +356,7 @@ describe("resource", () => {
 
 	test("rejects a non-shape as an extended shape", () => {
 		// @ts-expect-error - a string shape is not a resource shape
-		resource(string(), { label: property(string()) });
+		resource(string(), { label: required(string()) });
 	});
 
 	test("rejects an extended shape as the members", () => {
@@ -368,6 +391,31 @@ describe("shape factories", () => {
 
 	test("reference → ReferenceShape", () => {
 		expectTypeOf(reference(resource({ id: id() }))).toEqualTypeOf<ReferenceShape>();
+	});
+
+	test("required → exactly one value", () => {
+		expectTypeOf(required(string())).toEqualTypeOf<Property<StringShape, 1, 1>>();
+	});
+
+	test("optional → at most one value", () => {
+		expectTypeOf(optional(string())).toEqualTypeOf<Property<StringShape, undefined, 1>>();
+	});
+
+	test("repeatable → at least one value", () => {
+		expectTypeOf(repeatable(string())).toEqualTypeOf<Property<StringShape, 1, undefined>>();
+	});
+
+	test("multiple → any number of values", () => {
+		expectTypeOf(multiple(string())).toEqualTypeOf<Property<StringShape, undefined, undefined>>();
+	});
+
+	test("the cardinality factories accept constraints", () => {
+		expectTypeOf(required(string(), { hidden: true })).toEqualTypeOf<Property<StringShape, 1, 1>>();
+	});
+
+	test("property → the bounds it was given", () => {
+		expectTypeOf(property(string(), { minCount: 2, maxCount: 5 }))
+			.toEqualTypeOf<Property<StringShape>>();
 	});
 
 	test("property → a Property carrying its range", () => {

@@ -90,13 +90,41 @@ export type Type = {
 
 }
 
-export type Property<R extends Lazy<Shape> = Lazy<Shape>> = PropertyConstrains & {
+export type Property<
+	R extends Lazy<Shape> = Lazy<Shape>,
+	L extends Count = Count,
+	U extends Count = Count
+> = PropertyConstrains & {
 
 	readonly kind: "property"
 
 	readonly range: R
 
+	/**
+	 * Least number of values the property admits.
+	 *
+	 * @defaultValue `undefined` (no lower bound)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
+	 */
+	readonly minCount: L
+
+	/**
+	 * Greatest number of values the property admits.
+	 *
+	 * @defaultValue `undefined` (no upper bound)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
+	 */
+	readonly maxCount: U
+
 }
+
+/**
+ * A cardinality bound, absent where the property states none.
+ */
+export type Count =
+	undefined | number
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -144,8 +172,30 @@ export type Instance<M extends Members> = {
 export type Content<M extends Member> =
 	M extends Id ? Reference
 		: M extends Type ? Optional<Reference>
-			: M extends { readonly kind: "property", readonly range: infer R extends Lazy<Shape> } ? State<R>
+			: M extends {
+					readonly kind: "property",
+					readonly range: infer R extends Lazy<Shape>,
+					readonly minCount: infer L extends Count,
+					readonly maxCount: infer U extends Count
+				} ? Bounded<State<R>, L, U>
 				: never
+
+/**
+ * Resolves the form a cardinality admits.
+ *
+ * Yields a bare value where the property is limited to one, an array otherwise, marking the form optional unless at
+ * least one value is required. Bounds that are not stated as literals admit the widest form, since exotic bounds
+ * constrain validation rather than the shape of the state.
+ *
+ * @typeParam V The value the property range describes
+ * @typeParam L The least number of values admitted
+ * @typeParam U The greatest number of values admitted
+ */
+export type Bounded<V, L extends Count, U extends Count> =
+	[U] extends [1]
+		? [L] extends [1] ? V : undefined | V
+		: [L] extends [1] ? readonly [V, ...V[]]
+			: undefined | readonly V[]
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -199,23 +249,34 @@ export function type(): Type {
 }
 
 
-export function multiple<R extends Lazy<Shape>>(range: R, constraints?: PropertyConstrains): Property<R> {
+export function multiple<R extends Lazy<Shape>>(
+	range: R, constraints?: PropertyConstrains
+): Property<R, undefined, undefined> {
 	throw new Error(";( to be implemented");
 }
 
-export function repetable<R extends Lazy<Shape>>(range: R, constraints?: PropertyConstrains): Property<R> {
+export function repeatable<R extends Lazy<Shape>>(
+	range: R, constraints?: PropertyConstrains
+): Property<R, 1, undefined> {
 	throw new Error(";( to be implemented");
 }
 
-export function optional<R extends Lazy<Shape>>(range: R, constraints?: PropertyConstrains): Property<R> {
+export function optional<R extends Lazy<Shape>>(
+	range: R, constraints?: PropertyConstrains
+): Property<R, undefined, 1> {
 	throw new Error(";( to be implemented");
 }
 
-export function required<R extends Lazy<Shape>>(range: R, constraints?: PropertyConstrains): Property<R> {
+export function required<R extends Lazy<Shape>>(
+	range: R, constraints?: PropertyConstrains
+): Property<R, 1, 1> {
 	throw new Error(";( to be implemented");
 }
 
-export function property<R extends Lazy<Shape>>(range: R, constraints?: PropertyConstrains): Property<R> {
+
+export function property<R extends Lazy<Shape>>(
+	range: R, constraints?: PropertyConstrains & { readonly minCount?: number, readonly maxCount?: number }
+): Property<R> {
 	throw new Error(";( to be implemented");
 }
 
