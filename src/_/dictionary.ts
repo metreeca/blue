@@ -14,24 +14,4 @@
  * limitations under the License.
  */
 
-import { createNamespace } from "@metreeca/core/resource";
-import { number } from "../../number.js";
-import { required, resource } from "../resource.js";
-
-export const wgs = createNamespace("http://www.w3.org/2003/01/geo/wgs84_pos#");
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export function Point() {
-	return resource({
-
-		longitude: required(number, { forward: wgs.long }),
-		latitude: required(number, { forward: wgs.lat })
-
-	}, {
-
-		space: wgs
-
-	});
-}
+export function dictionary() {}

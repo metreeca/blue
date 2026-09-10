@@ -15,8 +15,122 @@
  */
 
 
+import type { Identifier, Lazy } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
+import type { Shape } from "./_.js";
+
+
+export type ResourceShape<P extends Parents = Parents, M extends Members = Members> = ResourceConstraints & {
+
+	readonly kind: "resource"
+
+
+	readonly extends: P
+
+	readonly members: M
+
+}
+
+export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> = {
+
+	readonly kind: "reference"
+
+	/**
+	 * Shape describing the resource the reference points at, possibly deferred to break definition cycles.
+	 */
+	readonly target: T
+
+}
+
+
+export type Parents =
+	readonly Lazy<ResourceShape>[]
+
+export type Member =
+	| Id
+	| Type
+	| Property
+
+export type Members = {
+
+	readonly [field: Identifier]: Member
+
+}
+
+
+export type Id = {
+
+	readonly kind: "id"
+
+}
+
+export type Type = {
+
+	readonly kind: "type"
+
+}
+
+export type Property<
+	R extends Lazy<Shape> = Lazy<Shape>,
+	L extends Count = Count,
+	U extends Count = Count
+> = PropertyConstrains & {
+
+	readonly kind: "property"
+
+	readonly range: R
+
+	/**
+	 * Least number of values the property admits.
+	 *
+	 * @defaultValue `undefined` (no lower bound)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
+	 */
+	readonly minCount: L
+
+	/**
+	 * Greatest number of values the property admits.
+	 *
+	 * @defaultValue `undefined` (no upper bound)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
+	 */
+	readonly maxCount: U
+
+}
+
+/**
+ * A cardinality bound, absent where the property states none.
+ */
+export type Count =
+	undefined | number
+
+/**
+ * Property constraints admitting explicit cardinality bounds.
+ *
+ * Accepted by {@link property} for bounds beyond the four the cardinality factories name.
+ */
+export type PropertyBounds = PropertyConstrains & {
+
+	readonly minCount?: Count
+	readonly maxCount?: Count
+
+}
+
+/**
+ * Resolves a cardinality bound stated in a constraints object.
+ *
+ * Yields the bound where the object states one and `undefined` where it does not, so a property built from
+ * constraints carries the bounds it was given rather than the widest ones.
+ *
+ * @typeParam C The stated constraints
+ * @typeParam K The bound to resolve
+ */
+export type Stated<C, K extends string> =
+	K extends keyof C ? (C[K] extends Count ? C[K] : undefined) : undefined
+
 
 export type ResourceConstraints = {
 
@@ -258,4 +372,64 @@ export type PropertyConstrains = {
 	 */
 	readonly reverse?: Reference | Namespace;
 
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export function reference<T extends Lazy<ResourceShape>>(shape: T): ReferenceShape<T> {
+	throw new Error(";( to be implemented"); // !!!
+}
+
+export function resource<I extends Parents, M extends Members>(
+	...args: [...inheritance: I, members: M]
+): ResourceShape<I, M>
+
+export function resource<I extends Parents, M extends Members>(
+	...args: [...inheritance: I, members: M, constraints: ResourceConstraints]
+): ResourceShape<I, M>
+
+export function resource(...args: readonly unknown[]): ResourceShape {
+	throw new Error(";( to be implemented");
+}
+
+
+export function id(): Id {
+	throw new Error(";( to be implemented");
+}
+
+export function type(): Type {
+	throw new Error(";( to be implemented");
+}
+
+
+export function multiple<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+	range: R, constraints?: C
+): C & Property<R, undefined, undefined> {
+	throw new Error(";( to be implemented");
+}
+
+export function nonempty<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+	range: R, constraints?: C
+): C & Property<R, 1, undefined> {
+	throw new Error(";( to be implemented");
+}
+
+export function optional<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+	range: R, constraints?: C
+): C & Property<R, undefined, 1> {
+	throw new Error(";( to be implemented");
+}
+
+export function required<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+	range: R, constraints?: C
+): C & Property<R, 1, 1> {
+	throw new Error(";( to be implemented");
+}
+
+
+export function property<R extends Lazy<Shape>, const C extends PropertyBounds = {}>(
+	range: R, constraints?: C
+): C & Property<R, Stated<C, "minCount">, Stated<C, "maxCount">> {
+	throw new Error(";( to be implemented");
 }

@@ -15,7 +15,8 @@
  */
 
 import { createNamespace } from "@metreeca/core/resource";
-import { id, markdown, optional, required, resource, text } from "../_.js";
+import { id, optional, required, resource } from "../resource.js";
+import { markdown, text } from "../string.js";
 import { Point, wgs } from "./wgs.js";
 
 

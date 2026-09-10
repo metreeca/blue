@@ -14,24 +14,27 @@
  * limitations under the License.
  */
 
-import { createNamespace } from "@metreeca/core/resource";
-import { number } from "../../number.js";
-import { required, resource } from "../resource.js";
-
-export const wgs = createNamespace("http://www.w3.org/2003/01/geo/wgs84_pos#");
+import { describe, expectTypeOf, test } from "vitest";
+import { type State } from "./_.js";
+import { markdown, type StringShape, string, text } from "./string.js";
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+describe("string", () => {
 
-export function Point() {
-	return resource({
-
-		longitude: required(number, { forward: wgs.long }),
-		latitude: required(number, { forward: wgs.lat })
-
-	}, {
-
-		space: wgs
-
+	test("string → StringShape", () => {
+		expectTypeOf(string()).toEqualTypeOf<StringShape>();
 	});
-}
+
+	test("text → StringShape", () => {
+		expectTypeOf(text()).toEqualTypeOf<StringShape>();
+	});
+
+	test("markdown → StringShape", () => {
+		expectTypeOf(markdown()).toEqualTypeOf<StringShape>();
+	});
+
+	test("StringShape → string", () => {
+		expectTypeOf<State<StringShape>>().toEqualTypeOf<string>();
+	});
+
+});

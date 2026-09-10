@@ -13,3 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+
+export type BooleanShape = {
+
+	readonly kind: "boolean"
+
+}
+
+
+export function boolean(): BooleanShape {
+	throw new Error(";( to be implemented");
+} // !!! narrow the state from {in}

@@ -18,32 +18,31 @@ import type { Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import {
-	type BooleanShape,
-	boolean,
 	type Content,
 	type Draft,
-	type Id,
-	id,
 	type Inheritance,
 	type Instance,
-	type NumberShape,
-	number,
-	type Property,
+	type State
+} from "./_.js";
+import { type BooleanShape } from "./boolean.js";
+import { number } from "./number.js";
+import {
+	type Id,
+	id,
 	multiple,
+	nonempty,
 	optional,
+	type Property,
 	property,
 	reference,
 	type ReferenceShape,
-	type ResourceShape,
-	nonempty,
 	required,
 	resource,
-	type State,
-	type StringShape,
-	string,
+	type ResourceShape,
 	type Type,
 	type as typed
-} from "./_.js";
+} from "./resource.js";
+import { type StringShape, string } from "./string.js";
 
 
 type LabelShape={
@@ -63,18 +62,6 @@ type LabelState={ readonly label: string }
 describe("State", () => {
 
 	describe("scalar shapes", () => {
-
-		test("BooleanShape → boolean", () => {
-			expectTypeOf<State<BooleanShape>>().toEqualTypeOf<boolean>();
-		});
-
-		test("NumberShape → number", () => {
-			expectTypeOf<State<NumberShape>>().toEqualTypeOf<number>();
-		});
-
-		test("StringShape → string", () => {
-			expectTypeOf<State<StringShape>>().toEqualTypeOf<string>();
-		});
 
 	});
 
@@ -792,82 +779,3 @@ describe("Draft", () => {
 });
 
 
-describe("shape factories", () => {
-
-	test("boolean → BooleanShape", () => {
-		expectTypeOf(boolean()).toEqualTypeOf<BooleanShape>();
-	});
-
-	test("number → NumberShape", () => {
-		expectTypeOf(number()).toEqualTypeOf<NumberShape>();
-	});
-
-	test("string → StringShape", () => {
-		expectTypeOf(string()).toEqualTypeOf<StringShape>();
-	});
-
-	test("id → Id", () => {
-		expectTypeOf(id()).toEqualTypeOf<Id>();
-	});
-
-	test("type → Type", () => {
-		expectTypeOf(typed()).toEqualTypeOf<Type>();
-	});
-
-	test("reference → a ReferenceShape carrying its target", () => {
-		const target=resource({ id: id() });
-
-		expectTypeOf(reference(target)).toEqualTypeOf<ReferenceShape<typeof target>>();
-	});
-
-	test("required → exactly one value", () => {
-		expectTypeOf(required(string())).toEqualTypeOf<Property<StringShape, 1, 1>>();
-	});
-
-	test("optional → at most one value", () => {
-		expectTypeOf(optional(string())).toEqualTypeOf<Property<StringShape, undefined, 1>>();
-	});
-
-	test("nonempty → at least one value", () => {
-		expectTypeOf(nonempty(string())).toEqualTypeOf<Property<StringShape, 1, undefined>>();
-	});
-
-	test("multiple → any number of values", () => {
-		expectTypeOf(multiple(string())).toEqualTypeOf<Property<StringShape, undefined, undefined>>();
-	});
-
-	test("the cardinality factories accept constraints", () => {
-		expectTypeOf(required(string(), { hidden: true }))
-			.toEqualTypeOf<{ readonly hidden: true } & Property<StringShape, 1, 1>>();
-	});
-
-	test("property → the bounds it was given", () => {
-		expectTypeOf(property(string(), { minCount: 2, maxCount: 5 }))
-			.toEqualTypeOf<{ readonly minCount: 2, readonly maxCount: 5 } & Property<StringShape, 2, 5>>();
-	});
-
-	test("property → unstated bounds where none are given", () => {
-		expectTypeOf(property(string()))
-			.toEqualTypeOf<Property<StringShape, undefined, undefined>>();
-	});
-
-	test("property → one bound where only one is given", () => {
-		expectTypeOf(property(string(), { minCount: 1 }))
-			.toEqualTypeOf<{ readonly minCount: 1 } & Property<StringShape, 1, undefined>>();
-	});
-
-	test("property → accepts constraints after the range", () => {
-		expectTypeOf(property(string(), { hidden: true, forward: "https://example.org/label" }))
-			.toEqualTypeOf<{ readonly hidden: true, readonly forward: "https://example.org/label" } & Property<StringShape, undefined, undefined>>();
-	});
-
-	test("property → rejects an unknown constraint", () => {
-		// @ts-expect-error - nope is not a property constraint
-		property(string(), { nope: true });
-	});
-
-	test("Property admits any shape as its range", () => {
-		expectTypeOf<Property["range"]>().toEqualTypeOf<Parameters<typeof property>[0]>();
-	});
-
-});

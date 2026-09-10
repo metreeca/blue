@@ -14,24 +14,19 @@
  * limitations under the License.
  */
 
-import { createNamespace } from "@metreeca/core/resource";
-import { number } from "../../number.js";
-import { required, resource } from "../resource.js";
-
-export const wgs = createNamespace("http://www.w3.org/2003/01/geo/wgs84_pos#");
+import { describe, expectTypeOf, test } from "vitest";
+import { type State } from "./_.js";
+import { type BooleanShape, boolean } from "./boolean.js";
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+describe("boolean", () => {
 
-export function Point() {
-	return resource({
-
-		longitude: required(number, { forward: wgs.long }),
-		latitude: required(number, { forward: wgs.lat })
-
-	}, {
-
-		space: wgs
-
+	test("boolean → BooleanShape", () => {
+		expectTypeOf(boolean()).toEqualTypeOf<BooleanShape>();
 	});
-}
+
+	test("BooleanShape → boolean", () => {
+		expectTypeOf<State<BooleanShape>>().toEqualTypeOf<boolean>();
+	});
+
+});

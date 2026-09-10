@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import { boolean, markdown, multiple, optional, reference, required, resource, text } from "../_.js";
+import { boolean } from "../boolean.js";
+import { multiple, optional, reference, required, resource } from "../resource.js";
+import { markdown, text } from "../string.js";
 import { dct } from "./dct.js";
 import { ec2u, Entity, rdfs } from "./ec2u.js";
 

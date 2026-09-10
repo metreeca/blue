@@ -15,7 +15,8 @@
  */
 
 import { createNamespace } from "@metreeca/core/resource";
-import { markdown, multiple, optional, reference, required, resource, string, text } from "../_.js";
+import { multiple, optional, reference, required, resource } from "../resource.js";
+import { markdown, string, text } from "../string.js";
 
 
 export const skos = createNamespace("http://www.w3.org/2004/02/skos/core#", [

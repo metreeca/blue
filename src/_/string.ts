@@ -13,3 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+
+export type StringShape = {
+
+	readonly kind: "string"
+
+}
+
+
+export function string(): StringShape {
+	throw new Error(";( to be implemented");
+} // !!! narrow the state from {in}
+
+export function text(): StringShape {
+	throw new Error(";( to be implemented");
+}
+
+export function markdown(): StringShape {
+	throw new Error(";( to be implemented");
+}
