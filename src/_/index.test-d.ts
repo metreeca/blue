@@ -15,9 +15,11 @@
  */
 
 import type { Lazy } from "@metreeca/core";
+import type { Tag } from "@metreeca/core/language";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import { type BooleanShape } from "./boolean.js";
+import { type DictionaryShape } from "./dictionary.js";
 import {
 	type Arity,
 	type Instance,
@@ -45,8 +47,33 @@ type LabelShape={
 
 type LabelState={ readonly label: string }
 
+type Singular={ readonly [tag: Tag]: string }
+type Plural={ readonly [tag: Tag]: readonly string[] }
+
+
+describe("Shape", () => {
+
+	test("admits a localised shape", () => {
+		expectTypeOf<DictionaryShape>().toExtend<Shape>();
+		expectTypeOf<DictionaryShape<true>>().toExtend<Shape>();
+	});
+
+});
+
 
 describe("Instance", () => {
+
+	describe("dictionary shapes", () => {
+
+		test("DictionaryShape → a tag-keyed map of arrays", () => {
+			expectTypeOf<Instance<DictionaryShape>>().toEqualTypeOf<Plural>();
+		});
+
+		test("unique-tagged DictionaryShape → a tag-keyed map of strings", () => {
+			expectTypeOf<Instance<DictionaryShape<true>>>().toEqualTypeOf<Singular>();
+		});
+
+	});
 
 	describe("reference shapes", () => {
 
@@ -154,6 +181,11 @@ describe("Proposal", () => {
 	test("resolves a scalar shape as the state does", () => {
 		expectTypeOf<Proposal<StringShape>>().toEqualTypeOf<string>();
 		expectTypeOf<Proposal<ReferenceShape>>().toEqualTypeOf<Reference>();
+	});
+
+	test("resolves a localised shape as the state does", () => {
+		expectTypeOf<Proposal<DictionaryShape>>().toEqualTypeOf<Plural>();
+		expectTypeOf<Proposal<DictionaryShape<true>>>().toEqualTypeOf<Singular>();
 	});
 
 });

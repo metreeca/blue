@@ -15,8 +15,10 @@
  */
 
 import type { Eager, Lazy, Optional } from "@metreeca/core";
+import type { Tag } from "@metreeca/core/language";
 import type { Reference } from "@metreeca/qest/resource";
 import type { BooleanShape } from "./boolean.js";
+import type { DictionaryShape, Unique } from "./dictionary.js";
 import type { NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
 import type { ResourceShape, Retrieved, Submitted } from "./resource.js";
@@ -27,15 +29,16 @@ import type { Branch, UnionShape } from "./union.js";
 /**
  * A description of a value.
  *
- * Describes a plain value, a reference to a resource, a resource in its own right or a value drawn from one of several
- * alternatives; a resource shape names the members its instances carry and may extend other resource shapes. The type
- * of the value a shape describes is derived from the shape itself, as {@link Instance} or {@link Proposal}, so that the
- * two cannot drift.
+ * Describes a plain value, a localised one, a reference to a resource, a resource in its own right or a value drawn
+ * from one of several alternatives; a resource shape names the members its instances carry and may extend other
+ * resource shapes. The type of the value a shape describes is derived from the shape itself, as {@link Instance} or
+ * {@link Proposal}, so that the two cannot drift.
  */
 export type Shape =
 	| BooleanShape
 	| NumberShape
 	| StringShape
+	| DictionaryShape
 	| ReferenceShape
 	| ResourceShape
 	| UnionShape
@@ -96,11 +99,12 @@ export type RangeCount =
 /**
  * Resolves the value a shape describes, as retrieved.
  *
- * Yields the type a retrieved instance of the shape exposes: the {@link Plain} value for a scalar or reference shape,
- * for a resource shape a record of the members it declares merged over the ones it inherits, and for a union shape the
- * value of every branch at once, as the stored value alone tells the reader which branch it belongs to. A reference
- * contributes the target IRI alone, keeping a linked resource out of the state it points at. A shape left wholly
- * undescribed, admitting any shape at all, resolves to no value. Reach for `Instance` wherever a resource is read.
+ * Yields the type a retrieved instance of the shape exposes: the {@link Plain} value for a scalar, localised or
+ * reference shape, for a resource shape a record of the members it declares merged over the ones it inherits, and for a
+ * union shape the value of every branch at once, as the stored value alone tells the reader which branch it belongs to.
+ * A reference contributes the target IRI alone, keeping a linked resource out of the state it points at. A shape left
+ * wholly undescribed, admitting any shape at all, resolves to no value. Reach for `Instance` wherever a resource is
+ * read.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
@@ -138,9 +142,10 @@ export type Proposal<S extends Lazy<Shape>> =
 /**
  * Resolves the plain value a shape describes.
  *
- * Yields a boolean, a number or a string, narrowed to the values the shape enumerates where it does, and the target
- * IRI for a reference shape. A plain value carries no members, so it reads the same whether retrieved or submitted;
- * neither a resource shape nor a union shape describes a plain value.
+ * Yields a boolean, a number or a string, narrowed to the values the shape enumerates where it does, a tag-keyed map
+ * for a localised shape, carrying its content at the arity the shape states as {@link dictionary!Unique | unique}, and
+ * the target IRI for a reference shape. A plain value carries no members, so it reads the same whether retrieved or
+ * submitted; neither a resource shape nor a union shape describes a plain value.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
@@ -148,8 +153,10 @@ export type Plain<S extends Lazy<Shape>> =
 	Eager<S> extends BooleanShape ? boolean
 		: Eager<S> extends NumberShape<infer V> ? V
 			: Eager<S> extends StringShape<infer V> ? V
-				: Eager<S> extends ReferenceShape ? Reference
-					: never
+				: Eager<S> extends infer D extends DictionaryShape
+					? { readonly [tag: Tag]: Unique<D> extends true ? string : readonly string[] }
+					: Eager<S> extends ReferenceShape ? Reference
+						: never
 
 /**
  * Resolves the legal values under a set of constraints.
