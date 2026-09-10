@@ -63,6 +63,8 @@ export type Draft<S extends Lazy<Shape>> =
 	Resolved<S, Submission<Carried<S>>>
 
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /**
  * Resolves the state a shape describes, given the value a resource exposes.
  *
@@ -74,9 +76,9 @@ export type Draft<S extends Lazy<Shape>> =
  * @typeParam R The value a resource shape exposes through the members it carries
  */
 export type Resolved<S extends Lazy<Shape>, R> =
-	[Eager<S>] extends [never] ? never
+	[Eager<S>] extends [never] ? never // !!! why?
 		: Eager<S> extends BooleanShape ? boolean
-			: Eager<S> extends NumberShape ? number
+			: Eager<S> extends NumberShape<infer V> ? V
 				: Eager<S> extends StringShape ? string
 					: Eager<S> extends ReferenceShape ? Reference
 						: Eager<S> extends ResourceShape ? R
@@ -91,4 +93,6 @@ export type Resolved<S extends Lazy<Shape>, R> =
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type Carried<S extends Lazy<Shape>> =
-	Eager<S> extends ResourceShape<infer I, infer M> ? Merged<I, M> : {}
+	Eager<S> extends ResourceShape<infer I, infer M>
+		? Merged<I, M>
+		: {}

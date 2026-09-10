@@ -15,8 +15,9 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type State } from "./_.js";
-import { type NumberShape, number } from "./number.js";
+import { type Draft, type State } from "./_.js";
+import { byte, decimal, double, float, int, integer, long, type NumberShape, number, short } from "./number.js";
+import { multiple, optional, required, resource } from "./resource.js";
 
 
 describe("number", () => {
@@ -25,8 +26,140 @@ describe("number", () => {
 		expectTypeOf(number()).toEqualTypeOf<NumberShape>();
 	});
 
+	test("byte → NumberShape", () => {
+		expectTypeOf(byte()).toEqualTypeOf<NumberShape>();
+	});
+
+	test("short → NumberShape", () => {
+		expectTypeOf(short()).toEqualTypeOf<NumberShape>();
+	});
+
+	test("int → NumberShape", () => {
+		expectTypeOf(int()).toEqualTypeOf<NumberShape>();
+	});
+
+	test("long → NumberShape", () => {
+		expectTypeOf(long()).toEqualTypeOf<NumberShape>();
+	});
+
+	test("float → NumberShape", () => {
+		expectTypeOf(float()).toEqualTypeOf<NumberShape>();
+	});
+
+	test("double → NumberShape", () => {
+		expectTypeOf(double()).toEqualTypeOf<NumberShape>();
+	});
+
+	test("integer → NumberShape", () => {
+		expectTypeOf(integer()).toEqualTypeOf<NumberShape>();
+	});
+
+	test("decimal → NumberShape", () => {
+		expectTypeOf(decimal()).toEqualTypeOf<NumberShape>();
+	});
+
 	test("NumberShape → number", () => {
 		expectTypeOf<State<NumberShape>>().toEqualTypeOf<number>();
+	});
+
+	test("enumerated NumberShape → admitted values", () => {
+
+		const shape=number({ in: [1, 2] });
+
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<1 | 2>();
+
+	});
+
+	test("enumerated shorthand → admitted values", () => {
+
+		const shape=byte({ in: [1, 2] });
+
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<1 | 2>();
+
+	});
+
+	test("open NumberShape → number", () => {
+
+		const shape=number({ minInclusive: 0 });
+
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<number>();
+
+	});
+
+	test("unenumerated values → number", () => {
+
+		const values: readonly number[]=[1, 2];
+		const shape=number({ in: values });
+
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<number>();
+
+	});
+
+	test("stated values → admitted values", () => {
+
+		const values: readonly (1 | 2)[]=[1, 2];
+		const shape=number({ in: values });
+
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<1 | 2>();
+
+	});
+
+	test("enumerated shape → open constraints", () => {
+
+		const shape=number({ in: [1, 2], minInclusive: 0 });
+
+		expectTypeOf(shape.minInclusive).toEqualTypeOf<undefined | number>();
+
+	});
+
+	test("refuses a narrowing claim outside the constraints", () => {
+
+		// @ts-expect-error - the state is stated through the constraints, not on its own
+		const shape=number<1 | 2>();
+
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<number>();
+
+	});
+
+	test("refuses values the enumeration omits", () => {
+
+		// @ts-expect-error - the stated enumeration doesn't admit the supplied values
+		const shape=number<{ readonly in: readonly [1, 2] }>({ in: [1] });
+
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<1 | 2>();
+
+	});
+
+});
+
+describe("members", () => {
+
+	const Product=resource({
+		code: required(integer()),
+		rating: optional(integer({ in: [1, 2, 3] })),
+		scores: multiple(number({ in: [1, 2] })),
+		price: optional(number({ minInclusive: 0 }))
+	});
+
+	test("carries the admitted values through cardinality", () => {
+
+		expectTypeOf<State<typeof Product>["code"]>().toEqualTypeOf<number>();
+		expectTypeOf<State<typeof Product>["rating"]>().toEqualTypeOf<undefined | 1 | 2 | 3>();
+		expectTypeOf<State<typeof Product>["scores"]>().toEqualTypeOf<undefined | readonly (1 | 2)[]>();
+		expectTypeOf<State<typeof Product>["price"]>().toEqualTypeOf<undefined | number>();
+
+	});
+
+	test("carries the admitted values into a submission", () => {
+		expectTypeOf<Draft<typeof Product>["rating"]>().toEqualTypeOf<undefined | 1 | 2 | 3>();
+	});
+
+	test("carries the admitted values through inheritance", () => {
+
+		const Rated=resource(Product, { rating: required(integer({ in: [1, 2] })) });
+
+		expectTypeOf<State<typeof Rated>["rating"]>().toEqualTypeOf<1 | 2>();
+
 	});
 
 });
