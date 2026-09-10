@@ -50,12 +50,14 @@ type LabelState={ readonly label: string }
 type Singular={ readonly [tag: Tag]: string }
 type Plural={ readonly [tag: Tag]: readonly string[] }
 
+type UniqueShape=DictionaryShape & { readonly uniqueLang: true }
+
 
 describe("Shape", () => {
 
 	test("admits a localised shape", () => {
 		expectTypeOf<DictionaryShape>().toExtend<Shape>();
-		expectTypeOf<DictionaryShape<true>>().toExtend<Shape>();
+		expectTypeOf<UniqueShape>().toExtend<Shape>();
 	});
 
 });
@@ -70,7 +72,7 @@ describe("Instance", () => {
 		});
 
 		test("unique-tagged DictionaryShape → a tag-keyed map of strings", () => {
-			expectTypeOf<Instance<DictionaryShape<true>>>().toEqualTypeOf<Singular>();
+			expectTypeOf<Instance<UniqueShape>>().toEqualTypeOf<Singular>();
 		});
 
 	});
@@ -185,7 +187,7 @@ describe("Proposal", () => {
 
 	test("resolves a localised shape as the state does", () => {
 		expectTypeOf<Proposal<DictionaryShape>>().toEqualTypeOf<Plural>();
-		expectTypeOf<Proposal<DictionaryShape<true>>>().toEqualTypeOf<Singular>();
+		expectTypeOf<Proposal<UniqueShape>>().toEqualTypeOf<Singular>();
 	});
 
 });

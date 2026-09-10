@@ -60,12 +60,10 @@ import type { TagRange } from "@metreeca/core/language";
  *
  * - merged `minLength` must be ≤ merged `maxLength`
  *
- * @typeParam U Whether every tag carries a single string, as {@link Unique} reads it
- *
  * @see {@link https://www.w3.org/TR/json-ld11/#language-maps JSON-LD 1.1 § 9.8 Language Maps}
  * @see {@link https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string RDF 1.1 § 3.3 Literals}
  */
-export type DictionaryShape<U extends boolean = boolean> = DictionaryConstraints<U> & {
+export type DictionaryShape = DictionaryConstraints & {
 
 	readonly kind: "dictionary"
 
@@ -77,11 +75,9 @@ export type DictionaryShape<U extends boolean = boolean> = DictionaryConstraints
  * Bounds the content a tag may carry and the languages the map may key it by. Length bounds are matched against each
  * string separately, so a value is held to them whatever language it is stated in.
  *
- * @typeParam U Whether every tag carries a single string
- *
  * @see {@link https://www.w3.org/TR/shacl/#core-components-string SHACL § 4.4 String-based Constraint Components}
  */
-export type DictionaryConstraints<U extends boolean = boolean> = {
+export type DictionaryConstraints = {
 
 	/**
 	 * Restricts every tag to a single string.
@@ -97,7 +93,7 @@ export type DictionaryConstraints<U extends boolean = boolean> = {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#UniqueLangConstraintComponent SHACL § 4.4.5 sh:uniqueLang}
 	 */
-	readonly uniqueLang?: U;
+	readonly uniqueLang?: boolean;
 
 	/**
 	 * Minimum string length in characters.
@@ -153,7 +149,7 @@ export type DictionaryConstraints<U extends boolean = boolean> = {
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type Unique<S extends Lazy<DictionaryShape>> =
-	Eager<S> extends DictionaryShape<true> ? true : false
+	Eager<S> extends { readonly uniqueLang: true } ? true : false
 
 
 //// Factories ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -178,8 +174,8 @@ export type Unique<S extends Lazy<DictionaryShape>> =
  * const keywords = multiple(dictionary({ languageIn: ["en"] }));
  * ```
  */
-export function dictionary<const C extends DictionaryConstraints = {}>(constraints?: C): DictionaryShape<
-	C extends { readonly uniqueLang: true } ? true : false
-> {
+export function dictionary<const C extends DictionaryConstraints = {}>(constraints?: C): DictionaryShape & {
+	readonly uniqueLang: C["uniqueLang"]
+} {
 	throw new Error(";( to be implemented");
 }
