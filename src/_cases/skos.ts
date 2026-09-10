@@ -26,21 +26,12 @@ export const skos = createNamespace("http://www.w3.org/2004/02/skos/core#");
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export type Concept=Instance<typeof Concept>
+export type Concept = Instance<typeof Concept>
 
-// const c: Concept= {
-// 	notation: undefined,
-// 	prefLabel: "",
-// 	altLabel: undefined,
-// 	hiddenLabel: undefined,
-// 	inScheme: "",
-// 	topConceptOf: undefined,
-// 	broader: undefined,
-// 	broaderTransitive: undefined,
-// 	narrower: undefined,
-// 	related: undefined,
-// 	exactMatch: undefined
-// }
+const c: Concept = {
+	prefLabel: "Concept",
+	inScheme: "https://example.org/schemes/concepts"
+};
 
 
 export function ConceptScheme() {
@@ -49,6 +40,7 @@ export function ConceptScheme() {
 		hasTopConcept: multiple(reference(Concept), {
 
 			foreign: true,
+
 			reverse: skos.topConceptOf
 
 		}),

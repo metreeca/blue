@@ -412,27 +412,68 @@ export function property<R extends Lazy<Shape>, const C extends PropertyBounds =
 /**
  * Resolves the value a retrieved resource exposes.
  *
- * Maps every member the shape carries to its content.
+ * Maps every member the shape carries to its content, leaving optional the ones a resource may {@link Omitted | leave
+ * out}.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Retrieved<S extends Lazy<Shape>> = {
-
-	readonly [field in keyof Carried<S>]: Content<Carried<S>[field]>
-
-};
+export type Retrieved<S extends Lazy<Shape>> = Joined<
+	& { readonly [field in keyof Carried<S> as Omitted<Carried<S>[field]> extends true ? never : field]: Content<Carried<S>[field]> }
+	& { readonly [field in keyof Carried<S> as Omitted<Carried<S>[field]> extends true ? field : never]?: Content<Carried<S>[field]> }
+>
 
 /**
  * Resolves the value a submitted resource satisfies.
  *
  * Maps the members the shape carries to their payload, dropping the ones the submitter does not own and leaving
- * optional the ones the system supplies.
+ * optional the ones a submitter may {@link Spared | leave out}.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Submitted<S extends Lazy<Shape>> =
-	& { readonly [field in keyof Owned<S> as Owned<S>[field] extends Managed ? never : field]: Input<Owned<S>[field]> }
-	& { readonly [field in keyof Owned<S> as Owned<S>[field] extends Managed ? field : never]?: Input<Owned<S>[field]> }
+export type Submitted<S extends Lazy<Shape>> = Joined<
+	& { readonly [field in keyof Owned<S> as Spared<Owned<S>[field]> extends true ? never : field]: Input<Owned<S>[field]> }
+	& { readonly [field in keyof Owned<S> as Spared<Owned<S>[field]> extends true ? field : never]?: Input<Owned<S>[field]> }
+>
+
+/**
+ * Joins the parts of a record into a single one.
+ *
+ * Yields one record carrying every member the parts declare, with its modifiers, so that a resource resolved from
+ * required and optional members reads and compares as one type rather than as an intersection.
+ *
+ * @typeParam T The parts to join
+ */
+export type Joined<T> = {
+
+	[field in keyof T]: T[field]
+
+}
+
+/**
+ * Checks whether a member may be left out of a retrieved resource.
+ *
+ * Yields `true` for a type and for a property whose lower bound is {@link Omissible | omissible}, so that a resource
+ * states only the members it is bound to carry. A voided member is never left out, so that a conflict surfaces where
+ * the state is resolved.
+ *
+ * @typeParam M The member to check
+ */
+export type Omitted<M> =
+	[M] extends [never] ? false
+		: M extends Type ? true
+			: M extends Property<Lazy<Shape>, infer L, Count> ? Omissible<L>
+				: false
+
+/**
+ * Checks whether a member may be left out of a submitted resource.
+ *
+ * Yields `true` for a member a retrieved resource may {@link Omitted | leave out} and for one the system
+ * {@link Managed | fills in}.
+ *
+ * @typeParam M The member to check
+ */
+export type Spared<M> =
+	M extends Managed ? true : Omitted<M>
 
 /**
  * Resolves the members a submitter owns: every member the shape carries but a {@link Foreign | foreign} one.

@@ -245,8 +245,24 @@ describe("Retrieved", () => {
 			readonly label: Property<StringShape, 1, 1>
 		}>>>().toEqualTypeOf<{
 			readonly id: Reference,
-			readonly type: Optional<Reference>,
+			readonly type?: Reference,
 			readonly label: string
+		}>();
+	});
+
+	test("leaves a member optional where it may be left out", () => {
+		expectTypeOf<Retrieved<ResourceShape<[], {
+			readonly type: Type,
+			readonly one: Property<StringShape, 1, 1>,
+			readonly zeroOrOne: Property<StringShape, undefined, 1>,
+			readonly oneOrMore: Property<StringShape, 1, undefined>,
+			readonly zeroOrMore: Property<StringShape, undefined, undefined>
+		}>>>().toEqualTypeOf<{
+			readonly type?: Reference,
+			readonly one: string,
+			readonly zeroOrOne?: string,
+			readonly oneOrMore: readonly [string, ...string[]],
+			readonly zeroOrMore?: readonly string[]
 		}>();
 	});
 
@@ -492,7 +508,7 @@ describe("resource", () => {
 
 		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{
 			readonly id: Reference,
-			readonly type: Optional<Reference>,
+			readonly type?: Reference,
 			readonly label: string
 		}>();
 	});
@@ -524,7 +540,7 @@ describe("resource", () => {
 
 		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{
 			readonly id: Reference,
-			readonly type: Optional<Reference>,
+			readonly type?: Reference,
 			readonly label: string
 		}>();
 	});
@@ -719,16 +735,16 @@ describe("resource", () => {
 		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{
 
 			readonly one: string,
-			readonly zeroOrOne: undefined | string,
+			readonly zeroOrOne?: string,
 			readonly oneOrMore: readonly [string, ...string[]],
-			readonly zeroOrMore: undefined | readonly string[],
+			readonly zeroOrMore?: readonly string[],
 
 			readonly exotic: readonly [string, ...string[]],
-			readonly loose: undefined | readonly string[],
-			readonly bare: undefined | readonly string[],
+			readonly loose?: readonly string[],
+			readonly bare?: readonly string[],
 
 			readonly link: Reference,
-			readonly links: undefined | readonly Reference[]
+			readonly links?: readonly Reference[]
 
 		}>();
 

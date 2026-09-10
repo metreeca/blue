@@ -148,6 +148,11 @@ describe("Proposal", () => {
 		expectTypeOf<undefined>().toExtend<Submitted["derived"]>();
 	});
 
+	test("leaves a member optional where it may be left out", () => {
+		expectTypeOf<{}>().toExtend<Pick<Submitted, "many">>();
+		expectTypeOf<{}>().not.toExtend<Pick<Submitted, "plain">>();
+	});
+
 	test("omits a foreign member", () => {
 		expectTypeOf<keyof Submitted>().toEqualTypeOf<
 			"id" | "plain" | "linked" | "owned" | "many" | "derived"
