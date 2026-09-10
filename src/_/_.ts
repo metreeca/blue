@@ -15,14 +15,15 @@
  */
 
 import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
-import type { Namespace } from "@metreeca/core/resource";
-import type { Dictionary, Reference } from "@metreeca/qest/resource";
+import type { Reference } from "@metreeca/qest/resource";
+import type { PropertyConstrains, ResourceConstraints } from "./resource.js";
 
 
 export type Shape =
 	| BooleanShape
 	| NumberShape
 	| StringShape
+	| ReferenceShape
 	| ResourceShape
 
 
@@ -44,7 +45,13 @@ export type StringShape = {
 
 }
 
-export type ResourceShape = {
+export type ReferenceShape = {
+
+	readonly kind: "reference"
+
+}
+
+export type ResourceShape = ResourceConstraints & {
 
 	readonly kind: "resource"
 
@@ -59,120 +66,6 @@ export type ResourceShape = {
 	 * Members the resource exposes in its own right.
 	 */
 	readonly members: Members
-
-}
-
-export type ResourceConstraints = {
-
-	/**
-	 * Human-readable name for the shape.
-	 *
-	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a plain
-	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
-	 * {@link ResourceShape.name | built shape}.
-	 *
-	 * **Inheritance** — always from child; not inherited.
-	 *
-	 * @remarks
-	 *
-	 * SHACL defines sh:name only for property shapes; extended here to node shapes.
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
-	 */
-	readonly name?: string | Dictionary;
-
-	/**
-	 * Human-readable description of the shape.
-	 *
-	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a
-	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
-	 * {@link ResourceShape.description | built shape}.
-	 *
-	 * **Inheritance** — always from child; not inherited.
-	 *
-	 * @remarks
-	 *
-	 * SHACL defines sh:description only for property shapes; extended here to node shapes.
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
-	 */
-	readonly description?: string | Dictionary;
-
-
-	/**
-	 * Default namespace for converting property names to IRIs.
-	 *
-	 * Property names without explicit IRI mappings are resolved relative to this namespace.
-	 *
-	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
-	 *
-	 * @defaultValue {@link defaultNamespace}
-	 */
-	readonly namespace?: Namespace;
-
-	/**
-	 * Target class for resource instances.
-	 *
-	 * The absolute IRI identifying the primary class that resource instances must belong to. Shape-specific and not
-	 * inherited. If defined, this value is exposed through the property mapped to `@type` using {@link type}.
-	 *
-	 * **Inheritance** — shape-specific target class; outside inheritance scope.
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#targetClass SHACL § 2.1.3.2 sh:targetClass}
-	 */
-	readonly class?: Reference;
-
-
-	/**
-	 * IRI path pattern that resource {@link Id identifiers} must match.
-	 *
-	 * Patterns are IRI-like templates using `{name}` placeholders for single path segments and `/*` for trailing
-	 * wildcards. Patterns may be absolute or root-relative; root-relative patterns match absolute IRIs, ignoring the
-	 * origin.
-	 *
-	 * **Inheritance** — only the trailing `/*` wildcard admits narrowing: a child may replace `/*` with more specific
-	 * segments (for example, `/products/*` to `/products/{id}/reviews/{rid}`), provided the fixed prefix matches.
-	 * All other cases require exact equality; a mismatch is reported as an error.
-	 *
-	 * @defaultValue `undefined` (no pattern constraint)
-	 *
-	 * @example
-	 * ```
-	 * https://example.org/products/{sku}  → https://example.org/products/ABC-456
-	 * https://example.org/categories/*    → https://example.org/categories/electronics/phones
-	 *
-	 * /employees/{id}                     → https://example.org/employees/123
-	 * /departments/*                      → https://example.org/departments/sales/emea
-	 * ```
-	 */
-	readonly pattern?: string;
-
-	/**
-	 * Allowed resource {@link Id identifiers} (closed enumeration).
-	 *
-	 * When specified, resource identifiers must be members of this list. IRIs must be absolute. Empty arrays are
-	 * ignored.
-	 *
-	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
-	 *
-	 * @defaultValue `undefined` (no enumeration constraint)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#InConstraintComponent SHACL § 4.8.3 sh:in}
-	 */
-	readonly in?: readonly Reference[];
-
-	/**
-	 * Required resource {@link Id identifiers} that must be present.
-	 *
-	 * When specified, all listed resource identifiers must appear. IRIs must be absolute. Empty arrays are ignored.
-	 *
-	 * **Inheritance** — union of parent and child required values; child must require all parent values.
-	 *
-	 * @defaultValue `undefined` (no required values)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.8.2 sh:hasValue}
-	 */
-	readonly hasValue?: readonly Reference[];
 
 }
 
@@ -201,7 +94,7 @@ export type Type = { // !!! review Optional
 
 }
 
-export type Property = {
+export type Property = PropertyConstrains & {
 
 	readonly kind: "property"
 
@@ -219,7 +112,8 @@ export type Property = {
  * Resolves the state a shape describes.
  *
  * Yields the value type instances of the shape expose, computed from the members the shape declares rather than
- * carried alongside it, so that the two cannot drift.
+ * carried alongside it, so that the two cannot drift. A {@link ReferenceShape} contributes the target IRI alone,
+ * keeping a linked resource out of the state it points at.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
@@ -227,12 +121,13 @@ export type State<S extends Lazy<Shape>> =
 	Eager<S> extends BooleanShape ? boolean
 		: Eager<S> extends NumberShape ? number
 			: Eager<S> extends StringShape ? string
-				: Eager<S> extends {
-						readonly kind: "resource",
-						readonly extends: infer I extends readonly Lazy<ResourceShape>[],
-						readonly members: infer M extends Members
-					} ? Inheritance<I> & Instance<M>
-					: never
+				: Eager<S> extends ReferenceShape ? Reference
+					: Eager<S> extends {
+							readonly kind: "resource",
+							readonly extends: infer I extends readonly Lazy<ResourceShape>[],
+							readonly members: infer M extends Members
+						} ? Inheritance<I> & Instance<M>
+						: never
 
 /**
  * Resolves the state contributed by a list of extended shapes.
@@ -277,7 +172,9 @@ export function string(): StringShape {
 export function dictionary() {}
 
 
-export function reference() {}
+export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
+	throw new Error(";( to be implemented"); // !!!
+}
 
 export function resource<const I extends readonly Lazy<ResourceShape>[], const M extends Members>(
 	...args: [...inheritance: I, members: M]
@@ -307,57 +204,27 @@ export function property<const R extends Lazy<Shape>>(range: R): { readonly kind
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Mutually recursive definitions cycle through their values, so neither shape can be inferred from its own
-// initializer: one explicit annotation per cycle breaks it. The annotation states the shape, never the state, which
-// stays derived through State<>.
+function Scheme() {
+	return resource({
 
-type SchemeShape={
+		id: id(),
 
-	readonly kind: "resource",
-	readonly extends: [],
+		label: property(string()),
 
-	readonly members: {
-		readonly id: Id,
-		readonly label: { readonly kind: "property", readonly range: StringShape },
-		readonly hasTopConcept: { readonly kind: "property", readonly range: () => ConceptShape }
-	}
+		hasTopConcept: property(reference(Concept))
 
+	})
 }
 
-type ConceptShape={
+function Concept( ){
+	return resource({
 
-	readonly kind: "resource",
-	readonly extends: [],
+		id: id(),
 
-	readonly members: {
-		readonly id: Id,
-		readonly label: { readonly kind: "property", readonly range: StringShape },
-		readonly inScheme: { readonly kind: "property", readonly range: () => SchemeShape }
-	}
+		label: property(string()),
 
+		inScheme: property(reference(Scheme))
+
+	})
 }
 
-
-const Scheme: SchemeShape=resource({
-
-	id: id(),
-
-	label: property(string()),
-
-	hasTopConcept: property(() => Concept)
-
-});
-
-const Concept: ConceptShape=resource({
-
-	id: id(),
-
-	label: property(string()),
-
-	inScheme: property(() => Scheme)
-
-});
-
-
-type SchemeState=State<typeof Scheme>;
-type ConceptState=State<typeof Concept>;

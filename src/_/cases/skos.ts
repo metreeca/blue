@@ -14,13 +14,8 @@
  * limitations under the License.
  */
 
-
 import { createNamespace } from "@metreeca/core/resource";
-import { reference } from "../reference.js";
-import { property } from "../resource.js";
-import { string, text } from "../string.js";
-import { multiple, optional, required } from "../value.js";
-import { resource } from "./_.js";
+import { resource } from "../_.js";
 
 
 export const skos = createNamespace("http://www.w3.org/2004/02/skos/core#", [
@@ -53,24 +48,27 @@ export const skos = createNamespace("http://www.w3.org/2004/02/skos/core#", [
 export function ConceptScheme() {
 	return resource({
 
-		// hasTopConcept: property({
+		// hasTopConcept: multiple(reference(Concept), {
 		//
+		// 	foreign: true,
 		// 	reverse: skos.topConceptOf
 		//
-		// }, multiple(reference(Concept, { foreign: true }))),
+		// }),
 		//
-		// hasConcept: property({
+		// hasConcept: multiple(reference(Concept), {
 		//
 		// 	hidden: true,
+		// 	foreign: true,
 		//
 		// 	reverse: skos.inScheme
 		//
-		// }, multiple(reference(Concept, { foreign: true })))
+		// })
 
 	}, {
 
-		// class: skos.ConceptScheme,
-		// namespace: skos
+		namespace: skos,
+
+		class: skos.ConceptScheme
 
 	});
 
@@ -88,37 +86,37 @@ export function Concept() {
 		//
 		// inScheme: required(reference(ConceptScheme)),
 		//
-		// topConceptOf: property({
+		// topConceptOf: optional(reference(ConceptScheme), {
 		//
 		// 	forward: skos,
 		// 	reverse: skos.hasTopConcept
 		//
-		// }, optional(reference(ConceptScheme))),
+		// }),
 		//
-		// broader: property({
+		// broader: multiple(reference(Concept), {
 		//
 		// 	forward: skos,
 		// 	reverse: skos.narrower
 		//
-		// }, multiple(reference(Concept))),
+		// }),
 		//
 		// broaderTransitive: multiple(reference(Concept)),
 		//
 		// narrower: multiple(reference(Concept, { foreign: true })),
 		//
-		// related: property({
+		// related: multiple(reference(Concept), {
 		//
 		// 	forward: skos,
 		// 	reverse: skos
 		//
-		// }, multiple(reference(Concept))),
+		// }),
 		//
-		// exactMatch: property({
+		// exactMatch: multiple(reference(Concept), {
 		//
 		// 	forward: skos,
 		// 	reverse: skos
 		//
-		// }, multiple(reference(Concept)))
+		// })
 
 	}, {
 

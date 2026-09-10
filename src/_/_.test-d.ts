@@ -29,6 +29,8 @@ import {
 	number,
 	type Property,
 	property,
+	reference,
+	type ReferenceShape,
 	type ResourceShape,
 	resource,
 	type State,
@@ -67,6 +69,14 @@ describe("State", () => {
 
 		test("StringShape → string", () => {
 			expectTypeOf<State<StringShape>>().toEqualTypeOf<string>();
+		});
+
+	});
+
+	describe("reference shapes", () => {
+
+		test("ReferenceShape → an IRI", () => {
+			expectTypeOf<State<ReferenceShape>>().toEqualTypeOf<Reference>();
 		});
 
 	});
@@ -121,6 +131,11 @@ describe("Content", () => {
 	test("Property → the state of a lazy range", () => {
 		expectTypeOf<Content<{ readonly kind: "property", readonly range: () => StringShape }>>()
 			.toEqualTypeOf<string>();
+	});
+
+	test("Property → an IRI for a reference range", () => {
+		expectTypeOf<Content<{ readonly kind: "property", readonly range: ReferenceShape }>>()
+			.toEqualTypeOf<Reference>();
 	});
 
 	test("Property → the state of a resource range", () => {
@@ -277,6 +292,45 @@ describe("resource", () => {
 
 	});
 
+	test("a reference range keeps the target out of the state", () => {
+
+		function left() {
+			return resource({ id: id(), right: property(reference(right)) });
+		}
+
+		function right() {
+			return resource({ id: id(), left: property(reference(left)) });
+		}
+
+		expectTypeOf<State<ReturnType<typeof left>>>().toEqualTypeOf<{
+			readonly id: Reference,
+			readonly right: Reference
+		}>();
+
+		expectTypeOf<State<ReturnType<typeof right>>>().toEqualTypeOf<{
+			readonly id: Reference,
+			readonly left: Reference
+		}>();
+
+	});
+
+	test("links mutually recursive shapes without annotations", () => {
+
+		// hoisted declarations let each shape name the other, so both return types are inferred
+
+		function scheme() {
+			return resource({ id: id(), hasTopConcept: property(reference(concept)) });
+		}
+
+		function concept() {
+			return resource({ id: id(), inScheme: property(reference(scheme)) });
+		}
+
+		expectTypeOf<State<ReturnType<typeof scheme>>["hasTopConcept"]>().toEqualTypeOf<Reference>();
+		expectTypeOf<State<ReturnType<typeof concept>>["inScheme"]>().toEqualTypeOf<Reference>();
+
+	});
+
 	test("rejects a non-shape as an extended shape", () => {
 		// @ts-expect-error - a string shape is not a resource shape
 		resource(string(), { label: property(string()) });
@@ -310,6 +364,10 @@ describe("shape factories", () => {
 
 	test("type → Type", () => {
 		expectTypeOf(typed()).toEqualTypeOf<Type>();
+	});
+
+	test("reference → ReferenceShape", () => {
+		expectTypeOf(reference(resource({ id: id() }))).toEqualTypeOf<ReferenceShape>();
 	});
 
 	test("property → a Property carrying its range", () => {
