@@ -16,7 +16,7 @@
 
 import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
-import type { Dictionary, Reference, Resource } from "@metreeca/qest/resource";
+import type { Dictionary, Reference } from "@metreeca/qest/resource";
 
 
 export type Shape =
@@ -26,27 +26,39 @@ export type Shape =
 	| ResourceShape
 
 
-export type BooleanShape<T extends boolean = boolean> = {
+export type BooleanShape = {
 
 	readonly kind: "boolean"
 
 }
 
-export type NumberShape<T extends number = number> = {
+export type NumberShape = {
 
 	readonly kind: "number"
 
 }
 
-export type StringShape<T extends string = string> = {
+export type StringShape = {
 
 	readonly kind: "string"
 
 }
 
-export type ResourceShape<T extends Resource = Resource> = {
+export type ResourceShape = {
 
 	readonly kind: "resource"
+
+	/**
+	 * Shapes whose state extending resources are required to expose alongside their own.
+	 *
+	 * Entries may be deferred to break definition cycles.
+	 */
+	readonly extends: readonly Lazy<ResourceShape>[]
+
+	/**
+	 * Members the resource exposes in its own right.
+	 */
+	readonly members: Members
 
 }
 
@@ -177,32 +189,49 @@ export type Members = {
 }
 
 
-export type Id<T extends Reference = Reference> = {
+export type Id = {
 
 	readonly kind: "id"
 
 }
 
-export type Type<T extends Optional<Reference> = Optional<Reference>> = { // !!! review Optional
+export type Type = { // !!! review Optional
 
 	readonly kind: "type"
 
 }
 
-export type Property<S extends Lazy<Shape> = Lazy<Shape>> = {
+export type Property = {
 
 	readonly kind: "property"
+
+	/**
+	 * Shape describing the values the property admits, possibly deferred to break definition cycles.
+	 */
+	readonly range: Lazy<Shape>
 
 }
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Resolves the state a shape describes.
+ *
+ * Yields the value type instances of the shape expose, computed from the members the shape declares rather than
+ * carried alongside it, so that the two cannot drift.
+ *
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
+ */
 export type State<S extends Lazy<Shape>> =
-	Eager<S> extends BooleanShape<infer T> ? Enumerated<T, boolean>
-		: Eager<S> extends NumberShape<infer T> ? Enumerated<T, number>
-			: Eager<S> extends StringShape<infer T> ? Enumerated<T, string>
-				: Eager<S> extends ResourceShape<infer T> ? T
+	Eager<S> extends BooleanShape ? boolean
+		: Eager<S> extends NumberShape ? number
+			: Eager<S> extends StringShape ? string
+				: Eager<S> extends {
+						readonly kind: "resource",
+						readonly extends: infer I extends readonly Lazy<ResourceShape>[],
+						readonly members: infer M extends Members
+					} ? Inheritance<I> & Instance<M>
 					: never
 
 /**
@@ -225,89 +254,91 @@ export type Instance<M extends Members> = {
 };
 
 export type Content<M extends Member> =
-	M extends Id<infer T> ? T
-		: M extends Type<infer T> ? T
-			: M extends Property<infer R extends Lazy<Shape>> ? State<R>
+	M extends Id ? Reference
+		: M extends Type ? Optional<Reference>
+			: M extends { readonly kind: "property", readonly range: infer R extends Lazy<Shape> } ? State<R>
 				: never
-
-
-/**
- * Resolves the value type an enumerable constraint admits.
- *
- * Yields the enumerated values where the enumeration is populated and the unconstrained base type where it is empty:
- * an empty `in` list states no constraint and must not narrow the values a shape accepts.
- *
- * @typeParam T The enumerated values
- * @typeParam B The base type admitted where no enumeration is stated
- */
-export type Enumerated<T, B> =
-	[T] extends [never] ? B : T
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export function boolean<T extends boolean>(): BooleanShape<T> {
+export function boolean(): BooleanShape {
 	throw new Error(";( to be implemented");
-} // !!! infer T from {in}
+} // !!! narrow the state from {in}
 
-export function number<T extends number>(): NumberShape<T> {
+export function number(): NumberShape {
 	throw new Error(";( to be implemented");
-} // !!! infer T from {in}
+} // !!! narrow the state from {in}
 
-export function string<T extends string>(): StringShape<T> {
+export function string(): StringShape {
 	throw new Error(";( to be implemented");
-} // !!! infer T from {in}
+} // !!! narrow the state from {in}
 
 export function dictionary() {}
 
 
 export function reference() {}
 
-export function resource<I extends readonly Lazy<ResourceShape>[], M extends Members>(
+export function resource<const I extends readonly Lazy<ResourceShape>[], const M extends Members>(
 	...args: [...inheritance: I, members: M]
-): ResourceShape<Inheritance<I> & Instance<M>>
+): { readonly kind: "resource", readonly extends: I, readonly members: M }
 
-export function resource<I extends readonly Lazy<ResourceShape>[], M extends Members>(
+export function resource<const I extends readonly Lazy<ResourceShape>[], const M extends Members>(
 	...args: [...inheritance: I, members: M, constraints: ResourceConstraints]
-): ResourceShape<Inheritance<I> & Instance<M>>
+): { readonly kind: "resource", readonly extends: I, readonly members: M }
 
 export function resource(...args: readonly unknown[]): ResourceShape {
 	throw new Error(";( to be implemented");
 }
 
 
-export function id<T extends Reference>(): Id<T> {
+export function id(): Id {
 	throw new Error(";( to be implemented");
 }
 
-export function type<T extends Optional<Reference>>(): Type<T> {
+export function type(): Type {
 	throw new Error(";( to be implemented");
 }
 
-export function property<R extends Lazy<Shape>>(range: R): Property<R> {
+export function property<const R extends Lazy<Shape>>(range: R): { readonly kind: "property", readonly range: R } {
 	throw new Error(";( to be implemented");
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-type SchemeState={
+// Mutually recursive definitions cycle through their values, so neither shape can be inferred from its own
+// initializer: one explicit annotation per cycle breaks it. The annotation states the shape, never the state, which
+// stays derived through State<>.
 
-	readonly id: Reference,
-	readonly label: string,
-	readonly hasTopConcept: ConceptState
+type SchemeShape={
+
+	readonly kind: "resource",
+	readonly extends: [],
+
+	readonly members: {
+		readonly id: Id,
+		readonly label: { readonly kind: "property", readonly range: StringShape },
+		readonly hasTopConcept: { readonly kind: "property", readonly range: () => ConceptShape }
+	}
 
 }
 
-type ConceptState={
+type ConceptShape={
 
-	readonly id: Reference,
-	readonly label: string,
-	readonly inScheme: SchemeState
+	readonly kind: "resource",
+	readonly extends: [],
+
+	readonly members: {
+		readonly id: Id,
+		readonly label: { readonly kind: "property", readonly range: StringShape },
+		readonly inScheme: { readonly kind: "property", readonly range: () => SchemeShape }
+	}
 
 }
 
 
-const Scheme: ResourceShape<SchemeState>=resource({
+const Scheme: SchemeShape=resource({
 
 	id: id(),
 
@@ -317,7 +348,7 @@ const Scheme: ResourceShape<SchemeState>=resource({
 
 });
 
-const Concept=resource({
+const Concept: ConceptShape=resource({
 
 	id: id(),
 
@@ -326,3 +357,7 @@ const Concept=resource({
 	inScheme: property(() => Scheme)
 
 });
+
+
+type SchemeState=State<typeof Scheme>;
+type ConceptState=State<typeof Concept>;
