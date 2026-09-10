@@ -15,7 +15,7 @@
  */
 
 import { createNamespace } from "@metreeca/core/resource";
-import { resource } from "../_.js";
+import { markdown, multiple, optional, reference, required, resource, string, text } from "../_.js";
 
 
 export const skos = createNamespace("http://www.w3.org/2004/02/skos/core#", [
@@ -48,26 +48,25 @@ export const skos = createNamespace("http://www.w3.org/2004/02/skos/core#", [
 export function ConceptScheme() {
 	return resource({
 
-		// hasTopConcept: multiple(reference(Concept), {
-		//
-		// 	foreign: true,
-		// 	reverse: skos.topConceptOf
-		//
-		// }),
-		//
-		// hasConcept: multiple(reference(Concept), {
-		//
-		// 	hidden: true,
-		// 	foreign: true,
-		//
-		// 	reverse: skos.inScheme
-		//
-		// })
+		hasTopConcept: multiple(reference(Concept), {
+
+			foreign: true,
+			reverse: skos.topConceptOf
+
+		}),
+
+		hasConcept: multiple(reference(Concept), {
+
+			hidden: true,
+			foreign: true,
+
+			reverse: skos.inScheme
+
+		})
 
 	}, {
 
-		namespace: skos,
-
+		space: skos,
 		class: skos.ConceptScheme
 
 	});
@@ -77,51 +76,54 @@ export function ConceptScheme() {
 export function Concept() {
 	return resource({
 
-		// notation: optional(string), // ;( should be typed as per SKOS best practices
-		//
-		// prefLabel: required(text),
-		// altLabel: multiple(text),
-		// hiddenLabel: multiple(text),
-		// definition: optional(text),
-		//
-		// inScheme: required(reference(ConceptScheme)),
-		//
-		// topConceptOf: optional(reference(ConceptScheme), {
-		//
-		// 	forward: skos,
-		// 	reverse: skos.hasTopConcept
-		//
-		// }),
-		//
-		// broader: multiple(reference(Concept), {
-		//
-		// 	forward: skos,
-		// 	reverse: skos.narrower
-		//
-		// }),
-		//
-		// broaderTransitive: multiple(reference(Concept)),
-		//
-		// narrower: multiple(reference(Concept, { foreign: true })),
-		//
-		// related: multiple(reference(Concept), {
-		//
-		// 	forward: skos,
-		// 	reverse: skos
-		//
-		// }),
-		//
-		// exactMatch: multiple(reference(Concept), {
-		//
-		// 	forward: skos,
-		// 	reverse: skos
-		//
-		// })
+		notation: optional(string),
+
+		prefLabel: required(text),
+		altLabel: multiple(text),
+		hiddenLabel: multiple(text),
+		definition: optional(markdown),
+
+		inScheme: required(reference(ConceptScheme)),
+
+		topConceptOf: optional(reference(ConceptScheme), {
+
+			forward: skos,
+			reverse: skos.hasTopConcept
+
+		}),
+
+		broader: multiple(reference(Concept), {
+
+			forward: skos,
+			reverse: skos.narrower
+
+		}),
+
+		broaderTransitive: multiple(reference(Concept)),
+
+		narrower: multiple(reference(Concept), {
+
+			foreign: true
+
+		}),
+
+		related: multiple(reference(Concept), {
+
+			forward: skos,
+			reverse: skos
+
+		}),
+
+		exactMatch: multiple(reference(Concept), {
+
+			forward: skos,
+			reverse: skos
+
+		})
 
 	}, {
 
-		namespace: skos,
-
+		space: skos,
 		class: skos.Concept
 
 	});

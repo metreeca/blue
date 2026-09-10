@@ -56,15 +56,15 @@ export type ResourceConstraints = {
 
 
 	/**
-	 * Default namespace for converting property names to IRIs.
+	 * Default space for converting property names to IRIs.
 	 *
-	 * Property names without explicit IRI mappings are resolved relative to this namespace.
+	 * Property names without explicit IRI mappings are resolved relative to this space.
 	 *
 	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
 	 *
 	 * @defaultValue {@link defaultNamespace}
 	 */
-	readonly namespace?: Namespace;
+	readonly space?: Namespace;
 
 	/**
 	 * Target class for resource instances.
@@ -143,6 +143,42 @@ export type PropertyConstrains = {
 	 */
 	readonly hidden?: boolean;
 
+
+	/**
+	 * Marks the property as owned by the resources in its range.
+	 *
+	 * A foreign property is read-only for the resource declaring it: retrieval templates may select it, but state
+	 * validation rejects it when submitted, because the link is written by the resources it points at rather than by
+	 * the one exposing it.
+	 *
+	 * > [!IMPORTANT]
+	 * > A foreign property is independent from a {@link reverse} mapping. A `reverse` mapping writes an actual inverse
+	 * > mapping; `foreign` exposes a read-only view over mappings another property owns and writes nothing on insert.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @defaultValue `undefined` (`false`)
+	 */
+	readonly foreign?: boolean;
+
+	/**
+	 * Marks the resources in the property range as unable to outlive the resource declaring it.
+	 *
+	 * A captive resource keeps an identity and a lifecycle of its own and may be created, updated and deleted on its
+	 * own. It stays existentially dependent on the resource declaring the property, though, and is cascade-removed
+	 * when that resource is deleted.
+	 *
+	 * > [!IMPORTANT]
+	 * > Captivity is independent from embedding. An embedded resource has no identity or lifecycle of its own (an `id`
+	 * > is rejected during state validation) and is always managed as part of the resource containing it; a captive
+	 * > resource has both and may be managed on its own, but does not survive the resource declaring the property.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @defaultValue `undefined` (`false`)
+	 */
+	readonly captive?: boolean;
+
 	/**
 	 * Marks the property as system-managed.
 	 *
@@ -196,8 +232,7 @@ export type PropertyConstrains = {
 	 *
 	 * > [!IMPORTANT]
 	 * > Both `forward` and {@link reverse} mappings write actual property values. This is independent from
-	 * > {@link reference!ReferenceConstraints.foreign | foreign}, which marks a reference as a read-only view over
-	 * > mappings owned by another property.
+	 * > {@link foreign}, which exposes a read-only view over mappings another property owns.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -213,8 +248,7 @@ export type PropertyConstrains = {
 	 *
 	 * > [!IMPORTANT]
 	 * > Both {@link forward} and `reverse` mappings write actual property values. This is independent from
-	 * > {@link reference!ReferenceConstraints.foreign | foreign}, which marks a reference as a read-only view over
-	 * > mappings owned by another property.
+	 * > {@link foreign}, which exposes a read-only view over mappings another property owns.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *

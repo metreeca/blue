@@ -162,6 +162,14 @@ export function string(): StringShape {
 	throw new Error(";( to be implemented");
 } // !!! narrow the state from {in}
 
+export function text(): StringShape {
+	throw new Error(";( to be implemented");
+}
+
+export function markdown(): StringShape {
+	throw new Error(";( to be implemented");
+}
+
 export function dictionary() {}
 
 
@@ -187,6 +195,23 @@ export function id(): Id {
 }
 
 export function type(): Type {
+	throw new Error(";( to be implemented");
+}
+
+
+export function multiple<R extends Lazy<Shape>>(range: R, constraints?: PropertyConstrains): Property<R> {
+	throw new Error(";( to be implemented");
+}
+
+export function repetable<R extends Lazy<Shape>>(range: R, constraints?: PropertyConstrains): Property<R> {
+	throw new Error(";( to be implemented");
+}
+
+export function optional<R extends Lazy<Shape>>(range: R, constraints?: PropertyConstrains): Property<R> {
+	throw new Error(";( to be implemented");
+}
+
+export function required<R extends Lazy<Shape>>(range: R, constraints?: PropertyConstrains): Property<R> {
 	throw new Error(";( to be implemented");
 }
 
