@@ -25,7 +25,7 @@ import {
 	type Count,
 	type Id,
 	id,
-	type Instance,
+	type Exposed,
 	multiple,
 	type Offer,
 	nonempty,
@@ -231,14 +231,14 @@ describe("Offer", () => {
 
 });
 
-describe("Instance", () => {
+describe("Exposed", () => {
 
 	test("empty members → empty record", () => {
-		expectTypeOf<Instance<{}>>().toEqualTypeOf<{}>();
+		expectTypeOf<Exposed<{}>>().toEqualTypeOf<{}>();
 	});
 
 	test("maps each member to its content", () => {
-		expectTypeOf<Instance<{
+		expectTypeOf<Exposed<{
 			readonly id: Id,
 			readonly type: Type,
 			readonly label: Property<StringShape, 1, 1>
@@ -250,14 +250,14 @@ describe("Instance", () => {
 	});
 
 	test("preserves member keys", () => {
-		expectTypeOf<keyof Instance<{
+		expectTypeOf<keyof Exposed<{
 			readonly id: Id,
 			readonly label: Property<StringShape, 1, 1>
 		}>>().toEqualTypeOf<"id" | "label">();
 	});
 
 	test("satisfies the resource contract", () => {
-		expectTypeOf<Instance<{
+		expectTypeOf<Exposed<{
 			readonly label: Property<StringShape, 1, 1>
 		}>>().toExtend<Resource>();
 	});

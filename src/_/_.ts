@@ -45,8 +45,8 @@ export type Shape =
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type State<S extends Lazy<Shape>> =
-	Resolved<S, Instance<Carried<S>>>
+export type State<S extends Lazy<Shape>> = // !!! name
+	Resolved<S, Instance<S>>
 
 /**
  * Resolves the state a shape describes, as submitted.
@@ -59,8 +59,8 @@ export type State<S extends Lazy<Shape>> =
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Draft<S extends Lazy<Shape>> =
-	Resolved<S, Submission<Carried<S>>>
+export type Draft<S extends Lazy<Shape>> = // !!! name
+	Resolved<S, Submission<S>>
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -76,7 +76,7 @@ export type Draft<S extends Lazy<Shape>> =
  * @typeParam R The value a resource shape exposes through the members it carries
  */
 export type Resolved<S extends Lazy<Shape>, R> =
-	[Eager<S>] extends [never] ? never // !!! why?
+	[Eager<S>] extends [never] ? never
 		: Eager<S> extends BooleanShape ? boolean
 			: Eager<S> extends NumberShape<infer V> ? V
 				: Eager<S> extends StringShape<infer V> ? V
@@ -96,9 +96,6 @@ export type Carried<S extends Lazy<Shape>> =
 	Eager<S> extends ResourceShape<infer I, infer M>
 		? Merged<I, M>
 		: {}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Resolves the values a constraints object admits.

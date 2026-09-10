@@ -17,7 +17,7 @@
 import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
-import type { Draft, Shape, State } from "./_.js";
+import type { Carried, Draft, Shape, State } from "./_.js";
 import type { ReferenceShape } from "./reference.js";
 
 
@@ -410,11 +410,34 @@ export function property<R extends Lazy<Shape>, const C extends PropertyBounds =
 //// Resource Members ////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Resolves the value a retrieved resource exposes.
+ *
+ * Maps the members the shape carries, so that a retrieved resource exposes what it declares merged over what it
+ * inherits and a declaration is never read on its own.
+ *
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
+ */
+export type Instance<S extends Lazy<Shape>> =
+	Exposed<Carried<S>>
+
+/**
+ * Resolves the value a submitted resource satisfies.
+ *
+ * Maps the members the shape carries, as {@link Instance} does, dropping the ones the submitter does not own and
+ * leaving optional the ones the system supplies.
+ *
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
+ */
+export type Submission<S extends Lazy<Shape>> =
+	Offered<Carried<S>>
+
+
+/**
  * Resolves the members a retrieved resource carries.
  *
- * @typeParam M The members the shape describes
+ * @typeParam M The members the shape carries
  */
-export type Instance<M extends Members> = {
+export type Exposed<M extends Members> = {
 
 	readonly [field in keyof M]: Content<M[field]>
 
@@ -426,9 +449,9 @@ export type Instance<M extends Members> = {
  * Drops the members the submitter does not own and leaves optional the ones the system supplies, keeping the rest as
  * the shape states them.
  *
- * @typeParam M The members the shape describes
+ * @typeParam M The members the shape carries
  */
-export type Submission<M extends Members> =
+export type Offered<M extends Members> =
 	& { readonly [field in keyof M as Duty<M[field]> extends "demanded" ? field : never]: Offer<M[field]> }
 	& { readonly [field in keyof M as Duty<M[field]> extends "spared" ? field : never]?: Offer<M[field]> }
 
