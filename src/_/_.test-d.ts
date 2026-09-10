@@ -368,6 +368,46 @@ describe("resource", () => {
 
 	});
 
+	test("carries the cardinality of every member into the state", () => {
+
+		function target() {
+			return resource({ id: id() });
+		}
+
+		const shape=resource({
+
+			one: required(string()),
+			zeroOrOne: optional(string()),
+			oneOrMore: nonempty(string()),
+			zeroOrMore: multiple(string()),
+
+			exotic: property(string(), { minCount: 2, maxCount: 5 }),
+			loose: property(string(), { minCount: 0 }),
+			bare: property(string()),
+
+			link: required(reference(target)),
+			links: multiple(reference(target))
+
+		});
+
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{
+
+			readonly one: string,
+			readonly zeroOrOne: undefined | string,
+			readonly oneOrMore: readonly [string, ...string[]],
+			readonly zeroOrMore: undefined | readonly string[],
+
+			readonly exotic: readonly [string, ...string[]],
+			readonly loose: undefined | readonly string[],
+			readonly bare: undefined | readonly string[],
+
+			readonly link: Reference,
+			readonly links: undefined | readonly Reference[]
+
+		}>();
+
+	});
+
 	test("rejects a non-shape as an extended shape", () => {
 		// @ts-expect-error - a string shape is not a resource shape
 		resource(string(), { label: required(string()) });
