@@ -20,11 +20,11 @@ import { describe, expectTypeOf, test } from "vitest";
 import {
 	type Content,
 	type Draft,
-	type Inheritance,
 	type Instance,
 	type State
 } from "./_.js";
 import { type BooleanShape } from "./boolean.js";
+import { reference, type ReferenceShape } from "./reference.js";
 import { number } from "./number.js";
 import {
 	type Id,
@@ -34,8 +34,6 @@ import {
 	optional,
 	type Property,
 	property,
-	reference,
-	type ReferenceShape,
 	required,
 	resource,
 	type ResourceShape,
@@ -60,10 +58,6 @@ type LabelState={ readonly label: string }
 
 
 describe("State", () => {
-
-	describe("scalar shapes", () => {
-
-	});
 
 	describe("reference shapes", () => {
 
@@ -210,27 +204,7 @@ describe("Instance", () => {
 });
 
 
-describe("Inheritance", () => {
-
-	test("no shapes → an unconstrained state", () => {
-		expectTypeOf<Inheritance<[]>>().toEqualTypeOf<unknown>();
-	});
-
-	test("single shape → its state", () => {
-		expectTypeOf<Inheritance<[LabelShape]>>().toEqualTypeOf<LabelState>();
-	});
-
-	test("multiple shapes → the intersection of their states", () => {
-		expectTypeOf<Inheritance<[
-			{ readonly kind: "resource", readonly extends: [], readonly members: { readonly id: Id } },
-			LabelShape
-		]>>().toEqualTypeOf<{ readonly id: Reference } & LabelState>();
-	});
-
-	test("lazy shape → the state of the shape it returns", () => {
-		expectTypeOf<Inheritance<[() => LabelShape]>>().toEqualTypeOf<LabelState>();
-	});
-
+describe("inheritance", () => {
 
 	test("accumulates a chain of extended shapes", () => {
 

@@ -18,7 +18,8 @@ import type { Eager, Lazy, Optional } from "@metreeca/core";
 import type { Reference } from "@metreeca/qest/resource";
 import type { BooleanShape } from "./boolean.js";
 import type { NumberShape } from "./number.js";
-import type { Count, Id, Member, Members, Parents, ReferenceShape, ResourceShape, Type } from "./resource.js";
+import type { ReferenceShape } from "./reference.js";
+import type { Count, Id, Member, Members, Parents, ResourceShape, Type } from "./resource.js";
 import type { StringShape } from "./string.js";
 
 export type Shape =
@@ -32,49 +33,25 @@ export type Shape =
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * The transfer a state is resolved for.
+ *
+ * A shape describes two value types, since retrieval and submission differ in what the peer is responsible for.
+ */
+export type Transfer =
+	| "retrieval"
+	| "submission"
+
+/**
  * Resolves the state a shape describes, as retrieved.
  *
  * Yields the value type instances of the shape expose, computed from the members the shape declares rather than
  * carried alongside it, so that the two cannot drift. A {@link ReferenceShape} contributes the target IRI alone,
- * keeping a linked resource out of the state it points at.
- *
- * Retrieval and submission differ, so a shape describes two value types: this one, which every member of a retrieved
- * resource satisfies, and {@link Draft}, which a resource being submitted satisfies. Reach for `State` wherever a
- * resource is read.
+ * keeping a linked resource out of the state it points at. Reach for `State` wherever a resource is read.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type State<S extends Lazy<Shape>> =
-	[Eager<S>] extends [never] ? never
-		: Eager<S> extends BooleanShape ? boolean
-		: Eager<S> extends NumberShape ? number
-			: Eager<S> extends StringShape ? string
-				: Eager<S> extends ReferenceShape ? Reference
-					: Eager<S> extends {
-							readonly kind: "resource",
-							readonly extends: infer I extends Parents,
-							readonly members: infer M extends Members
-						} ? Instance<Merged<Inherited<I>, M>>
-						: never
-
-/**
- * Resolves the state contributed by a list of extended shapes.
- *
- * Yields the intersection of the states the extended shapes describe, that is the inherited members an extending
- * resource is required to expose alongside its own.
- *
- * @typeParam I The extended shapes, possibly deferred to break definition cycles
- */
-export type Inheritance<I extends Parents> =
-	I extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends Parents]
-		? State<H> & Inheritance<T>
-		: unknown
-
-export type Instance<M extends Members> = {
-
-	readonly [field in keyof M]: Content<M[field]>
-
-};
+	Resolved<S, "retrieval">
 
 /**
  * Resolves the state a shape describes, as submitted.
@@ -90,17 +67,46 @@ export type Instance<M extends Members> = {
  * @see {@link https://github.com/metreeca/keep/issues/4 keep#4}
  */
 export type Draft<S extends Lazy<Shape>> =
+	Resolved<S, "submission">
+
+/**
+ * Resolves the state a shape describes for a transfer.
+ *
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
+ * @typeParam T The transfer the state is resolved for
+ */
+export type Resolved<S extends Lazy<Shape>, T extends Transfer> =
 	[Eager<S>] extends [never] ? never
 		: Eager<S> extends BooleanShape ? boolean
-		: Eager<S> extends NumberShape ? number
-			: Eager<S> extends StringShape ? string
-				: Eager<S> extends ReferenceShape ? Reference
-					: Eager<S> extends {
-							readonly kind: "resource",
-							readonly extends: infer I extends Parents,
-							readonly members: infer M extends Members
-						} ? Submission<Merged<Inherited<I>, M>>
-						: never
+			: Eager<S> extends NumberShape ? number
+				: Eager<S> extends StringShape ? string
+					: Eager<S> extends ReferenceShape ? Reference
+						: Eager<S> extends {
+								readonly kind: "resource",
+								readonly extends: infer I extends Parents,
+								readonly members: infer M extends Members
+							} ? Exposed<Merged<Inherited<I>, M>, T>
+							: never
+
+/**
+ * Resolves the members a resource carries for a transfer.
+ *
+ * @typeParam M The members the shape describes
+ * @typeParam T The transfer the members are resolved for
+ */
+export type Exposed<M extends Members, T extends Transfer> =
+	T extends "submission" ? Submission<M> : Instance<M>
+
+/**
+ * Resolves the members a retrieved resource carries.
+ *
+ * @typeParam M The members the shape describes
+ */
+export type Instance<M extends Members> = {
+
+	readonly [field in keyof M]: Content<M[field]>
+
+};
 
 /**
  * Resolves the members a submitted resource carries.
@@ -110,60 +116,23 @@ export type Draft<S extends Lazy<Shape>> =
  *
  * @typeParam M The members the shape describes
  */
-export type Submission<M> =
-	& { readonly [field in keyof M as Owned<M[field]> extends true ? (Supplied<M[field]> extends true ? never : field) : never]: Submitted<M[field]> }
-	& { readonly [field in keyof M as Owned<M[field]> extends true ? (Supplied<M[field]> extends true ? field : never) : never]?: Submitted<M[field]> }
+export type Submission<M extends Members> =
+	& { readonly [field in keyof M as Duty<M[field]> extends "demanded" ? field : never]: Content<M[field], "submission"> }
+	& { readonly [field in keyof M as Duty<M[field]> extends "spared" ? field : never]?: Content<M[field], "submission"> }
 
 /**
- * Checks whether a member is the submitter's to state.
+ * Resolves what a submission owes for a member.
  *
- * Yields `false` for a member the resources it points at own, which a submission is not accepted to carry.
- *
- * @typeParam M The member to check
- */
-export type Owned<M> =
-	M extends { readonly foreign: true } ? false : true
-
-/**
- * Checks whether a member is the system's to populate.
- *
- * Yields `true` for an identifier, assigned where a resource is created, and for a system-managed member, so that a
- * submission may leave either out.
- *
- * @typeParam M The member to check
- */
-export type Supplied<M> =
-	M extends { readonly kind: "id" } ? true
-		: M extends { readonly computed: true } ? true
-			: false
-
-/**
- * Resolves the value a submitted member carries.
- *
- * Admits a captive target inline alongside its IRI, at whatever cardinality the member states, and otherwise carries
- * the value the member contributes to the retrieved state.
+ * Yields `refused` for a member the resources it points at own, `spared` for an identifier and for a system-managed
+ * member, both of which a submission may leave out, and `demanded` for every other.
  *
  * @typeParam M The member to resolve
  */
-export type Submitted<M> =
-	M extends {
-			readonly kind: "property",
-			readonly range: infer R extends Lazy<Shape>,
-			readonly minCount: infer L extends Count,
-			readonly maxCount: infer U extends Count
-		} ? Bounded<Captive<M, R>, L, U>
-		: Content<M & Member>
-
-/**
- * Resolves the value a captive member admits inline.
- *
- * @typeParam M The member to resolve
- * @typeParam R The range it states
- */
-export type Captive<M, R extends Lazy<Shape>> =
-	M extends { readonly captive: true }
-		? Eager<R> extends ReferenceShape<infer T> ? Reference | Draft<T> : State<R>
-		: State<R>
+export type Duty<M> =
+	M extends { readonly foreign: true } ? "refused"
+		: M extends { readonly kind: "id" } ? "spared"
+			: M extends { readonly computed: true } ? "spared"
+				: "demanded"
 
 /**
  * Resolves the members a list of extended shapes contributes.
@@ -251,7 +220,13 @@ type Uppers<C, P> =
 export type Single<U extends Count> =
 	[U] extends [1] ? true : false
 
-export type Content<M extends Member> =
+/**
+ * Resolves the value a member carries.
+ *
+ * @typeParam M The member to resolve
+ * @typeParam T The transfer the value is resolved for
+ */
+export type Content<M extends Member, T extends Transfer = "retrieval"> =
 	M extends Id ? Reference
 		: M extends Type ? Optional<Reference>
 			: M extends {
@@ -259,8 +234,23 @@ export type Content<M extends Member> =
 					readonly range: infer R extends Lazy<Shape>,
 					readonly minCount: infer L extends Count,
 					readonly maxCount: infer U extends Count
-				} ? Bounded<State<R>, L, U>
+				} ? Bounded<Ranged<M, R, T>, L, U>
 				: never
+
+/**
+ * Resolves the value a property range admits.
+ *
+ * Admits a captive target inline alongside its IRI where a submission states one, and otherwise carries the state the
+ * range describes.
+ *
+ * @typeParam M The member stating the range
+ * @typeParam R The range it states
+ * @typeParam T The transfer the value is resolved for
+ */
+export type Ranged<M, R extends Lazy<Shape>, T extends Transfer> =
+	[T, M] extends ["submission", { readonly captive: true }]
+		? Eager<R> extends ReferenceShape<infer X> ? Reference | Draft<X> : State<R>
+		: State<R>
 
 /**
  * Resolves the form a cardinality admits.
