@@ -375,6 +375,16 @@ describe("shape factories", () => {
 			.toEqualTypeOf<Property<StringShape>>();
 	});
 
+	test("property → accepts constraints after the range", () => {
+		expectTypeOf(property(string(), { hidden: true, forward: "https://example.org/label" }))
+			.toEqualTypeOf<Property<StringShape>>();
+	});
+
+	test("property → rejects an unknown constraint", () => {
+		// @ts-expect-error - nope is not a property constraint
+		property(string(), { nope: true });
+	});
+
 	test("Property admits any shape as its range", () => {
 		expectTypeOf<Property["range"]>().toEqualTypeOf<Parameters<typeof property>[0]>();
 	});

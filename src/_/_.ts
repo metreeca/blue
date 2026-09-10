@@ -190,7 +190,7 @@ export function type(): Type {
 	throw new Error(";( to be implemented");
 }
 
-export function property<R extends Lazy<Shape>>(range: R): Property<R> {
+export function property<R extends Lazy<Shape>>(range: R, constraints?: PropertyConstrains): Property<R> {
 	throw new Error(";( to be implemented");
 }
 
