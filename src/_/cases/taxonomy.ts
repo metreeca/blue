@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 import { multiple, reference, required, resource, string } from "../_.js";
 import { Dataset, Resource } from "./dataset.js";
 import { ec2u } from "./ec2u.js";

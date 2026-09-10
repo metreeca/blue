@@ -344,6 +344,7 @@ export function markdown(): StringShape {
 	throw new Error(";( to be implemented");
 }
 
+
 export function dictionary() {}
 
 
@@ -402,31 +403,4 @@ export function property<R extends Lazy<Shape>, const C extends PropertyBounds =
 	range: R, constraints?: C
 ): Property<R, Stated<C, "minCount">, Stated<C, "maxCount">> {
 	throw new Error(";( to be implemented");
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-function Scheme() {
-	return resource({
-
-		id: id(),
-
-		label: property(string()),
-
-		hasTopConcept: property(reference(Concept))
-
-	})
-}
-
-function Concept( ){
-	return resource({
-
-		id: id(),
-
-		label: property(string()),
-
-		inScheme: property(reference(Scheme))
-
-	})
 }
