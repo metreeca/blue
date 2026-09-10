@@ -14,24 +14,24 @@
  * limitations under the License.
  */
 
-import { createNamespace } from "@metreeca/core/resource";
-import { number } from "../_/number.js";
-import { required, resource } from "../_/resource.js";
+import type { Lazy } from "@metreeca/core";
+import type { ResourceShape } from "./resource.js";
 
-export const wgs = createNamespace("http://www.w3.org/2003/01/geo/wgs84_pos#");
+
+export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> = {
+
+	readonly kind: "reference"
+
+	/**
+	 * Shape describing the resource the reference points at, possibly deferred to break definition cycles.
+	 */
+	readonly target: T
+
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export function Point() {
-	return resource({
-
-		longitude: required(number, { forward: wgs.long }),
-		latitude: required(number, { forward: wgs.lat })
-
-	}, {
-
-		space: wgs
-
-	});
+export function reference<T extends Lazy<ResourceShape>>(shape: T): ReferenceShape<T> {
+	throw new Error(";( to be implemented"); // !!!
 }

@@ -23,8 +23,6 @@ import {
 	optional,
 	type Property,
 	property,
-	reference,
-	type ReferenceShape,
 	required,
 	resource,
 	type Type,
@@ -41,12 +39,6 @@ describe("resource factories", () => {
 
 	test("type → Type", () => {
 		expectTypeOf(typed()).toEqualTypeOf<Type>();
-	});
-
-	test("reference → a ReferenceShape carrying its target", () => {
-		const target=resource({ id: id() });
-
-		expectTypeOf(reference(target)).toEqualTypeOf<ReferenceShape<typeof target>>();
 	});
 
 	test("required → exactly one value", () => {

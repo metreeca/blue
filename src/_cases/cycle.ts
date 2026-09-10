@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { id, reference, required, resource } from "../resource.js";
-import { string } from "../string.js";
+import { reference } from "../_/reference.js";
+import { id, required, resource } from "../_/resource.js";
+import { string } from "../_/string.js";
 
 
 //// A cycle closed by an extends edge one way and a reference the other //////////////////////////////////////////////

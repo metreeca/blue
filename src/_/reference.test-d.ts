@@ -14,24 +14,23 @@
  * limitations under the License.
  */
 
-import { createNamespace } from "@metreeca/core/resource";
-import { number } from "../_/number.js";
-import { required, resource } from "../_/resource.js";
+import type { Reference } from "@metreeca/qest/resource";
+import { describe, expectTypeOf, test } from "vitest";
+import { type State } from "./_.js";
+import { reference, type ReferenceShape } from "./reference.js";
+import { id, resource } from "./resource.js";
 
-export const wgs = createNamespace("http://www.w3.org/2003/01/geo/wgs84_pos#");
 
+describe("reference", () => {
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	test("reference → a ReferenceShape carrying its target", () => {
+		const target=resource({ id: id() });
 
-export function Point() {
-	return resource({
-
-		longitude: required(number, { forward: wgs.long }),
-		latitude: required(number, { forward: wgs.lat })
-
-	}, {
-
-		space: wgs
-
+		expectTypeOf(reference(target)).toEqualTypeOf<ReferenceShape<typeof target>>();
 	});
-}
+
+	test("ReferenceShape → an IRI", () => {
+		expectTypeOf<State<ReferenceShape>>().toEqualTypeOf<Reference>();
+	});
+
+});

@@ -32,17 +32,6 @@ export type ResourceShape<P extends Parents = Parents, M extends Members = Membe
 
 }
 
-export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> = {
-
-	readonly kind: "reference"
-
-	/**
-	 * Shape describing the resource the reference points at, possibly deferred to break definition cycles.
-	 */
-	readonly target: T
-
-}
-
 
 export type Parents =
 	readonly Lazy<ResourceShape>[]
@@ -376,10 +365,6 @@ export type PropertyConstrains = {
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export function reference<T extends Lazy<ResourceShape>>(shape: T): ReferenceShape<T> {
-	throw new Error(";( to be implemented"); // !!!
-}
 
 export function resource<I extends Parents, M extends Members>(
 	...args: [...inheritance: I, members: M]

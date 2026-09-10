@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { multiple, reference, required, resource } from "../resource.js";
-import { string } from "../string.js";
+import { reference } from "../_/reference.js";
+import { multiple, required, resource } from "../_/resource.js";
+import { string } from "../_/string.js";
 import { Dataset, Resource } from "./dataset.js";
 import { ec2u } from "./ec2u.js";
 import { Concept, ConceptScheme } from "./skos.js";
