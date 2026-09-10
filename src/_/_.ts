@@ -51,24 +51,20 @@ export type ReferenceShape = {
 
 }
 
-export type ResourceShape = ResourceConstraints & {
+export type ResourceShape<P extends Parents = Parents, M extends Members = Members> = ResourceConstraints & {
 
 	readonly kind: "resource"
 
-	/**
-	 * Shapes whose state extending resources are required to expose alongside their own.
-	 *
-	 * Entries may be deferred to break definition cycles.
-	 */
-	readonly extends: readonly Lazy<ResourceShape>[]
 
-	/**
-	 * Members the resource exposes in its own right.
-	 */
-	readonly members: Members
+	readonly extends: P
+
+	readonly members: M
 
 }
 
+
+export type Parents =
+	readonly Lazy<ResourceShape>[]
 
 export type Member =
 	| Id
@@ -88,17 +84,17 @@ export type Id = {
 
 }
 
-export type Type = { // !!! review Optional
+export type Type = {
 
 	readonly kind: "type"
 
 }
 
-export type Property = PropertyConstrains & {
+export type Property<R extends Lazy<Shape> = Lazy<Shape>> = PropertyConstrains & {
 
 	readonly kind: "property"
 
-	readonly range: Lazy<Shape>
+	readonly range: R
 
 }
 
@@ -121,7 +117,7 @@ export type State<S extends Lazy<Shape>> =
 				: Eager<S> extends ReferenceShape ? Reference
 					: Eager<S> extends {
 							readonly kind: "resource",
-							readonly extends: infer I extends readonly Lazy<ResourceShape>[],
+							readonly extends: infer I extends Parents,
 							readonly members: infer M extends Members
 						} ? Inheritance<I> & Instance<M>
 						: never
@@ -134,8 +130,8 @@ export type State<S extends Lazy<Shape>> =
  *
  * @typeParam I The extended shapes, possibly deferred to break definition cycles
  */
-export type Inheritance<I extends readonly Lazy<ResourceShape>[]> =
-	I extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends readonly Lazy<ResourceShape>[]]
+export type Inheritance<I extends Parents> =
+	I extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends Parents]
 		? State<H> & Inheritance<T>
 		: unknown
 
@@ -173,13 +169,13 @@ export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
 	throw new Error(";( to be implemented"); // !!!
 }
 
-export function resource<I extends readonly Lazy<ResourceShape>[], M extends Members>(
+export function resource<I extends Parents, M extends Members>(
 	...args: [...inheritance: I, members: M]
-): { readonly kind: "resource", readonly extends: I, readonly members: M }
+): ResourceShape<I, M>
 
-export function resource<I extends readonly Lazy<ResourceShape>[], M extends Members>(
+export function resource<I extends Parents, M extends Members>(
 	...args: [...inheritance: I, members: M, constraints: ResourceConstraints]
-): { readonly kind: "resource", readonly extends: I, readonly members: M }
+): ResourceShape<I, M>
 
 export function resource(...args: readonly unknown[]): ResourceShape {
 	throw new Error(";( to be implemented");
@@ -194,7 +190,7 @@ export function type(): Type {
 	throw new Error(";( to be implemented");
 }
 
-export function property<R extends Lazy<Shape>>(range: R): { readonly kind: "property", readonly range: R } {
+export function property<R extends Lazy<Shape>>(range: R): Property<R> {
 	throw new Error(";( to be implemented");
 }
 

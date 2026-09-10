@@ -47,7 +47,7 @@ type LabelShape={
 	readonly extends: [],
 
 	readonly members: {
-		readonly label: { readonly kind: "property", readonly range: StringShape }
+		readonly label: Property<StringShape>
 	}
 
 }
@@ -124,27 +124,27 @@ describe("Content", () => {
 	});
 
 	test("Property → the state of its range", () => {
-		expectTypeOf<Content<{ readonly kind: "property", readonly range: StringShape }>>()
+		expectTypeOf<Content<Property<StringShape>>>()
 			.toEqualTypeOf<string>();
 	});
 
 	test("Property → the state of a lazy range", () => {
-		expectTypeOf<Content<{ readonly kind: "property", readonly range: () => StringShape }>>()
+		expectTypeOf<Content<Property<() => StringShape>>>()
 			.toEqualTypeOf<string>();
 	});
 
 	test("Property → an IRI for a reference range", () => {
-		expectTypeOf<Content<{ readonly kind: "property", readonly range: ReferenceShape }>>()
+		expectTypeOf<Content<Property<ReferenceShape>>>()
 			.toEqualTypeOf<Reference>();
 	});
 
 	test("Property → the state of a resource range", () => {
-		expectTypeOf<Content<{ readonly kind: "property", readonly range: LabelShape }>>()
+		expectTypeOf<Content<Property<LabelShape>>>()
 			.toEqualTypeOf<LabelState>();
 	});
 
 	test("distributes over a member union", () => {
-		expectTypeOf<Content<Id | { readonly kind: "property", readonly range: StringShape }>>()
+		expectTypeOf<Content<Id | Property<StringShape>>>()
 			.toEqualTypeOf<Reference | string>();
 	});
 
@@ -161,7 +161,7 @@ describe("Instance", () => {
 		expectTypeOf<Instance<{
 			readonly id: Id,
 			readonly type: Type,
-			readonly label: { readonly kind: "property", readonly range: StringShape }
+			readonly label: Property<StringShape>
 		}>>().toEqualTypeOf<{
 			readonly id: Reference,
 			readonly type: Optional<Reference>,
@@ -172,13 +172,13 @@ describe("Instance", () => {
 	test("preserves member keys", () => {
 		expectTypeOf<keyof Instance<{
 			readonly id: Id,
-			readonly label: { readonly kind: "property", readonly range: StringShape }
+			readonly label: Property<StringShape>
 		}>>().toEqualTypeOf<"id" | "label">();
 	});
 
 	test("satisfies the resource contract", () => {
 		expectTypeOf<Instance<{
-			readonly label: { readonly kind: "property", readonly range: StringShape }
+			readonly label: Property<StringShape>
 		}>>().toExtend<Resource>();
 	});
 
@@ -276,13 +276,13 @@ describe("resource", () => {
 		type LeftShape={
 			readonly kind: "resource",
 			readonly extends: [],
-			readonly members: { readonly right: { readonly kind: "property", readonly range: () => RightShape } }
+			readonly members: { readonly right: Property<() => RightShape> }
 		}
 
 		type RightShape={
 			readonly kind: "resource",
 			readonly extends: [],
-			readonly members: { readonly left: { readonly kind: "property", readonly range: () => LeftShape } }
+			readonly members: { readonly left: Property<() => LeftShape> }
 		}
 
 		const left: LeftShape=resource({ right: property(() => right) });
@@ -372,7 +372,7 @@ describe("shape factories", () => {
 
 	test("property → a Property carrying its range", () => {
 		expectTypeOf(property(string()))
-			.toEqualTypeOf<{ readonly kind: "property", readonly range: StringShape }>();
+			.toEqualTypeOf<Property<StringShape>>();
 	});
 
 	test("Property admits any shape as its range", () => {
