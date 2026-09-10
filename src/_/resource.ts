@@ -353,21 +353,6 @@ export type Type = {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/**
- * Resolves a cardinality bound stated in a constraints object.
- *
- * Yields the bound where the object states one and `undefined` where it does not, so a property built from
- * constraints carries the bounds it was given rather than the widest ones.
- *
- * @typeParam C The stated constraints
- * @typeParam K The bound to resolve
- */
-export type Stated<C, K extends string> =
-	K extends keyof C ? (C[K] extends Count ? C[K] : undefined) : undefined
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 export function resource<I extends Parents, M extends Members>(
 	...args: [...inheritance: I, members: M]
 ): ResourceShape<I, M>
@@ -525,6 +510,19 @@ export type Unbounded<L extends Count> =
 	[undefined] extends [L] ? true
 		: [0] extends [L] ? true
 			: false
+
+/**
+ * Resolves a cardinality bound stated in a constraints object.
+ *
+ * Yields the bound where the object states one and `undefined` where it does not, so a property built from
+ * constraints carries the bounds it was given rather than the widest ones.
+ *
+ * @typeParam C The stated constraints
+ * @typeParam K The bound to resolve
+ */
+export type Stated<C, K extends string> =
+	K extends keyof C ? (C[K] extends Count ? C[K] : undefined) : undefined
+
 
 /**
  * Checks whether an upper bound limits a property to a single value.
