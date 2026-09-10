@@ -77,8 +77,23 @@ describe("union values", () => {
 			.toEqualTypeOf<"home" | "work" | number>();
 	});
 
+	test("flattens a nested union into the values of its leaves", () => {
+		expectTypeOf<Instance<UnionShape<[StringShape, UnionShape<[NumberShape, ReferenceShape]>]>>>()
+			.toEqualTypeOf<string | number | Reference>();
+	});
+
+	test("flattens a nested union deferred to break definition cycles", () => {
+		expectTypeOf<Instance<UnionShape<[StringShape, () => UnionShape<[NumberShape, LinkShape]>]>>>()
+			.toEqualTypeOf<string | number | Instance<LinkShape>>();
+	});
+
 	test("submits the payload of every branch", () => {
 		expectTypeOf<Proposal<UnionShape<[StringShape, LinkShape]>>>().toEqualTypeOf<string | Proposal<LinkShape>>();
+	});
+
+	test("submits a nested union as the payloads of its leaves", () => {
+		expectTypeOf<Proposal<UnionShape<[StringShape, UnionShape<[NumberShape, LinkShape]>]>>>()
+			.toEqualTypeOf<string | number | Proposal<LinkShape>>();
 	});
 
 	test("submits a resource branch in its submitted form rather than its retrieved one", () => {
