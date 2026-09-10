@@ -163,7 +163,8 @@ export type Stated<C, K extends string> =
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type State<S extends Lazy<Shape>> =
-	Eager<S> extends BooleanShape ? boolean
+	[Eager<S>] extends [never] ? never
+		: Eager<S> extends BooleanShape ? boolean
 		: Eager<S> extends NumberShape ? number
 			: Eager<S> extends StringShape ? string
 				: Eager<S> extends ReferenceShape ? Reference
@@ -171,7 +172,7 @@ export type State<S extends Lazy<Shape>> =
 							readonly kind: "resource",
 							readonly extends: infer I extends Parents,
 							readonly members: infer M extends Members
-						} ? Inheritance<I> & Instance<M>
+						} ? Instance<Omit<Inherited<I>, keyof M> & M>
 						: never
 
 /**
@@ -192,6 +193,92 @@ export type Instance<M extends Members> = {
 	readonly [field in keyof M]: Content<M[field]>
 
 };
+
+/**
+ * Resolves the members a list of extended shapes contributes.
+ *
+ * Yields the members the extended shapes declare, together with those they inherit in turn, so that a constraint
+ * stated anywhere up the chain reaches every extending resource.
+ *
+ * @typeParam I The extended shapes, possibly deferred to break definition cycles
+ */
+export type Inherited<I extends Parents> =
+	I extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends Parents]
+		? Declared<H> & Inherited<T>
+		: {}
+
+/**
+ * Resolves the members a single shape contributes.
+ *
+ * @typeParam S The extended shape, possibly deferred to break definition cycles
+ */
+export type Declared<S extends Lazy<ResourceShape>> =
+	Eager<S> extends {
+			readonly extends: infer P extends Parents,
+			readonly members: infer M extends Members
+		} ? Inherited<P> & M
+		: {}
+
+/**
+ * Constrains members against the ones they inherit.
+ *
+ * Retains a member that restricts the inherited one and voids any other, so an extending resource may tighten what it
+ * inherits but never relax it: the offending member is rejected where the resource is built rather than silently
+ * narrowed back by intersection. Members the extended shapes do not declare pass through untouched.
+ *
+ * @typeParam M The members the extending resource declares in its own right
+ * @typeParam P The members the extended shapes contribute
+ */
+export type Override<M extends Members, P> = {
+
+	readonly [field in keyof M]: field extends keyof P
+		? Narrows<M[field], P[field]> extends true ? M[field] : never
+		: M[field]
+
+};
+
+/**
+ * Checks whether a member restricts another.
+ *
+ * Compares the member kind, the range and the two cardinality bounds in their own right, rather than the state they
+ * project: a restriction that reshapes the state, such as limiting an unbounded property to a single value, is
+ * admitted, while two ranges that happen to project the same state are still told apart.
+ *
+ * @typeParam C The member the extending resource declares
+ * @typeParam P The member it inherits
+ */
+export type Narrows<C extends Member, P> =
+	[Kinds<C, P>, Ranges<C, P>, Lowers<C, P>, Uppers<C, P>] extends [true, true, true, true] ? true : false
+
+type Kinds<C, P> =
+	[C, P] extends [{ readonly kind: infer C }, { readonly kind: infer P }]
+		? C extends P ? true : false
+		: false
+
+type Ranges<C, P> =
+	[C, P] extends [
+			{ readonly range: infer C extends Lazy<Shape> },
+			{ readonly range: infer P extends Lazy<Shape> }
+		] ? Eager<C>["kind"] extends Eager<P>["kind"] ? true : false
+		: true
+
+type Lowers<C, P> =
+	[C, P] extends [{ readonly minCount: infer C extends Count }, { readonly minCount: infer P extends Count }]
+		? Unbounded<C> extends true ? Unbounded<P> : true
+		: true
+
+type Uppers<C, P> =
+	[C, P] extends [{ readonly maxCount: infer C extends Count }, { readonly maxCount: infer P extends Count }]
+		? Single<P> extends true ? Single<C> : true
+		: true
+
+/**
+ * Checks whether an upper bound limits a property to a single value.
+ *
+ * @typeParam U The greatest number of values admitted
+ */
+export type Single<U extends Count> =
+	[U] extends [1] ? true : false
 
 export type Content<M extends Member> =
 	M extends Id ? Reference
@@ -265,11 +352,11 @@ export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
 }
 
 export function resource<I extends Parents, M extends Members>(
-	...args: [...inheritance: I, members: M]
+	...args: [...inheritance: I, members: M & Override<M, Inherited<I>>]
 ): ResourceShape<I, M>
 
 export function resource<I extends Parents, M extends Members>(
-	...args: [...inheritance: I, members: M, constraints: ResourceConstraints]
+	...args: [...inheritance: I, members: M & Override<M, Inherited<I>>, constraints: ResourceConstraints]
 ): ResourceShape<I, M>
 
 export function resource(...args: readonly unknown[]): ResourceShape {

@@ -243,6 +243,201 @@ describe("Inheritance", () => {
 		expectTypeOf<Inheritance<[() => LabelShape]>>().toEqualTypeOf<LabelState>();
 	});
 
+
+	test("accumulates a chain of extended shapes", () => {
+
+		const top=resource({ top: required(string()) });
+		const middle=resource(top, { middle: required(string()) });
+		const bottom=resource(middle, { bottom: required(string()) });
+
+		expectTypeOf<State<typeof bottom>>().toEqualTypeOf<{
+			readonly top: string,
+			readonly middle: string,
+			readonly bottom: string
+		}>();
+
+	});
+
+	test("admits a shape reached along two paths", () => {
+
+		const apex=resource({ apex: required(string()) });
+		const left=resource(apex, { left: required(string()) });
+		const right=resource(apex, { right: required(string()) });
+		const base=resource(left, right, {});
+
+		expectTypeOf<State<typeof base>["apex"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof base>["left"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof base>["right"]>().toEqualTypeOf<string>();
+
+	});
+
+	test("admits the same shape extended twice", () => {
+
+		const parent=resource({ shared: required(string()) });
+		const child=resource(parent, parent, {});
+
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
+
+	});
+
+	test("admits a member two parents agree on", () => {
+
+		const left=resource({ shared: required(string()) });
+		const right=resource({ shared: required(string()) });
+		const child=resource(left, right, {});
+
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
+
+	});
+
+	test("voids a member two parents give different cardinalities", () => {
+
+		const left=resource({ shared: required(string()) });
+		const right=resource({ shared: optional(string()) });
+		const child=resource(left, right, {});
+
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
+
+	});
+
+	test("voids a member two parents give incompatible ranges", () => {
+
+		const left=resource({ shared: required(string()) });
+		const right=resource({ shared: required(number()) });
+		const child=resource(left, right, {});
+
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
+
+	});
+
+	test("narrows a member the child redeclares", () => {
+
+		const parent=resource({ shared: optional(string()) });
+		const child=resource(parent, { shared: required(string()) });
+
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
+
+	});
+
+	test("rejects a member the child relaxes", () => {
+
+		const parent=resource({ shared: required(string()) });
+
+		// @ts-expect-error - optional relaxes the inherited requirement
+		resource(parent, { shared: optional(string()) });
+
+	});
+
+	test("rejects a member the child retypes", () => {
+
+		const parent=resource({ shared: required(string()) });
+
+		// @ts-expect-error - a number range does not narrow a string one
+		resource(parent, { shared: required(number()) });
+
+	});
+
+	test("rejects a cardinality the child widens", () => {
+
+		const parent=resource({ shared: required(string()) });
+
+		// @ts-expect-error - many values relax the inherited single one
+		resource(parent, { shared: multiple(string()) });
+
+	});
+
+	test("admits an upper bound the child tightens to one", () => {
+
+		const parent=resource({ shared: multiple(string()) });
+		const child=resource(parent, { shared: required(string()) });
+
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
+
+	});
+
+	test("admits a lower bound the child raises", () => {
+
+		const parent=resource({ shared: multiple(string()) });
+		const child=resource(parent, { shared: nonempty(string()) });
+
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<readonly [string, ...string[]]>();
+
+	});
+
+	test("rejects a range the child swaps for another kind", () => {
+
+		const target=resource({ id: id() });
+		const parent=resource({ shared: required(string()) });
+
+		// @ts-expect-error - a reference range does not narrow a string one
+		resource(parent, { shared: required(reference(target)) });
+
+	});
+
+	test("rejects a member kind the child swaps", () => {
+
+		const parent=resource({ shared: required(string()) });
+
+		// @ts-expect-error - an identifier does not narrow a property
+		resource(parent, { shared: id() });
+
+	});
+
+	test("admits a member the child redeclares identically", () => {
+
+		const parent=resource({ shared: required(string()) });
+		const child=resource(parent, { shared: required(string()) });
+
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
+
+	});
+
+	test("admits a member the child adds", () => {
+
+		const parent=resource({ inherited: required(string()) });
+		const child=resource(parent, { own: optional(string()) });
+
+		expectTypeOf<State<typeof child>["own"]>().toEqualTypeOf<undefined | string>();
+
+	});
+
+	test("rejects a cycle among extended shapes", () => {
+
+		// gating members against the inherited state surfaces the cycle where it is declared
+
+		// @ts-expect-error - inheritance cycles resolve indefinitely
+		function alpha() {
+			return resource(beta, { alpha: required(string()) });
+		}
+
+		// @ts-expect-error - inheritance cycles resolve indefinitely
+		function beta() {
+			return resource(alpha, { beta: required(string()) });
+		}
+
+		expectTypeOf(alpha).toBeFunction();
+		expectTypeOf(beta).toBeFunction();
+
+	});
+
+	test("resolves eager and lazy parents alike", () => {
+
+		const eager=resource({ eager: required(string()) });
+
+		function lazy() {
+			return resource({ lazy: required(string()) });
+		}
+
+		const child=resource(eager, lazy, { own: required(string()) });
+
+		expectTypeOf<State<typeof child>>().toEqualTypeOf<{
+			readonly eager: string,
+			readonly lazy: string,
+			readonly own: string
+		}>();
+
+	});
+
 });
 
 
@@ -273,7 +468,7 @@ describe("resource", () => {
 	test("merges the state of an extended shape into the instance", () => {
 		const shape=resource(resource({ id: id() }), { label: required(string()) });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference } & LabelState>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
 	});
 
 	test("merges the state of every extended shape", () => {
@@ -283,21 +478,24 @@ describe("resource", () => {
 			{ label: required(string()) }
 		);
 
-		expectTypeOf<State<typeof shape>>()
-			.toEqualTypeOf<{ readonly id: Reference } & { readonly type: Optional<Reference> } & LabelState>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{
+			readonly id: Reference,
+			readonly type: Optional<Reference>,
+			readonly label: string
+		}>();
 	});
 
 	test("resolves a lazy extended shape", () => {
 		const base=resource({ id: id() });
 		const shape=resource(() => base, { label: required(string()) });
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference } & LabelState>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
 	});
 
 	test("accepts constraints after the members", () => {
 		const shape=resource(resource({ id: id() }), { label: required(string()) }, {});
 
-		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference } & LabelState>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
 	});
 
 	test("resolves a lazy property range", () => {
