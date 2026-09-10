@@ -222,6 +222,9 @@ export function narrowsNumber(target: NumberShape, source: NumberShape): undefin
 		}),
 		test(({ in: values }) => {
 
+			// !!! reject a widened set outright, as with the bounds: a child listing a value the parent omits is
+			// !!! silently intersected away, leaving the state wider than the shape admits
+
 			return values === undefined || source.in === undefined || values.some(v => source.in!.includes(v)) || [
 				`{in} disjoint sets [${values}] and [${source.in}]`
 			];

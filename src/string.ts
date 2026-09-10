@@ -212,7 +212,6 @@ export interface StringShape extends StringConstraints {
 
 }
 
-
 /**
  * Constraints for the {@link string} shape factory.
  *
