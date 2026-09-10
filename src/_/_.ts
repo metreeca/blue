@@ -45,9 +45,14 @@ export type StringShape = {
 
 }
 
-export type ReferenceShape = {
+export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> = {
 
 	readonly kind: "reference"
+
+	/**
+	 * Shape describing the resource the reference points at, possibly deferred to break definition cycles.
+	 */
+	readonly target: T
 
 }
 
@@ -154,11 +159,15 @@ export type Stated<C, K extends string> =
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Resolves the state a shape describes.
+ * Resolves the state a shape describes, as retrieved.
  *
  * Yields the value type instances of the shape expose, computed from the members the shape declares rather than
  * carried alongside it, so that the two cannot drift. A {@link ReferenceShape} contributes the target IRI alone,
  * keeping a linked resource out of the state it points at.
+ *
+ * Retrieval and submission differ, so a shape describes two value types: this one, which every member of a retrieved
+ * resource satisfies, and {@link Draft}, which a resource being submitted satisfies. Reach for `State` wherever a
+ * resource is read.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
@@ -193,6 +202,95 @@ export type Instance<M extends Members> = {
 	readonly [field in keyof M]: Content<M[field]>
 
 };
+
+/**
+ * Resolves the state a shape describes, as submitted.
+ *
+ * Yields the value type a resource being created or updated satisfies, which differs from the {@link State | retrieved}
+ * one in what the submitter is responsible for: an identifier and a system-managed member may be left out, a member
+ * owned by the resources it points at is not accepted at all, and a captive target may be supplied inline rather than
+ * by IRI, so that a resource and the ones it holds captive travel together. Reach for `Draft` wherever a resource is
+ * written.
+ *
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
+ *
+ * @see {@link https://github.com/metreeca/keep/issues/4 keep#4}
+ */
+export type Draft<S extends Lazy<Shape>> =
+	[Eager<S>] extends [never] ? never
+		: Eager<S> extends BooleanShape ? boolean
+		: Eager<S> extends NumberShape ? number
+			: Eager<S> extends StringShape ? string
+				: Eager<S> extends ReferenceShape ? Reference
+					: Eager<S> extends {
+							readonly kind: "resource",
+							readonly extends: infer I extends Parents,
+							readonly members: infer M extends Members
+						} ? Submission<Merged<Inherited<I>, M>>
+						: never
+
+/**
+ * Resolves the members a submitted resource carries.
+ *
+ * Drops the members the submitter does not own and leaves optional the ones the system supplies, keeping the rest as
+ * the shape states them.
+ *
+ * @typeParam M The members the shape describes
+ */
+export type Submission<M> =
+	& { readonly [field in keyof M as Owned<M[field]> extends true ? (Supplied<M[field]> extends true ? never : field) : never]: Submitted<M[field]> }
+	& { readonly [field in keyof M as Owned<M[field]> extends true ? (Supplied<M[field]> extends true ? field : never) : never]?: Submitted<M[field]> }
+
+/**
+ * Checks whether a member is the submitter's to state.
+ *
+ * Yields `false` for a member the resources it points at own, which a submission is not accepted to carry.
+ *
+ * @typeParam M The member to check
+ */
+export type Owned<M> =
+	M extends { readonly foreign: true } ? false : true
+
+/**
+ * Checks whether a member is the system's to populate.
+ *
+ * Yields `true` for an identifier, assigned where a resource is created, and for a system-managed member, so that a
+ * submission may leave either out.
+ *
+ * @typeParam M The member to check
+ */
+export type Supplied<M> =
+	M extends { readonly kind: "id" } ? true
+		: M extends { readonly computed: true } ? true
+			: false
+
+/**
+ * Resolves the value a submitted member carries.
+ *
+ * Admits a captive target inline alongside its IRI, at whatever cardinality the member states, and otherwise carries
+ * the value the member contributes to the retrieved state.
+ *
+ * @typeParam M The member to resolve
+ */
+export type Submitted<M> =
+	M extends {
+			readonly kind: "property",
+			readonly range: infer R extends Lazy<Shape>,
+			readonly minCount: infer L extends Count,
+			readonly maxCount: infer U extends Count
+		} ? Bounded<Captive<M, R>, L, U>
+		: Content<M & Member>
+
+/**
+ * Resolves the value a captive member admits inline.
+ *
+ * @typeParam M The member to resolve
+ * @typeParam R The range it states
+ */
+export type Captive<M, R extends Lazy<Shape>> =
+	M extends { readonly captive: true }
+		? Eager<R> extends ReferenceShape<infer T> ? Reference | Draft<T> : State<R>
+		: State<R>
 
 /**
  * Resolves the members a list of extended shapes contributes.
@@ -348,7 +446,7 @@ export function markdown(): StringShape {
 export function dictionary() {}
 
 
-export function reference(shape: Lazy<ResourceShape>): ReferenceShape {
+export function reference<T extends Lazy<ResourceShape>>(shape: T): ReferenceShape<T> {
 	throw new Error(";( to be implemented"); // !!!
 }
 
@@ -374,33 +472,33 @@ export function type(): Type {
 }
 
 
-export function multiple<R extends Lazy<Shape>>(
-	range: R, constraints?: PropertyConstrains
-): Property<R, undefined, undefined> {
+export function multiple<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+	range: R, constraints?: C
+): C & Property<R, undefined, undefined> {
 	throw new Error(";( to be implemented");
 }
 
-export function nonempty<R extends Lazy<Shape>>(
-	range: R, constraints?: PropertyConstrains
-): Property<R, 1, undefined> {
+export function nonempty<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+	range: R, constraints?: C
+): C & Property<R, 1, undefined> {
 	throw new Error(";( to be implemented");
 }
 
-export function optional<R extends Lazy<Shape>>(
-	range: R, constraints?: PropertyConstrains
-): Property<R, undefined, 1> {
+export function optional<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+	range: R, constraints?: C
+): C & Property<R, undefined, 1> {
 	throw new Error(";( to be implemented");
 }
 
-export function required<R extends Lazy<Shape>>(
-	range: R, constraints?: PropertyConstrains
-): Property<R, 1, 1> {
+export function required<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+	range: R, constraints?: C
+): C & Property<R, 1, 1> {
 	throw new Error(";( to be implemented");
 }
 
 
 export function property<R extends Lazy<Shape>, const C extends PropertyBounds = {}>(
 	range: R, constraints?: C
-): Property<R, Stated<C, "minCount">, Stated<C, "maxCount">> {
+): C & Property<R, Stated<C, "minCount">, Stated<C, "maxCount">> {
 	throw new Error(";( to be implemented");
 }

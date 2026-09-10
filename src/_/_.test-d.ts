@@ -21,6 +21,7 @@ import {
 	type BooleanShape,
 	boolean,
 	type Content,
+	type Draft,
 	type Id,
 	id,
 	type Inheritance,
@@ -725,6 +726,72 @@ describe("resource", () => {
 });
 
 
+describe("Draft", () => {
+
+	function target() {
+		return resource({ id: id(), label: required(string()) });
+	}
+
+	const shape=resource({
+
+		id: id(),
+
+		plain: required(string()),
+		linked: required(reference(target)),
+		owned: required(reference(target), { captive: true }),
+		many: multiple(reference(target), { captive: true }),
+
+		derived: required(string(), { computed: true }),
+		borrowed: required(reference(target), { foreign: true })
+
+	});
+
+	type Submitted=Draft<typeof shape>
+
+	test("carries a plain member as the state does", () => {
+		expectTypeOf<Submitted["plain"]>().toEqualTypeOf<string>();
+	});
+
+	test("carries a plain reference as an IRI", () => {
+		expectTypeOf<Submitted["linked"]>().toEqualTypeOf<Reference>();
+	});
+
+	test("admits a captive target inline alongside its IRI", () => {
+		expectTypeOf<Submitted["owned"]>().toEqualTypeOf<Reference | Draft<ReturnType<typeof target>>>();
+	});
+
+	test("admits captive targets inline at every cardinality", () => {
+		expectTypeOf<Submitted["many"]>()
+			.toEqualTypeOf<undefined | readonly (Reference | Draft<ReturnType<typeof target>>)[]>();
+	});
+
+	test("drafts a captive target in its own right", () => {
+		expectTypeOf<Draft<ReturnType<typeof target>>["label"]>().toEqualTypeOf<string>();
+	});
+
+	test("leaves an identifier optional", () => {
+		expectTypeOf<Submitted>().toExtend<{ id?: Reference }>();
+		expectTypeOf<undefined>().toExtend<Submitted["id"]>();
+	});
+
+	test("leaves a computed member optional", () => {
+		expectTypeOf<undefined>().toExtend<Submitted["derived"]>();
+	});
+
+	test("omits a foreign member", () => {
+		expectTypeOf<keyof Submitted>().toEqualTypeOf<
+			"id" | "plain" | "linked" | "owned" | "many" | "derived"
+		>();
+	});
+
+	test("resolves a scalar shape as the state does", () => {
+		expectTypeOf<Draft<StringShape>>().toEqualTypeOf<string>();
+		expectTypeOf<Draft<ReferenceShape>>().toEqualTypeOf<Reference>();
+	});
+
+});
+
+
 describe("shape factories", () => {
 
 	test("boolean → BooleanShape", () => {
@@ -747,8 +814,10 @@ describe("shape factories", () => {
 		expectTypeOf(typed()).toEqualTypeOf<Type>();
 	});
 
-	test("reference → ReferenceShape", () => {
-		expectTypeOf(reference(resource({ id: id() }))).toEqualTypeOf<ReferenceShape>();
+	test("reference → a ReferenceShape carrying its target", () => {
+		const target=resource({ id: id() });
+
+		expectTypeOf(reference(target)).toEqualTypeOf<ReferenceShape<typeof target>>();
 	});
 
 	test("required → exactly one value", () => {
@@ -768,12 +837,13 @@ describe("shape factories", () => {
 	});
 
 	test("the cardinality factories accept constraints", () => {
-		expectTypeOf(required(string(), { hidden: true })).toEqualTypeOf<Property<StringShape, 1, 1>>();
+		expectTypeOf(required(string(), { hidden: true }))
+			.toEqualTypeOf<{ readonly hidden: true } & Property<StringShape, 1, 1>>();
 	});
 
 	test("property → the bounds it was given", () => {
 		expectTypeOf(property(string(), { minCount: 2, maxCount: 5 }))
-			.toEqualTypeOf<Property<StringShape, 2, 5>>();
+			.toEqualTypeOf<{ readonly minCount: 2, readonly maxCount: 5 } & Property<StringShape, 2, 5>>();
 	});
 
 	test("property → unstated bounds where none are given", () => {
@@ -783,12 +853,12 @@ describe("shape factories", () => {
 
 	test("property → one bound where only one is given", () => {
 		expectTypeOf(property(string(), { minCount: 1 }))
-			.toEqualTypeOf<Property<StringShape, 1, undefined>>();
+			.toEqualTypeOf<{ readonly minCount: 1 } & Property<StringShape, 1, undefined>>();
 	});
 
 	test("property → accepts constraints after the range", () => {
 		expectTypeOf(property(string(), { hidden: true, forward: "https://example.org/label" }))
-			.toEqualTypeOf<Property<StringShape, undefined, undefined>>();
+			.toEqualTypeOf<{ readonly hidden: true, readonly forward: "https://example.org/label" } & Property<StringShape, undefined, undefined>>();
 	});
 
 	test("property → rejects an unknown constraint", () => {
