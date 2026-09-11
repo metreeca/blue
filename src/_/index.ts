@@ -27,7 +27,7 @@ import type { StringShape } from "./string.js";
 import type { Branch } from "./union.core.js";
 import type { UnionShape } from "./union.js";
 
-export { eager, effective } from "./index.core.js";
+export { eager, effective, sh } from "./index.core.js";
 
 
 /**
