@@ -145,6 +145,21 @@ import { checkString } from "./string.core.js";
 
 
 /**
+ * Lexical patterns admitting each subset of the IRI hierarchy.
+ */
+const IRIPatterns: Readonly<Record<Variant, RegExp>> = {
+
+	hierarchical: /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\S*$/,
+	absolute: /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/,
+	internal: /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\S+|\/\S*)$/,
+	relative: /^\S+$/
+
+};
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
  * Describes a textual value.
  *
  * Admits the [JSON strings](https://datatracker.ietf.org/doc/html/rfc8259#section-7) a resource may carry, bounded by
@@ -733,19 +748,7 @@ export function duration<const C extends StringValueConstraints = {}>(constraint
 }
 
 
-//// Assembly ////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Lexical patterns admitting each subset of the IRI hierarchy.
- */
-const IRIPatterns: Readonly<Record<Variant, RegExp>> = {
-
-	hierarchical: /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\S*$/,
-	absolute: /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/,
-	internal: /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\S+|\/\S*)$/,
-	relative: /^\S+$/
-
-};
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Creates a textual shape.
