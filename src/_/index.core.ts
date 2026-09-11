@@ -20,7 +20,7 @@
  * @module
  */
 
-import type { Eager, Lazy } from "@metreeca/core";
+import type { Eager, Lazy, Optional } from "@metreeca/core";
 import { type Trace, TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
@@ -109,7 +109,7 @@ export type Scope =
  *
  * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
  */
-export function narrowsShape(target: Shape, source: Shape): undefined | Trace {
+export function narrowsShape(target: Shape, source: Shape): Optional<Trace> {
 
 	// the kind guard is what makes each branch well-typed: it is reached only where both shapes share target.kind
 
@@ -178,7 +178,7 @@ export function validateShape(values: readonly unknown[], shape: Shape, {
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	switch ( shape.kind ) {
 

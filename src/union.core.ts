@@ -20,7 +20,7 @@
  * @module
  */
 
-import { isArray, isObject, type Lazy, map } from "@metreeca/core";
+import { isArray, isObject, type Lazy, map, type Optional } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
 import { array, type Trace, TraceError } from "@metreeca/core/trace";
 import { getShapeTarget } from "./reference.js";
@@ -41,7 +41,7 @@ import type { Shape, ValuesShape } from "./value.js";
  *
  * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function narrowsUnion(target: UnionShape, source: UnionShape): undefined | Trace {
+export function narrowsUnion(target: UnionShape, source: UnionShape): Optional<Trace> {
 
 	const paired = pair(target, source);
 
@@ -146,14 +146,14 @@ export function validateUnion(values: unknown | readonly unknown[], variants: re
 	model?: boolean
 	match: (value: unknown, variant: ValuesShape, model: boolean) => boolean
 
-}): undefined | Trace {
+}): Optional<Trace> {
 
 	return isArray(values)
 		? array((value: unknown) => validate(value))(values)
 		: validate(values);
 
 
-	function validate(value: unknown): undefined | Trace {
+	function validate(value: unknown): Optional<Trace> {
 
 		const matches = variants.filter(variant => match(value, variant, model));
 
@@ -311,7 +311,7 @@ export function getModelVariants<V extends ValuesShape>(
  *
  * @returns A base-index to child-index map when the pairing is valid, or a keyed {@link Trace} of obstacles otherwise
  */
-function pair(target: UnionShape, source: UnionShape): NonNullable<undefined | Trace> | Map<number, number> {
+function pair(target: UnionShape, source: UnionShape): NonNullable<Optional<Trace>> | Map<number, number> {
 
 	// base indices each child variant narrows
 

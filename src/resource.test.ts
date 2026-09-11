@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { assert } from "@metreeca/core";
+import { assert, type Optional } from "@metreeca/core";
 import { isTag } from "@metreeca/core/language";
 import { createNamespace } from "@metreeca/core/resource";
 import { type Trace, TraceError } from "@metreeca/core/trace";
@@ -1953,8 +1953,8 @@ describe("utilities", () => {
 
 			it("unions validators from lineage", async () => {
 
-				const v1: (value: Resource) => undefined | Trace = () => undefined;
-				const v2: (value: Resource) => undefined | Trace = () => undefined;
+				const v1: (value: Resource) => Optional<Trace> = () => undefined;
+				const v2: (value: Resource) => Optional<Trace> = () => undefined;
 
 				const parent = resource({}, { validators: [v1] });
 				const child = resource(parent, {}, { validators: [v2] });
@@ -3744,7 +3744,7 @@ describe("operators", () => {
 
 			it("inherits validators from target", async () => {
 
-				const v: (value: Resource) => undefined | Trace = () => undefined;
+				const v: (value: Resource) => Optional<Trace> = () => undefined;
 
 				const merged = mergeResource(
 					resource({}, { validators: [v] }),
@@ -3757,8 +3757,8 @@ describe("operators", () => {
 
 			it("computes union of target and source validators", async () => {
 
-				const v1: (value: Resource) => undefined | Trace = () => undefined;
-				const v2: (value: Resource) => undefined | Trace = () => undefined;
+				const v1: (value: Resource) => Optional<Trace> = () => undefined;
+				const v2: (value: Resource) => Optional<Trace> = () => undefined;
 
 				const merged = mergeResource(
 					resource({}, { validators: [v1] }),
@@ -3772,7 +3772,7 @@ describe("operators", () => {
 
 			it("deduplicates validators", async () => {
 
-				const v: (value: Resource) => undefined | Trace = () => undefined;
+				const v: (value: Resource) => Optional<Trace> = () => undefined;
 
 				const merged = mergeResource(
 					resource({}, { validators: [v] }),
@@ -4277,7 +4277,7 @@ describe("validators", () => {
 
 			describe("custom validators", () => {
 
-				const adultValidator: (value: Resource) => undefined | Trace = (r) => {
+				const adultValidator: (value: Resource) => Optional<Trace> = (r) => {
 					return (r as any).age >= 18 ? undefined : ["must be adult"];
 				};
 
@@ -4302,8 +4302,8 @@ describe("validators", () => {
 
 				it("runs all custom validators", async () => {
 
-					const v1: (value: Resource) => undefined | Trace = (r) => (r as any).a > 0 ? undefined : ["a must be positive"];
-					const v2: (value: Resource) => undefined | Trace = (r) => (r as any).b > 0 ? undefined : ["b must be positive"];
+					const v1: (value: Resource) => Optional<Trace> = (r) => (r as any).a > 0 ? undefined : ["a must be positive"];
+					const v2: (value: Resource) => Optional<Trace> = (r) => (r as any).b > 0 ? undefined : ["b must be positive"];
 
 					const shape = resource({
 						a: required(integer()),
@@ -4328,7 +4328,7 @@ describe("validators", () => {
 
 				it("enforces inherited validators", async () => {
 
-					const validator: (value: Resource) => undefined | Trace = (r) => {
+					const validator: (value: Resource) => Optional<Trace> = (r) => {
 						return (r as any).age >= 18 ? undefined : ["must be adult"];
 					};
 
@@ -5883,7 +5883,7 @@ describe("validators", () => {
 
 		describe("combined constraints", () => {
 
-			const validator: (value: Resource) => undefined | Trace = (r) => {
+			const validator: (value: Resource) => Optional<Trace> = (r) => {
 				return (r as any).name.length <= 50 ? undefined : ["name too long"];
 			};
 
@@ -7287,7 +7287,7 @@ describe("validators", () => {
 
 			it("runs custom validators on projected responses", async () => {
 
-				const adult: (value: Resource) => undefined | Trace = value =>
+				const adult: (value: Resource) => Optional<Trace> = value =>
 					(value as Record<string, unknown>).age !== undefined
 					&& (value as { age: number }).age < 18
 						? ["under-age"]
@@ -7305,7 +7305,7 @@ describe("validators", () => {
 
 			it("keys validator trace by validator name", async () => {
 
-				function adult(value: unknown): undefined | Trace {
+				function adult(value: unknown): Optional<Trace> {
 					return (value as { age: number }).age < 18 ? ["under-age"] : undefined;
 				}
 
@@ -7746,7 +7746,7 @@ describe("validators", () => {
 
 				it("accepts failing custom validator", async () => {
 
-					const validator: (value: Resource) => undefined | Trace = () => ["always fails"];
+					const validator: (value: Resource) => Optional<Trace> = () => ["always fails"];
 
 					const shape = resource({
 						name: required(string())
@@ -7760,7 +7760,7 @@ describe("validators", () => {
 
 				it("accepts failing inherited validator", async () => {
 
-					const validator: (value: Resource) => undefined | Trace = () => ["always fails"];
+					const validator: (value: Resource) => Optional<Trace> = () => ["always fails"];
 
 					const Base = resource({
 						age: required(integer())

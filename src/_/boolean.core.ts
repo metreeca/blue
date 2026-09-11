@@ -20,7 +20,7 @@
  * @module
  */
 
-import { isBoolean } from "@metreeca/core";
+import { isBoolean, type Optional } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
 import { array, type Trace, type } from "@metreeca/core/trace";
 import type { BooleanShape } from "./boolean.js";
@@ -57,7 +57,7 @@ export function create(): BooleanShape {
  *
  * @returns `undefined`, as a boolean shape carries nothing an override could widen
  */
-export function narrowsBoolean(_target: BooleanShape, _source: BooleanShape): undefined | Trace {
+export function narrowsBoolean(_target: BooleanShape, _source: BooleanShape): Optional<Trace> {
 
 	return undefined;
 
@@ -96,7 +96,7 @@ export function validateBoolean(values: readonly unknown[], _: BooleanShape, {}:
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	return array(type(isBoolean))(values);
 

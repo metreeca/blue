@@ -20,7 +20,7 @@
  * @module
  */
 
-import { type Lazy, map } from "@metreeca/core";
+import { type Lazy, map, type Optional } from "@metreeca/core";
 import { isIRI } from "@metreeca/core/resource";
 import { equals, immutable } from "@metreeca/core/structures";
 import { all, array, domain, test, type Trace, TraceError, type, values as contains } from "@metreeca/core/trace";
@@ -45,7 +45,7 @@ import { eager, type Shape } from "./value.js";
  *
  * @returns A trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function narrowsReference(target: ReferenceShape, source: ReferenceShape): undefined | Trace {
+export function narrowsReference(target: ReferenceShape, source: ReferenceShape): Optional<Trace> {
 
 	return all<ReferenceShape>(
 		test(({ model }) => {
@@ -141,7 +141,7 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	const target = eager(shape.shape);
 

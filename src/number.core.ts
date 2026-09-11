@@ -20,7 +20,7 @@
  * @module
  */
 
-import { isNumber } from "@metreeca/core";
+import { isNumber, type Optional } from "@metreeca/core";
 import { union } from "@metreeca/core/arrays";
 import { immutable } from "@metreeca/core/structures";
 import {
@@ -49,7 +49,7 @@ import type { NumberShape } from "./number.js";
  *
  * @returns A trace of consistency violations, or `undefined` if all constraints are consistent
  */
-export function checkNumber(constraints: Partial<NumberShape>): undefined | Trace {
+export function checkNumber(constraints: Partial<NumberShape>): Optional<Trace> {
 
 	return all<typeof constraints>(
 		test(({ minExclusive, maxExclusive }) => {
@@ -163,7 +163,7 @@ export function checkNumber(constraints: Partial<NumberShape>): undefined | Trac
  *
  * @returns A trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function narrowsNumber(target: NumberShape, source: NumberShape): undefined | Trace {
+export function narrowsNumber(target: NumberShape, source: NumberShape): Optional<Trace> {
 
 	return all<NumberShape>(
 		test(({ datatype }) => {
@@ -352,7 +352,7 @@ export function validateNumber(values: readonly unknown[], shape: NumberShape, {
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	switch ( scope ) {
 

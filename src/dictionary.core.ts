@@ -20,7 +20,7 @@
  * @module
  */
 
-import { isArray, isObject, isString, opt as fold } from "@metreeca/core";
+import { isArray, isObject, isString, opt as fold, type Optional } from "@metreeca/core";
 import { isTag, isTagRange, matchTag, type Tag } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/structures";
 import { all, array, fail, length, object, test, type Trace, TraceError } from "@metreeca/core/trace";
@@ -43,7 +43,7 @@ import type { DictionaryConstraints, DictionaryShape } from "./dictionary.js";
  *
  * @returns A keyed trace of violations, or `undefined` if the declaration is consistent
  */
-export function checkDictionary(constraints: Partial<DictionaryShape>): undefined | Trace {
+export function checkDictionary(constraints: Partial<DictionaryShape>): Optional<Trace> {
 
 	return all<typeof constraints>(
 		test(({ minLength, maxLength }) => {
@@ -81,7 +81,7 @@ export function checkDictionary(constraints: Partial<DictionaryShape>): undefine
 	 *
 	 * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
 	 */
-	function checkDictionaryModel(value: unknown): undefined | Trace {
+	function checkDictionaryModel(value: unknown): Optional<Trace> {
 
 		if ( isObject(value) ) {
 
@@ -123,7 +123,7 @@ export function checkDictionary(constraints: Partial<DictionaryShape>): undefine
  *
  * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function narrowsDictionary(target: DictionaryShape, source: DictionaryShape): undefined | Trace {
+export function narrowsDictionary(target: DictionaryShape, source: DictionaryShape): Optional<Trace> {
 
 	return all<DictionaryShape>(
 		test(({ minLength }) => {
@@ -250,7 +250,7 @@ export function deriveDictionary({
  *
  * @returns A trace of violations, or `undefined` when either arm accepts the value
  */
-export function validateDictionary(values: readonly unknown[], shape: DictionaryShape): undefined | Trace {
+export function validateDictionary(values: readonly unknown[], shape: DictionaryShape): Optional<Trace> {
 
 	const stringTrace = validateDictionaryString(values, shape);
 	const stringsTrace = validateDictionaryStrings(values, shape);
@@ -294,7 +294,7 @@ export function validateDictionarySet(value: unknown, {
 	readonly minCount?: number
 	readonly maxCount?: number
 
-}, shape: DictionaryShape): undefined | Trace {
+}, shape: DictionaryShape): Optional<Trace> {
 
 	const present = isObject(value) && (
 		Object.keys(value).length === 0
@@ -370,7 +370,7 @@ export function validateDictionaryString(values: readonly unknown[], {
 
 	languageIn
 
-}: DictionaryShape): undefined | Trace {
+}: DictionaryShape): Optional<Trace> {
 
 	const [value] = values;
 
@@ -429,7 +429,7 @@ export function validateDictionaryStrings(values: readonly unknown[], {
 
 	languageIn
 
-}: DictionaryShape): undefined | Trace {
+}: DictionaryShape): Optional<Trace> {
 
 	const [value] = values;
 
@@ -480,7 +480,7 @@ export function validateDictionaryStrings(values: readonly unknown[], {
  *
  * @returns A trace of violations, or `undefined` when either arm accepts the value
  */
-export function validateLocales(values: readonly unknown[]): undefined | Trace {
+export function validateLocales(values: readonly unknown[]): Optional<Trace> {
 
 	if ( values.length === 0 ) {
 
@@ -529,7 +529,7 @@ export function validateLocales(values: readonly unknown[]): undefined | Trace {
  *
  * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
  */
-export function validateLocalesString(value: unknown): undefined | Trace {
+export function validateLocalesString(value: unknown): Optional<Trace> {
 
 	if ( isString(value) ) {
 
@@ -574,7 +574,7 @@ export function validateLocalesString(value: unknown): undefined | Trace {
  *
  * @see {@link https://www.rfc-editor.org/rfc/rfc4647.html RFC 4647 - Matching of Language Tags}
  */
-export function validateLocalesStrings(value: unknown): undefined | Trace {
+export function validateLocalesStrings(value: unknown): Optional<Trace> {
 
 	if ( isArray(value, [isString]) ) {
 

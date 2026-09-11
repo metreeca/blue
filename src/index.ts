@@ -100,7 +100,7 @@
  * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  */
 
-import { type Lazy, map } from "@metreeca/core";
+import { type Lazy, map, type Optional } from "@metreeca/core";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { equals, seal } from "@metreeca/core/structures";
 import { type Trace, TraceError } from "@metreeca/core/trace";
@@ -182,7 +182,7 @@ export function validate<T extends Template>(value: unknown, opts: {
 }): Relay<{
 
 	readonly value: Instance<T>,
-	readonly trace: undefined | Trace
+	readonly trace: Optional<Trace>
 
 }>;
 
@@ -236,7 +236,7 @@ export function validate<T extends Template>(value: unknown, opts: {
 }): Relay<{
 
 	readonly value: Instance<T>,
-	readonly trace: undefined | Trace
+	readonly trace: Optional<Trace>
 
 }>;
 
@@ -305,7 +305,7 @@ export function validate<T extends Template>(value: unknown, opts: {
 }): Relay<{
 
 	readonly value: T,
-	readonly trace: undefined | Trace
+	readonly trace: Optional<Trace>
 
 }>;
 
@@ -337,7 +337,7 @@ export function validate(value: unknown, {
 }): Relay<{
 
 	readonly value: unknown,
-	readonly trace: undefined | Trace
+	readonly trace: Optional<Trace>
 
 }> {
 

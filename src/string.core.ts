@@ -20,7 +20,7 @@
  * @module
  */
 
-import { isString } from "@metreeca/core";
+import { isString, type Optional } from "@metreeca/core";
 import { union } from "@metreeca/core/arrays";
 import { immutable } from "@metreeca/core/structures";
 import {
@@ -47,7 +47,7 @@ import type { StringShape } from "./string.js";
  *
  * @returns A trace of consistency violations, or `undefined` if all constraints are consistent
  */
-export function checkString(constraints: Partial<StringShape>): undefined | Trace {
+export function checkString(constraints: Partial<StringShape>): Optional<Trace> {
 
 	return all<typeof constraints>(
 		test(({ minLength, maxLength }) => {
@@ -80,7 +80,7 @@ export function checkString(constraints: Partial<StringShape>): undefined | Trac
  *
  * @returns A trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function narrowsString(target: StringShape, source: StringShape): undefined | Trace {
+export function narrowsString(target: StringShape, source: StringShape): Optional<Trace> {
 
 	return all<StringShape>(
 		test(({ datatype }) => {
@@ -232,7 +232,7 @@ export function validateString(values: readonly unknown[], shape: StringShape, {
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	switch ( scope ) {
 

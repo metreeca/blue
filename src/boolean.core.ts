@@ -20,7 +20,7 @@
  * @module
  */
 
-import { isBoolean } from "@metreeca/core";
+import { isBoolean, type Optional } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
 import { array, test, type Trace, TraceError, type } from "@metreeca/core/trace";
 import type { BooleanShape } from "./boolean.js";
@@ -38,7 +38,7 @@ import type { Scope } from "./index.core.js";
  *
  * @returns A trace reporting the narrowing obstacle, or `undefined` when `target` narrows `source`
  */
-export function narrowsBoolean(target: BooleanShape, source: BooleanShape): undefined | Trace {
+export function narrowsBoolean(target: BooleanShape, source: BooleanShape): Optional<Trace> {
 
 	return test<BooleanShape>(({ model }) => {
 
@@ -91,7 +91,7 @@ export function validateBoolean(values: readonly unknown[], _shape: BooleanShape
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	return array(type(isBoolean))(values);
 

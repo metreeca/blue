@@ -20,7 +20,7 @@
  * @module
  */
 
-import { isNumber } from "@metreeca/core";
+import { isNumber, type Optional } from "@metreeca/core";
 import { union } from "@metreeca/core/arrays";
 import { immutable } from "@metreeca/core/structures";
 import {
@@ -90,7 +90,7 @@ export function create<V extends number>(constraints: NumberConstraints): Number
  *
  * @returns A trace of the inconsistencies found, or `undefined` where the constraints admit at least one value
  */
-export function checkNumber(constraints: Partial<NumberShape>): undefined | Trace {
+export function checkNumber(constraints: Partial<NumberShape>): Optional<Trace> {
 
 	return all<typeof constraints>(
 		test(({ minExclusive, maxExclusive }) => {
@@ -204,7 +204,7 @@ export function checkNumber(constraints: Partial<NumberShape>): undefined | Trac
  *
  * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
  */
-export function narrowsNumber(target: NumberShape, source: NumberShape): undefined | Trace {
+export function narrowsNumber(target: NumberShape, source: NumberShape): Optional<Trace> {
 
 	const { in: allowed, hasValue: required } = source;
 
@@ -391,7 +391,7 @@ export function validateNumber(values: readonly unknown[], shape: NumberShape, {
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	switch ( scope ) {
 

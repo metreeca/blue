@@ -29,7 +29,8 @@ import {
 	isObject,
 	isString,
 	type Lazy,
-	opt as fold
+	opt as fold,
+	type Optional
 } from "@metreeca/core";
 import { union } from "@metreeca/core/arrays";
 import { isTagRange, matchTag } from "@metreeca/core/language";
@@ -113,7 +114,7 @@ const PatternFormat = new RegExp(
  *
  * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
  */
-export function checkResource(constraints: Partial<ResourceShape>): undefined | Trace {
+export function checkResource(constraints: Partial<ResourceShape>): Optional<Trace> {
 
 	return all<typeof constraints>(
 		test(({ in: allowed, hasValue }) => {
@@ -142,7 +143,7 @@ export function checkResource(constraints: Partial<ResourceShape>): undefined | 
  *
  * @returns A keyed trace of violations, or `undefined` if no conflicts exist
  */
-export function checkParents(shape: ResourceShape, parents: readonly ResourceShape[]): undefined | Trace {
+export function checkParents(shape: ResourceShape, parents: readonly ResourceShape[]): Optional<Trace> {
 
 	if ( parents.length < 2 ) { return undefined; }
 
@@ -204,7 +205,7 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
  *
  * @returns A keyed trace of violations, or `undefined` if no duplicates exist
  */
-export function checkSingletons(properties: readonly { readonly kind?: string }[]): undefined | Trace {
+export function checkSingletons(properties: readonly { readonly kind?: string }[]): Optional<Trace> {
 
 	return all<typeof properties>(
 		test(props => {
@@ -235,7 +236,7 @@ export function checkSingletons(properties: readonly { readonly kind?: string }[
  *
  * @returns A keyed trace of violations, or `undefined` if no duplicates exist
  */
-export function checkPredicates(shape: ResourceShape): undefined | Trace {
+export function checkPredicates(shape: ResourceShape): Optional<Trace> {
 
 	const properties = Object.entries(shape.members)
 		.filter((e): e is [string, Property] => e[1].kind === "property");
@@ -290,7 +291,7 @@ export function checkPredicates(shape: ResourceShape): undefined | Trace {
  *
  * @returns A keyed trace of violations, or `undefined` if no embedded resource declares an identifier
  */
-export function checkId(shape: ResourceShape): undefined | Trace {
+export function checkId(shape: ResourceShape): Optional<Trace> {
 
 	return all(...Object.entries(shape.members)
 		.filter((e): e is [string, Property] => e[1].kind === "property")
@@ -316,7 +317,7 @@ export function checkId(shape: ResourceShape): undefined | Trace {
  *
  * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function narrowsResource(target: ResourceShape, source: ResourceShape): undefined | Trace {
+export function narrowsResource(target: ResourceShape, source: ResourceShape): Optional<Trace> {
 
 	return all<ResourceShape>(
 		test(({ pattern }) => {
@@ -384,7 +385,7 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): u
  *
  * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function narrowsProperty(target: Property, source: Property): undefined | Trace {
+export function narrowsProperty(target: Property, source: Property): Optional<Trace> {
 
 	return all<Property>(
 		test(({ name }) => {
@@ -678,7 +679,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	readonly entry?: Reference
 	readonly depth?: number
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
@@ -728,7 +729,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 		value: unknown,
 		{ range, foreign, captive }: Property,
 		depth: undefined | number
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		// a foreign property belongs to the referenced resource, not to the source state
 
@@ -747,7 +748,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 		shape
 
-	}: SetShape, captive: undefined | boolean, depth: undefined | number): undefined | Trace {
+	}: SetShape, captive: undefined | boolean, depth: undefined | number): Optional<Trace> {
 
 		const effective = value === undefined || isArray(value, []) ? undefined : value;
 
@@ -797,7 +798,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 		shape: Shape,
 		captive: undefined | boolean,
 		depth: undefined | number
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		switch ( shape.kind ) {
 
@@ -836,7 +837,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 		shape: ReferenceShape,
 		captive: undefined | boolean,
 		depth: undefined | number
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		const next = depth === undefined ? undefined : depth-1;
 
@@ -921,7 +922,7 @@ export function validateResult(values: readonly unknown[], {
 
 	readonly entry?: Reference
 
-}): undefined | Trace {
+}): Optional<Trace> {
 
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
@@ -965,7 +966,7 @@ export function validateResult(values: readonly unknown[], {
 	)(undefined);
 
 
-	function validateRange(value: unknown, shape: SetShape, model: unknown): undefined | Trace {
+	function validateRange(value: unknown, shape: SetShape, model: unknown): Optional<Trace> {
 
 		const variants = getMultiVariants(shape);
 
@@ -976,7 +977,7 @@ export function validateResult(values: readonly unknown[], {
 	}
 
 
-	function validateValues(value: unknown, shape: SetShape, model: unknown): undefined | Trace {
+	function validateValues(value: unknown, shape: SetShape, model: unknown): Optional<Trace> {
 
 		const { minCount, maxCount } = shape;
 
@@ -1021,7 +1022,7 @@ export function validateResult(values: readonly unknown[], {
 		values: readonly unknown[],
 		shape: readonly ValuesShape[],
 		model: unknown
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		if ( shape.length !== 1 ) {
 
@@ -1065,7 +1066,7 @@ export function validateResult(values: readonly unknown[], {
 		value: unknown,
 		shape: readonly ValuesShape[],
 		nested: unknown
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		// keys are immaterial: a value must single out exactly one variant (`sh:xone`) by shape. A keyed
 		// `Union` supplies a per-branch sub-model; a plain projection forwards unchanged to every variant.
@@ -1139,7 +1140,7 @@ export function validateResult(values: readonly unknown[], {
 		range: SetShape,
 		dictionaryShape: DictionaryShape,
 		model: unknown
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		// normalise absence (mirrors the state-side contract): `undefined`, `[]`, and an empty map `{}`
 
@@ -1165,7 +1166,7 @@ export function validateResult(values: readonly unknown[], {
 
 	}
 
-	function validateCoalesced(present: unknown, range: SetShape, dictionaryShape: DictionaryShape): undefined | Trace {
+	function validateCoalesced(present: unknown, range: SetShape, dictionaryShape: DictionaryShape): Optional<Trace> {
 
 		if ( present === undefined ) {
 
@@ -1196,7 +1197,7 @@ export function validateResult(values: readonly unknown[], {
 		range: SetShape,
 		dictionaryShape: DictionaryShape,
 		tags: readonly string[]
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		const isScalar = range.maxCount === 1;
 		const wildcard = tags.includes("*");
@@ -1241,7 +1242,7 @@ export function validateResult(values: readonly unknown[], {
 		maxLength,
 		languageIn
 
-	}: DictionaryShape): undefined | Trace {
+	}: DictionaryShape): Optional<Trace> {
 
 		return tagValue === undefined ? ["missing projected tag"]
 			: !isString(tagValue) ? ["expected string value"]
@@ -1258,7 +1259,7 @@ export function validateResult(values: readonly unknown[], {
 
 	}
 
-	function validateCardinality(count: number, { minCount, maxCount }: SetShape): undefined | Trace {
+	function validateCardinality(count: number, { minCount, maxCount }: SetShape): Optional<Trace> {
 		return all(
 			(minCount !== undefined && count < minCount)
 			&& fail([`{minCount} expected at least <${minCount}> value(s)`]),
@@ -1268,7 +1269,7 @@ export function validateResult(values: readonly unknown[], {
 		)(undefined);
 	}
 
-	function validateLength(value: string, { minLength, maxLength }: DictionaryShape): undefined | Trace {
+	function validateLength(value: string, { minLength, maxLength }: DictionaryShape): Optional<Trace> {
 		return all(
 			(minLength !== undefined && value.length < minLength)
 			&& fail([`{minLength} expected string length >= <${minLength}>`]),
@@ -1391,7 +1392,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	readonly depth?: number
 	readonly limit?: number
 
-}): undefined | Trace {
+}): Optional<Trace> {
 
 	const matching = values.filter(value => isObject(value));
 	const mistyped = values.length-matching.length;
@@ -1411,7 +1412,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		value: unknown,
 		shape: ResourceShape,
 		depth: undefined | number
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		if ( !isObject(value) ) {
 
@@ -1443,7 +1444,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		value: unknown,
 		shape: SetShape,
 		depth: undefined | number
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		const variants = getMultiVariants(shape);
 		const [variant] = variants;
@@ -1458,7 +1459,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		value: unknown,
 		shape: ValueShape,
 		depth: undefined | number
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		const next = depth === undefined ? depth : depth-1;
 
@@ -1496,7 +1497,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		shape: SetShape | RangeShape,
 		depth: undefined | number,
 		local: boolean = false
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		const variants = getMultiVariants(shape);
 		const [variant] = variants;
@@ -1511,7 +1512,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		value: unknown,
 		shape: SetShape,
 		depth: undefined | number
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		if ( !isArray(value) || value.length < 1 || value.length > 2 ) {
 
@@ -1545,13 +1546,13 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		// spread a keyed trace, or file an atomic message trace under its tuple position
 
-		function positional(trace: undefined | Trace, index: string): undefined | Trace {
+		function positional(trace: Optional<Trace>, index: string): Optional<Trace> {
 			return trace === undefined ? undefined
 				: trace.every(item => isString(item)) ? [{ [index]: trace }]
 					: trace;
 		}
 
-		function validateGroupedOrdering(element: unknown, selection: unknown): undefined | Trace {
+		function validateGroupedOrdering(element: unknown, selection: unknown): Optional<Trace> {
 
 			if ( !isObject(selection) ) { return undefined; }
 
@@ -1587,7 +1588,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		value: unknown,
 		shape: SetShape,
 		depth: undefined | number
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		const variants = getMultiVariants(shape);
 		const [variant] = variants;
@@ -1634,7 +1635,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	function validateLocale(
 		value: unknown,
 		shape: SetShape | RangeShape
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		return shape.maxCount === 1
 			? validateLocalesString(value)
@@ -1647,7 +1648,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		shape: SetShape | RangeShape,
 		depth: undefined | number,
 		local: boolean = false
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		const variants = getMultiVariants(shape);
 
@@ -1677,7 +1678,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		value: unknown,
 		shape: ResourceShape,
 		depth: undefined | number
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		if ( !isObject(value) ) {
 
@@ -1700,7 +1701,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			))(undefined);
 
 
-			function binding_trace(binding: string, model: unknown): undefined | Trace {
+			function binding_trace(binding: string, model: unknown): Optional<Trace> {
 
 				const probe = isBinding(binding) ? probes.get(binding) : undefined;
 
@@ -1760,7 +1761,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		value: unknown,
 		shape: SetShape,
 		depth: undefined | number
-	): undefined | Trace {
+	): Optional<Trace> {
 
 		// a selector path resolves through the collection element, one level below the collection itself
 
@@ -1786,7 +1787,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			))(undefined);
 
 
-			function selector(k: string, v: unknown): undefined | Trace {
+			function selector(k: string, v: unknown): Optional<Trace> {
 
 				if ( !isSelector(k) ) {
 
@@ -1862,7 +1863,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		}
 
 
-		function validateBound(value: unknown, variants: readonly ValuesShape[]): undefined | Trace {
+		function validateBound(value: unknown, variants: readonly ValuesShape[]): Optional<Trace> {
 
 			if ( variants.length === 0 ) { // no shape to constrain, template immaterial
 
@@ -1911,7 +1912,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		}
 
-		function validateKeywords(value: unknown, variants: readonly ValuesShape[]): undefined | Trace {
+		function validateKeywords(value: unknown, variants: readonly ValuesShape[]): Optional<Trace> {
 
 			if ( variants.length === 0 ) {
 
@@ -1953,7 +1954,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		}
 
-		function validateOptions(value: unknown, variants: readonly ValuesShape[]): undefined | Trace {
+		function validateOptions(value: unknown, variants: readonly ValuesShape[]): Optional<Trace> {
 
 			if ( variants.length === 0 ) {
 
@@ -1968,7 +1969,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 				// each option singles out exactly one variant (`sh:xone`); a null option is typeless and exempt
 
-				function validate(option: unknown): undefined | Trace {
+				function validate(option: unknown): Optional<Trace> {
 					return option === null ? undefined : validateUnion(option, variants, {
 						match: (option, variant) => validateOptions(option, [variant]) === undefined
 					});
@@ -2003,7 +2004,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		}
 
-		function validateOption(value: unknown, shape: ValueShape): undefined | Trace {
+		function validateOption(value: unknown, shape: ValueShape): Optional<Trace> {
 
 			if ( value === null ) {
 
@@ -2040,7 +2041,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		}
 
-		function validateOrder(value: unknown, range: undefined | RangeShape): undefined | Trace {
+		function validateOrder(value: unknown, range: undefined | RangeShape): Optional<Trace> {
 
 			if ( value !== "asc" && value !== "desc" && !Number.isInteger(value) ) {
 
@@ -2066,13 +2067,13 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		}
 
 
-		function validateOffset(v: any): undefined | Trace {
+		function validateOffset(v: any): Optional<Trace> {
 			return !isNumber(v) ? ["expected number value"]
 				: !Number.isInteger(v) || v < 0 ? ["expected non-negative integer"]
 					: undefined;
 		}
 
-		function validateLimit(v: any): undefined | Trace {
+		function validateLimit(v: any): Optional<Trace> {
 			return !isNumber(v) ? ["expected number value"]
 				: !Number.isInteger(v) || v < 0 ? ["expected non-negative integer"]
 					: limit && (v === 0 || v > limit) ? [`exceeded maximum result set limit <${limit}>`]
@@ -2523,7 +2524,7 @@ function key(value: unknown, shape: ResourceShape, index: number) {
  *
  * @returns A keyed {@link Trace} of violations, or `undefined` when the value satisfies the constraints
  */
-function validateId(value: unknown, shape: ResourceShape, entry: undefined | Reference): undefined | Trace {
+function validateId(value: unknown, shape: ResourceShape, entry: undefined | Reference): Optional<Trace> {
 
 	const { pattern, in: allowed, hasValue: required } = shape;
 
@@ -2567,7 +2568,7 @@ function validateId(value: unknown, shape: ResourceShape, entry: undefined | Ref
  *
  * @returns A keyed {@link Trace} of violations, or `undefined` when the value matches the declared class
  */
-function validateType(value: unknown, shape: ResourceShape): undefined | Trace {
+function validateType(value: unknown, shape: ResourceShape): Optional<Trace> {
 
 	const { class: clazz } = shape;
 

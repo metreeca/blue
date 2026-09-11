@@ -20,7 +20,7 @@
  * @module
  */
 
-import { eager, type Eager, isFunction, type Lazy } from "@metreeca/core";
+import { eager, type Eager, isFunction, type Lazy, type Optional } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
 import { array, type Trace, TraceError } from "@metreeca/core/trace";
 import { mergeShape, narrowsShape, type Scope, validateShape } from "./index.core.js";
@@ -90,7 +90,7 @@ export function create<B extends UnionBranches>(branches: B): UnionShape<B> {
  *
  * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
  */
-export function narrowsUnion(target: UnionShape, source: UnionShape): undefined | Trace {
+export function narrowsUnion(target: UnionShape, source: UnionShape): Optional<Trace> {
 
 	const claimed = claim(target, source);
 
@@ -144,7 +144,7 @@ export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
  *
  * @returns A map from inherited branch to the branch claiming it, or a trace of the obstacles to the pairing
  */
-function claim(target: UnionShape, source: UnionShape): NonNullable<undefined | Trace> | Map<number, number> {
+function claim(target: UnionShape, source: UnionShape): NonNullable<Optional<Trace>> | Map<number, number> {
 
 	const inherited = getShapeBranches(source);
 
@@ -204,7 +204,7 @@ export function validateUnion(values: readonly unknown[], shape: UnionShape, {
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	const branches = getShapeBranches(shape);
 

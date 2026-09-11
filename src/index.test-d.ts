@@ -23,6 +23,7 @@
  * @module
  */
 
+import type { Optional } from "@metreeca/core";
 import type { Relay } from "@metreeca/core/relay";
 import type { Trace } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
@@ -49,7 +50,7 @@ describe("validate (projection) overload", () => {
 
 		expectTypeOf(relay).toEqualTypeOf<Relay<{
 			readonly value: { readonly name: string; readonly price: number };
-			readonly trace: undefined | Trace;
+			readonly trace: Optional<Trace>;
 		}>>();
 
 	});
@@ -64,7 +65,7 @@ describe("validate (projection) overload", () => {
 
 		expectTypeOf(relay).toEqualTypeOf<Relay<{
 			readonly value: { readonly price: number };
-			readonly trace: undefined | Trace;
+			readonly trace: Optional<Trace>;
 		}>>();
 
 	});

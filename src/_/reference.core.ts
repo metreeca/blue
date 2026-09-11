@@ -20,7 +20,7 @@
  * @module
  */
 
-import { eager, type Lazy, map } from "@metreeca/core";
+import { eager, type Lazy, map, type Optional } from "@metreeca/core";
 import { isIRI } from "@metreeca/core/resource";
 import { equals, immutable } from "@metreeca/core/structures";
 import { all, array, domain, test, type Trace, TraceError, type, values as contains } from "@metreeca/core/trace";
@@ -71,7 +71,7 @@ export function create<T extends Lazy<ResourceShape>>(target: T): ReferenceShape
  *
  * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
  */
-export function narrowsReference(target: ReferenceShape, source: ReferenceShape): undefined | Trace {
+export function narrowsReference(target: ReferenceShape, source: ReferenceShape): Optional<Trace> {
 
 	return test<ReferenceShape>(({ target: pointed }) => {
 
@@ -151,7 +151,7 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	const target = eager(shape.target);
 

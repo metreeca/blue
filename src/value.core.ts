@@ -20,7 +20,7 @@
  * @module
  */
 
-import { assert, error, type Identifier, isFunction, isString, type Lazy } from "@metreeca/core";
+import { assert, error, type Identifier, isFunction, isString, type Lazy, type Optional } from "@metreeca/core";
 import { unique } from "@metreeca/core/arrays";
 import { xsd } from "@metreeca/core/datatype";
 import { equals, immutable } from "@metreeca/core/structures";
@@ -129,7 +129,7 @@ const models = new WeakMap<() => Shape, null | Schema<Shape>>();
  *
  * @returns A keyed trace of violations, or `undefined` if all constraints are consistent
  */
-export function checkValues(constraints: Partial<SetShape>): undefined | Trace {
+export function checkValues(constraints: Partial<SetShape>): Optional<Trace> {
 
 	return all<typeof constraints>(
 		test(({ minCount, maxCount }) => {
@@ -159,7 +159,7 @@ export function checkValues(constraints: Partial<SetShape>): undefined | Trace {
  *
  * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function narrowsValue(target: ValuesShape, source: ValuesShape): undefined | Trace {
+export function narrowsValue(target: ValuesShape, source: ValuesShape): Optional<Trace> {
 
 	// kind-equality guard: a mismatch is reported rather than dispatched, so each per-kind branch is reached only when
 	// both shapes share target.kind — the source casts below merely bridge a gap the type system cannot see
@@ -186,7 +186,7 @@ export function narrowsValue(target: ValuesShape, source: ValuesShape): undefine
 	 *
 	 * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source` as a value
 	 */
-	function narrowsResourceValue(target: ResourceShape, source: ResourceShape): undefined | Trace {
+	function narrowsResourceValue(target: ResourceShape, source: ResourceShape): Optional<Trace> {
 
 		return all<ResourceShape>(
 			test(shape => {
@@ -220,7 +220,7 @@ export function narrowsValue(target: ValuesShape, source: ValuesShape): undefine
  *
  * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
  */
-export function narrowsValues(target: SetShape, source: SetShape): undefined | Trace {
+export function narrowsValues(target: SetShape, source: SetShape): Optional<Trace> {
 
 	return all<SetShape>(
 		test(({ minCount }) => {
@@ -259,7 +259,7 @@ export function narrowsValues(target: SetShape, source: SetShape): undefined | T
 	 *
 	 * @returns A keyed trace of narrowing obstacles, or `undefined` when `target` narrows `source`
 	 */
-	function narrowsShape(target: Shape, source: Shape): undefined | Trace {
+	function narrowsShape(target: Shape, source: Shape): Optional<Trace> {
 
 		return source.kind === "union"
 			? target.kind === "union" ? narrowsUnion(target, source) : narrowsVariant(target, source)
@@ -276,7 +276,7 @@ export function narrowsValues(target: SetShape, source: SetShape): undefined | T
 	 *
 	 * @returns A narrowing obstacle, or `undefined` when `target` narrows exactly one base variant
 	 */
-	function narrowsVariant(target: ValuesShape, source: UnionShape): undefined | Trace {
+	function narrowsVariant(target: ValuesShape, source: UnionShape): Optional<Trace> {
 
 		const matches = source.variants.filter(base => narrowsValue(target, base) === undefined);
 
@@ -523,7 +523,7 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape, {
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	switch ( shape.kind ) {
 
