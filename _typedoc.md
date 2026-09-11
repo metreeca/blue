@@ -49,7 +49,7 @@ The plugin provides two guarantees, and each public symbol relies on one of them
 - **A reference to a symbol left out of the docs renders as `…`.** Any reference that resolves to nothing in the
   project, whether the target carries `@internal` or lives in a file that is not an entry point, is elided in every
   type TypeDoc renders: alias bodies, signatures, parameters and type parameter bounds. `property()` relies on this
-  once `Declared` is `@internal`, rendering as `C & PropertyConstrains & Range<R, …, …> & { kind: "property" }`.
+  once `Declared` is `@internal`, rendering as `C & PropertyConstraints & Range<R, …, …> & { kind: "property" }`.
 
 The second guarantee is a safety net as well: any helper that leaks into a future public signature renders as `…`
 rather than as a dead name, with no per-site tagging.
@@ -140,7 +140,7 @@ tag and `excludeInternal` would silently stop excluding anything.
 
 # Limitations
 
-- **Flattened intersections.** `C & Property<R, …>` renders as `C & PropertyConstrains & Range<R, …, …> & { kind:
+- **Flattened intersections.** `C & Property<R, …>` renders as `C & PropertyConstraints & Range<R, …, …> & { kind:
   "property" }`: TypeScript drops the `Property` alias name inside an intersection before TypeDoc sees it. Unrelated to
   the plugin and not fixable from it.
 - **External references stay.** A reference into `@metreeca/core` or `@metreeca/qest` carries an external URL and is

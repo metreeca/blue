@@ -57,6 +57,8 @@ import type { Lazy } from "@metreeca/core";
 import type { Shape } from "./index.js";
 import { create } from "./union.core.js";
 
+export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } from "./union.core.js";
+
 
 /**
  * Describes a value drawn from one of several alternatives.

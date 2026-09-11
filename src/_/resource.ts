@@ -149,6 +149,13 @@ import type { Dictionary, Reference } from "@metreeca/qest/resource";
 import type { Range, Shape } from "./index.js";
 import { assemble, type Declared, declare } from "./resource.core.js";
 
+export {
+	getShapeClass,
+	getShapeId,
+	getShapeProperties,
+	getShapeType
+} from "./resource.core.js";
+
 
 /**
  * Default space for resolving member names to predicate IRIs (`app:/#`).
@@ -466,7 +473,7 @@ export type Property<
 	R extends Lazy<Shape> = Lazy<Shape>,
 	L extends Optional<number> = Optional<number>,
 	U extends Optional<number> = Optional<number>
-> = PropertyConstrains & Range<R, L, U> & {
+> = PropertyConstraints & Range<R, L, U> & {
 
 	/**
 	 * Discriminator identifying this as a member carrying values.
@@ -485,7 +492,7 @@ export type Property<
  *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
  */
-export type PropertyConstrains = {
+export type PropertyConstraints = {
 
 	/**
 	 * Excludes the property from default serialisation.
@@ -604,7 +611,7 @@ export type PropertyConstrains = {
  *
  * Accepted by {@link property} for bounds beyond the four the cardinality factories name.
  */
-export type PropertyBounds = PropertyConstrains & {
+export type PropertyBounds = PropertyConstraints & {
 
 	/**
 	 * Least number of values admitted.
@@ -716,13 +723,13 @@ export function type(): Type {
  * @typeParam C The stated constraints
  *
  * @param range The shape the values are drawn from, possibly deferred to break definition cycles
- * @param constraints Optional member {@link PropertyConstrains constraints}
+ * @param constraints Optional member {@link PropertyConstraints constraints}
  *
  * @returns An immutable member admitting any number of values of `range`
  */
 export function multiple<
 	R extends Lazy<Shape>,
-	const C extends PropertyConstrains = {}
+	const C extends PropertyConstraints = {}
 >(
 	range: R, constraints?: C
 ): C & Property<R, undefined, undefined> {
@@ -738,13 +745,13 @@ export function multiple<
  * @typeParam C The stated constraints
  *
  * @param range The shape the values are drawn from, possibly deferred to break definition cycles
- * @param constraints Optional member {@link PropertyConstrains constraints}
+ * @param constraints Optional member {@link PropertyConstraints constraints}
  *
  * @returns An immutable member requiring at least one value of `range`
  */
 export function nonempty<
 	R extends Lazy<Shape>,
-	const C extends PropertyConstrains = {}
+	const C extends PropertyConstraints = {}
 >(
 	range: R, constraints?: C
 ): C & Property<R, 1, undefined> {
@@ -760,13 +767,13 @@ export function nonempty<
  * @typeParam C The stated constraints
  *
  * @param range The shape the value is drawn from, possibly deferred to break definition cycles
- * @param constraints Optional member {@link PropertyConstrains constraints}
+ * @param constraints Optional member {@link PropertyConstraints constraints}
  *
  * @returns An immutable member admitting at most one value of `range`
  */
 export function optional<
 	R extends Lazy<Shape>,
-	const C extends PropertyConstrains = {}
+	const C extends PropertyConstraints = {}
 >(
 	range: R, constraints?: C
 ): C & Property<R, undefined, 1> {
@@ -782,13 +789,13 @@ export function optional<
  * @typeParam C The stated constraints
  *
  * @param range The shape the value is drawn from, possibly deferred to break definition cycles
- * @param constraints Optional member {@link PropertyConstrains constraints}
+ * @param constraints Optional member {@link PropertyConstraints constraints}
  *
  * @returns An immutable member requiring exactly one value of `range`
  */
 export function required<
 	R extends Lazy<Shape>,
-	const C extends PropertyConstrains = {}
+	const C extends PropertyConstraints = {}
 >(
 	range: R, constraints?: C
 ): C & Property<R, 1, 1> {

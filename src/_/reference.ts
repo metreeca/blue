@@ -47,7 +47,7 @@
  * created and managed together with the resource carrying it.
  *
  * Ownership and lifecycle are stated on the member rather than on the reference: see
- * {@link resource!PropertyConstrains.foreign | foreign} and {@link resource!PropertyConstrains.captive | captive}.
+ * {@link resource!PropertyConstraints.foreign | foreign} and {@link resource!PropertyConstraints.captive | captive}.
  *
  * @module
  *
@@ -57,6 +57,8 @@
 import type { Lazy } from "@metreeca/core";
 import { create } from "./reference.core.js";
 import type { ResourceShape } from "./resource.js";
+
+export { getShapeTarget } from "./reference.core.js";
 
 
 /**
