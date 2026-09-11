@@ -2505,7 +2505,8 @@ function key(value: unknown, shape: ResourceShape, index: number) {
  *
  * An absent value is vacuously valid (cardinality is enforced by the caller). A present value must be a single
  * absolute IRI matching the shape's `pattern` / `in` / `hasValue` constraints and, when supplied, the `entry`
- * reference. Shared by {@link validateResource} and {@link validateResult}.
+ * reference. `hasValue` requires the identifier to equal every listed value, so a shape listing two or more admits
+ * no resource. Shared by {@link validateResource} and {@link validateResult}.
  *
  * @param value The candidate identifier value
  * @param shape The resource shape declaring the identifier constraints
@@ -2537,7 +2538,7 @@ function validateId(value: unknown, shape: ResourceShape, entry: undefined | Ref
 		(allowed !== undefined && !(isReference(value) && allowed.includes(value)))
 		&& fail([`{in} expected values in [${allowed.join(", ")}]`]),
 
-		(required !== undefined && !(isReference(value) && required.includes(value)))
+		(required !== undefined && !(isReference(value) && required.every(v => v === value)))
 		&& fail([`{hasValue} expected values to include [${required.join(", ")}]`])
 	)(undefined);
 

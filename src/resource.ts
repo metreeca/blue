@@ -644,6 +644,8 @@ export interface ResourceConstraints {
 	 *
 	 * When specified, all listed resource identifiers must appear. IRIs must be absolute. Empty arrays are ignored.
 	 *
+	 * A resource carries a single identifier, so a list of two or more values admits no resource at all.
+	 *
 	 * **Inheritance** — union of parent and child required values; child must require all parent values.
 	 *
 	 * @defaultValue `undefined` (no required values)

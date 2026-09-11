@@ -4498,6 +4498,22 @@ describe("validators", () => {
 
 				});
 
+				it("rejects every id against several required values", async () => {
+
+					// a single identifier cannot equal two required values at once
+
+					const shape = resource({ id: id() }, {
+						hasValue: ["app:/users/admin", "app:/users/root"]
+					});
+
+					const trace = validateResource([{ "id": "app:/users/admin" }], shape);
+					const inner = rec(trace, "<app:/users/admin>");
+
+					expect(inner).toHaveProperty("id");
+					expect(inner["id"]).toContainEqual(expect.stringContaining("{hasValue}"));
+
+				});
+
 			});
 
 		});
@@ -4613,7 +4629,12 @@ describe("validators", () => {
 					const Parent = resource({ id: id() }, { hasValue: ["app:/users/admin"] });
 					const Child = resource(Parent, { name: required(string()) }, { hasValue: ["app:/users/root"] });
 
-					// id "app:/users/guest" fails both parent and child hasValue
+					// a single identifier cannot equal both required values, so every id fails, the parent's
+					// own required value included
+
+					expect(validateResource([
+						{ "id": "app:/users/admin", "name": "Admin" }
+					], Child)).toBeDefined();
 
 					const trace = validateResource([
 						{ "id": "app:/users/guest", "name": "Guest" }
