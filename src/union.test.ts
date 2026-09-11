@@ -101,6 +101,24 @@ describe("operators", () => {
 
 		});
 
+		it("accepts a child variant narrowing a base enumeration", async () => {
+
+			expect(narrowsUnion(
+				union(string({ in: ["a"] })),
+				union(string({ in: ["a", "b"] }))
+			)).toBeUndefined();
+
+		});
+
+		it("rejects a child variant widening a base enumeration", async () => {
+
+			expect(narrowsUnion(
+				union(string({ in: ["a", "z"] })),
+				union(string({ in: ["a", "b"] }))
+			)).toBeDefined();
+
+		});
+
 	});
 
 	describe("mergeUnion", () => {

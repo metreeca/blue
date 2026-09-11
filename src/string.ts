@@ -164,7 +164,7 @@ import { checkString } from "./string.core.js";
  * | `datatype`  | Must be strictly equal when both defined; the single defined value carries through |
  * | `minLength` | Child ≥ parent, narrowing the minimum length                                       |
  * | `maxLength` | Child ≤ parent, narrowing the maximum length                                       |
- * | `in`        | Child narrows the parent set; a widened set is reported as an error                |
+ * | `in`        | Child subset of parent; anything else is reported as an error                      |
  * | `hasValue`  | Union of parent and child required values; child must require all parent values    |
  *
  * **Cross-Field Validation**
@@ -315,7 +315,7 @@ export interface StringValueConstraints {
 	 *
 	 * When specified, values must be members of this list. Empty arrays are ignored.
 	 *
-	 * **Inheritance** — child narrows the parent set; a widened set is reported as an error.
+	 * **Inheritance** — child subset of parent; anything else is reported as an error.
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *

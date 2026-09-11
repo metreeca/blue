@@ -1871,6 +1871,24 @@ describe("internals", () => {
 
 		});
 
+		it("accepts a resource child narrowing the base enumeration", async () => {
+
+			const Base = resource({}, { in: ["http://example.org/a", "http://example.org/b"] });
+			const Narrow = resource({}, { in: ["http://example.org/a"] });
+
+			expect(narrowsValue(Narrow, Base)).toBeUndefined();
+
+		});
+
+		it("rejects a resource child widening the base enumeration", async () => {
+
+			const Base = resource({}, { in: ["http://example.org/a", "http://example.org/b"] });
+			const Wide = resource({}, { in: ["http://example.org/a", "http://example.org/z"] });
+
+			expect(narrowsValue(Wide, Base)).toBeDefined();
+
+		});
+
 	});
 
 	describe("narrowsValues", () => {

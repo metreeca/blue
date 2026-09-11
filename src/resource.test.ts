@@ -831,6 +831,37 @@ describe("factories", () => {
 
 			});
 
+			it("accepts a child property range narrowing an inherited enumeration", async () => {
+
+				const Parent = resource({ code: required(string({ in: ["a", "b"] })) });
+
+				expect(() => resource(Parent, { code: required(string({ in: ["a"] })) })).not.toThrow();
+
+			});
+
+			it("throws on a child property range widening an inherited enumeration", async () => {
+
+				// the range check reaches the value shape through narrowsProperty and narrowsValues
+
+				const Parent = resource({ code: required(string({ in: ["a", "b"] })) });
+
+				expect(() => resource(Parent, { code: required(string({ in: ["a", "z"] })) })).toThrow(TraceError);
+
+			});
+
+			it("throws on a nested resource range widening an inherited enumeration", async () => {
+
+				const Inner = resource({}, { in: ["app:/a", "app:/b"] });
+				const Wide = resource(Inner, {});
+
+				const Parent = resource({ nested: required(Inner) });
+
+				expect(() => resource(Parent, {
+					nested: required(resource(Wide, {}, { in: ["app:/a", "app:/z"] }))
+				})).toThrow(TraceError);
+
+			});
+
 			it("throws on invalid property (entries only)", async () => {
 
 				expect(() => resource({

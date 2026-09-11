@@ -147,7 +147,7 @@ const FloatLimit = (2-2** -23)*2**127;
  * | `maxExclusive` | Child ≤ parent, narrowing the exclusive upper bound                                         |
  * | `minInclusive` | Child ≥ parent, narrowing the inclusive lower bound                                         |
  * | `maxInclusive` | Child ≤ parent, narrowing the inclusive upper bound                                         |
- * | `in`           | Child narrows the parent set; a widened set is reported as an error                         |
+ * | `in`           | Child subset of parent; anything else is reported as an error                               |
  * | `hasValue`     | Union of parent and child required values; child must require all parent values             |
  *
  * Inclusive/exclusive pairs are independently merged: a child may define an exclusive bound alongside a parent's
@@ -294,7 +294,7 @@ export interface NumberRangeConstraints {
 	 *
 	 * When specified, values must be members of this list. Empty arrays are ignored.
 	 *
-	 * **Inheritance** — child narrows the parent set; a widened set is reported as an error.
+	 * **Inheritance** — child subset of parent; anything else is reported as an error.
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *

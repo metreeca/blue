@@ -385,13 +385,13 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | `description` | Always from child; not inherited                                                        |
  * | `classes`     | Computed from the `class` of the extended shapes, not user-defined                      |
  * | `parents`     | Structural; outside inheritance scope                                                   |
- * | `members`     | Union; clashing keys merged per property rules; `kind` mismatch is reported as an error  |
+ * | `members`     | Union; clashing keys merged per property rules; `kind` mismatch is reported as an error |
  * | `validators`  | Union of parent and child validators; all apply                                         |
  * | `virtual`     | Inherited; conflicting parents without child override are reported as an error          |
  * | `space`       | Inherited; conflicting parents without child override are reported as an error          |
  * | `class`       | Shape-specific target class; outside inheritance scope                                  |
  * | `pattern`     | Child may replace trailing `/*` wildcard with more specific segments                    |
- * | `in`          | Child narrows the parent set; a widened set is reported as an error                     |
+ * | `in`          | Child subset of parent; anything else is reported as an error                           |
  * | `hasValue`    | Union of parent and child required values; child must require all parent values         |
  *
  * **Refinement as a Nested Value**
@@ -631,7 +631,7 @@ export interface ResourceConstraints {
 	 * When specified, resource identifiers must be members of this list. IRIs must be absolute. Empty arrays are
 	 * ignored.
 	 *
-	 * **Inheritance** — child narrows the parent set; a widened set is reported as an error.
+	 * **Inheritance** — child subset of parent; anything else is reported as an error.
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
@@ -1366,7 +1366,7 @@ type Argument =
  * ```
  */
 export function resource<const P extends Parents, E extends Members>(
-	...args: [ ...parents: P, entries: E & Override<E, Inheritance<P>> ]
+	...args: [...parents: P, entries: E & Override<E, Inheritance<P>>]
 ): Omit<ResourceShape, "model"> & { readonly model: Composition<E, P> };
 
 /**
@@ -1404,9 +1404,9 @@ export function resource<const P extends Parents, E extends Members>(
  * ```
  */
 export function resource<const P extends Parents, E extends Members>(
-	...args: [ ...parents: P, entries: E & Override<E, Inheritance<P>>, constraints: ResourceConstraints & {
+	...args: [...parents: P, entries: E & Override<E, Inheritance<P>>, constraints: ResourceConstraints & {
 		readonly validators?: readonly Validator<Composition<E, P>>[]
-	} ]
+	}]
 ): Omit<ResourceShape, "model"> & { readonly model: Composition<E, P> };
 
 /**
@@ -1419,7 +1419,7 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 
 
 	const parents = args.filter(isParent);
-	const [ members, constraints = {} ] = args.filter(isDeclaration);
+	const [members, constraints = {}] = args.filter(isDeclaration);
 
 	if ( members === undefined || !isMembers(members) ) {
 		throw new TypeError(`malformed member definitions <${JSON.stringify(members)}>`);
