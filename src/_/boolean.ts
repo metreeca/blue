@@ -24,4 +24,4 @@ export type BooleanShape = {
 
 export function boolean(): BooleanShape {
 	throw new Error(";( to be implemented");
-} // !!! narrow the state from {in}
+}
