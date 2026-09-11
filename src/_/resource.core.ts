@@ -37,33 +37,30 @@ import type { Id, Parents, Property, PropertyBounds, ResourceShape, Type } from 
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Retrieved<S extends Lazy<Shape>> = {
-
-	readonly [field in keyof Loose<Carried<S>>]: Content<Loose<Carried<S>>[field]>
-
-}
+export type Retrieved<S extends Lazy<Shape>> =
+	Loose<Carried<S>> extends infer M ? { readonly [field in keyof M]: Content<M[field]> } : never
 
 /**
  * Resolves the value a resource carries with the ones it holds captive inlined.
  *
  * Maps the members the resource {@link Owned | owns} to their input, leaving optional the ones a writer may
- * {@link Omitted | leave out}, as the system {@link Managed | fills them in} or the resource may do without them.
+ * {@link Omitted | leave out}: the identifier, as the system fills it in, and the ones the resource may do without.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Submitted<S extends Lazy<Shape>> = {
-
-	readonly [field in keyof Loose<Owned<S>, Managed>]: Input<Loose<Owned<S>, Managed>[field]>
-
-}
+export type Submitted<S extends Lazy<Shape>> =
+	Loose<Owned<S>, Id> extends infer M ? { readonly [field in keyof M]: Input<M[field]> } : never
 
 /**
  * Resolves the members a resource owns: every member the shape carries but a {@link Foreign | foreign} one.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Owned<S extends Lazy<Shape>> =
-	Dropped<Carried<S>, Foreign>
+export type Owned<S extends Lazy<Shape>> = {
+
+	readonly [field in keyof Carried<S> as Carried<S>[field] extends Foreign ? never : field]: Carried<S>[field]
+
+}
 
 /**
  * A member a submission does not accept, as the resources it points at own it.
@@ -73,12 +70,6 @@ export type Foreign = {
 	readonly foreign: true
 
 }
-
-/**
- * A member a submission may leave out, as the system fills it in: the resource identifier.
- */
-export type Managed =
-	| Id
 
 
 /**
@@ -94,18 +85,6 @@ export type Loose<M, X = never> = Joined<
 	& { readonly [field in keyof M as Omitted<M[field], X> extends true ? never : field]: M[field] }
 	& { readonly [field in keyof M as Omitted<M[field], X> extends true ? field : never]?: M[field] }
 >
-
-/**
- * Drops the members of a kind from a record.
- *
- * @typeParam M The members to filter
- * @typeParam X The members to drop
- */
-export type Dropped<M, X> = {
-
-	readonly [field in keyof M as M[field] extends X ? never : field]: M[field]
-
-}
 
 /**
  * Joins the parts of a record into a single one.
