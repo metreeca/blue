@@ -1798,13 +1798,13 @@ describe("utilities", () => {
 
 			});
 
-			it("intersects in constraints from lineage", async () => {
+			it("narrows in constraints from lineage", async () => {
 
 				const parent = resource({}, {
 					in: ["http://example.org/a", "http://example.org/b"]
 				});
 
-				const child = resource(parent, {}, { in: ["http://example.org/b", "http://example.org/c"] });
+				const child = resource(parent, {}, { in: ["http://example.org/b"] });
 
 				const flat = flatten(child);
 
@@ -3528,18 +3528,27 @@ describe("operators", () => {
 
 			});
 
-			it("computes intersection of target and source", async () => {
+			it("keeps a target narrowing source", async () => {
 
 				const merged = mergeResource(
-					resource({}, { in: ["http://example.org/a", "http://example.org/b"] }),
-					resource({}, { in: ["http://example.org/b", "http://example.org/c"] })
+					resource({}, { in: ["http://example.org/b"] }),
+					resource({}, { in: ["http://example.org/a", "http://example.org/b"] })
 				);
 
 				expect(merged.in).toEqual(["http://example.org/b"]);
 
 			});
 
-			it("rejects empty intersection", async () => {
+			it("rejects a target widening source", async () => {
+
+				expect(() => mergeResource(
+					resource({}, { in: ["http://example.org/a", "http://example.org/b"] }),
+					resource({}, { in: ["http://example.org/b", "http://example.org/c"] })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects disjoint sets", async () => {
 
 				expect(() => mergeResource(
 					resource({}, { in: ["http://example.org/a"] }),
@@ -4553,6 +4562,27 @@ describe("validators", () => {
 
 					expect(inner).toHaveProperty("id");
 					expect(inner["id"]).toContainEqual(expect.stringContaining("{in}"));
+
+				});
+
+				it("accepts a child narrowing the parent in constraint", async () => {
+
+					const Parent = resource({ id: id() }, { in: ["app:/users/alice", "app:/users/bob"] });
+
+					expect(() => resource(Parent, {}, { in: ["app:/users/alice"] })).not.toThrow();
+
+				});
+
+				it("rejects a child widening the parent in constraint", async () => {
+
+					// a value the parent omits would be intersected away, leaving the state wider than the
+					// shape admits
+
+					const Parent = resource({ id: id() }, { in: ["app:/users/alice", "app:/users/bob"] });
+
+					expect(() => resource(Parent, {}, {
+						in: ["app:/users/alice", "app:/users/charlie"]
+					})).toThrow(TraceError);
 
 				});
 

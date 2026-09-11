@@ -667,6 +667,20 @@ describe("operators", () => {
 
 		});
 
+		it("accepts a child narrowing an enumeration", async () => {
+
+			expect(narrowsString(string({ in: ["a"] }), string({ in: ["a", "b"] }))).toBeUndefined();
+
+		});
+
+		it("rejects a child widening an enumeration", async () => {
+
+			// a value the parent omits would be intersected away, leaving the state wider than the shape admits
+
+			expect(narrowsString(string({ in: ["a", "b"] }), string({ in: ["a"] }))).toBeDefined();
+
+		});
+
 		it("accepts equal datatypes", async () => {
 
 			expect(narrowsString(date(), date())).toBeUndefined();
@@ -887,18 +901,27 @@ describe("operators", () => {
 
 			});
 
-			it("intersects target and source in", async () => {
+			it("keeps a target in narrowing source", async () => {
 
 				const merged = mergeString(
-					string({ in: ["a", "b", "c"] }),
-					string({ in: ["b", "c", "d"] })
+					string({ in: ["b", "c"] }),
+					string({ in: ["a", "b", "c"] })
 				);
 
 				expect(merged.in).toEqual(["b", "c"]);
 
 			});
 
-			it("rejects empty intersection", async () => {
+			it("rejects a target in widening source", async () => {
+
+				expect(() => mergeString(
+					string({ in: ["a", "b", "c"] }),
+					string({ in: ["b", "c", "d"] })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects disjoint sets", async () => {
 
 				expect(() => mergeString(
 					string({ in: ["a", "b"] }),

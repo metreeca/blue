@@ -381,18 +381,18 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | ------------- | --------------------------------------------------------------------------------------- |
  * | `kind`        | Cannot be overridden                                                                    |
  * | `model`       | Computed from members, not user-defined                                                 |
- * | `virtual`     | Inherited; conflicting parents without child override are reported as an error          |
  * | `name`        | Always from child; not inherited                                                        |
  * | `description` | Always from child; not inherited                                                        |
- * | `space`       | Inherited; conflicting parents without child override are reported as an error          |
- * | `parents`     | Structural; outside inheritance scope                                                   |
- * | `class`       | Shape-specific target class; outside inheritance scope                                  |
  * | `classes`     | Computed from the `class` of the extended shapes, not user-defined                      |
- * | `pattern`     | Child may replace trailing `/*` wildcard with more specific segments                    |
- * | `in`          | Intersection of parent and child sets; empty result is reported as an error             |
- * | `hasValue`    | Union of parent and child required values; child must require all parent values         |
- * | `validators`  | Union of parent and child validators; all apply                                         |
+ * | `parents`     | Structural; outside inheritance scope                                                   |
  * | `members`     | Union; clashing keys merged per property rules; `kind` mismatch is reported as an error  |
+ * | `validators`  | Union of parent and child validators; all apply                                         |
+ * | `virtual`     | Inherited; conflicting parents without child override are reported as an error          |
+ * | `space`       | Inherited; conflicting parents without child override are reported as an error          |
+ * | `class`       | Shape-specific target class; outside inheritance scope                                  |
+ * | `pattern`     | Child may replace trailing `/*` wildcard with more specific segments                    |
+ * | `in`          | Child narrows the parent set; a widened set is reported as an error                     |
+ * | `hasValue`    | Union of parent and child required values; child must require all parent values         |
  *
  * **Refinement as a Nested Value**
  *
@@ -631,7 +631,7 @@ export interface ResourceConstraints {
 	 * When specified, resource identifiers must be members of this list. IRIs must be absolute. Empty arrays are
 	 * ignored.
 	 *
-	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
+	 * **Inheritance** — child narrows the parent set; a widened set is reported as an error.
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
@@ -804,13 +804,13 @@ export interface Type {
  * | Field         | Override Rule                                                                          |
  * | ------------- | -------------------------------------------------------------------------------------- |
  * | `kind`        | Cannot be overridden                                                                   |
- * | `range`       | Delegated to {@link SetShape} merge rules                                              |
- * | `hidden`      | Inherited; conflicting parents without child override are reported as an error        |
- * | `computed`    | Inherited; conflicting parents without child override are reported as an error        |
  * | `name`        | Cannot be overridden                                                                   |
  * | `description` | Cannot be overridden                                                                   |
  * | `forward`     | Cannot be overridden                                                                   |
  * | `reverse`     | Cannot be overridden                                                                   |
+ * | `range`       | Delegated to {@link SetShape} merge rules                                              |
+ * | `hidden`      | Inherited; conflicting parents without child override are reported as an error        |
+ * | `computed`    | Inherited; conflicting parents without child override are reported as an error        |
  *
  * @typeParam R The value range type, defaulting to an unconstrained {@link SetShape}
  *

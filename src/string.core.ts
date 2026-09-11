@@ -72,8 +72,8 @@ export function checkString(constraints: Partial<StringShape>): undefined | Trac
  * Reports whether an overriding string shape narrows an inherited base shape.
  *
  * Tests the override relation without building the merged shape: returns `undefined` when `target` only tightens
- * `source` (matching `datatype` and `pattern`, lengths not widened, `in` intersection non-empty, merged
- * constraints consistent), or a {@link Trace} describing the obstacles otherwise.
+ * `source` (matching `datatype` and `pattern`, lengths not widened, `in` not widened, merged constraints
+ * consistent), or a {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
@@ -113,8 +113,8 @@ export function narrowsString(target: StringShape, source: StringShape): undefin
 		}),
 		test(({ in: values }) => {
 
-			return values === undefined || source.in === undefined || values.some(v => source.in!.includes(v)) || [
-				`{in} disjoint sets [${values}] and [${source.in}]`
+			return values === undefined || source.in === undefined || values.every(v => source.in!.includes(v)) || [
+				`{in} widened set [${values}] beyond [${source.in}]`
 			];
 
 		}),

@@ -312,7 +312,7 @@ export function checkId(shape: ResourceShape): undefined | Trace {
  * Reports whether an overriding resource shape narrows an inherited base shape.
  *
  * Tests the override relation without building the merged shape: returns `undefined` when the `pattern` stays
- * compatible, the `in` intersection is non-empty, every shared member keeps its kind and (for `property` members)
+ * compatible, `in` is not widened, every shared member keeps its kind and (for `property` members)
  * narrows via {@link narrowsProperty}, and the merged constraints stay consistent; returns a keyed {@link Trace} of
  * obstacles otherwise.
  *
@@ -333,8 +333,8 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): u
 		}),
 		test(({ in: values }) => {
 
-			return values === undefined || source.in === undefined || values.some(v => source.in!.includes(v)) || [
-				`{in} disjoint sets [${values}] and [${source.in}]`
+			return values === undefined || source.in === undefined || values.every(v => source.in!.includes(v)) || [
+				`{in} widened set [${values}] beyond [${source.in}]`
 			];
 
 		}),

@@ -115,7 +115,7 @@ export function checkDictionary(constraints: Partial<DictionaryShape>): undefine
  * Reports whether an overriding dictionary shape narrows an inherited base shape.
  *
  * Tests the override relation without building the merged shape: returns `undefined` when `target` only tightens
- * `source` (lengths not widened, `languageIn` intersection non-empty, merged constraints consistent), or a keyed
+ * `source` (lengths not widened, `languageIn` not widened, merged constraints consistent), or a keyed
  * {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
@@ -143,9 +143,9 @@ export function narrowsDictionary(target: DictionaryShape, source: DictionarySha
 		test(({ languageIn }) => {
 
 			return languageIn === undefined || source.languageIn === undefined
-				|| languageIn.some(v => source.languageIn!.includes(v))
+				|| languageIn.every(v => source.languageIn!.includes(v))
 				|| [
-					`{languageIn} disjoint sets [${languageIn}] and [${source.languageIn}]`
+					`{languageIn} widened set [${languageIn}] beyond [${source.languageIn}]`
 				];
 
 		}),

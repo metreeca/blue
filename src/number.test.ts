@@ -498,6 +498,20 @@ describe("operators", () => {
 
 		});
 
+		it("accepts a child narrowing an enumeration", async () => {
+
+			expect(narrowsNumber(number({ in: [1] }), number({ in: [1, 2] }))).toBeUndefined();
+
+		});
+
+		it("rejects a child widening an enumeration", async () => {
+
+			// a value the parent omits would be intersected away, leaving the state wider than the shape admits
+
+			expect(narrowsNumber(number({ in: [1, 2] }), number({ in: [1] }))).toBeDefined();
+
+		});
+
 		it("accepts equal datatypes", async () => {
 
 			expect(narrowsNumber(int(), int())).toBeUndefined();
@@ -647,18 +661,27 @@ describe("operators", () => {
 
 			});
 
-			it("intersects target and source in", async () => {
+			it("keeps a target in narrowing source", async () => {
 
 				const merged = mergeNumber(
-					number({ in: [1, 2, 3] }),
-					number({ in: [2, 3, 4] })
+					number({ in: [2, 3] }),
+					number({ in: [1, 2, 3] })
 				);
 
 				expect(merged.in).toEqual([2, 3]);
 
 			});
 
-			it("rejects empty intersection", async () => {
+			it("rejects a target in widening source", async () => {
+
+				expect(() => mergeNumber(
+					number({ in: [1, 2, 3] }),
+					number({ in: [2, 3, 4] })
+				)).toThrow(RangeError);
+
+			});
+
+			it("rejects disjoint sets", async () => {
 
 				expect(() => mergeNumber(
 					number({ in: [1, 2] }),

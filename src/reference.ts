@@ -105,9 +105,9 @@ export { getShapeTarget } from "./reference.core.js";
  * | ---------- | ------------------------------------------------------------------------ |
  * | `kind`     | Cannot be overridden                                                     |
  * | `model`    | Must be strictly equal — mismatch signals incompatible shapes            |
+ * | `shape`    | May be re-pointed at a target extending the inherited target             |
  * | `foreign`  | Cannot be overridden                                                     |
  * | `captive`  | Cannot be overridden                                                     |
- * | `shape`    | May be re-pointed at a target extending the inherited target             |
  *
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
  */

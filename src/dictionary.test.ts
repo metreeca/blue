@@ -371,6 +371,26 @@ describe("operators", () => {
 
 		});
 
+		it("accepts a child narrowing languageIn", async () => {
+
+			expect(narrowsDictionary(
+				dictionary({ languageIn: ["en"] }),
+				dictionary({ languageIn: ["en", "fr"] })
+			)).toBeUndefined();
+
+		});
+
+		it("rejects a child widening languageIn", async () => {
+
+			// a tag the parent omits would be intersected away, leaving the state wider than the shape admits
+
+			expect(narrowsDictionary(
+				dictionary({ languageIn: ["en", "fr"] }),
+				dictionary({ languageIn: ["en"] })
+			)).toBeDefined();
+
+		});
+
 	});
 
 	describe("mergeDictionary", () => {
@@ -539,18 +559,27 @@ describe("operators", () => {
 
 				});
 
-				it("computes intersection of both languageIn", async () => {
+				it("keeps a target languageIn narrowing source", async () => {
 
 					const merged = merge(
-						factory({ languageIn: ["en", "fr", "de"] } as any) as any,
-						factory({ languageIn: ["en", "de", "it"] } as any) as any
+						factory({ languageIn: ["en", "de"] } as any) as any,
+						factory({ languageIn: ["en", "fr", "de"] } as any) as any
 					);
 
 					expect(merged.languageIn).toEqual(["en", "de"]);
 
 				});
 
-				it("rejects empty intersection", async () => {
+				it("rejects a target languageIn widening source", async () => {
+
+					expect(() => merge(
+						factory({ languageIn: ["en", "fr", "de"] } as any) as any,
+						factory({ languageIn: ["en", "de", "it"] } as any) as any
+					)).toThrow(RangeError);
+
+				});
+
+				it("rejects disjoint sets", async () => {
 
 					expect(() => merge(
 						factory({ languageIn: ["en"] } as any) as any,

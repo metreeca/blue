@@ -155,8 +155,8 @@ export function checkNumber(constraints: Partial<NumberShape>): undefined | Trac
  * Reports whether an overriding number shape narrows an inherited base shape.
  *
  * Tests the override relation without building the merged shape: returns `undefined` when `target` only tightens
- * `source` (matching `datatype`, not dropping `integral`, bounds not widened, `in` intersection non-empty,
- * merged constraints consistent), or a {@link Trace} describing the obstacles otherwise.
+ * `source` (matching `datatype`, not dropping `integral`, bounds not widened, `in` not widened, merged constraints
+ * consistent), or a {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
@@ -222,11 +222,11 @@ export function narrowsNumber(target: NumberShape, source: NumberShape): undefin
 		}),
 		test(({ in: values }) => {
 
-			// !!! reject a widened set outright, as with the bounds: a child listing a value the parent omits is
-			// !!! silently intersected away, leaving the state wider than the shape admits
+			// a child listing a value the parent omits would be intersected away, leaving the state wider than
+			// the shape admits, so a widened set is rejected outright as with the bounds
 
-			return values === undefined || source.in === undefined || values.some(v => source.in!.includes(v)) || [
-				`{in} disjoint sets [${values}] and [${source.in}]`
+			return values === undefined || source.in === undefined || values.every(v => source.in!.includes(v)) || [
+				`{in} widened set [${values}] beyond [${source.in}]`
 			];
 
 		}),
