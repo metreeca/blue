@@ -21,8 +21,10 @@
  */
 
 import type { Eager, Lazy, Optional } from "@metreeca/core";
+import type { Trace } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Compound, Instance, Shape } from "./index.js";
+import type { Scope } from "./index.core.js";
 import type { ReferenceShape } from "./reference.js";
 import type { Id, Parents, Property, PropertyBounds, ResourceShape, Type } from "./resource.js";
 
@@ -242,6 +244,76 @@ export type Skippable<L extends Optional<number>> =
  */
 export type Declared<C extends PropertyBounds, K extends keyof PropertyBounds> =
 	K extends keyof C ? C[K] : undefined
+
+
+//// Resource Operators //////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Reports whether a resource shape narrows an inherited one.
+ *
+ * Tests the override relation without building the merged shape, so that an incompatible extension is told apart from
+ * a legitimate refinement before either is committed to: a shape narrows the inherited one where its identifier
+ * `pattern` stays compatible, it adds no identifier the inherited shape omits, requires every identifier it requires,
+ * and every member it redeclares keeps its kind and narrows the one it overrides.
+ *
+ * @param target The overriding shape
+ * @param source The inherited shape
+ *
+ * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
+ */
+export function narrowsResource(target: ResourceShape, source: ResourceShape): undefined | Trace {
+
+	throw new Error(";( to be implemented");
+
+}
+
+/**
+ * Merges a resource shape with an inherited one.
+ *
+ * Yields the single shape an extending resource is validated against, combining the inherited constraints with the
+ * overriding ones: the admitted identifiers intersect, the required ones accumulate, and members declared on both
+ * sides are merged one by one.
+ *
+ * @param target The overriding shape
+ * @param source The inherited shape
+ *
+ * @returns An immutable shape admitting the resources both `target` and `source` admit
+ *
+ * @throws {TraceError} Where `target` doesn't narrow `source`
+ */
+export function mergeResource(target: ResourceShape, source: ResourceShape): ResourceShape {
+
+	throw new Error(";( to be implemented");
+
+}
+
+/**
+ * Validates values against a resource shape.
+ *
+ * Reports a value that is not a resource as a `{kind}` violation and each member that breaks a constraint under its
+ * own facet, keyed by the member it is stated under, so that a caller may tell which member failed and why. A resource
+ * shape is closed: a value carrying a member the shape doesn't declare is rejected.
+ *
+ * @param values The values to validate
+ * @param shape The shape the values are matched against
+ * @param opts Validation options
+ * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`
+ *
+ * @returns A trace of the violations found, or `undefined` where every value matches `shape`
+ */
+export function validateResource(values: readonly unknown[], shape: ResourceShape, {
+
+	scope = "state"
+
+}: {
+
+	scope?: Scope
+
+} = {}): undefined | Trace {
+
+	throw new Error(";( to be implemented");
+
+}
 
 
 //// Resource Identifiers ////////////////////////////////////////////////////////////////////////////////////////////

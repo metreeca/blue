@@ -21,14 +21,23 @@
  */
 
 import type { Eager, Lazy } from "@metreeca/core";
+import { type Trace, TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
+import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
 import type { BooleanShape } from "./boolean.js";
-import type { Tagged } from "./dictionary.core.js";
+import { mergeDictionary, narrowsDictionary, type Tagged, validateDictionary } from "./dictionary.core.js";
 import type { DictionaryShape } from "./dictionary.js";
 import type { Shape } from "./index.js";
+import { mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
 import type { NumberShape } from "./number.js";
+import { mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import type { ReferenceShape } from "./reference.js";
+import { mergeResource, narrowsResource, validateResource } from "./resource.core.js";
+import type { ResourceShape } from "./resource.js";
+import { mergeString, narrowsString, validateString } from "./string.core.js";
 import type { StringShape } from "./string.js";
+import { mergeUnion, narrowsUnion, validateUnion } from "./union.core.js";
+import type { UnionShape } from "./union.js";
 
 
 /**
@@ -84,3 +93,123 @@ export type Scope =
 	| "state"
 	| "bound"
 	| "model"
+
+
+//// Shape Operators /////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Reports whether a shape narrows an inherited one.
+ *
+ * Routes the pair to the operators of the kind they share, so that a caller holding two shapes tests the override
+ * relation without knowing which kind it holds. Two shapes of different kinds never narrow one another, as an override
+ * refines what a member admits and never retypes it.
+ *
+ * @param target The overriding shape
+ * @param source The inherited shape
+ *
+ * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
+ */
+export function narrowsShape(target: Shape, source: Shape): undefined | Trace {
+
+	// the kind guard is what makes each branch well-typed: it is reached only where both shapes share target.kind
+
+	return target.kind !== source.kind ? [`{kind} mismatched kinds <${target.kind}> vs <${source.kind}>`]
+		: target.kind === "boolean" ? narrowsBoolean(target, source as BooleanShape)
+			: target.kind === "number" ? narrowsNumber(target, source as NumberShape)
+				: target.kind === "string" ? narrowsString(target, source as StringShape)
+					: target.kind === "dictionary" ? narrowsDictionary(target, source as DictionaryShape)
+						: target.kind === "reference" ? narrowsReference(target, source as ReferenceShape)
+							: target.kind === "union" ? narrowsUnion(target, source as UnionShape)
+								: narrowsResource(target, source as ResourceShape);
+
+}
+
+/**
+ * Merges a shape with an inherited one.
+ *
+ * Routes the pair to the operators of the kind they share, so that a caller holding two shapes builds the merged one
+ * without knowing which kind it holds.
+ *
+ * @param target The overriding shape
+ * @param source The inherited shape
+ *
+ * @returns An immutable shape admitting the values both `target` and `source` admit
+ *
+ * @throws {TraceError} Where `target` doesn't narrow `source`
+ */
+export function mergeShape(target: Shape, source: Shape): Shape {
+
+	const trace = narrowsShape(target, source);
+
+	if ( trace !== undefined ) {
+		throw new TraceError("incompatible shape override", trace);
+	}
+
+	// the kind guard above is what makes each branch well-typed: the kinds are known to match by here
+
+	return target.kind === "boolean" ? mergeBoolean(target, source as BooleanShape)
+		: target.kind === "number" ? mergeNumber(target, source as NumberShape)
+			: target.kind === "string" ? mergeString(target, source as StringShape)
+				: target.kind === "dictionary" ? mergeDictionary(target, source as DictionaryShape)
+					: target.kind === "reference" ? mergeReference(target, source as ReferenceShape)
+						: target.kind === "union" ? mergeUnion(target, source as UnionShape)
+							: mergeResource(target, source as ResourceShape);
+
+}
+
+/**
+ * Validates values against a shape.
+ *
+ * Routes the values to the validators of the shape's kind, so that a caller holding a shape matches values against it
+ * without knowing which kind it holds.
+ *
+ * @param values The values to validate
+ * @param shape The shape the values are matched against
+ * @param opts Validation options
+ * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`
+ *
+ * @returns A trace of the violations found, or `undefined` where every value matches `shape`
+ */
+export function validateShape(values: readonly unknown[], shape: Shape, {
+
+	scope = "state"
+
+}: {
+
+	scope?: Scope
+
+} = {}): undefined | Trace {
+
+	switch ( shape.kind ) {
+
+		case "boolean":
+
+			return validateBoolean(values, shape, { scope });
+
+		case "number":
+
+			return validateNumber(values, shape, { scope });
+
+		case "string":
+
+			return validateString(values, shape, { scope });
+
+		case "dictionary":
+
+			return validateDictionary(values, shape, { scope });
+
+		case "reference":
+
+			return validateReference(values, shape, { scope });
+
+		case "union":
+
+			return validateUnion(values, shape, { scope });
+
+		case "resource":
+
+			return validateResource(values, shape, { scope });
+
+	}
+
+}

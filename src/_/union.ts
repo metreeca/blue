@@ -14,8 +14,48 @@
  * limitations under the License.
  */
 
+/**
+ * Union shape and factories.
+ *
+ * Defines {@link UnionShape} and the {@link union} factory, describing a value drawn from one of several alternatives,
+ * so that a member whose vocabulary ranges over unrelated types is described by a single shape.
+ *
+ * **Defining Polymorphic Members**
+ *
+ * State the alternatives positionally; cardinality belongs to the enclosing member rather than to a branch:
+ *
+ * ```typescript
+ * import { optional, resource } from '@metreeca/blue/resource';
+ * import { reference } from '@metreeca/blue/reference';
+ * import { string } from '@metreeca/blue/string';
+ * import { union } from '@metreeca/blue/union';
+ *
+ * const Contact = resource({
+ *   address: optional(union(
+ *     string(),
+ *     reference(PostalAddress)
+ *   ))
+ * });
+ * ```
+ *
+ * Either alternative is accepted at the same position, stored as it stands with no wrapping:
+ *
+ * ```json
+ * { "address": "123 Main St" }
+ *
+ * { "address": "https://data.example.com/addresses/456" }
+ * ```
+ *
+ * @module
+ *
+ * @see [Unions — Design](./union.md)
+ * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.6.4 sh:xone}
+ * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.6.2 sh:or}
+ */
+
 import type { Lazy } from "@metreeca/core";
 import type { Shape } from "./index.js";
+import { create } from "./union.core.js";
 
 
 /**
@@ -77,6 +117,10 @@ export type UnionShape<B extends UnionBranches = UnionBranches> = {
 	/**
 	 * The alternatives a value may be drawn from.
 	 *
+	 * Stated flat: a branch that is itself a union is replaced, as the shape is built, by the alternatives it holds, so
+	 * that a caller routing a value walks one list however the union was assembled. A branch left deferred is flattened
+	 * where it is resolved rather than where it is stated.
+	 *
 	 * **Inheritance** — each child branch narrows exactly one parent branch; unpaired parent branches are dropped.
 	 */
 	readonly branches: B
@@ -99,7 +143,9 @@ export type UnionBranches =
  * Creates a union shape.
  *
  * Alternatives are accepted as they are stated: a union that exists proves nothing about the distinguishability of its
- * branches, which is a {@link UnionShape | modelling contract} settled when a value is matched.
+ * branches, which is a {@link UnionShape | modelling contract} settled when a value is matched. An alternative that is
+ * itself a union contributes the alternatives it holds rather than nesting, so that a union of unions reads as the
+ * single flat list of alternatives it admits values from.
  *
  * @typeParam B The alternatives a value may be drawn from
  *
@@ -118,6 +164,6 @@ export type UnionBranches =
  */
 export function union<B extends readonly [Lazy<Shape>, ...Lazy<Shape>[]]>(...branches: B): UnionShape<B> {
 
-	throw new Error(";( to be implemented");
+	return create<B>(branches);
 
 }
