@@ -30,6 +30,8 @@ import {
 	mergeResource,
 	narrowsProperty,
 	narrowsResource,
+	getShapeClass,
+	getShapeClasses,
 	getShapeId,
 	getShapeProperties,
 	getShapeType,
@@ -796,6 +798,103 @@ describe("operators", () => {
 		it("resolves no member for a range pointing at no resource", async () => {
 
 			expect(getShapeProperties(string())).toEqual({});
+
+		});
+
+		it("resolves the class a target belongs to", async () => {
+
+			const Product = resource({ id: id() }, { class: "https://schema.org/Product" });
+
+			expect(getShapeClass(reference(Product))).toBe("https://schema.org/Product");
+
+		});
+
+		it("resolves the classes a target belongs to on top of its own", async () => {
+
+			const Thing = resource({ id: id() }, { class: "https://schema.org/Thing" });
+			const Product = resource(Thing, {}, { class: "https://schema.org/Product" });
+
+			expect(getShapeClasses(reference(Product))).toEqual(["https://schema.org/Thing"]);
+
+		});
+
+		it("resolves no class for a range pointing at no resource", async () => {
+
+			expect(getShapeClass(string())).toBeUndefined();
+			expect(getShapeClasses(string())).toBeUndefined();
+
+		});
+
+	});
+
+	describe("classes", () => {
+
+		const Thing = resource({ id: id() }, { class: "https://schema.org/Thing" });
+		const Product = resource(Thing, {}, { class: "https://schema.org/Product" });
+
+		it("states none where a shape extends nothing", async () => {
+
+			expect(resource({ id: id() }).classes).toBeUndefined();
+
+		});
+
+		it("states none where a shape extends nothing stating a class", async () => {
+
+			const Base = resource({ name: required(string()) });
+
+			expect(resource(Base, {}).classes).toBeUndefined();
+
+		});
+
+		it("carries the class of the shape extended", async () => {
+
+			expect(Product.classes).toEqual(["https://schema.org/Thing"]);
+
+		});
+
+		it("leaves the shape's own class out", async () => {
+
+			expect(Product.classes).not.toContain("https://schema.org/Product");
+
+		});
+
+		it("carries the class of a shape extended transitively", async () => {
+
+			const Offer = resource(Product, {}, { class: "https://schema.org/Offer" });
+
+			expect(Offer.classes).toEqual(["https://schema.org/Product", "https://schema.org/Thing"]);
+
+		});
+
+		it("carries the class of every shape extended", async () => {
+
+			const Place = resource({ id: id() }, { class: "https://schema.org/Place" });
+			const Store = resource(Thing, Place, {}, { class: "https://schema.org/Store" });
+
+			expect(Store.classes).toEqual(["https://schema.org/Thing", "https://schema.org/Place"]);
+
+		});
+
+		it("states a class shared by several shapes extended once", async () => {
+
+			const Left = resource(Thing, {}, { class: "https://schema.org/Left" });
+			const Right = resource(Thing, {}, { class: "https://schema.org/Right" });
+
+			const Joined = resource(Left, Right, {});
+
+			expect(Joined.classes).toEqual([
+				"https://schema.org/Left",
+				"https://schema.org/Thing",
+				"https://schema.org/Right"
+			]);
+
+		});
+
+		it("carries the class of a shape extended through a deferred definition", async () => {
+
+			const Deferred = resource(() => Thing, {}, { class: "https://schema.org/Deferred" });
+
+			expect(Deferred.classes).toEqual(["https://schema.org/Thing"]);
 
 		});
 

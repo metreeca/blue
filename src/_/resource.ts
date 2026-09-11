@@ -151,6 +151,7 @@ import { assemble, type Declared, declare } from "./resource.core.js";
 
 export {
 	getShapeClass,
+	getShapeClasses,
 	getShapeId,
 	getShapeProperties,
 	getShapeType
@@ -187,6 +188,7 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | `description` | Always from the child; not inherited                                                |
  * | `space`       | Inherited; conflicting parents without a child override are reported as an error    |
  * | `class`       | Always from the child; outside inheritance scope                                    |
+ * | `classes`     | Computed from the `class` of the shapes extended; never stated                      |
  * | `pattern`     | Only a trailing `/*` admits narrowing; any other case requires equality             |
  * | `in`          | Child may only drop allowed identifiers                                             |
  * | `hasValue`    | Child may only add required identifiers                                             |
@@ -215,6 +217,20 @@ export type ResourceShape<
 	 */
 	readonly kind: "resource"
 
+
+	/**
+	 * The classes a resource belongs to on top of its own.
+	 *
+	 * Lists the {@link ResourceConstraints.class | class} every extended shape states, transitively and deduplicated,
+	 * so that a caller may test a resource against a supertype without walking the inheritance chain itself. Each
+	 * extended shape contributes the class it states, followed by the ones it inherits in turn, in the order the
+	 * shapes are extended. A shape extending nothing that states a class carries no entry at all.
+	 *
+	 * **Inheritance** — computed from the `class` of the shapes extended; never stated.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#ClassConstraintComponent SHACL § 4.1.1 sh:class}
+	 */
+	readonly classes?: readonly Reference[]
 
 	/**
 	 * The shapes extended, each possibly deferred to break definition cycles.

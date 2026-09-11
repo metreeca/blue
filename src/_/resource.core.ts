@@ -570,11 +570,21 @@ export function flatten(shape: ResourceShape): ResourceShape {
 		throw new TraceError("incompatible merged shape", trace);
 	}
 
+	// the class each extended shape states, followed by the ones it inherits in turn, so a caller tests a resource
+	// against a supertype without walking the chain itself
+
+	const classes = unique(parents.flatMap(parent => [
+		...parent.class === undefined ? [] : [parent.class],
+		...parent.classes ?? []
+	]));
+
 	// the shapes a member reaches are merged in turn, so a caller walking a range holds a merged shape throughout
 
 	return seal(immutable({
 
 		...merged,
+
+		...classes.length > 0 && { classes },
 
 		members: Object.fromEntries(Object.entries(merged.members).map(([name, member]) =>
 			member.kind === "property" ? [name, { ...member, shape: descend(member.shape) }] : [name, member]
@@ -886,7 +896,9 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 		description: target.description,
 
 		space: target.space ?? source.space,
+
 		class: target.class,
+		...target.classes !== undefined && { classes: target.classes },
 
 		parents: target.parents,
 
@@ -2324,6 +2336,19 @@ export function enforce(value: unknown, shape: ResourceShape, {
 export function getShapeClass(shape: Lazy<Shape>): undefined | Reference {
 
 	return getShapeTarget(shape)?.class;
+
+}
+
+/**
+ * Resolves the classes the resources a range describes belong to on top of their own.
+ *
+ * @param shape The range to resolve, possibly deferred to break definition cycles
+ *
+ * @returns The classes the target shape inherits, or `undefined` where it extends nothing stating one
+ */
+export function getShapeClasses(shape: Lazy<Shape>): undefined | readonly Reference[] {
+
+	return getShapeTarget(shape)?.classes;
 
 }
 
