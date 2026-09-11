@@ -38,7 +38,7 @@ import { eager, type Shape } from "./value.js";
  * Tests the override relation without building the merged shape: a reference carries no tightenable constraints of its
  * own, so `target` narrows `source` exactly when their `model` matches, the non-overridable fields (`foreign`,
  * `captive`) are not redefined, and the overriding target shape is the inherited one or
- * {@link resource!ResourceConstraints.extends | extends} it, directly or transitively. Returns a {@link Trace}
+ * {@link resource!ResourceShape.parents | parents} it, directly or transitively. Returns a {@link Trace}
  * describing the obstacles otherwise.
  *
  * @param target The overriding child shape
@@ -90,7 +90,7 @@ export function narrowsReference(target: ReferenceShape, source: ReferenceShape)
 	 * @returns `shape` followed by every shape it extends, directly or transitively
 	 */
 	function lineage(shape: ResourceShape): readonly ResourceShape[] {
-		return [shape, ...[shape.extends ?? []].flat().flatMap(parent => lineage(eager(parent)))];
+		return [shape, ...(shape.parents ?? []).flatMap(parent => lineage(eager(parent)))];
 	}
 
 }

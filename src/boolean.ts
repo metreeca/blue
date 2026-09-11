@@ -78,7 +78,7 @@ import { immutable } from "@metreeca/core/structures";
  *
  * **Inheritance**
  *
- * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
+ * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceShape.parents | parents},
  * boolean-valued entries are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *

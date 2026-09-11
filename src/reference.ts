@@ -97,7 +97,7 @@ export { getShapeTarget } from "./reference.core.js";
  *
  * **Inheritance**
  *
- * When a {@link ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
+ * When a {@link ResourceShape} extends a parent via {@link resource!ResourceShape.parents | parents},
  * reference-valued entries are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
@@ -139,7 +139,7 @@ export interface ReferenceShape extends ReferenceConstraints {
 	 *
 	 * Accepts a lazy value to support circular and self-referential definitions.
 	 *
-	 * **Inheritance** — may be re-pointed at a target that {@link resource!ResourceConstraints.extends | extends} the
+	 * **Inheritance** — may be re-pointed at a target that {@link resource!ResourceShape.parents | parents} the
 	 * inherited target, so an extending shape refines what a reference admits by naming the narrower target alone; the
 	 * inherited definition reaches the refined target through its own inheritance chain and is never restated. Any
 	 * other target is rejected.

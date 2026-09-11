@@ -117,8 +117,8 @@ describe("operators", () => {
 	describe("narrowsReference", () => {
 
 		const Wider = resource({ name: required(string()) });
-		const Narrower = resource({ name: required(string({ minLength: 1 })) }, { extends: Wider });
-		const Narrowest = resource({}, { extends: Narrower });
+		const Narrower = resource(Wider, { name: required(string({ minLength: 1 })) });
+		const Narrowest = resource(Narrower, {});
 
 		it("accepts an identical child", async () => {
 
@@ -143,7 +143,7 @@ describe("operators", () => {
 		it("accepts a child targeting a shape extending one of several inherited parents", async () => {
 
 			const Other = resource({ code: required(string()) });
-			const Multiple = resource({}, { extends: [Other, Wider] });
+			const Multiple = resource(Other, Wider, {});
 
 			expect(narrowsReference(reference(Multiple), reference(Wider))).toBeUndefined();
 
@@ -242,7 +242,7 @@ describe("operators", () => {
 			it("keeps the extending target shape", async () => {
 
 				const Wider = resource({ name: required(string()) });
-				const Narrower = resource({ name: required(string({ minLength: 1 })) }, { extends: Wider });
+				const Narrower = resource(Wider, { name: required(string({ minLength: 1 })) });
 
 				const merged = mergeReference(reference(Narrower), reference(Wider));
 
@@ -268,7 +268,7 @@ describe("operators", () => {
 describe("inheritance", () => {
 
 	const Wider = resource({ id: id(), label: required(string()) });
-	const Narrower = resource({ label: required(string({ minLength: 1 })) }, { extends: Wider });
+	const Narrower = resource(Wider, { label: required(string({ minLength: 1 })) });
 
 	const Parent = resource({ id: id(), link: required(reference(Wider)) });
 
@@ -282,7 +282,7 @@ describe("inheritance", () => {
 
 	it("re-points an inherited reference at an extending target", async () => {
 
-		const Child = resource({ link: required(reference(Narrower)) }, { extends: Parent });
+		const Child = resource(Parent, { link: required(reference(Narrower)) });
 
 		expect(target(Child, "link")).toBe(Narrower);
 
@@ -290,7 +290,7 @@ describe("inheritance", () => {
 
 	it("re-points an inherited reference at a lazily declared extending target", async () => {
 
-		const Child = resource({ link: required(reference(() => Narrower)) }, { extends: Parent });
+		const Child = resource(Parent, { link: required(reference(() => Narrower)) });
 
 		expect(target(Child, "link")).toBe(Narrower);
 
@@ -298,7 +298,7 @@ describe("inheritance", () => {
 
 	it("retains the inherited target definition without restating it", async () => {
 
-		const Child = resource({ link: required(reference(Narrower)) }, { extends: Parent });
+		const Child = resource(Parent, { link: required(reference(Narrower)) });
 
 		expect(Object.keys(target(Child, "link")?.entries ?? {})).toEqual(expect.arrayContaining(["id", "label"]));
 
@@ -308,7 +308,7 @@ describe("inheritance", () => {
 
 		const Unrelated = resource({ id: id(), code: required(string()) });
 
-		expect(() => resource({ link: required(reference(Unrelated)) }, { extends: Parent })).toThrow(TraceError);
+		expect(() => resource(Parent, { link: required(reference(Unrelated)) })).toThrow(TraceError);
 
 	});
 

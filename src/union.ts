@@ -32,7 +32,7 @@
  * **Inheritance**
  *
  * When a {@link resource!ResourceShape | ResourceShape} extends a parent via
- * {@link resource!ResourceConstraints.extends | extends}, a union-typed property may drop variants and tighten the
+ * {@link resource!ResourceShape.parents | parents}, a union-typed property may drop variants and tighten the
  * variants it keeps, but never add new ones. Narrowing is the construction-time counterpart of the union's exclusive
  * discrimination: each child variant must *narrow* exactly one parent variant, where narrowing is the value-shape
  * override relation that governs non-union shapes — matching `kind` (and `datatype` for `string` / `number`, plus
@@ -101,7 +101,7 @@ export { getShapeVariants, getStateVariant, getBoundVariant, getModelVariants } 
  * **Inheritance**
  *
  * When a {@link resource!ResourceShape | ResourceShape} extends a parent via
- * {@link resource!ResourceConstraints.extends | extends}, a union-typed property is merged according to the following
+ * {@link resource!ResourceShape.parents | parents}, a union-typed property is merged according to the following
  * rules; see the module overview for the single-variant-narrowing (Form 1) and union-subsetting (Form 2) forms and the
  * full narrowing relation. The *child* is the extending shape; the *parent* is the inherited shape.
  *

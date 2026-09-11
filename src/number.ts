@@ -133,7 +133,7 @@ const FloatLimit = (2-2** -23)*2**127;
  *
  * **Inheritance**
  *
- * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
+ * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceShape.parents | parents},
  * numeric-valued entries are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *

@@ -190,11 +190,9 @@
  *   name: required(string({ model: "name", minLength: 1 }))
  * });
  *
- * const Employee = resource({
+ * const Employee = resource(NamedEntity, {
  *   department: required(string()),
  *   salary: required(integer({ minInclusive: 0 }))
- * }, {
- *   extends: NamedEntity
  * });
  * ```
  *
@@ -212,7 +210,7 @@
  *
  * A slot holding a nested resource or a {@link reference!reference | reference} is refined by re-pointing it at a shape
  * extending the inherited target: the refinement declares only what it adds or narrows, as the refined target carries
- * the inherited definition through its own {@link ResourceConstraints.extends | extends}. Any other target, the
+ * the inherited definition through its own {@link ResourceShape.parents | parents}. Any other target, the
  * inherited target's own parent included, is rejected at the call site.
  *
  * **Narrowing union slots**
@@ -241,17 +239,13 @@
  * });
  *
  * // Form 1 — narrows the slot to a bare string
- * const Vendor = resource({
+ * const Vendor = resource(Entity, {
  *   code: required(string({ model: "ABC", pattern: "^[A-Z]" }))
- * }, {
- *   extends: Entity
  * });
  *
  * // Form 2 — keeps the union but drops the string variant wholesale
- * const Numbered = resource({
+ * const Numbered = resource(Entity, {
  *   code: required(union(integer()))
- * }, {
- *   extends: Entity
  * });
  * ```
  *
@@ -342,7 +336,7 @@
  * @see {@link https://www.w3.org/TR/shacl/#ClosedConstraintComponent SHACL § 4.8.1 sh:closed}
  */
 
-import { assert, type Identifier, isString, type Lazy } from "@metreeca/core";
+import { assert, type Identifier, isFunction, isObject, isString, type Lazy } from "@metreeca/core";
 import { createNamespace, type IRI, isIRI, type Namespace } from "@metreeca/core/resource";
 import { immutable } from "@metreeca/core/structures";
 import { type Trace, TraceError, type Validator } from "@metreeca/core/trace";
@@ -387,7 +381,7 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  *
  * **Inheritance**
  *
- * When a resource shape extends a parent via {@link ResourceConstraints.extends | extends}, fields are merged
+ * When a resource shape extends a parent via {@link ResourceShape.parents | parents}, fields are merged
  * according to the following rules. The *child* is the extending shape; the *parent* is the inherited shape.
  *
  * | Field         | Override Rule                                                                           |
@@ -398,7 +392,7 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | `name`        | Always from child; not inherited                                                        |
  * | `description` | Always from child; not inherited                                                        |
  * | `space`       | Inherited; conflicting parents without child override are reported as an error          |
- * | `extends`     | Structural; outside inheritance scope                                                   |
+ * | `parents`     | Structural; outside inheritance scope                                                   |
  * | `class`       | Shape-specific target class; outside inheritance scope                                  |
  * | `classes`     | Union of parent `class` and child/parent `classes`                                      |
  * | `pattern`     | Child may replace trailing `/*` wildcard with more specific segments                    |
@@ -444,6 +438,23 @@ export interface ResourceShape extends ResourceConstraints {
 	 * **Inheritance** — computed from entries, not user-defined.
 	 */
 	readonly model: Template;
+
+	/**
+	 * Parent shapes this shape inherits from.
+	 *
+	 * Lists the shapes handed to the factory ahead of the member definitions, each possibly deferred to a
+	 * {@link @metreeca/core!Lazy | lazy} factory. Inherited entries and constraints are merged into the derived shape.
+	 * When a child overrides an inherited property, constraints are enforced conjunctively: values must satisfy both
+	 * the child's and all inherited constraints. This ensures overrides can only restrict, never relax, inherited
+	 * definitions.
+	 *
+	 * > [!WARNING]
+	 * > When inheriting from multiple shapes with different {@link ResourceConstraints.space | space} values, an
+	 * > overriding namespace must be declared on the extending shape.
+	 *
+	 * **Inheritance** — structural; outside inheritance scope.
+	 */
+	readonly parents?: Parents;
 
 
 	/**
@@ -570,22 +581,6 @@ export interface ResourceConstraints {
 	readonly space?: Namespace;
 
 	/**
-	 * Parent shape(s) this shape inherits from.
-	 *
-	 * Inherited entries and constraints are merged into the derived shape. When a child overrides an inherited
-	 * property, constraints are enforced conjunctively: values must satisfy both the child's and all inherited
-	 * constraints. This ensures overrides can only restrict, never relax, inherited definitions.
-	 *
-	 * > [!WARNING]
-	 * > When inheriting from multiple shapes with different {@link space} values, an overriding namespace must be
-	 * > declared in this shape.
-	 *
-	 * **Inheritance** — structural; outside inheritance scope.
-	 */
-	readonly extends?: Lazy<ResourceShape> | readonly Lazy<ResourceShape>[];
-
-
-	/**
 	 * Target class for resource instances.
 	 *
 	 * The absolute IRI identifying the primary class that resource instances must belong to. Shape-specific and not
@@ -692,7 +687,7 @@ export type Entry =
  *
  * **Inheritance**
  *
- * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends},
+ * When a {@link ResourceShape} extends a parent via {@link ResourceShape.parents | parents},
  * identifier entries are subject to the following rules.
  *
  * | Field    | Override Rule                                                                           |
@@ -741,7 +736,7 @@ export interface Id {
  *
  * **Inheritance**
  *
- * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends},
+ * When a {@link ResourceShape} extends a parent via {@link ResourceShape.parents | parents},
  * type entries are subject to the following rules.
  *
  * | Field    | Override Rule                                                                           |
@@ -781,7 +776,7 @@ export interface Type {
  *
  * **Inheritance**
  *
- * When a {@link ResourceShape} extends a parent via {@link ResourceConstraints.extends | extends},
+ * When a {@link ResourceShape} extends a parent via {@link ResourceShape.parents | parents},
  * entries with matching keys are merged according to the following rules.
  *
  * | Field         | Override Rule                                                                          |
@@ -1021,6 +1016,15 @@ export type Members = {
 };
 
 /**
+ * Parent shapes accepted by the {@link resource} factory.
+ *
+ * Lists the shapes a resource inherits from, in the order they are declared ahead of the member definitions. Each
+ * parent may be deferred to a {@link @metreeca/core!Lazy | lazy} factory, so mutually recursive shapes reference one
+ * another without a definition cycle. An empty list describes a resource inheriting nothing.
+ */
+export type Parents = readonly Lazy<ResourceShape>[];
+
+/**
  * Member definition accepted by the {@link resource} factory.
  *
  * Accepts {@link Id} and {@link Type} markers for the resource identifier and type entries,
@@ -1136,29 +1140,23 @@ export type Slot<E extends Member> =
 			: never;
 
 /**
- * Resolves the inherited template contributed by a resource's {@link ResourceConstraints.extends | extends} clause.
+ * Resolves the inherited template contributed by a resource's {@link Parents | parent shapes}.
  *
  * Reads each parent shape's complete template via {@link Schema}, merges the contributions
  * across multiple parents via {@link Intersected}, and strips index signatures via {@link Declared} so that
- * {@link Override} checks against concrete inherited entries only. Yields `{}` when
- * `extends` is not declared.
+ * {@link Override} checks against concrete inherited entries only. Yields `{}` when no parent is declared.
  *
- * @typeParam C The constraints type to inspect
+ * @typeParam P The parent shapes to inspect
  */
-export type Inheritance<C> =
-	C extends {
-			readonly extends: infer E extends
-				| Lazy<ResourceShape>
-				| readonly [Lazy<ResourceShape>, ...Lazy<ResourceShape>[]]
-		}
-		? Declared<Intersected<Schema<E extends readonly (infer S)[] ? S : E>>>
-		: {};
+export type Inheritance<P extends Parents> =
+	P extends readonly [] ? {}
+		: Declared<Intersected<Schema<P[number]>>>;
 
 /**
  * Composes the resource model from local entries and inherited template.
  *
  * Locally-redeclared keys are taken from {@link Prototype | Prototype<E>}: the child slot replaces the inherited
- * contribution wholesale; non-overridden inherited keys flow through from {@link Inheritance | Inheritance<C>}.
+ * contribution wholesale; non-overridden inherited keys flow through from {@link Inheritance | Inheritance<P>}.
  * Mirrors at the type level the override semantics enforced by {@link resource} on the runtime side. The result is
  * {@link Merged | merged} into a single flat property list, so local and inherited entries read alike and both keep
  * the optional keys {@link Relaxed} assigns to entries admitting absence.
@@ -1171,11 +1169,11 @@ export type Inheritance<C> =
  * single-variant {@link union!UnionShape | union} narrowing (Form 1).
  *
  * @typeParam E The local entries record type
- * @typeParam C The constraints type providing the inherited template via {@link Inheritance}
+ * @typeParam P The parent shapes providing the inherited template via {@link Inheritance}
  */
-export type Composition<E extends Members, C> = Merged<
+export type Composition<E extends Members, P extends Parents> = Merged<
 	& Prototype<E>
-	& Omit<Inheritance<C>, keyof E>
+	& Omit<Inheritance<P>, keyof E>
 >;
 
 /**
@@ -1287,60 +1285,78 @@ export type Merged<T> = {
 //// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Creates a resource shape from property definitions.
+ * Argument accepted by the {@link resource} factory.
+ *
+ * Covers the three positional roles the factory reads: a leading parent shape, the member definitions, and the
+ * trailing shape constraints.
+ */
+type Argument =
+	| Lazy<ResourceShape>
+	| Members
+	| ResourceConstraints;
+
+/**
+ * Creates a resource shape from parent shapes and property definitions.
  *
  * Accepts {@link Member} values including full {@link Property} definitions, naked
- * {@link SetShape} values for the concise syntax, and {@link Id}/{@link Type} markers. Property
- * IRIs are resolved against {@link defaultNamespace}; use the constraints overload to declare a
- * different default namespace or to inherit from parent shapes.
+ * {@link SetShape} values for the concise syntax, and {@link Id}/{@link Type} markers. Parent shapes are declared
+ * ahead of the definitions, each possibly deferred to a {@link @metreeca/core!Lazy | lazy} factory; property IRIs are
+ * resolved against {@link defaultNamespace} unless a parent declares a namespace. Use the constraints overload to
+ * declare a different default namespace, target classes, identifier patterns, or resource-level validators.
  *
  * > [!TIP]
  * > `name: required(string())` is equivalent to `name: property(required(string()))`.
  *
- * @typeParam E The entries record type
- *
- * @param entries The property definitions, mapping property names to entries
- *
- * @returns An immutable resource shape with the specified entries
- *
- * @throws {TraceError} If entry definitions are invalid (for example, duplicate `id`/`type` markers)
- *
- * @example
- *
- * ```typescript
- * const Person = resource({
- *   name: required(string()),           // naked range
- *   age: property(optional(integer()))  // full property
- * });
- * ```
- */
-export function resource<E extends Members>(
-	entries: E
-): Omit<ResourceShape, "model"> & { readonly model: Prototype<E> };
-
-/**
- * Creates a resource shape from property definitions and constraints.
- *
- * Accepts {@link Member} values including full {@link Property} definitions, naked
- * {@link SetShape} values for the concise syntax, and {@link Id}/{@link Type} markers. The
- * `constraints` argument may declare a custom namespace, target classes, identifier patterns,
- * resource-level validators, or parent shapes via {@link ResourceConstraints.extends | extends}.
- *
  * > [!TIP]
- * > When `constraints` includes `extends`, parent shapes are recursively flattened and merged
- * > into the returned shape. Consumers can work with the result directly without traversing the
- * > inheritance chain. The `extends` field is retained for reference, but all inherited
- * > constraints are already resolved.
+ * > Parent shapes are recursively flattened and merged into the returned shape. Consumers can work with the result
+ * > directly without traversing the inheritance chain. The parent list is retained on
+ * > {@link ResourceShape.parents | parents} for reference, but all inherited constraints are already resolved.
  *
  * > [!NOTE]
  * > This function is idempotent: the returned shape is branded and won't be re-flattened if used
  * > as a parent in another shape.
  *
+ * @typeParam P The parent shapes, used to infer the inherited model
  * @typeParam E The entries record type
- * @typeParam C The constraints type, used to infer the inherited model
  *
- * @param entries The property definitions, mapping property names to entries
- * @param constraints Shape constraints including space, name, validators, and optionally `extends`
+ * @param args The parent shapes to inherit from, followed by the property definitions mapping property names to
+ * entries
+ *
+ * @returns An immutable resource shape with inherited entries flattened and merged
+ *
+ * @throws {TraceError} If entry definitions are invalid (for example, duplicate `id`/`type` markers) or inherited
+ * constraints are incompatible
+ *
+ * @example
+ *
+ * ```typescript
+ * // without inheritance
+ * const Person = resource({
+ *   name: required(string()),           // naked range
+ *   age: property(optional(integer()))  // full property
+ * });
+ *
+ * // with inheritance
+ * const Employee = resource(Person, {
+ *   department: required(string())
+ * });
+ * ```
+ */
+export function resource<const P extends Parents, E extends Members>(
+	...args: [ ...parents: P, entries: E & Override<E, Inheritance<P>> ]
+): Omit<ResourceShape, "model"> & { readonly model: Composition<E, P> };
+
+/**
+ * Creates a resource shape from parent shapes, property definitions and constraints.
+ *
+ * Behaves as the bare overload, with a trailing `constraints` argument declaring a custom namespace, target classes,
+ * identifier patterns, or resource-level validators. Validators are typed against the composed model, so a validator
+ * reads inherited entries alongside local ones.
+ *
+ * @typeParam P The parent shapes, used to infer the inherited model
+ * @typeParam E The entries record type
+ *
+ * @param args The parent shapes to inherit from, followed by the property definitions and the shape constraints
  *
  * @returns An immutable resource shape with inherited constraints and entries flattened and merged
  *
@@ -1357,68 +1373,115 @@ export function resource<E extends Members>(
  * });
  *
  * // with inheritance
- * const Employee = resource({
- *   department: required(string())  // naked range
+ * const Employee = resource(Person, {
+ *   department: required(string())
  * }, {
- *   extends: Person
+ *   class: "https://schema.org/Employee"
  * });
  * ```
  */
-export function resource<E extends Members, const C extends ResourceConstraints>(
-	entries: E & Override<E, Inheritance<C>>,
-	constraints: C & {
-		readonly validators?: readonly [Validator<Composition<E, C>>, ...Validator<Composition<E, C>>[]]
-	}
-): Omit<ResourceShape, "model"> & { readonly model: Composition<E, C> };
+export function resource<const P extends Parents, E extends Members>(
+	...args: [ ...parents: P, entries: E & Override<E, Inheritance<P>>, constraints: ResourceConstraints & {
+		readonly validators?: readonly [Validator<Composition<E, P>>, ...Validator<Composition<E, P>>[]]
+	} ]
+): Omit<ResourceShape, "model"> & { readonly model: Composition<E, P> };
 
 /**
  * Creates resource shapes.
  */
-export function resource(
-	entries: Members,
-	constraints?: ResourceConstraints
-): ResourceShape {
+export function resource(...args: readonly Argument[]): ResourceShape {
 
-	type Parents = ResourceConstraints["extends"];
 	type Sources = { readonly [entry: Identifier]: Id | Type | PropertyConstraints };
 	type Properties = { readonly [entry: Identifier]: Entry };
 
 
-	if ( constraints === undefined ) {
+	const parents = args.filter(isParent);
+	const [ members, constraints = {} ] = args.filter(isDeclaration);
 
-		const namespace = locate({});
-		const resolved = resolve(normalize(entries), namespace);
+	if ( members === undefined || !isMembers(members) ) {
+		throw new TypeError(`malformed member definitions <${JSON.stringify(members)}>`);
+	}
 
-		return flatten({
+	if ( !isConstraints(constraints) ) {
+		throw new TypeError(`malformed shape constraints <${JSON.stringify(constraints)}>`);
+	}
 
-			kind: "resource",
-			model: build(resolved),
+	const { name, description, ...labelless } = constraints;
 
-			entries: resolved
+	const namespace = locate(parents, constraints.space);
+	const resolved = resolve(normalize(members, parents), namespace);
 
-		});
+	return flatten({
 
-	} else {
+		kind: "resource",
+		model: build(resolved, parents),
 
-		const { name, description, ...labelless } = constraints;
+		...labelless,
 
-		const namespace = locate(constraints);
-		const resolved = resolve(normalize(entries, constraints.extends), namespace);
+		...parents.length > 0 && { parents },
 
-		return flatten({
+		...name !== undefined && { name: localize(name) },
+		...description !== undefined && { description: localize(description) },
 
-			kind: "resource",
-			model: build(resolved, constraints),
+		entries: resolved
 
-			...labelless,
+	});
 
-			...name !== undefined && { name: localize(name) },
-			...description !== undefined && { description: localize(description) },
 
-			entries: resolved
+	/**
+	 * Checks that an argument declares a parent shape.
+	 *
+	 * @param argument The factory argument to inspect
+	 *
+	 * @returns `true` if `argument` is a resource shape or a factory deferring one; `false` otherwise
+	 */
+	function isParent(argument: Argument): argument is Lazy<ResourceShape> {
+		return isFunction(argument) || "kind" in argument && argument.kind === "resource";
+	}
 
-		});
+	/**
+	 * Checks that an argument declares members or constraints rather than a parent shape.
+	 *
+	 * @param argument The factory argument to inspect
+	 *
+	 * @returns `true` unless `argument` is a parent shape
+	 */
+	function isDeclaration(argument: Argument): argument is Members | ResourceConstraints {
+		return !isParent(argument);
+	}
 
+	/**
+	 * Checks that a declaration lists resource members.
+	 *
+	 * @param declaration The declaration to inspect
+	 *
+	 * @returns `true` if every value of `declaration` is a {@link Member}; `false` otherwise
+	 */
+	function isMembers(declaration: Members | ResourceConstraints): declaration is Members {
+		return Object.values(declaration).every(isMember);
+	}
+
+	/**
+	 * Checks that a declaration lists shape constraints.
+	 *
+	 * @param declaration The declaration to inspect
+	 *
+	 * @returns `true` if no value of `declaration` is a {@link Member}; `false` otherwise
+	 */
+	function isConstraints(declaration: Members | ResourceConstraints): declaration is ResourceConstraints {
+		return !Object.values(declaration).some(isMember);
+	}
+
+	/**
+	 * Checks that a value defines a resource member.
+	 *
+	 * @param value The value to inspect
+	 *
+	 * @returns `true` if `value` is a marker, a naked range, or a property definition; `false` otherwise
+	 */
+	function isMember(value: unknown): value is Member {
+		return isObject(value) && "kind" in value
+			&& (value.kind === "id" || value.kind === "type" || value.kind === "property" || value.kind === "set");
 	}
 
 
@@ -1436,29 +1499,22 @@ export function resource(
 	/**
 	 * Identifies the effective namespace for property IRI resolution.
 	 *
-	 * @param constraints The resource constraints containing namespace and extends
+	 * @param parents The parent shapes the namespace may be inherited from
+	 * @param space The namespace declared by the shape, if any
 	 *
 	 * @returns The effective namespace, resolved in order: declared → inherited → app
 	 */
-	function locate({ space, extends: parents }: ResourceConstraints): Namespace {
+	function locate(parents: Parents, space: undefined | Namespace): Namespace {
 
 		if ( space !== undefined ) {
 
 			return space;
 
-		} else if ( parents !== undefined ) {
-
-			const namespaces = (Array.isArray(parents) ? parents : [parents]).map(parent =>
-				eager(parent).space
-			);
+		} else {
 
 			// conflicts validated later by flatten() using flattened parent namespaces
 
-			return namespaces[0] ?? defaultNamespace;
-
-		} else {
-
-			return defaultNamespace;
+			return parents.map(parent => eager(parent).space)[0] ?? defaultNamespace;
 
 		}
 
@@ -1473,17 +1529,15 @@ export function resource(
 	 * that changes the inherited kind.
 	 *
 	 * @param entries The property definitions to normalise
-	 * @param parents Optional parent shapes for inheritance-aware duplicate detection
+	 * @param parents The parent shapes for inheritance-aware duplicate detection
 	 *
 	 * @returns Normalised entries with range wrapped
 	 *
 	 * @throws {TraceError} If two markers of the same kind are declared under distinct property names
 	 */
-	function normalize(entries: Members, parents?: Parents): Sources {
+	function normalize(entries: Members, parents: Parents): Sources {
 
-		const bases: Properties[] = parents === undefined ? []
-			: (Array.isArray(parents) ? parents : [parents])
-				.map(parent => eager(parent).entries);
+		const bases: Properties[] = parents.map(parent => eager(parent).entries);
 
 		const merged: Members = [...bases, entries].reduce((collapsed, source) => ({ ...collapsed, ...source }), {});
 
@@ -1586,13 +1640,13 @@ export function resource(
 	 * definitions override inherited ones. Parent models already contain transitive inherited entries.
 	 *
 	 * @param properties The resolved property definitions
-	 * @param constraints Optional constraints containing parent shapes whose models should be inherited
+	 * @param parents The parent shapes whose models should be inherited
 	 *
 	 * @returns An immutable resource model
 	 */
-	function build(properties: Properties, { extends: parents }: ResourceConstraints = {}): Template {
+	function build(properties: Properties, parents: Parents): Template {
 
-		const inherited = parents === undefined ? {} : (Array.isArray(parents) ? parents : [parents])
+		const inherited = parents
 			.map(parent => eager(parent).model)
 			.reduce((inherited, model) => ({ ...model, ...inherited }), {});
 

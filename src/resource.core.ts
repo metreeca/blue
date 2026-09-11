@@ -534,7 +534,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 		description: target.description,
 
 		space: target.space ?? source.space,
-		extends: target.extends,
+		parents: target.parents,
 
 		class: target.class,
 		classes,
@@ -2160,7 +2160,7 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 	if ( seal(shape, Flattened) === null ) { return shape; } else {
 
-		const parents = [shape.extends ?? []].flat().map(p => eager(p));
+		const parents = (shape.parents ?? []).map(p => eager(p));
 
 		const merged = mergeResource(shape, parents.reduce(mergeResource, {
 

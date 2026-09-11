@@ -39,6 +39,7 @@ import {
 	type Intersected,
 	type Member,
 	type Override,
+	type Parents,
 	property,
 	type Property,
 	type PropertyConstraints,
@@ -79,21 +80,21 @@ describe("Overrides", () => {
 
 	test("rejects incompatible override type", () => {
 		// @ts-expect-error - incompatible override: integer does not extend string
-		resource({ name: required(integer()) }, { extends: Base });
+		resource(Base, { name: required(integer()) });
 	});
 
 	test("accepts compatible narrowing", () => {
-		resource({ name: required(string()) }, { extends: Base });
+		resource(Base, { name: required(string()) });
 	});
 
 	test("rejects widening cardinality (required → optional)", () => {
 		// @ts-expect-error - incompatible override: optional widens required
-		resource({ name: optional(string()) }, { extends: Base });
+		resource(Base, { name: optional(string()) });
 	});
 
 	test("rejects changing to array cardinality", () => {
 		// @ts-expect-error - incompatible override: multiple changes scalar to array
-		resource({ name: multiple(string()) }, { extends: Base });
+		resource(Base, { name: multiple(string()) });
 	});
 
 });
@@ -108,18 +109,18 @@ describe("Overrides over union ranges", () => {
 	}
 
 	test("Form 1 narrowing resolves the model to the bare child slot", () => {
-		const Derived = resource({ value: required(string()) }, { extends: Base });
+		const Derived = resource(Base, { value: required(string()) });
 		expectTypeOf(Derived.model).toHaveProperty("value").toEqualTypeOf<string>();
 	});
 
 	test("Form 2 full retention preserves the parent indexed record", () => {
-		const Derived = resource({ value: required(union(string(), integer())) }, { extends: Base });
+		const Derived = resource(Base, { value: required(union(string(), integer())) });
 		expectTypeOf(Derived.model).toHaveProperty("value")
 			.toEqualTypeOf<{ readonly "0": string; readonly "1": number }>();
 	});
 
 	test("Form 2 subsetting resolves the model to the retained variants only", () => {
-		const Derived = resource({ value: required(union(string())) }, { extends: Base });
+		const Derived = resource(Base, { value: required(union(string())) });
 		expectTypeOf(Derived.model).toHaveProperty("value").toEqualTypeOf<{ readonly "0": string }>();
 	});
 
@@ -130,13 +131,13 @@ describe("Overrides over union ranges", () => {
 			});
 		}
 
-		const Derived = resource({ value: multiple(string()) }, { extends: MultiBase });
+		const Derived = resource(MultiBase, { value: multiple(string()) });
 		expectTypeOf(Derived.model).toHaveProperty("value").toEqualTypeOf<undefined | readonly [string]>();
 	});
 
 	test("rejects narrowing to a kind absent from the parent union", () => {
 		// @ts-expect-error - incompatible override: boolean kind not in union(string, integer)
-		resource({ value: required(boolean()) }, { extends: Base });
+		resource(Base, { value: required(boolean()) });
 	});
 
 });
@@ -426,9 +427,9 @@ describe("nested model inference", () => {
 				name: required(string())
 			});
 
-			const Child = resource({
+			const Child = resource(Parent, {
 				age: required(integer())
-			}, { extends: Parent });
+			});
 
 			expectTypeOf(resource({
 				child: required(Child)
@@ -467,17 +468,17 @@ describe("resource()", () => {
 
 	});
 
-	test("extends accepts single lazy shape", () => {
+	test("accepts a single lazy parent", () => {
 
 		function Parent() {
 			return resource({ name: required(string()) });
 		}
 
-		resource({ extra: required(string()) }, { extends: Parent });
+		resource(Parent, { extra: required(string()) });
 
 	});
 
-	test("extends accepts non-empty array of lazy shapes", () => {
+	test("accepts several lazy parents", () => {
 
 		function Parent1() {
 			return resource({ name: required(string()) });
@@ -487,12 +488,8 @@ describe("resource()", () => {
 			return resource({ code: required(string()) });
 		}
 
-		resource({ extra: required(string()) }, { extends: [Parent1, Parent2] });
+		resource(Parent1, Parent2, { extra: required(string()) });
 
-	});
-
-	test("accepts empty extends array (ignored)", () => {
-		resource({ name: required(string()) }, { extends: [] });
 	});
 
 	test("accepts non-empty classes array", () => {
@@ -525,9 +522,142 @@ describe("resource()", () => {
 			return resource({ name: required(string()) });
 		}
 
-		resource({
+		resource(Parent, {
 			extra: optional(string())
-		}, { extends: Parent });
+		});
+
+	});
+
+});
+
+
+describe("resource() argument dispatch", () => {
+
+	function Named() {
+		return resource({ id: id(), name: required(string()) });
+	}
+
+	function Aged() {
+		return resource({ age: required(integer()) });
+	}
+
+	const Eager = resource({ code: required(string()) });
+
+	test("reads a lone argument as the entries", () => {
+
+		const shape = resource({ label: required(string()) });
+
+		expectTypeOf(shape.model).toEqualTypeOf<{ readonly label: string }>();
+
+	});
+
+	test("reads a trailing object as the constraints when no parent leads", () => {
+
+		const shape = resource({ label: required(string()) }, { class: "https://example.org/Type" as IRI });
+
+		expectTypeOf(shape.model).toEqualTypeOf<{ readonly label: string }>();
+
+	});
+
+	test("composes the model of a single lazy parent", () => {
+
+		const shape = resource(Named, { age: required(integer()) });
+
+		expectTypeOf(shape.model).toEqualTypeOf<{
+			readonly id: Reference;
+			readonly name: string;
+			readonly age: number;
+		}>();
+
+	});
+
+	test("composes the model of a single eager parent", () => {
+
+		const shape = resource(Eager, { age: required(integer()) });
+
+		expectTypeOf(shape.model).toEqualTypeOf<{
+			readonly code: string;
+			readonly age: number;
+		}>();
+
+	});
+
+	test("composes the model of several parents", () => {
+
+		const shape = resource(Named, Aged, { code: required(string()) });
+
+		expectTypeOf(shape.model).toEqualTypeOf<{
+			readonly id: Reference;
+			readonly name: string;
+			readonly age: number;
+			readonly code: string;
+		}>();
+
+	});
+
+	test("composes the model of parents mixing lazy and eager forms", () => {
+
+		const shape = resource(Named, Eager, { age: required(integer()) });
+
+		expectTypeOf(shape.model).toEqualTypeOf<{
+			readonly id: Reference;
+			readonly name: string;
+			readonly code: string;
+			readonly age: number;
+		}>();
+
+	});
+
+	test("reads a trailing object as the constraints when parents lead", () => {
+
+		const shape = resource(Named, { age: required(integer()) }, { class: "https://example.org/Type" as IRI });
+
+		expectTypeOf(shape.model).toEqualTypeOf<{
+			readonly id: Reference;
+			readonly name: string;
+			readonly age: number;
+		}>();
+
+	});
+
+	test("reads empty entries against a leading parent", () => {
+
+		const shape = resource(Named, {});
+
+		expectTypeOf(shape.model).toEqualTypeOf<{
+			readonly id: Reference;
+			readonly name: string;
+		}>();
+
+	});
+
+	test("types validators against the composed model", () => {
+
+		resource(Named, { age: required(integer()) }, {
+			validators: [ value => {
+				expectTypeOf(value).toEqualTypeOf<{
+					readonly id: Reference;
+					readonly name: string;
+					readonly age: number;
+				}>();
+				return undefined;
+			} ]
+		});
+
+	});
+
+	test("exposes the parents as a list", () => {
+
+		const shape = resource(Named, { age: required(integer()) });
+
+		expectTypeOf(shape.parents).toEqualTypeOf<undefined | Parents>();
+
+	});
+
+	test("rejects an entry relaxing an inherited one", () => {
+
+		// @ts-expect-error — optional cannot override an inherited required entry
+		resource(Named, { name: optional(string()) });
 
 	});
 
@@ -680,7 +810,7 @@ describe("Inheritance", () => {
 			return resource({ name: required(string()) });
 		}
 
-		expectTypeOf<Inheritance<{ extends: typeof Parent }>>()
+		expectTypeOf<Inheritance<readonly [typeof Parent]>>()
 			.toEqualTypeOf<{ readonly name: string }>();
 	});
 
@@ -689,12 +819,12 @@ describe("Inheritance", () => {
 
 		function P2() { return resource({ b: required(integer()) }); }
 
-		expectTypeOf<Inheritance<{ extends: readonly [typeof P1, typeof P2] }>>()
+		expectTypeOf<Inheritance<readonly [typeof P1, typeof P2]>>()
 			.toEqualTypeOf<{ readonly a: string; readonly b: number }>();
 	});
 
-	test("yields {} without extends", () => {
-		expectTypeOf<Inheritance<{}>>().toEqualTypeOf<{}>();
+	test("yields {} without parents", () => {
+		expectTypeOf<Inheritance<readonly []>>().toEqualTypeOf<{}>();
 	});
 
 });

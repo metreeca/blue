@@ -159,7 +159,7 @@ export type ValueShape =
  *
  * **Inheritance**
  *
- * When a {@link ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends}, each
+ * When a {@link ResourceShape} extends a parent via {@link resource!ResourceShape.parents | parents}, each
  * set shape is merged according to the following rules.
  *
  * | Field      | Override Rule                                                                              |

@@ -1300,9 +1300,9 @@ describe("utilities", () => {
 					label: required(string())
 				});
 
-				const Derived = resource({
+				const Derived = resource(Base, {
 					extra: required(integer())
-				}, { extends: Base });
+				});
 
 				expect(range(probeRange(probe(["label"]), Derived)).variants[0]).toEqual(string());
 

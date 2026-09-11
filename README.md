@@ -95,7 +95,7 @@ function Thing() {
 }
 
 function Product() {
-	return resource({
+	return resource(Thing, {
 		name: required(dictionary()),
 		description: optional(dictionary()),
 		price: required(number({ minInclusive: 0 })),
@@ -103,8 +103,6 @@ function Product() {
 		tags: multiple(string()),
 		rating: optional(Rating),
 		vendor: required(reference(Vendor))
-	}, {
-		extends: Thing
 	});
 }
 
@@ -116,7 +114,7 @@ function Rating() {
 }
 
 function Vendor() {
-	return resource({
+	return resource(Thing, {
 		name: required(string()),
 		website: required(url()),
 		address: optional(union(
@@ -124,8 +122,6 @@ function Vendor() {
 			PostalAddress(),
 			VirtualLocation()
 		))
-	}, {
-		extends: Thing
 	});
 }
 ```
@@ -183,11 +179,9 @@ const NamedThing = resource({
     name: required(string({ minLength: 1 }))
 });
 
-const Vendor = resource({
+const Vendor = resource(NamedThing, {
     name: required(string({ minLength: 3, maxLength: 80 })), // narrows minLength
     rating: optional(number({ minInclusive: 0, maxInclusive: 5 }))
-}, {
-    extends: NamedThing
 });
 ```
 
@@ -206,12 +200,9 @@ const Organization = resource({
     class: "https://schema.org/Organization"
 });
 
-const University = resource({
+const University = resource(Organization, {
     country: required(string())
-}, {
-    extends: Organization,
-    class: "https://ec2u.eu/University"
-});
+}, { class: "https://ec2u.eu/University" });
 
 const Unit = resource({
     id: id(),
@@ -219,11 +210,9 @@ const Unit = resource({
     host: required(Organization)               // embedded target
 });
 
-const ResearchUnit = resource({
+const ResearchUnit = resource(Unit, {
     unitOf: required(reference(University)),   // re-pointed at the extending target
     host: required(University)
-}, {
-    extends: Unit
 });
 ```
 
@@ -249,17 +238,13 @@ const Entity = resource({
 });
 
 // Form 1 — narrows the slot to a bare string
-const Vendor = resource({
+const Vendor = resource(Entity, {
 	code: required(string({ model: "ABC", pattern: "^[A-Z]" }))
-}, {
-	extends: Entity
 });
 
 // Form 2 — keeps the union but drops the string variant wholesale
-const Numbered = resource({
+const Numbered = resource(Entity, {
 	code: required(union(number({ minInclusive: 0 })))
-}, {
-	extends: Entity
 });
 ```
 

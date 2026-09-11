@@ -152,7 +152,7 @@ import { checkString } from "./string.core.js";
  *
  * **Inheritance**
  *
- * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceConstraints.extends | extends},
+ * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceShape.parents | parents},
  * string-valued entries are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
