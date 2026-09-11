@@ -138,7 +138,7 @@ describe("factories", () => {
 				const shape = resource({
 					name: required(string())
 				}, {
-					namespace: createNamespace("http://example.org/")
+					space: createNamespace("http://example.org/")
 				});
 
 				expect(shape.entries.name).toBeDefined();
@@ -310,7 +310,7 @@ describe("factories", () => {
 
 				const Outer = resource({
 					person: required(Unflattened)
-				}, { namespace: ns });
+				}, { space: ns });
 
 				const nested = ((Outer.entries.person as Property).range as SetShape).shape as ResourceShape;
 
@@ -416,7 +416,7 @@ describe("factories", () => {
 
 					const shape = resource({
 						name: required(string())
-					}, { namespace: ns });
+					}, { space: ns });
 
 					expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
 					expect((shape.entries.name as Property).reverse).toBeUndefined();
@@ -429,7 +429,7 @@ describe("factories", () => {
 
 					const Parent = resource({
 						id: required(string())
-					}, { namespace: ns });
+					}, { space: ns });
 
 					const Child = resource({
 						name: required(string())
@@ -446,11 +446,11 @@ describe("factories", () => {
 
 					const Parent1 = resource({
 						id: required(string())
-					}, { namespace: ns });
+					}, { space: ns });
 
 					const Parent2 = resource({
 						code: required(string())
-					}, { namespace: ns });
+					}, { space: ns });
 
 					const Child = resource({
 						name: required(string())
@@ -493,7 +493,7 @@ describe("factories", () => {
 
 					const shape = resource({
 						name: property({ forward: "http://custom.org/name" }, required(string()))
-					}, { namespace: ns });
+					}, { space: ns });
 
 					expect((shape.entries.name as Property).forward).toBe("http://custom.org/name");
 
@@ -507,7 +507,7 @@ describe("factories", () => {
 						name: required(string()),
 						age: optional(integer()),
 						email: required(string())
-					}, { namespace: ns });
+					}, { space: ns });
 
 					expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
 					expect((shape.entries.age as Property).forward).toBe("http://example.org/age");
@@ -579,7 +579,7 @@ describe("factories", () => {
 				// namespace validation is manual (typia can't validate function signatures)
 				expect(() => resource({
 					name: property(required(string()))
-				}, { namespace: "http://example.org/" } as any)).toThrow(TypeError);
+				}, { space: "http://example.org/" } as any)).toThrow(TypeError);
 
 			});
 
@@ -847,11 +847,11 @@ describe("factories", () => {
 
 				const Parent1 = resource({
 					name: property(required(string()))
-				}, { namespace: ns });
+				}, { space: ns });
 
 				const Parent2 = resource({
 					age: property(optional(integer()))
-				}, { namespace: ns });
+				}, { space: ns });
 
 				expect(() => resource({
 					email: property(required(string()))
@@ -865,7 +865,7 @@ describe("factories", () => {
 
 				const Parent1 = resource({
 					name: property(required(string()))
-				}, { namespace: ns });
+				}, { space: ns });
 
 				const Parent2 = resource({
 					age: property(optional(integer()))
@@ -884,11 +884,11 @@ describe("factories", () => {
 
 				const Parent1 = resource({
 					name: property(required(string()))
-				}, { namespace: ns1 });
+				}, { space: ns1 });
 
 				const Parent2 = resource({
 					age: property(optional(integer()))
-				}, { namespace: ns2 });
+				}, { space: ns2 });
 
 				expect(() => resource({
 					email: property(required(string()))
@@ -904,15 +904,15 @@ describe("factories", () => {
 
 				const Parent1 = resource({
 					name: property(required(string()))
-				}, { namespace: ns1 });
+				}, { space: ns1 });
 
 				const Parent2 = resource({
 					age: property(optional(integer()))
-				}, { namespace: ns2 });
+				}, { space: ns2 });
 
 				expect(() => resource({
 					email: property(required(string()))
-				}, { namespace: override, extends: [Parent1, Parent2] })).not.toThrow();
+				}, { space: override, extends: [Parent1, Parent2] })).not.toThrow();
 
 			});
 
@@ -922,7 +922,7 @@ describe("factories", () => {
 
 				const Parent = resource({
 					name: property(required(string()))
-				}, { namespace: ns });
+				}, { space: ns });
 
 				expect(() => resource({
 					age: property(optional(integer()))
@@ -1775,12 +1775,12 @@ describe("utilities", () => {
 					it("inherits namespace from parent when child has none", async () => {
 
 						const ns = createNamespace("http://example.org/");
-						const parent = resource({}, { namespace: ns });
+						const parent = resource({}, { space: ns });
 						const child = resource({}, { extends: parent });
 
 						const flat = flatten(child);
 
-						expect(flat.namespace).toBe(ns);
+						expect(flat.space).toBe(ns);
 
 					});
 
@@ -1788,12 +1788,12 @@ describe("utilities", () => {
 
 						const nsParent = createNamespace("http://parent.org/");
 						const nsChild = createNamespace("http://child.org/");
-						const parent = resource({}, { namespace: nsParent });
-						const child = resource({}, { extends: parent, namespace: nsChild });
+						const parent = resource({}, { space: nsParent });
+						const child = resource({}, { extends: parent, space: nsChild });
 
 						const flat = flatten(child);
 
-						expect(flat.namespace).toBe(nsChild);
+						expect(flat.space).toBe(nsChild);
 
 					});
 
@@ -1801,13 +1801,13 @@ describe("utilities", () => {
 
 						const nsGrand = createNamespace("http://grand.org/");
 						const nsParent = createNamespace("http://parent.org/");
-						const grandparent = resource({}, { namespace: nsGrand });
-						const parent = resource({}, { extends: grandparent, namespace: nsParent });
+						const grandparent = resource({}, { space: nsGrand });
+						const parent = resource({}, { extends: grandparent, space: nsParent });
 						const child = resource({}, { extends: parent });
 
 						const flat = flatten(child);
 
-						expect(flat.namespace).toBe(nsParent);
+						expect(flat.space).toBe(nsParent);
 
 					});
 
@@ -1818,13 +1818,13 @@ describe("utilities", () => {
 					it("inherits namespace when both parents agree", async () => {
 
 						const ns = createNamespace("http://example.org/");
-						const parentA = resource({}, { namespace: ns });
-						const parentB = resource({}, { namespace: ns });
+						const parentA = resource({}, { space: ns });
+						const parentB = resource({}, { space: ns });
 						const child = resource({}, { extends: [parentA, parentB] });
 
 						const flat = flatten(child);
 
-						expect(flat.namespace).toBe(ns);
+						expect(flat.space).toBe(ns);
 
 					});
 
@@ -1833,13 +1833,13 @@ describe("utilities", () => {
 						const nsA = createNamespace("http://a.org/");
 						const nsB = createNamespace("http://b.org/");
 						const nsChild = createNamespace("http://child.org/");
-						const parentA = resource({}, { namespace: nsA });
-						const parentB = resource({}, { namespace: nsB });
-						const child = resource({}, { extends: [parentA, parentB], namespace: nsChild });
+						const parentA = resource({}, { space: nsA });
+						const parentB = resource({}, { space: nsB });
+						const child = resource({}, { extends: [parentA, parentB], space: nsChild });
 
 						const flat = flatten(child);
 
-						expect(flat.namespace).toBe(nsChild);
+						expect(flat.space).toBe(nsChild);
 
 					});
 
@@ -1847,8 +1847,8 @@ describe("utilities", () => {
 
 						const nsA = createNamespace("http://a.org/");
 						const nsB = createNamespace("http://b.org/");
-						const parentA = resource({}, { namespace: nsA });
-						const parentB = resource({}, { namespace: nsB });
+						const parentA = resource({}, { space: nsA });
+						const parentB = resource({}, { space: nsB });
 
 						expect(() => resource({}, { extends: [parentA, parentB] })).toThrow();
 
@@ -1857,7 +1857,7 @@ describe("utilities", () => {
 					it("rejects undefined vs defined conflict without child override", async () => {
 
 						const ns = createNamespace("http://example.org/");
-						const parentA = resource({}, { namespace: ns });
+						const parentA = resource({}, { space: ns });
 						const parentB = resource({});
 
 						expect(() => resource({}, { extends: [parentA, parentB] })).toThrow();
@@ -2161,8 +2161,8 @@ describe("utilities", () => {
 			it("returns undefined when parents agree on namespace", async () => {
 
 				const ns = createNamespace("http://example.org/");
-				const parentA = resource({ name: required(string()) }, { namespace: ns });
-				const parentB = resource({ age: required(integer()) }, { namespace: ns });
+				const parentA = resource({ name: required(string()) }, { space: ns });
+				const parentB = resource({ age: required(integer()) }, { space: ns });
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
@@ -2171,8 +2171,8 @@ describe("utilities", () => {
 
 			it("reports conflicting namespace without child override", async () => {
 
-				const parentA = resource({ name: required(string()) }, { namespace: createNamespace("http://example.org/") });
-				const parentB = resource({ age: required(integer()) }, { namespace: createNamespace("http://other.org/") });
+				const parentA = resource({ name: required(string()) }, { space: createNamespace("http://example.org/") });
+				const parentB = resource({ age: required(integer()) }, { space: createNamespace("http://other.org/") });
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeDefined();
@@ -3189,11 +3189,11 @@ describe("operators", () => {
 				const ns = createNamespace("http://example.org/");
 
 				const merged = mergeResource(
-					resource({}, { namespace: ns }),
+					resource({}, { space: ns }),
 					resource({})
 				);
 
-				expect(merged.namespace).toBe(ns);
+				expect(merged.space).toBe(ns);
 
 			});
 
@@ -3203,10 +3203,10 @@ describe("operators", () => {
 
 				const merged = mergeResource(
 					resource({}),
-					resource({}, { namespace: ns })
+					resource({}, { space: ns })
 				);
 
-				expect(merged.namespace).toBe(ns);
+				expect(merged.space).toBe(ns);
 
 			});
 

@@ -130,7 +130,7 @@ export function checkResource(constraints: Partial<ResourceShape>): undefined | 
 /**
  * Checks for conflicting inherit-strategy fields across sibling parents.
  *
- * Inherit fields (`virtual`, `namespace` on resources; `hidden`, `computed` on entries) require all sibling
+ * Inherit fields (`virtual`, `space` on resources; `hidden`, `computed` on entries) require all sibling
  * parents to agree on the value. When any two flattened parents define different values (including `undefined` vs
  * defined) and the child shape does not provide an override, a trace entry is produced.
  *
@@ -154,9 +154,9 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 			p.virtual !== parents[0].virtual)?.virtual
 		}> without child override`]),
 
-		(shape.namespace === undefined && !parents.every(p => p.namespace?.[""] === parents[0].namespace?.[""]))
-		&& fail([`{namespace} conflicting parent values <${parents[0].namespace?.[""]}> vs <${parents.find(p =>
-			p.namespace?.[""] !== parents[0].namespace?.[""])?.namespace?.[""]
+		(shape.space === undefined && !parents.every(p => p.space?.[""] === parents[0].space?.[""]))
+		&& fail([`{space} conflicting parent values <${parents[0].space?.[""]}> vs <${parents.find(p =>
+			p.space?.[""] !== parents[0].space?.[""])?.space?.[""]
 		}> without child override`]),
 
 		// property-level inherit fields
@@ -533,7 +533,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 		name: target.name,
 		description: target.description,
 
-		namespace: target.namespace ?? source.namespace,
+		space: target.space ?? source.space,
 		extends: target.extends,
 
 		class: target.class,
