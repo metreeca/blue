@@ -198,11 +198,6 @@
  * > property, values must satisfy both the child's constraints and all inherited constraints.
  * > Overrides can restrict inherited constraints but never relax them.
  *
- * > [!WARNING]
- * > Constraints that can be expressed in the type system — such as non-empty set requirements on
- * > `in`, `hasValue`, `languageIn`, and `validators` — are enforced at compile time and not
- * > re-validated at runtime.
- *
  * **Refining nested targets**
  *
  * A slot holding a nested resource or a {@link reference!reference | reference} is refined by re-pointing it at a shape
@@ -513,8 +508,8 @@ export interface ResourceShape extends ResourceConstraints {
 	/**
 	 * Custom resource validators.
 	 *
-	 * When specified, all validators are applied during validation. Must be non-empty. Each validator reports
-	 * violations as a {@link Trace}, returning `undefined` if the resource passes.
+	 * When specified, all listed validators are applied during validation. Each validator reports violations as a
+	 * {@link Trace}, returning `undefined` when the resource passes. Empty arrays are ignored.
 	 *
 	 * **Inheritance** — parent and child validators are merged; all apply.
 	 *
@@ -524,7 +519,7 @@ export interface ResourceShape extends ResourceConstraints {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#constraints SHACL § 2.1.1 Constraint Components}
 	 */
-	readonly validators?: readonly [Validator<Resource>, ...Validator<Resource>[]];
+	readonly validators?: readonly Validator<Resource>[];
 
 }
 
@@ -1408,7 +1403,7 @@ export function resource<const P extends Parents, E extends Members>(
  */
 export function resource<const P extends Parents, E extends Members>(
 	...args: [ ...parents: P, entries: E & Override<E, Inheritance<P>>, constraints: ResourceConstraints & {
-		readonly validators?: readonly [Validator<Composition<E, P>>, ...Validator<Composition<E, P>>[]]
+		readonly validators?: readonly Validator<Composition<E, P>>[]
 	} ]
 ): Omit<ResourceShape, "model"> & { readonly model: Composition<E, P> };
 
