@@ -1768,7 +1768,7 @@ export function type(constraints: {
 export function multiple<R extends Lazy<Shape>, const C extends PropertyConstraints = {}>(
 	range: R,
 	constraints?: C
-): C & Property<SetShape<R, undefined, undefined>> {
+): NoInfer<C> & Property<SetShape<R, undefined, undefined>> {
 
 	return build(range, constraints, undefined, undefined);
 
@@ -1795,7 +1795,7 @@ export function multiple<R extends Lazy<Shape>, const C extends PropertyConstrai
 export function nonempty<R extends Lazy<Shape>, const C extends PropertyConstraints = {}>(
 	range: R,
 	constraints?: C
-): C & Property<SetShape<R, 1, undefined>> {
+): NoInfer<C> & Property<SetShape<R, 1, undefined>> {
 
 	return build(range, constraints, 1, undefined);
 
@@ -1822,7 +1822,7 @@ export function nonempty<R extends Lazy<Shape>, const C extends PropertyConstrai
 export function optional<R extends Lazy<Shape>, const C extends PropertyConstraints = {}>(
 	range: R,
 	constraints?: C
-): C & Property<SetShape<R, undefined, 1>> {
+): NoInfer<C> & Property<SetShape<R, undefined, 1>> {
 
 	return build(range, constraints, undefined, 1);
 
@@ -1849,7 +1849,7 @@ export function optional<R extends Lazy<Shape>, const C extends PropertyConstrai
 export function required<R extends Lazy<Shape>, const C extends PropertyConstraints = {}>(
 	range: R,
 	constraints?: C
-): C & Property<SetShape<R, 1, 1>> {
+): NoInfer<C> & Property<SetShape<R, 1, 1>> {
 
 	return build(range, constraints, 1, 1);
 
@@ -1890,7 +1890,7 @@ export function required<R extends Lazy<Shape>, const C extends PropertyConstrai
 export function property<R extends Lazy<Shape>, const C extends PropertyBounds = {}>(
 	range: R,
 	constraints?: C
-): C & Property<SetShape<R, Bound<C, "minCount">, Bound<C, "maxCount">>> {
+): NoInfer<C> & Property<SetShape<R, Bound<C, "minCount">, Bound<C, "maxCount">>> {
 
 	return build(range, constraints, constraints?.minCount, constraints?.maxCount);
 
