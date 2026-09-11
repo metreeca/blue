@@ -20,7 +20,7 @@
  * @module
  */
 
-import { isString } from "@metreeca/core";
+import { isRegExp, isString } from "@metreeca/core";
 import { union } from "@metreeca/core/arrays";
 import { immutable } from "@metreeca/core/structures";
 import {
@@ -37,8 +37,48 @@ import {
 	values as contains
 } from "@metreeca/core/trace";
 import type { Scope } from "./index.core.js";
-import type { StringShape } from "./string.js";
+import { type StringConstraints, type StringShape } from "./string.js";
 
+
+/**
+ * Creates a textual shape.
+ *
+ * Backs every factory this module exposes, fixing what they share: a stated `pattern` is normalised to its source, so
+ * that a built shape carries the lexical constraint in the single form {@link StringShape} states, and contradictory
+ * constraints are rejected as the shape is built, so that a shape that exists admits at least one value.
+ *
+ * @typeParam V The values the shape admits, as stated by the signature of the calling factory
+ *
+ * @param constraints The stated shape {@link StringConstraints constraints}
+ *
+ * @returns An immutable shape admitting the strings the constraints bound
+ *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ */
+export function create<V extends string>(constraints: StringConstraints): StringShape<V> {
+
+	const shape = immutable({
+
+		kind: "string",
+
+		...constraints,
+
+		pattern: isRegExp(constraints.pattern) ? constraints.pattern.source : constraints.pattern
+
+	}) as StringShape<V>; // ;(cast) the factory signatures fix the admitted values to the enumerated ones
+
+	const trace = checkString(shape);
+
+	if ( trace !== undefined ) {
+		throw new TraceError("inconsistent string shape constraints", trace);
+	}
+
+	return shape;
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Checks a set of textual constraints for internal consistency.

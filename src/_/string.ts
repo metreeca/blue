@@ -133,15 +133,13 @@
  *     Datatypes}
  */
 
-import { isRegExp } from "@metreeca/core";
 import { xsd } from "@metreeca/core/datatype";
 import { TagPattern } from "@metreeca/core/language";
 import type { Variant } from "@metreeca/core/resource";
-import { immutable } from "@metreeca/core/structures";
 import { TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Legal } from "./index.core.js";
-import { checkString } from "./string.core.js";
+import { create } from "./string.core.js";
 
 
 /**
@@ -744,45 +742,5 @@ export function duration<const C extends StringValueConstraints = {}>(constraint
 		...constraints
 
 	});
-
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Creates a textual shape.
- *
- * Backs every factory this module exposes, fixing what they share: a stated `pattern` is normalised to its source, so
- * that a built shape carries the lexical constraint in the single form {@link StringShape} states, and contradictory
- * constraints are rejected as the shape is built, so that a shape that exists admits at least one value.
- *
- * @typeParam V The values the shape admits, as stated by the signature of the calling factory
- *
- * @param constraints The stated shape {@link StringConstraints constraints}
- *
- * @returns An immutable shape admitting the strings the constraints bound
- *
- * @throws {TraceError} Where the stated constraints contradict one another
- */
-function create<V extends string>(constraints: StringConstraints): StringShape<V> {
-
-	const shape = immutable({
-
-		kind: "string",
-
-		...constraints,
-
-		pattern: isRegExp(constraints.pattern) ? constraints.pattern.source : constraints.pattern
-
-	}) as StringShape<V>; // ;(cast) the factory signatures fix the admitted values to the enumerated ones
-
-	const trace = checkString(shape);
-
-	if ( trace !== undefined ) {
-		throw new TraceError("inconsistent string shape constraints", trace);
-	}
-
-	return shape;
 
 }
