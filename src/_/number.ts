@@ -14,9 +14,117 @@
  * limitations under the License.
  */
 
+/**
+ * Numeric shape and factories.
+ *
+ * Defines shapes and factories for validating numeric values, mapping the
+ * [JSON number](https://datatracker.ietf.org/doc/html/rfc8259#section-6) type to
+ * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) numeric datatypes.
+ *
+ * > Factories validate constraint consistency at construction time:
+ * > contradictory constraints like `minInclusive > maxInclusive` throw a `TraceError`.
+ *
+ * | XSD Datatype ¹  | Factory           | Description                  | Range                      |
+ * | --------------- | ----------------- | ---------------------------- | -------------------------- |
+ * | [byte][]        | {@link byte}      | 8-bit signed integer         | [‑2⁷, 2⁷‑1]                |
+ * | [short][]       | {@link short}     | 16-bit signed integer        | [‑2¹⁵, 2¹⁵‑1]              |
+ * | [int][]         | {@link int}       | 32-bit signed integer        | [‑2³¹, 2³¹‑1]              |
+ * | [long][]        | {@link long} ²    | 64-bit signed integer        | [‑2⁶³, 2⁶³‑1]              |
+ * | [float][]       | {@link float}     | IEEE 754 32-bit float        | m < 2²⁴, e ∈ [‑126, 127]   |
+ * | [double][]      | {@link double}    | IEEE 754 64-bit float        | m < 2⁵³, e ∈ [‑1022, 1023] |
+ * | [integer][]     | {@link integer} ² | arbitrary-precision integer  | ±#                         |
+ * | [decimal][]     | {@link decimal} ² | arbitrary-precision decimal  | ±#.#                       |
+ *
+ * [byte]: https://www.w3.org/TR/xmlschema-2/#byte
+ * [short]: https://www.w3.org/TR/xmlschema-2/#short
+ * [int]: https://www.w3.org/TR/xmlschema-2/#int
+ * [long]: https://www.w3.org/TR/xmlschema-2/#long
+ * [float]: https://www.w3.org/TR/xmlschema-2/#float
+ * [double]: https://www.w3.org/TR/xmlschema-2/#double
+ * [integer]: https://www.w3.org/TR/xmlschema-2/#integer
+ * [decimal]: https://www.w3.org/TR/xmlschema-2/#decimal
+ *
+ * ¹ XSD 1.0 datatypes are referenced by [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/) and
+ * [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) as normative
+ *
+ * ² Numeric types with ranges exceeding JavaScript's safe integer range (±2⁵³-1) or requiring
+ * arbitrary precision cannot be fully represented in JSON/JavaScript
+ *
+ * **Compatibility**
+ *
+ * | JSON               | XSD                                 | JavaScript                        |
+ * | ------------------ | ----------------------------------- | --------------------------------- |
+ * | Integer/decimal    | byte, short, int: fully supported   | Safe integers within ±2⁵³-1      |
+ * |                    | long: may exceed ±2⁶³-1             | Cannot represent beyond ±2⁵³-1   |
+ * | No NaN/INF values  | float, double: has NaN, ±INF        | IEEE 754 with NaN, ±Infinity      |
+ * | Safe integer range | integer: arbitrary-precision        | Requires BigInt beyond ±2⁵³-1    |
+ * | Double precision   | decimal: arbitrary-precision        | No native arbitrary decimal       |
+ *
+ * **Defining Numeric Shapes**
+ *
+ * ```typescript
+ * import { decimal, integer, number } from '@metreeca/blue/number';
+ *
+ * const count = number();                                       // unconstrained number
+ * const score = number({ minInclusive: 0, maxInclusive: 100 }); // constrained range
+ * const age = integer({ minInclusive: 0 });                     // arbitrary-precision integer
+ * const price = decimal({ minInclusive: 0 });                   // arbitrary-precision decimal
+ * const die = number({ in: [1, 2, 3, 4, 5, 6] });               // enumeration-constrained
+ * ```
+ *
+ * > An enumeration also narrows the state the shape describes: `die` admits `1 | 2 | 3 | 4 | 5 | 6`, not the whole
+ * > numeric domain.
+ *
+ * **Typed Numeric Factories**
+ *
+ * Specialised factories map to XSD numeric datatypes with predefined precision:
+ *
+ * ```typescript
+ * import { byte, double, float, int, long, short } from '@metreeca/blue/number';
+ *
+ * const priority = byte();       // 8-bit signed integer
+ * const port = short();          // 16-bit signed integer
+ * const quantity = int();        // 32-bit signed integer
+ * const offset = long();         // 64-bit signed integer
+ * const ratio = float();         // IEEE 754 single-precision
+ * const measurement = double();  // IEEE 754 double-precision
+ * ```
+ *
+ * **Using in Resource Shapes**
+ *
+ * ```typescript
+ * import { optional, required, resource } from '@metreeca/blue/resource';
+ * import { decimal, integer } from '@metreeca/blue/number';
+ *
+ * const Product = resource({
+ *   price: required(decimal({ minInclusive: 0 })),
+ *   quantity: optional(integer({ minInclusive: 0 })),
+ *   rating: optional(decimal({ minInclusive: 0, maxInclusive: 5 }))
+ * });
+ * ```
+ *
+ * @module
+ *
+ * @see {@link https://datatracker.ietf.org/doc/html/rfc8259#section-6 RFC 8259 § 6 Numbers}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#built-in-datatypes XSD 1.0 Part 2: Datatypes § 3 Built-in
+ *     Datatypes}
+ */
+
+import { xsd } from "@metreeca/core/datatype";
+import { TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Legal } from "./index.core.js";
+import { create } from "./number.core.js";
 
+
+const ByteLimit = 2**7-1;
+const ShortLimit = 2**15-1;
+const IntLimit = 2**31-1;
+const LongLimit = Number.MAX_SAFE_INTEGER;
+const FloatLimit = (2-2** -23)*2**127;
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Describes a numeric value.
@@ -41,8 +149,8 @@ import type { Legal } from "./index.core.js";
  * | `maxExclusive` | Child ≤ parent, narrowing the exclusive upper bound                                         |
  * | `minInclusive` | Child ≥ parent, narrowing the inclusive lower bound                                         |
  * | `maxInclusive` | Child ≤ parent, narrowing the inclusive upper bound                                         |
- * | `in`           | Intersection of parent and child sets; empty result is reported as an error                 |
- * | `hasValue`     | Union of parent and child required values; child must require all parent values             |
+ * | `in`           | Child may only drop allowed values                                                          |
+ * | `hasValue`     | Child may only add required values                                                          |
  *
  * Inclusive/exclusive pairs are independently merged: a child may define an exclusive bound alongside a parent's
  * inclusive bound (or vice versa), narrowing the range without removing the original constraint.
@@ -170,7 +278,7 @@ export type NumberRangeConstraints<V extends number = number> = {
 	 * the state the shape describes to the listed values, wherever they are stated precisely enough to be told apart;
 	 * a list whose values are only known to be numbers leaves the state as the whole numeric domain.
 	 *
-	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
+	 * **Inheritance** — child may only drop allowed values.
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
@@ -183,7 +291,7 @@ export type NumberRangeConstraints<V extends number = number> = {
 	 *
 	 * When specified, all listed values must appear in the resource. Empty arrays are ignored.
 	 *
-	 * **Inheritance** — union of parent and child required values; child must require all parent values.
+	 * **Inheritance** — child may only add required values.
 	 *
 	 * @defaultValue `undefined` (no required values)
 	 *
@@ -206,10 +314,12 @@ export type NumberRangeConstraints<V extends number = number> = {
  * @param constraints Optional shape {@link NumberConstraints constraints}
  *
  * @returns An immutable shape admitting the numbers the constraints bound, narrowed to the values they enumerate
+ *
+ * @throws {TraceError} Where the stated constraints contradict one another
  */
 export function number<const C extends NumberConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	throw new Error(";( to be implemented");
+	return create<Legal<C, number>>({ ...constraints });
 
 }
 
@@ -228,11 +338,23 @@ export function number<const C extends NumberConstraints = {}>(constraints?: C):
  *
  * @returns An immutable shape admitting 8-bit signed integers, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#byte XSD 1.0 Part 2: Datatypes § 3.3.19 byte}
  */
 export function byte<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	throw new Error(";( to be implemented");
+	return create<Legal<C, number>>({
+
+		datatype: xsd.byte,
+		integral: true,
+
+		minInclusive: -ByteLimit-1,
+		maxInclusive: ByteLimit,
+
+		...constraints
+
+	});
 
 }
 
@@ -248,11 +370,23 @@ export function byte<const C extends NumberRangeConstraints = {}>(constraints?: 
  *
  * @returns An immutable shape admitting 16-bit signed integers, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#short XSD 1.0 Part 2: Datatypes § 3.3.18 short}
  */
 export function short<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	throw new Error(";( to be implemented");
+	return create<Legal<C, number>>({
+
+		datatype: xsd.short,
+		integral: true,
+
+		minInclusive: -ShortLimit-1,
+		maxInclusive: ShortLimit,
+
+		...constraints
+
+	});
 
 }
 
@@ -268,11 +402,23 @@ export function short<const C extends NumberRangeConstraints = {}>(constraints?:
  *
  * @returns An immutable shape admitting 32-bit signed integers, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#int XSD 1.0 Part 2: Datatypes § 3.3.17 int}
  */
 export function int<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	throw new Error(";( to be implemented");
+	return create<Legal<C, number>>({
+
+		datatype: xsd.int,
+		integral: true,
+
+		minInclusive: -IntLimit-1,
+		maxInclusive: IntLimit,
+
+		...constraints
+
+	});
 
 }
 
@@ -290,11 +436,23 @@ export function int<const C extends NumberRangeConstraints = {}>(constraints?: C
  *
  * @returns An immutable shape admitting 64-bit signed integers, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#long XSD 1.0 Part 2: Datatypes § 3.3.16 long}
  */
 export function long<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	throw new Error(";( to be implemented");
+	return create<Legal<C, number>>({
+
+		datatype: xsd.long,
+		integral: true,
+
+		minInclusive: -LongLimit,
+		maxInclusive: LongLimit,
+
+		...constraints
+
+	});
 
 }
 
@@ -310,11 +468,22 @@ export function long<const C extends NumberRangeConstraints = {}>(constraints?: 
  *
  * @returns An immutable shape admitting single-precision floats, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#float XSD 1.0 Part 2: Datatypes § 3.2.4 float}
  */
 export function float<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	throw new Error(";( to be implemented");
+	return create<Legal<C, number>>({
+
+		datatype: xsd.float,
+
+		minInclusive: -FloatLimit,
+		maxInclusive: FloatLimit,
+
+		...constraints
+
+	});
 
 }
 
@@ -329,11 +498,13 @@ export function float<const C extends NumberRangeConstraints = {}>(constraints?:
  *
  * @returns An immutable shape admitting double-precision floats, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#double XSD 1.0 Part 2: Datatypes § 3.2.5 double}
  */
 export function double<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	throw new Error(";( to be implemented");
+	return create<Legal<C, number>>({ datatype: xsd.double, ...constraints });
 
 }
 
@@ -348,11 +519,13 @@ export function double<const C extends NumberRangeConstraints = {}>(constraints?
  *
  * @returns An immutable shape admitting arbitrary-precision integers, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#integer XSD 1.0 Part 2: Datatypes § 3.3.13 integer}
  */
 export function integer<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	throw new Error(";( to be implemented");
+	return create<Legal<C, number>>({ datatype: xsd.integer, integral: true, ...constraints });
 
 }
 
@@ -367,10 +540,12 @@ export function integer<const C extends NumberRangeConstraints = {}>(constraints
  *
  * @returns An immutable shape admitting arbitrary-precision decimals, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#decimal XSD 1.0 Part 2: Datatypes § 3.2.3 decimal}
  */
 export function decimal<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	throw new Error(";( to be implemented");
+	return create<Legal<C, number>>({ datatype: xsd.decimal, ...constraints });
 
 }
