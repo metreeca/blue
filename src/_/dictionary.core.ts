@@ -20,7 +20,7 @@
  * @module
  */
 
-import { type Eager, isArray, isObject, isString, type Lazy, opt as fold } from "@metreeca/core";
+import { type Eager, isArray, isObject, isString, type Lazy, opt as fold, type Optional } from "@metreeca/core";
 import { isTag, type Tag } from "@metreeca/core/language";
 import { matchTag } from "@metreeca/core/language";
 import { immutable } from "@metreeca/core/structures";
@@ -97,7 +97,7 @@ export function create<U extends undefined | boolean>(constraints: DictionaryCon
  *
  * @returns A trace of the inconsistencies found, or `undefined` where the constraints admit at least one value
  */
-export function checkDictionary(constraints: Partial<DictionaryShape>): undefined | Trace {
+export function checkDictionary(constraints: Partial<DictionaryShape>): Optional<Trace> {
 
 	return test<typeof constraints>(({ minLength, maxLength }) => {
 
@@ -122,7 +122,7 @@ export function checkDictionary(constraints: Partial<DictionaryShape>): undefine
  *
  * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
  */
-export function narrowsDictionary(target: DictionaryShape, source: DictionaryShape): undefined | Trace {
+export function narrowsDictionary(target: DictionaryShape, source: DictionaryShape): Optional<Trace> {
 
 	const { languageIn: accepted } = source;
 
@@ -259,7 +259,7 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 
 	scope?: Scope
 
-} = {}): undefined | Trace {
+} = {}): Optional<Trace> {
 
 	switch ( scope ) {
 
@@ -319,50 +319,33 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 
 
 	/**
-	 * Builds a validator enforcing the form of a language map, holding each well-formed entry to the stated arity.
+	 * Builds a validator enforcing the form of every language map in a set, holding each entry to the stated arity.
 	 *
-	 * Reports a value that is not a single language map as a `{kind}` violation, and a key that is not a language tag
-	 * or an entry stated at the other per-tag arity as an entry violation keyed by the tag; a surviving entry is
-	 * handed to `unique` or to `stacked`, according to the arity the shape states.
+	 * Reports a value that is not a language map as a `{kind}` violation, and a key that is not a language tag or an
+	 * entry stated at the other per-tag arity as an entry violation keyed by the tag; every violation is keyed by the
+	 * index of the map carrying it, as a localised value is a structured value in its own right and a member may carry
+	 * several. A surviving entry is handed to `unique` or to `stacked`, according to the arity the shape states.
 	 */
 	function map(
 		uniqueLang: undefined | boolean,
-		unique: (tag: Tag, content: string) => undefined | Trace,
-		stacked: (tag: Tag, content: readonly string[]) => undefined | Trace
+		unique: (tag: Tag, content: string) => Optional<Trace>,
+		stacked: (tag: Tag, content: readonly string[]) => Optional<Trace>
 	): Validator<readonly unknown[]> {
 
-		return entries => {
+		return array((value: unknown) => !isObject(value) ? ["{kind} expected <dictionary> value"]
 
-			const [value] = entries;
+			: object(([tag, text]: readonly [string, unknown]) =>
+				!isTag(tag) ? [{ [tag]: ["invalid tag"] }]
+					: uniqueLang === true
+						? isString(text)
+							? fold(unique(tag, text), trace => [{ [tag]: trace }])
+							: [{ [tag]: ["expected string value"] }]
+						: isArray<string>(text, isString)
+							? fold(stacked(tag, text), trace => [{ [tag]: trace }])
+							: [{ [tag]: ["expected string array value"] }]
+			)(value)
 
-			if ( entries.length === 0 ) {
-
-				return undefined;
-
-			} else if ( entries.length > 1 ) {
-
-				return ["{kind} expected at most one <dictionary> value"];
-
-			} else if ( !isObject(value) ) {
-
-				return ["{kind} expected <dictionary> value"];
-
-			} else {
-
-				return object(([tag, text]: readonly [string, unknown]) =>
-					!isTag(tag) ? [{ [tag]: ["invalid tag"] }]
-						: uniqueLang === true
-							? isString(text)
-								? fold(unique(tag, text), trace => [{ [tag]: trace }])
-								: [{ [tag]: ["expected string value"] }]
-							: isArray<string>(text, isString)
-								? fold(stacked(tag, text), trace => [{ [tag]: trace }])
-								: [{ [tag]: ["expected string array value"] }]
-				)(value);
-
-			}
-
-		};
+		);
 
 	}
 
@@ -374,5 +357,3 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 	}
 
 }
-
-

@@ -14,14 +14,190 @@
  * limitations under the License.
  */
 
+/**
+ * Resource shape and factories.
+ *
+ * Defines {@link ResourceShape} and the factories declaring the structure a linked data resource is expected to
+ * carry: {@link resource} for the shape itself, {@link id} and {@link type} for the members naming a resource,
+ * {@link required}, {@link optional}, {@link nonempty} and {@link multiple} for the members carrying its values, and
+ * {@link property} for the cardinalities those four do not name.
+ *
+ * > [!IMPORTANT]
+ * > Resource shapes are **closed**: a validated resource carries only the members the shape declares, and any other
+ * > field is rejected.
+ *
+ * > [!IMPORTANT]
+ * > Every IRI a validated resource carries is absolute. Relative references are resolved against a base as client
+ * > input is decoded, before validation sees them.
+ *
+ * **Defining Resource Shapes**
+ *
+ * Give each member a range and a cardinality:
+ *
+ * ```typescript
+ * import { boolean } from '@metreeca/blue/boolean';
+ * import { integer } from '@metreeca/blue/number';
+ * import { id, nonempty, optional, required, resource } from '@metreeca/blue/resource';
+ * import { string } from '@metreeca/blue/string';
+ *
+ * const Product = resource({
+ *   id: id(),
+ *   name: required(string({ minLength: 1 })),
+ *   price: required(integer({ minInclusive: 0 })),
+ *   available: optional(boolean()),
+ *   tags: nonempty(string())
+ * });
+ * ```
+ *
+ * The four named cardinalities cover `1..1`, `0..1`, `1..*` and `0..*`; {@link property} states any other bounds:
+ *
+ * ```typescript
+ * const Shape = resource({
+ *   name: required(string()),                                // 1..1
+ *   alias: optional(string()),                               // 0..1
+ *   tags: nonempty(string()),                                // 1..*
+ *   notes: multiple(string()),                               // 0..*
+ *   codes: property(string(), { minCount: 2, maxCount: 5 })  // 2..5
+ * });
+ * ```
+ *
+ * Each factory takes, after the range, the constraints the member carries beyond its cardinality, such as the
+ * predicate it maps to or the labels it carries:
+ *
+ * ```typescript
+ * import { createNamespace } from '@metreeca/core/resource';
+ *
+ * const schema = createNamespace("http://schema.org/");
+ *
+ * const Person = resource({
+ *   name: required(string(), { forward: schema })
+ * });
+ * ```
+ *
+ * **Linked and Embedded Resources**
+ *
+ * A member reaches another resource in one of two ways. A {@link reference!reference | reference} links a
+ * **standalone** resource, identified and managed in its own right; a resource shape included directly describes an
+ * **embedded** resource, carried inline with no identity of its own.
+ *
+ * ```typescript
+ * import { reference } from '@metreeca/blue/reference';
+ *
+ * const Rating = resource({
+ *   average: required(number({ minInclusive: 0, maxInclusive: 5 })),
+ *   reviews: required(number({ minInclusive: 0 }))
+ * });
+ *
+ * const Product = resource({
+ *   id: id(),
+ *   rating: optional(Rating),           // embedded
+ *   vendor: required(reference(Vendor)) // standalone
+ * });
+ * ```
+ *
+ * An embedded resource carries no {@link id} member: having no identity of its own, an identifier is rejected as a
+ * value is validated rather than as the shape is built, since an id-bearing embedded range reads exactly like an
+ * expanded captive target until a value is matched against it.
+ *
+ * A shape reaching itself defers the range, breaking the definition cycle:
+ *
+ * ```typescript
+ * function Category() {
+ *   return resource({
+ *     id: id(),
+ *     name: required(string()),
+ *     parent: optional(reference(Category))
+ *   });
+ * }
+ * ```
+ *
+ * **Inheritance**
+ *
+ * A shape extends the ones it is given ahead of its members, carrying their members and constraints:
+ *
+ * ```typescript
+ * const NamedEntity = resource({
+ *   id: id(),
+ *   name: required(string({ minLength: 1 }))
+ * });
+ *
+ * const Employee = resource(NamedEntity, {
+ *   department: required(string()),
+ *   salary: required(integer({ minInclusive: 0 }))
+ * });
+ * ```
+ *
+ * > [!IMPORTANT]
+ * > Constraints accumulate: a value is held to the constraints the extending shape states **and** to every one it
+ * > inherits. An override tightens what it inherits and never relaxes it.
+ *
+ * A member reaching a resource is refined by re-pointing it at a shape extending the inherited target: the refinement
+ * states what it adds alone, as the narrower target carries the inherited definition through its own parents. A
+ * {@link union!union | union}-valued member is refined by dropping alternatives and tightening the ones it keeps,
+ * never by adding new ones.
+ *
+ * @module
+ *
+ * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
+ * @see {@link https://www.w3.org/TR/shacl/#ClosedConstraintComponent SHACL § 4.8.1 sh:closed}
+ */
+
 import type { Identifier, Lazy, Optional } from "@metreeca/core";
-import type { Namespace } from "@metreeca/core/resource";
+import { createNamespace, type Namespace } from "@metreeca/core/resource";
+import { TraceError } from "@metreeca/core/trace";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
 import type { Range, Shape } from "./index.js";
-import type { Declared } from "./resource.core.js";
+import { assemble, type Declared, declare } from "./resource.core.js";
 
 
-export type ResourceShape<P extends Parents = Parents, M extends Members = Members> = ResourceConstraints & {
+/**
+ * Default space for resolving member names to predicate IRIs (`app:/#`).
+ *
+ * Stands in wherever a shape states no {@link ResourceConstraints.space | space} of its own and inherits none.
+ */
+export const defaultNamespace: Namespace = createNamespace("app:/#");
+
+
+/**
+ * Describes a linked data resource.
+ *
+ * Admits the [resources](https://www.w3.org/TR/rdf11-concepts/) a store holds: a record carrying the members the
+ * shape declares, and nothing else, so that what a resource may state is fixed by the shape rather than left to
+ * whoever writes it. A shape extends the shapes it lists as {@link parents}, carrying their members and constraints
+ * on top of its own.
+ *
+ * **Inheritance**
+ *
+ * Where a shape extends the ones it lists as {@link parents}, they are merged according to the following rules. The
+ * *child* is the extending shape; the *parent* is the inherited one.
+ *
+ * | Field         | Override Rule                                                                       |
+ * | ------------- | ------------------------------------------------------------------------------------ |
+ * | `kind`        | Cannot be overridden                                                                |
+ * | `name`        | Always from the child; not inherited                                                |
+ * | `description` | Always from the child; not inherited                                                |
+ * | `space`       | Inherited; conflicting parents without a child override are reported as an error    |
+ * | `class`       | Always from the child; outside inheritance scope                                    |
+ * | `pattern`     | Only a trailing `/*` admits narrowing; any other case requires equality             |
+ * | `in`          | Child may only drop allowed identifiers                                             |
+ * | `hasValue`    | Child may only add required identifiers                                             |
+ * | `members`     | Declared members merged over inherited ones, each narrowing the one it overrides     |
+ *
+ * **Cross-Field Validation**
+ *
+ * - all merged `hasValue` entries must be members of the merged `in` set (if defined)
+ * - at most one `id` member and one `type` member, counted after inheritance
+ * - no two members may share a forward predicate, nor two a reverse predicate
+ *
+ * @typeParam P The shapes extended, possibly deferred to break definition cycles
+ * @typeParam M The members declared in the shape's own right
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
+ */
+export type ResourceShape<
+	P extends Parents = Parents,
+	M extends Members = Members
+> = ResourceConstraints & {
 
 	readonly kind: "resource"
 
@@ -145,6 +321,10 @@ export type ResourceConstraints = {
 	readonly hasValue?: readonly Reference[];
 
 }
+
+
+export type Parents =
+	readonly Lazy<ResourceShape>[]
 
 
 export type Members = {
@@ -308,12 +488,27 @@ export type PropertyBounds = PropertyConstrains & {
 }
 
 
-export type Parents =
-	readonly Lazy<ResourceShape>[]
-
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Creates a resource shape.
+ *
+ * Extends the shapes given ahead of the members, carrying their members and constraints on top of the ones declared
+ * here; a member redeclared over an inherited one narrows it. The shape is built merged, so that a caller reads the
+ * members a resource carries off the shape itself rather than by walking the inheritance chain.
+ *
+ * @typeParam I The shapes extended, possibly deferred to break definition cycles
+ * @typeParam M The members declared in the shape's own right
+ *
+ * @param args The shapes extended, the members declared, and optionally the shape
+ *     {@link ResourceConstraints constraints}
+ *
+ * @returns An immutable shape admitting the resources the members and constraints bound
+ *
+ * @throws {TraceError} Where a member fails to narrow the one it overrides, the extended shapes disagree on an
+ *     inherited constraint, or the merged shape states two identifiers, two types, or two members mapping to the same
+ *     predicate
+ */
 export function resource<I extends Parents, M extends Members>(
 	...args: [...inheritance: I, members: M]
 ): ResourceShape<I, M>
@@ -324,61 +519,179 @@ export function resource<I extends Parents, M extends Members>(
 
 export function resource(...args: readonly unknown[]): ResourceShape {
 
-	throw new Error(";( to be implemented");
+	return assemble(args);
 
 }
 
 
+/**
+ * Creates the member naming a resource.
+ *
+ * Marks the member it is declared under as carrying the resource's identifier, mapping it to the JSON-LD `@id`
+ * keyword. A shape states at most one, counted once inheritance has merged the members: a marker reaching the shape
+ * under one name through several parents, or redeclared over an inherited one, is a single member, while two markers
+ * under distinct names are rejected.
+ *
+ * @returns An immutable member naming the resource
+ *
+ * @see {@link https://www.w3.org/TR/json-ld11/#node-identifiers JSON-LD 1.1 § 3.3 Node Identifiers}
+ */
 export function id(): Id {
 
-	throw new Error(";( to be implemented");
+	return declare({ kind: "id" });
 
 }
 
+/**
+ * Creates the member typing a resource.
+ *
+ * Marks the member it is declared under as carrying the resource's class, mapping it to the JSON-LD `@type` keyword.
+ * The value is derived from the {@link ResourceConstraints.class | class} the shape states, so the member is active
+ * only on a shape stating one and a shape stating none rejects every value supplied for it: a shared supershape may
+ * thus declare the member once for the shapes extending it, each activating it by stating a class of its own. A shape
+ * states at most one, counted as {@link id} is.
+ *
+ * @returns An immutable member typing the resource
+ *
+ * @see {@link https://www.w3.org/TR/json-ld11/#specifying-the-type JSON-LD 1.1 § 3.5 Specifying the Type}
+ */
 export function type(): Type {
 
-	throw new Error(";( to be implemented");
+	return declare({ kind: "type" });
 
 }
 
 
-export function multiple<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+/**
+ * Creates a member carrying any number of values.
+ *
+ * @typeParam R The shape the values are drawn from
+ * @typeParam C The stated constraints
+ *
+ * @param range The shape the values are drawn from, possibly deferred to break definition cycles
+ * @param constraints Optional member {@link PropertyConstrains constraints}
+ *
+ * @returns An immutable member admitting any number of values of `range`
+ */
+export function multiple<
+	R extends Lazy<Shape>,
+	const C extends PropertyConstrains = {}
+>(
 	range: R, constraints?: C
 ): C & Property<R, undefined, undefined> {
 
-	throw new Error(";( to be implemented");
+	return declare({ kind: "property", ...constraints, minCount: undefined, maxCount: undefined, shape: range });
 
 }
 
-export function nonempty<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+/**
+ * Creates a member carrying at least one value.
+ *
+ * @typeParam R The shape the values are drawn from
+ * @typeParam C The stated constraints
+ *
+ * @param range The shape the values are drawn from, possibly deferred to break definition cycles
+ * @param constraints Optional member {@link PropertyConstrains constraints}
+ *
+ * @returns An immutable member requiring at least one value of `range`
+ */
+export function nonempty<
+	R extends Lazy<Shape>,
+	const C extends PropertyConstrains = {}
+>(
 	range: R, constraints?: C
 ): C & Property<R, 1, undefined> {
 
-	throw new Error(";( to be implemented");
+	return declare({ kind: "property", ...constraints, minCount: 1, maxCount: undefined, shape: range });
 
 }
 
-export function optional<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+/**
+ * Creates a member carrying at most one value.
+ *
+ * @typeParam R The shape the value is drawn from
+ * @typeParam C The stated constraints
+ *
+ * @param range The shape the value is drawn from, possibly deferred to break definition cycles
+ * @param constraints Optional member {@link PropertyConstrains constraints}
+ *
+ * @returns An immutable member admitting at most one value of `range`
+ */
+export function optional<
+	R extends Lazy<Shape>,
+	const C extends PropertyConstrains = {}
+>(
 	range: R, constraints?: C
 ): C & Property<R, undefined, 1> {
 
-	throw new Error(";( to be implemented");
+	return declare({ kind: "property", ...constraints, minCount: undefined, maxCount: 1, shape: range });
 
 }
 
-export function required<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
+/**
+ * Creates a member carrying exactly one value.
+ *
+ * @typeParam R The shape the value is drawn from
+ * @typeParam C The stated constraints
+ *
+ * @param range The shape the value is drawn from, possibly deferred to break definition cycles
+ * @param constraints Optional member {@link PropertyConstrains constraints}
+ *
+ * @returns An immutable member requiring exactly one value of `range`
+ */
+export function required<
+	R extends Lazy<Shape>,
+	const C extends PropertyConstrains = {}
+>(
 	range: R, constraints?: C
 ): C & Property<R, 1, 1> {
 
-	throw new Error(";( to be implemented");
+	return declare({ kind: "property", ...constraints, minCount: 1, maxCount: 1, shape: range });
 
 }
 
 
-export function property<R extends Lazy<Shape>, const C extends PropertyBounds = {}>(
+/**
+ * Creates a member carrying a stated number of values.
+ *
+ * Reads the cardinality off the {@link PropertyBounds.minCount | minCount} and
+ * {@link PropertyBounds.maxCount | maxCount} the constraints state, for the bounds the four named factories leave
+ * uncovered; a bound left unstated leaves that end unbounded.
+ *
+ * @typeParam R The shape the values are drawn from
+ * @typeParam C The stated constraints and cardinality bounds
+ *
+ * @param range The shape the values are drawn from, possibly deferred to break definition cycles
+ * @param constraints Optional member {@link PropertyBounds constraints and bounds}
+ *
+ * @returns An immutable member admitting the stated number of values of `range`
+ *
+ * @example
+ *
+ * ```typescript
+ * const Product = resource({
+ *   tags: property(string(), { minCount: 2, maxCount: 5 })
+ * });
+ * ```
+ */
+export function property<
+	R extends Lazy<Shape>,
+	const C extends PropertyBounds = {}
+>(
 	range: R, constraints?: C
 ): C & Property<R, Declared<C, "minCount">, Declared<C, "maxCount">> {
 
-	throw new Error(";( to be implemented");
+	return declare({
+
+		kind: "property",
+
+		...constraints,
+
+		minCount: constraints?.minCount,
+		maxCount: constraints?.maxCount,
+
+		shape: range
+
+	});
 
 }

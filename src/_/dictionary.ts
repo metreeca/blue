@@ -89,9 +89,9 @@ import { create } from "./dictionary.core.js";
  * [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string) language-tagged string.
  *
  * How many strings a tag carries is fixed by {@link DictionaryConstraints.uniqueLang | uniqueLang}: a unique-tagged
- * shape gives every tag a single string, and any other gives every tag an array. The bounds of the enclosing
- * {@link _!Range} are read against the values a single tag holds rather than across the map, so a tag left out of the
- * map is not a missing value.
+ * shape gives every tag a single string, and any other gives every tag an array. The map is a structured value in its
+ * own right, as a resource is, so the bounds of the enclosing {@link _!Range} count the maps a member carries rather
+ * than the strings a tag holds.
  *
  * **Negotiation**
  *

@@ -20,10 +20,11 @@ import { dictionary } from "./dictionary.js";
 import type { Scope } from "./index.core.js";
 
 
-// navigate an array-shaped trace by key path, returning the value at the path or undefined
+// navigate the trace of the first validated map by tag path, returning the value at the path or undefined; every
+// violation is keyed by the index of the map carrying it, so the leading index is descended here once and for all
 
 function at(trace: unknown, ...path: readonly string[]): unknown {
-	return path.reduce<unknown>((node, key) => {
+	return ["0", ...path].reduce<unknown>((node, key) => {
 		const record = Array.isArray(node) ? node.find(item => item !== null && typeof item === "object") : node;
 		return record === null || typeof record !== "object" ? undefined : (record as Record<string, unknown>)[key];
 	}, trace);
@@ -422,20 +423,21 @@ describe("validators", () => {
 
 				});
 
-				it.each<[string, readonly unknown[]]>([
-					["a plain string", ["hello"]],
-					["an empty plain string", [""]],
-					["a non-object value", [42]],
-					["mixed valid and non-object values", [{ en: "hello" }, 42]]
-				])("returns a kind trace for %s", async (_label, values) => {
+				it.each<[string, readonly unknown[], string]>([
+					["a plain string", ["hello"], "0"],
+					["an empty plain string", [""], "0"],
+					["a non-object value", [42], "0"],
+					["mixed valid and non-object values", [{ en: "hello" }, 42], "1"]
+				])("keys a kind violation by element for %s", async (_label, values, index) => {
 
-					expect(validateDictionary(values, unique)).toContainEqual(expect.stringContaining("{kind}"));
+					expect(validateDictionary(values, unique))
+						.toEqual([{ [index]: [expect.stringContaining("{kind}")] }]);
 
 				});
 
-				it("rejects multiple map values", async () => {
+				it("admits several maps, as a member may carry several", async () => {
 
-					expect(validateDictionary([{ en: "hello" }, { fr: "bonjour" }], unique)).toBeDefined();
+					expect(validateDictionary([{ en: "hello" }, { fr: "bonjour" }], unique)).toBeUndefined();
 
 				});
 
@@ -623,19 +625,20 @@ describe("validators", () => {
 
 				});
 
-				it.each<[string, readonly unknown[]]>([
-					["a plain string array", [["hello"]]],
-					["a non-object value", [42]],
-					["mixed valid and non-object values", [{ en: ["hello"] }, 42]]
-				])("returns a kind trace for %s", async (_label, values) => {
+				it.each<[string, readonly unknown[], string]>([
+					["a plain string array", [["hello"]], "0"],
+					["a non-object value", [42], "0"],
+					["mixed valid and non-object values", [{ en: ["hello"] }, 42], "1"]
+				])("keys a kind violation by element for %s", async (_label, values, index) => {
 
-					expect(validateDictionary(values, stacked)).toContainEqual(expect.stringContaining("{kind}"));
+					expect(validateDictionary(values, stacked))
+						.toEqual([{ [index]: [expect.stringContaining("{kind}")] }]);
 
 				});
 
-				it("rejects multiple map values", async () => {
+				it("admits several maps, as a member may carry several", async () => {
 
-					expect(validateDictionary([{ en: ["hello"] }, { fr: ["bonjour"] }], stacked)).toBeDefined();
+					expect(validateDictionary([{ en: ["hello"] }, { fr: ["bonjour"] }], stacked)).toBeUndefined();
 
 				});
 
@@ -725,7 +728,7 @@ describe("validators", () => {
 			it("still rejects a value of the wrong kind", async () => {
 
 				expect(validateDictionary(["hello"], dictionary({ uniqueLang: true }), { scope }))
-					.toContainEqual(expect.stringContaining("{kind}"));
+					.toEqual([{ "0": [expect.stringContaining("{kind}")] }]);
 
 			});
 
