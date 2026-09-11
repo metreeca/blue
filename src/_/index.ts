@@ -60,8 +60,8 @@ export type Shape =
  */
 export type Range<
 	R extends Lazy<Shape> = Lazy<Shape>,
-	L extends RangeCount = RangeCount,
-	U extends RangeCount = RangeCount
+	L extends Optional<number> = Optional<number>,
+	U extends Optional<number> = Optional<number>
 > = {
 
 	/**
@@ -88,12 +88,6 @@ export type Range<
 	readonly maxCount: U
 
 }
-
-/**
- * A cardinality bound, absent where the range states none.
- */
-export type RangeCount =
-	Optional<number>
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

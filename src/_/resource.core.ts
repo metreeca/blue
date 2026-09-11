@@ -22,8 +22,7 @@
 
 import type { Eager, Lazy, Optional } from "@metreeca/core";
 import type { Reference } from "@metreeca/qest/resource";
-import type { Arity, Skippable } from "./index.core.js";
-import type { Compound, Instance, RangeCount, Shape } from "./index.js";
+import type { Compound, Instance, Shape } from "./index.js";
 import type { ReferenceShape } from "./reference.js";
 import type { Id, Parents, Property, PropertyBounds, ResourceShape, Type } from "./resource.js";
 
@@ -135,7 +134,7 @@ export type Joined<T> = {
 export type Omitted<M, X = never> =
 	[M] extends [never] ? false
 		: M extends Type | X ? true
-			: M extends Property<Lazy<Shape>, infer L, RangeCount> ? Skippable<L>
+			: M extends Property<Lazy<Shape>, infer L, Optional<number>> ? Skippable<L>
 				: false
 
 /**
@@ -225,6 +224,33 @@ export type Outline<M> =
 
 
 //// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the form a value takes at the arity its bounds admit.
+ *
+ * Yields a bare value where the range admits at most one, an array otherwise, marking the form optional unless at
+ * least one value is {@link Skippable | known to be required}. Bounds beyond the four the cardinality factories name
+ * are honoured all the same, so a lower bound of two admits the same non-empty form as one.
+ *
+ * @typeParam V The value the range describes
+ * @typeParam L The least number of values admitted
+ * @typeParam U The greatest number of values admitted
+ */
+export type Arity<V, L extends Optional<number>, U extends Optional<number>> =
+	Skippable<L> extends true
+		? Optional<[U] extends [1] ? V : readonly V[]>
+		: [U] extends [1] ? V : readonly [V, ...V[]]
+
+/**
+ * Checks whether a lower bound lets the values be left out.
+ *
+ * Yields `true` unless at least one value is known to be required, so a bound stated as zero and a bound left
+ * unstated both admit absence, as does one stated only as a number.
+ *
+ * @typeParam L The least number of values admitted
+ */
+export type Skippable<L extends Optional<number>> =
+	[Extract<Optional<0>, L>] extends [never] ? false : true
 
 /**
  * Resolves a cardinality bound stated in a constraints object.

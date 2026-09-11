@@ -20,17 +20,19 @@
  * @module
  */
 
-import type { Eager, Lazy, Optional } from "@metreeca/core";
+import type { Eager, Lazy } from "@metreeca/core";
 import type { Tag } from "@metreeca/core/language";
 import type { Reference } from "@metreeca/qest/resource";
 import type { BooleanShape } from "./boolean.js";
 import type { Unique } from "./dictionary.core.js";
 import type { DictionaryShape } from "./dictionary.js";
-import type { RangeCount, Shape } from "./index.js";
+import type { Shape } from "./index.js";
 import type { NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
 import type { StringShape } from "./string.js";
 
+
+type Created<D> = { readonly [tag: Tag]: Unique<D> extends true ? string : readonly string[] };
 
 /**
  * Resolves the plain value a shape describes.
@@ -46,8 +48,7 @@ export type Plain<S extends Lazy<Shape>> =
 	Eager<S> extends BooleanShape ? boolean
 		: Eager<S> extends NumberShape<infer V> ? V
 			: Eager<S> extends StringShape<infer V> ? V
-				: Eager<S> extends infer D extends DictionaryShape
-					? { readonly [tag: Tag]: Unique<D> extends true ? string : readonly string[] }
+				: Eager<S> extends infer D extends DictionaryShape ? Created<D>
 					: Eager<S> extends ReferenceShape ? Reference
 						: never
 
@@ -65,33 +66,3 @@ export type Legal<C, D> =
 	C extends { readonly in: infer V extends readonly D[] }
 		? [V[number]] extends [never] ? D : V[number]
 		: D
-
-
-//// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Resolves the form a value takes at the arity its bounds admit.
- *
- * Yields a bare value where the range admits at most one, an array otherwise, marking the form optional unless at
- * least one value is {@link Skippable | known to be required}. Bounds beyond the four the cardinality factories name
- * are honoured all the same, so a lower bound of two admits the same non-empty form as one.
- *
- * @typeParam V The value the range describes
- * @typeParam L The least number of values admitted
- * @typeParam U The greatest number of values admitted
- */
-export type Arity<V, L extends RangeCount, U extends RangeCount> =
-	Skippable<L> extends true
-		? Optional<[U] extends [1] ? V : readonly V[]>
-		: [U] extends [1] ? V : readonly [V, ...V[]]
-
-/**
- * Checks whether a lower bound lets the values be left out.
- *
- * Yields `true` unless at least one value is known to be required, so a bound stated as zero and a bound left
- * unstated both admit absence, as does one stated only as a number.
- *
- * @typeParam L The least number of values admitted
- */
-export type Skippable<L extends RangeCount> =
-	[Extract<Optional<0>, L>] extends [never] ? false : true

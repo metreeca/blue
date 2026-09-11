@@ -17,10 +17,17 @@
 import type { Lazy, Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Compound, type Range, type RangeCount, type Shape } from "./index.js";
+import { type Compound, type Instance, type Range, type Shape } from "./index.js";
 import { number } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
-import { type Carried, type Content, type Input, type Retrieved } from "./resource.core.js";
+import {
+	type Arity,
+	type Carried,
+	type Content,
+	type Input,
+	type Retrieved,
+	type Skippable
+} from "./resource.core.js";
 import {
 	type Id,
 	id,
@@ -35,7 +42,7 @@ import {
 	type Type,
 	type as typed
 } from "./resource.js";
-import { type StringShape, string } from "./string.js";
+import { string, type StringShape } from "./string.js";
 
 
 type LabelShape={
@@ -193,7 +200,7 @@ describe("Content", () => {
 
 describe("Input", () => {
 
-	type Captive<R extends Lazy<Shape>, L extends RangeCount, U extends RangeCount>=
+	type Captive<R extends Lazy<Shape>, L extends Optional<number>, U extends Optional<number>>=
 		Property<R, L, U> & { readonly captive: true }
 
 	test("Id → its reference type", () => {
@@ -804,6 +811,87 @@ describe("resource", () => {
 	test("rejects an extended shape as the members", () => {
 		// @ts-expect-error - a resource shape is not a member map
 		resource(resource({ id: id() }));
+	});
+
+});
+
+
+describe("Arity", () => {
+
+	test("a bare value where exactly one is required", () => {
+		expectTypeOf<Arity<string, 1, 1>>().toEqualTypeOf<string>();
+	});
+
+	test("an optional value where at most one is admitted", () => {
+		expectTypeOf<Arity<string, undefined, 1>>().toEqualTypeOf<undefined | string>();
+	});
+
+	test("a non-empty array where at least one is required", () => {
+		expectTypeOf<Arity<string, 1, undefined>>().toEqualTypeOf<readonly [string, ...string[]]>();
+	});
+
+	test("an optional array where any number is admitted", () => {
+		expectTypeOf<Arity<string, undefined, undefined>>().toEqualTypeOf<undefined | readonly string[]>();
+	});
+
+	test("a non-empty array where the lower bound exceeds one", () => {
+		expectTypeOf<Arity<string, 2, 5>>().toEqualTypeOf<readonly [string, ...string[]]>();
+	});
+
+	test("an optional array where the lower bound is zero", () => {
+		expectTypeOf<Arity<string, 0, 5>>().toEqualTypeOf<undefined | readonly string[]>();
+	});
+
+	test("an optional array where the bounds are not literal", () => {
+		expectTypeOf<Arity<string, number, number>>().toEqualTypeOf<undefined | readonly string[]>();
+	});
+
+	test("an optional value where at most one is admitted and the lower bound is zero", () => {
+		expectTypeOf<Arity<string, 0, 1>>().toEqualTypeOf<undefined | string>();
+	});
+
+	test("an optional value where at most one is admitted and the lower bound is not literal", () => {
+		expectTypeOf<Arity<string, number, 1>>().toEqualTypeOf<undefined | string>();
+	});
+
+	test("an optional array where the bounds are left unconstrained", () => {
+		expectTypeOf<Arity<string, Optional<number>, Optional<number>>>()
+			.toEqualTypeOf<undefined | readonly string[]>();
+	});
+
+	test("the value as it stands, whatever it is drawn from", () => {
+		expectTypeOf<Arity<string | number, 1, 1>>().toEqualTypeOf<string | number>();
+	});
+
+});
+
+describe("Skippable", () => {
+
+	test("a stated lower bound requires a value", () => {
+		expectTypeOf<Skippable<1>>().toEqualTypeOf<false>();
+		expectTypeOf<Skippable<2>>().toEqualTypeOf<false>();
+	});
+
+	test("an unstated or zero lower bound admits absence", () => {
+		expectTypeOf<Skippable<undefined>>().toEqualTypeOf<true>();
+		expectTypeOf<Skippable<0>>().toEqualTypeOf<true>();
+	});
+
+	test("a bound stated only as a number admits absence", () => {
+		expectTypeOf<Skippable<number>>().toEqualTypeOf<true>();
+	});
+
+	test("a bound left unconstrained admits absence", () => {
+		expectTypeOf<Skippable<Optional<number>>>().toEqualTypeOf<true>();
+	});
+
+	test("a bound admitting absence among other values admits absence", () => {
+		expectTypeOf<Skippable<0 | 1>>().toEqualTypeOf<true>();
+		expectTypeOf<Skippable<1 | undefined>>().toEqualTypeOf<true>();
+	});
+
+	test("a bound admitting nothing at all requires a value", () => {
+		expectTypeOf<Skippable<never>>().toEqualTypeOf<false>();
 	});
 
 });

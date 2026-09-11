@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import type { Identifier, Lazy } from "@metreeca/core";
+import type { Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
-import type { Range, RangeCount, Shape } from "./index.js";
+import type { Range, Shape } from "./index.js";
 import type { Declared } from "./resource.core.js";
 
 
@@ -173,8 +173,8 @@ export type Type = {
 
 export type Property<
 	R extends Lazy<Shape> = Lazy<Shape>,
-	L extends RangeCount = RangeCount,
-	U extends RangeCount = RangeCount
+	L extends Optional<number> = Optional<number>,
+	U extends Optional<number> = Optional<number>
 > = PropertyConstrains & Range<R, L, U> & {
 
 	readonly kind: "property"
@@ -302,8 +302,8 @@ export type PropertyConstrains = {
  */
 export type PropertyBounds = PropertyConstrains & {
 
-	readonly minCount?: RangeCount
-	readonly maxCount?: RangeCount
+	readonly minCount?: Optional<number>
+	readonly maxCount?: Optional<number>
 
 }
 
@@ -366,5 +366,3 @@ export function property<R extends Lazy<Shape>, const C extends PropertyBounds =
 ): C & Property<R, Declared<C, "minCount">, Declared<C, "maxCount">> {
 	throw new Error(";( to be implemented");
 }
-
-
