@@ -14,26 +14,112 @@
  * limitations under the License.
  */
 
+/**
+ * Reference shape and factories.
+ *
+ * Defines {@link ReferenceShape} and the {@link reference} factory, linking a resource to another **standalone
+ * resource** named by an absolute IRI. A reference pairs an IRI value with the {@link resource!ResourceShape | shape}
+ * describing the resource it points at, deferred where a definition cycle requires it.
+ *
+ * **Defining Reference Members**
+ *
+ * Wrap a target resource shape with {@link reference} and give it a cardinality:
+ *
+ * ```typescript
+ * import { id, multiple, required, resource } from '@metreeca/blue/resource';
+ * import { reference } from '@metreeca/blue/reference';
+ *
+ * const Vendor = resource({
+ *   id: id()
+ * });
+ *
+ * const Product = resource({
+ *   id: id(),
+ *   vendor: required(reference(Vendor)),
+ *   suppliers: multiple(reference(Vendor))
+ * });
+ * ```
+ *
+ * **Standalone and Embedded Resources**
+ *
+ * A reference links to a **standalone resource**, identified and managed in its own right. A resource shape included
+ * directly, without the wrapper, describes an **embedded resource**: a nested value with no identity of its own,
+ * created and managed together with the resource carrying it.
+ *
+ * Ownership and lifecycle are stated on the member rather than on the reference: see
+ * {@link resource!PropertyConstrains.foreign | foreign} and {@link resource!PropertyConstrains.captive | captive}.
+ *
+ * @module
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
+ */
+
 import type { Lazy } from "@metreeca/core";
+import { create } from "./reference.core.js";
 import type { ResourceShape } from "./resource.js";
 
 
+/**
+ * Describes a link to a standalone resource.
+ *
+ * Admits the absolute IRI naming the resource the link points at, so that a member pointing at a resource carries the
+ * identifier alone and leaves the resource itself to be retrieved in its own right. The shape states what the target
+ * is, so the constraints the target puts on its own identifiers bound the link as well.
+ *
+ * **Inheritance**
+ *
+ * Where a {@link resource!ResourceShape} extends the shapes it lists as {@link resource!ResourceShape.parents |
+ * parents}, reference-valued members are merged according to the following rules. The *child* is the extending shape;
+ * the *parent* is the inherited one.
+ *
+ * | Field    | Override Rule                                                |
+ * | -------- | ------------------------------------------------------------ |
+ * | `kind`   | Cannot be overridden                                         |
+ * | `target` | May be re-pointed at a shape extending the inherited target  |
+ *
+ * @typeParam T The shape the reference points at, possibly deferred to break definition cycles
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
+ */
 export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> = {
 
 	readonly kind: "reference"
 
 	/**
 	 * Shape describing the resource the reference points at, possibly deferred to break definition cycles.
+	 *
+	 * **Inheritance** — may be re-pointed at a shape that lists the inherited target among its
+	 * {@link resource!ResourceShape.parents | parents}, directly or transitively, so an extending shape refines what a
+	 * link admits by naming the narrower target alone; the inherited definition reaches the refined target through its
+	 * own inheritance chain and is never restated. Any other target is rejected.
 	 */
 	readonly target: T
 
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Factories ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export function reference<T extends Lazy<ResourceShape>>(shape: T): ReferenceShape<T> {
+/**
+ * Creates a reference shape.
+ *
+ * @typeParam T The shape the reference points at
+ *
+ * @param target The shape describing the resource the reference points at, possibly deferred to break definition
+ *     cycles
+ *
+ * @returns An immutable shape admitting the IRIs naming resources of the stated target shape
+ *
+ * @example
+ *
+ * ```typescript
+ * const vendor = required(reference(Vendor));
+ * const children = multiple(reference(Target), { foreign: true });
+ * const parts = multiple(reference(Part), { captive: true });
+ * ```
+ */
+export function reference<T extends Lazy<ResourceShape>>(target: T): ReferenceShape<T> {
 
-	throw new Error(";( to be implemented"); // !!!
+	return create<T>(target);
 
 }
