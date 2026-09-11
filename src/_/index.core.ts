@@ -21,10 +21,9 @@
  */
 
 import type { Eager, Lazy } from "@metreeca/core";
-import type { Tag } from "@metreeca/core/language";
 import type { Reference } from "@metreeca/qest/resource";
 import type { BooleanShape } from "./boolean.js";
-import type { Unique } from "./dictionary.core.js";
+import type { Tagged } from "./dictionary.core.js";
 import type { DictionaryShape } from "./dictionary.js";
 import type { Shape } from "./index.js";
 import type { NumberShape } from "./number.js";
@@ -32,14 +31,12 @@ import type { ReferenceShape } from "./reference.js";
 import type { StringShape } from "./string.js";
 
 
-type Created<D> = { readonly [tag: Tag]: Unique<D> extends true ? string : readonly string[] };
-
 /**
  * Resolves the plain value a shape describes.
  *
- * Yields a boolean, a number or a string, narrowed to the values the shape enumerates where it does, a tag-keyed map
- * for a localised shape, carrying its content at the arity the shape states as {@link Unique | unique}, and a
- * {@link Reference} to the target for a reference shape. A plain value carries no members, so it reads the same
+ * Yields a boolean, a number or a string, narrowed to the values the shape enumerates where it does, a
+ * {@link Tagged | tag-keyed map} for a localised shape, carrying its content at the arity the shape states as unique,
+ * and a {@link Reference} to the target for a reference shape. A plain value carries no members, so it reads the same
  * whether or not captive resources are inlined; neither a resource shape nor a union shape describes a plain value.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
@@ -48,7 +45,7 @@ export type Plain<S extends Lazy<Shape>> =
 	Eager<S> extends BooleanShape ? boolean
 		: Eager<S> extends NumberShape<infer V> ? V
 			: Eager<S> extends StringShape<infer V> ? V
-				: Eager<S> extends infer D extends DictionaryShape ? Created<D>
+				: Eager<S> extends infer D extends DictionaryShape ? Tagged<D>
 					: Eager<S> extends ReferenceShape ? Reference
 						: never
 

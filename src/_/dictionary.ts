@@ -82,7 +82,7 @@ export type DictionaryConstraints = {
 	 * Restricts every tag to a single string.
 	 *
 	 * When `true`, a tag carries a single string, so that a member stating several values spreads them across languages
-	 * rather than stacking them under one. Fixes the arity the content is resolved at, as {@link Unique} reads it: a
+	 * rather than stacking them under one. Fixes the arity the content is resolved at, as {@link Tagged} reads it: a
 	 * bare string under every tag where the constraint is stated, an array of strings under every tag otherwise.
 	 *
 	 * **Inheritance** — a child may add the constraint but not drop it: overriding a unique-tagged parent with a

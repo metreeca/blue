@@ -21,17 +21,22 @@
  */
 
 import type { Eager, Lazy } from "@metreeca/core";
-import type { DictionaryConstraints, DictionaryShape } from "./dictionary.js";
+import type { Tag } from "@metreeca/core/language";
+import type { DictionaryShape } from "./dictionary.js";
 
 
 /**
- * Checks whether a localised shape admits a single string under each tag.
+ * Resolves the tag-keyed map a localised shape describes.
  *
- * Yields `true` where the shape states {@link DictionaryConstraints.uniqueLang | uniqueLang}, so that the content of a
- * tag is resolved at the arity the shape admits: a bare string where it is unique, an array of strings otherwise. A
- * shape leaving the constraint unstated, or stating it only as a boolean, admits several strings under each tag.
+ * Yields a map keyed by language tag, carrying a single string under each tag where the shape states
+ * {@link DictionaryConstraints.uniqueLang | uniqueLang} and an array of strings under each tag otherwise, so that the
+ * content of a tag is typed at the arity the shape admits. A shape leaving the constraint unstated, or stating it only
+ * as a boolean, admits several strings under each tag.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Unique<S extends Lazy<DictionaryShape>> =
-	Eager<S> extends { readonly uniqueLang: true } ? true : false
+export type Tagged<S extends Lazy<DictionaryShape>> = {
+
+	readonly [tag: Tag]: Eager<S> extends { readonly uniqueLang: true } ? string : readonly string[]
+
+}
