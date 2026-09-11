@@ -14,7 +14,67 @@
  * limitations under the License.
  */
 
+/**
+ * Dictionary shape and factories.
+ *
+ * Defines shapes and factories for validating language-tagged string values, mapping
+ * [JSON-LD language maps](https://www.w3.org/TR/json-ld11/#language-maps) to
+ * [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string) language-tagged strings.
+ *
+ * > Factories validate constraint consistency at construction time:
+ * > contradictory constraints like `minLength > maxLength` throw a `TraceError`.
+ *
+ * How many strings a tag carries is fixed by {@link DictionaryConstraints.uniqueLang | uniqueLang}: a unique-tagged
+ * shape gives every tag a single string, and any other gives every tag an array.
+ *
+ * The tag-keyed map is the form a value is stored and submitted in. A localised member additionally *coalesces* under
+ * language negotiation when retrieved, at the same per-tag arity: the value may be retrieved as the negotiated content
+ * alone, and filtered by a plain string operand matched against it under ordinary textual semantics. Submission never
+ * coalesces: it accepts the tag-keyed form alone.
+ *
+ * **Compatibility**
+ *
+ * | JSON                 | JSON-LD                            | RDF 1.1                         |
+ * | -------------------- | ---------------------------------- | ------------------------------- |
+ * | tag-keyed string map | `@language`-container language map | language-tagged string literals |
+ *
+ * **Defining Language-Tagged Shapes**
+ *
+ * Values are tag-keyed maps; the [`und`](https://iso639-3.sil.org/code/und) tag carries content of undetermined
+ * language (a proper name, say), and the [`zxx`](https://iso639-3.sil.org/code/zxx) tag content with no language at
+ * all (identifiers, codes, formulae):
+ *
+ * ```typescript
+ * import { dictionary } from '@metreeca/blue/dictionary';
+ *
+ * const label = dictionary({ uniqueLang: true });           // a single string per tag
+ * const keywords = dictionary();                            // an array of strings per tag
+ * const name = dictionary({ minLength: 1, maxLength: 200 });// length-constrained
+ * const abstract = dictionary({ languageIn: ["en", "it"] });// language-restricted
+ * ```
+ *
+ * **Using in Resource Shapes**
+ *
+ * ```typescript
+ * import { multiple, optional, required, resource } from '@metreeca/blue/resource';
+ * import { dictionary } from '@metreeca/blue/dictionary';
+ *
+ * const Article = resource({
+ *   title: required(dictionary({ uniqueLang: true, minLength: 1 })),
+ *   abstract: optional(dictionary({ uniqueLang: true })),
+ *   keywords: multiple(dictionary({ languageIn: ["en", "fr", "de"] }))
+ * });
+ * ```
+ *
+ * @module
+ *
+ * @see {@link https://www.w3.org/TR/json-ld11/#language-maps JSON-LD 1.1 § 9.8 Language Maps}
+ * @see {@link https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string RDF 1.1 § 3.3 Literals}
+ */
+
 import type { TagRange } from "@metreeca/core/language";
+import { TraceError } from "@metreeca/core/trace";
+import { create } from "./dictionary.core.js";
 
 
 /**
@@ -52,7 +112,7 @@ import type { TagRange } from "@metreeca/core/language";
  * | `kind`       | Cannot be overridden                                                        |
  * | `minLength`  | Child ≥ parent, narrowing the minimum length                                |
  * | `maxLength`  | Child ≤ parent, narrowing the maximum length                                |
- * | `languageIn` | Intersection of parent and child sets; empty result is reported as an error |
+ * | `languageIn` | Child may only drop accepted ranges                                          |
  * | `uniqueLang` | Child may add but not drop; an inherited constraint always carries through  |
  *
  * **Cross-Field Validation**
@@ -124,7 +184,7 @@ export type DictionaryConstraints = {
 	 * extended ranges such as `en-*` are not accepted. Empty arrays are ignored. Language *tags*, which identify a
 	 * language rather than select one, are described by {@link string!tag | tag} instead.
 	 *
-	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
+	 * **Inheritance** — child may only drop accepted ranges.
 	 *
 	 * @defaultValue `undefined` (no language constraint)
 	 *
@@ -150,6 +210,8 @@ export type DictionaryConstraints = {
  * @returns An immutable shape admitting the language maps the constraints bound, carrying a single string per tag where
  *     they state {@link DictionaryConstraints.uniqueLang | uniqueLang}
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @example
  *
  * ```typescript
@@ -162,6 +224,6 @@ export function dictionary<const C extends DictionaryConstraints = {}>(constrain
 	readonly uniqueLang: C["uniqueLang"]
 } {
 
-	throw new Error(";( to be implemented");
+	return create<C["uniqueLang"]>(constraints ?? {});
 
 }
