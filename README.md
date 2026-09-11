@@ -95,7 +95,7 @@ function Thing() {
 }
 
 function Product() {
-	return resource({ extends: Thing }, {
+	return resource({
 		name: required(dictionary()),
 		description: optional(dictionary()),
 		price: required(number({ minInclusive: 0 })),
@@ -103,6 +103,8 @@ function Product() {
 		tags: multiple(string()),
 		rating: optional(Rating),
 		vendor: required(reference(Vendor))
+	}, {
+		extends: Thing
 	});
 }
 
@@ -114,7 +116,7 @@ function Rating() {
 }
 
 function Vendor() {
-	return resource({ extends: Thing }, {
+	return resource({
 		name: required(string()),
 		website: required(url()),
 		address: optional(union(
@@ -122,6 +124,8 @@ function Vendor() {
 			PostalAddress(),
 			VirtualLocation()
 		))
+	}, {
+		extends: Thing
 	});
 }
 ```
@@ -179,9 +183,11 @@ const NamedThing = resource({
     name: required(string({ minLength: 1 }))
 });
 
-const Vendor = resource({ extends: NamedThing }, {
+const Vendor = resource({
     name: required(string({ minLength: 3, maxLength: 80 })), // narrows minLength
     rating: optional(number({ minInclusive: 0, maxInclusive: 5 }))
+}, {
+    extends: NamedThing
 });
 ```
 
@@ -193,13 +199,18 @@ its own `extends`, so the parent definition is never restated. A target that doe
 inherited target's own parent included, is rejected at the call site.
 
 ```ts
-const Organization = resource({ class: "https://schema.org/Organization" }, {
+const Organization = resource({
     id: id(),
     name: required(string())
+}, {
+    class: "https://schema.org/Organization"
 });
 
-const University = resource({ extends: Organization, class: "https://ec2u.eu/University" }, {
+const University = resource({
     country: required(string())
+}, {
+    extends: Organization,
+    class: "https://ec2u.eu/University"
 });
 
 const Unit = resource({
@@ -208,9 +219,11 @@ const Unit = resource({
     host: required(Organization)               // embedded target
 });
 
-const ResearchUnit = resource({ extends: Unit }, {
+const ResearchUnit = resource({
     unitOf: required(reference(University)),   // re-pointed at the extending target
     host: required(University)
+}, {
+    extends: Unit
 });
 ```
 
@@ -236,13 +249,17 @@ const Entity = resource({
 });
 
 // Form 1 — narrows the slot to a bare string
-const Vendor = resource({ extends: Entity }, {
+const Vendor = resource({
 	code: required(string({ model: "ABC", pattern: "^[A-Z]" }))
+}, {
+	extends: Entity
 });
 
 // Form 2 — keeps the union but drops the string variant wholesale
-const Numbered = resource({ extends: Entity }, {
+const Numbered = resource({
 	code: required(union(number({ minInclusive: 0 })))
+}, {
+	extends: Entity
 });
 ```
 

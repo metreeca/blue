@@ -280,9 +280,9 @@ describe("State", () => {
 			}
 
 			function Derived() {
-				return resource({ extends: Base }, {
+				return resource({
 					code: property(required(string()))
-				});
+				}, { extends: Base });
 			}
 
 			test("includes inherited entries", () => {
@@ -312,9 +312,9 @@ describe("State", () => {
 			}
 
 			function Multi() {
-				return resource({ extends: [Base, Mixin] }, {
+				return resource({
 					id: property(required(string()))
-				});
+				}, { extends: [Base, Mixin] });
 			}
 
 			test("includes entries from all parents", () => {
@@ -339,15 +339,15 @@ describe("State", () => {
 			}
 
 			function Parent() {
-				return resource({ extends: GrandParent }, {
+				return resource({
 					b: property(required(string()))
-				});
+				}, { extends: GrandParent });
 			}
 
 			function Child() {
-				return resource({ extends: Parent }, {
+				return resource({
 					c: property(required(string()))
-				});
+				}, { extends: Parent });
 			}
 
 			test("includes entries from all ancestors", () => {
@@ -372,21 +372,21 @@ describe("State", () => {
 			}
 
 			function Left() {
-				return resource({ extends: Root }, {
+				return resource({
 					left: property(required(string()))
-				});
+				}, { extends: Root });
 			}
 
 			function Right() {
-				return resource({ extends: Root }, {
+				return resource({
 					right: property(required(string()))
-				});
+				}, { extends: Root });
 			}
 
 			function Diamond() {
-				return resource({ extends: [Left, Right] }, {
+				return resource({
 					own: property(required(string()))
-				});
+				}, { extends: [Left, Right] });
 			}
 
 			test("includes entries from all paths", () => {
@@ -408,10 +408,10 @@ describe("State", () => {
 			}
 
 			function Derived() {
-				return resource({ extends: Base }, {
+				return resource({
 					reqOwn: property(required(integer())),
 					optOwn: property(optional(integer()))
-				});
+				}, { extends: Base });
 			}
 
 			test("preserves optionality from parent", () => {

@@ -184,8 +184,8 @@ describe("operators", () => {
 
 			it("tightens the matching reference variant", async () => {
 
-				const Person = resource({ class: "http://example.org/Person" }, { name: required(string()) });
-				const Org = resource({ class: "http://example.org/Org" }, { name: required(string()) });
+				const Person = resource({ name: required(string()) }, { class: "http://example.org/Person" });
+				const Org = resource({ name: required(string()) }, { class: "http://example.org/Org" });
 
 				const merged = mergeUnion(
 					union(reference(Person)),
@@ -199,8 +199,8 @@ describe("operators", () => {
 
 			it("tightens the matching resource variant", async () => {
 
-				const Person = resource({ class: "http://example.org/Person" }, { name: required(string()) });
-				const Org = resource({ class: "http://example.org/Org" }, { name: required(string()) });
+				const Person = resource({ name: required(string()) }, { class: "http://example.org/Person" });
+				const Org = resource({ name: required(string()) }, { class: "http://example.org/Org" });
 
 				const merged = mergeUnion(
 					union(Person),
@@ -288,7 +288,7 @@ describe("operators", () => {
 
 		it("indexes reference variant models", async () => {
 
-			const target = resource({ pattern: "/things/{id}" }, {});
+			const target = resource({}, { pattern: "/things/{id}" });
 
 			expect(deriveUnion(union(reference(target), string()))).toEqual({ "0": "app:/", "1": "" });
 

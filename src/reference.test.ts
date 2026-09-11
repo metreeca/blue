@@ -117,8 +117,8 @@ describe("operators", () => {
 	describe("narrowsReference", () => {
 
 		const Wider = resource({ name: required(string()) });
-		const Narrower = resource({ extends: Wider }, { name: required(string({ minLength: 1 })) });
-		const Narrowest = resource({ extends: Narrower }, {});
+		const Narrower = resource({ name: required(string({ minLength: 1 })) }, { extends: Wider });
+		const Narrowest = resource({}, { extends: Narrower });
 
 		it("accepts an identical child", async () => {
 
@@ -143,7 +143,7 @@ describe("operators", () => {
 		it("accepts a child targeting a shape extending one of several inherited parents", async () => {
 
 			const Other = resource({ code: required(string()) });
-			const Multiple = resource({ extends: [Other, Wider] }, {});
+			const Multiple = resource({}, { extends: [Other, Wider] });
 
 			expect(narrowsReference(reference(Multiple), reference(Wider))).toBeUndefined();
 
@@ -242,7 +242,7 @@ describe("operators", () => {
 			it("keeps the extending target shape", async () => {
 
 				const Wider = resource({ name: required(string()) });
-				const Narrower = resource({ extends: Wider }, { name: required(string({ minLength: 1 })) });
+				const Narrower = resource({ name: required(string({ minLength: 1 })) }, { extends: Wider });
 
 				const merged = mergeReference(reference(Narrower), reference(Wider));
 
@@ -268,7 +268,7 @@ describe("operators", () => {
 describe("inheritance", () => {
 
 	const Wider = resource({ id: id(), label: required(string()) });
-	const Narrower = resource({ extends: Wider }, { label: required(string({ minLength: 1 })) });
+	const Narrower = resource({ label: required(string({ minLength: 1 })) }, { extends: Wider });
 
 	const Parent = resource({ id: id(), link: required(reference(Wider)) });
 
@@ -282,7 +282,7 @@ describe("inheritance", () => {
 
 	it("re-points an inherited reference at an extending target", async () => {
 
-		const Child = resource({ extends: Parent }, { link: required(reference(Narrower)) });
+		const Child = resource({ link: required(reference(Narrower)) }, { extends: Parent });
 
 		expect(target(Child, "link")).toBe(Narrower);
 
@@ -290,7 +290,7 @@ describe("inheritance", () => {
 
 	it("re-points an inherited reference at a lazily declared extending target", async () => {
 
-		const Child = resource({ extends: Parent }, { link: required(reference(() => Narrower)) });
+		const Child = resource({ link: required(reference(() => Narrower)) }, { extends: Parent });
 
 		expect(target(Child, "link")).toBe(Narrower);
 
@@ -298,7 +298,7 @@ describe("inheritance", () => {
 
 	it("retains the inherited target definition without restating it", async () => {
 
-		const Child = resource({ extends: Parent }, { link: required(reference(Narrower)) });
+		const Child = resource({ link: required(reference(Narrower)) }, { extends: Parent });
 
 		expect(Object.keys(target(Child, "link")?.entries ?? {})).toEqual(expect.arrayContaining(["id", "label"]));
 
@@ -308,7 +308,7 @@ describe("inheritance", () => {
 
 		const Unrelated = resource({ id: id(), code: required(string()) });
 
-		expect(() => resource({ extends: Parent }, { link: required(reference(Unrelated)) })).toThrow(TraceError);
+		expect(() => resource({ link: required(reference(Unrelated)) }, { extends: Parent })).toThrow(TraceError);
 
 	});
 
@@ -377,7 +377,7 @@ describe("validators", () => {
 
 			it("accepts valid references", async () => {
 
-				const shape = reference(resource(options, {}));
+				const shape = reference(resource({}, options));
 
 				expect(validateReference(valid, shape)).toBeUndefined();
 
@@ -385,7 +385,7 @@ describe("validators", () => {
 
 			it("rejects invalid references", async () => {
 
-				const shape = reference(resource(options, {}));
+				const shape = reference(resource({}, options));
 
 				expect(validateReference(invalid, shape)).toEqual(error);
 
@@ -397,7 +397,7 @@ describe("validators", () => {
 
 			it("resolves lazy shape function before validation", async () => {
 
-				const target = resource({ pattern: "/users/{id}" }, {});
+				const target = resource({}, { pattern: "/users/{id}" });
 				const shape = reference(() => target);
 
 				expect(validateReference(["app:/users/123"], shape)).toBeUndefined();
@@ -412,7 +412,7 @@ describe("validators", () => {
 
 			it("skips target value constraints for a placeholder", async () => {
 
-				const shape = reference(resource({ pattern: "/users/{id}" }, {}));
+				const shape = reference(resource({}, { pattern: "/users/{id}" }));
 
 				expect(validateReference(["app:/products/999"], shape, { scope: "model" })).toBeUndefined();
 
@@ -423,7 +423,7 @@ describe("validators", () => {
 
 			it("skips the target in constraint for a placeholder", async () => {
 
-				const shape = reference(resource({ in: ["app:/users/1", "app:/users/2"] }, {}));
+				const shape = reference(resource({}, { in: ["app:/users/1", "app:/users/2"] }));
 
 				expect(validateReference(["app:/users/99"], shape, { scope: "model" })).toBeUndefined();
 
@@ -460,7 +460,7 @@ describe("validators", () => {
 
 			it("skips the target in constraint for a bound", async () => {
 
-				const shape = reference(resource({ in: ["app:/users/1", "app:/users/2"] }, {}));
+				const shape = reference(resource({}, { in: ["app:/users/1", "app:/users/2"] }));
 
 				expect(validateReference(["app:/users/99"], shape, { scope: "bound" })).toBeUndefined();
 
@@ -468,7 +468,7 @@ describe("validators", () => {
 
 			it("skips the target hasValue constraint for a bound", async () => {
 
-				const shape = reference(resource({ hasValue: ["app:/users/1"] }, {}));
+				const shape = reference(resource({}, { hasValue: ["app:/users/1"] }));
 
 				expect(validateReference(["app:/users/2"], shape, { scope: "bound" })).toBeUndefined();
 
@@ -476,7 +476,7 @@ describe("validators", () => {
 
 			it("still enforces the target pattern for a bound", async () => {
 
-				const shape = reference(resource({ pattern: "/users/{id}" }, {}));
+				const shape = reference(resource({}, { pattern: "/users/{id}" }));
 
 				expect(validateReference(["app:/products/999"], shape, { scope: "bound" }))
 					.toEqual([{ "0": [expect.stringContaining("{format}")] }]);

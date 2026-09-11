@@ -79,21 +79,21 @@ describe("Overrides", () => {
 
 	test("rejects incompatible override type", () => {
 		// @ts-expect-error - incompatible override: integer does not extend string
-		resource({ extends: Base }, { name: required(integer()) });
+		resource({ name: required(integer()) }, { extends: Base });
 	});
 
 	test("accepts compatible narrowing", () => {
-		resource({ extends: Base }, { name: required(string()) });
+		resource({ name: required(string()) }, { extends: Base });
 	});
 
 	test("rejects widening cardinality (required → optional)", () => {
 		// @ts-expect-error - incompatible override: optional widens required
-		resource({ extends: Base }, { name: optional(string()) });
+		resource({ name: optional(string()) }, { extends: Base });
 	});
 
 	test("rejects changing to array cardinality", () => {
 		// @ts-expect-error - incompatible override: multiple changes scalar to array
-		resource({ extends: Base }, { name: multiple(string()) });
+		resource({ name: multiple(string()) }, { extends: Base });
 	});
 
 });
@@ -108,18 +108,18 @@ describe("Overrides over union ranges", () => {
 	}
 
 	test("Form 1 narrowing resolves the model to the bare child slot", () => {
-		const Derived = resource({ extends: Base }, { value: required(string()) });
+		const Derived = resource({ value: required(string()) }, { extends: Base });
 		expectTypeOf(Derived.model).toHaveProperty("value").toEqualTypeOf<string>();
 	});
 
 	test("Form 2 full retention preserves the parent indexed record", () => {
-		const Derived = resource({ extends: Base }, { value: required(union(string(), integer())) });
+		const Derived = resource({ value: required(union(string(), integer())) }, { extends: Base });
 		expectTypeOf(Derived.model).toHaveProperty("value")
 			.toEqualTypeOf<{ readonly "0": string; readonly "1": number }>();
 	});
 
 	test("Form 2 subsetting resolves the model to the retained variants only", () => {
-		const Derived = resource({ extends: Base }, { value: required(union(string())) });
+		const Derived = resource({ value: required(union(string())) }, { extends: Base });
 		expectTypeOf(Derived.model).toHaveProperty("value").toEqualTypeOf<{ readonly "0": string }>();
 	});
 
@@ -130,13 +130,13 @@ describe("Overrides over union ranges", () => {
 			});
 		}
 
-		const Derived = resource({ extends: MultiBase }, { value: multiple(string()) });
+		const Derived = resource({ value: multiple(string()) }, { extends: MultiBase });
 		expectTypeOf(Derived.model).toHaveProperty("value").toEqualTypeOf<undefined | readonly [string]>();
 	});
 
 	test("rejects narrowing to a kind absent from the parent union", () => {
 		// @ts-expect-error - incompatible override: boolean kind not in union(string, integer)
-		resource({ extends: Base }, { value: required(boolean()) });
+		resource({ value: required(boolean()) }, { extends: Base });
 	});
 
 });
@@ -426,9 +426,9 @@ describe("nested model inference", () => {
 				name: required(string())
 			});
 
-			const Child = resource({ extends: Parent }, {
+			const Child = resource({
 				age: required(integer())
-			});
+			}, { extends: Parent });
 
 			expectTypeOf(resource({
 				child: required(Child)
@@ -458,9 +458,9 @@ describe("resource()", () => {
 
 	test("name and description accept string shorthands but are exposed as dictionaries", () => {
 
-		const shape = resource({ name: "Person", description: "A *person* resource" }, {
+		const shape = resource({
 			age: required(integer())
-		});
+		}, { name: "Person", description: "A *person* resource" });
 
 		expectTypeOf(shape.name).toEqualTypeOf<undefined | Dictionary>();
 		expectTypeOf(shape.description).toEqualTypeOf<undefined | Dictionary>();
@@ -473,7 +473,7 @@ describe("resource()", () => {
 			return resource({ name: required(string()) });
 		}
 
-		resource({ extends: Parent }, { extra: required(string()) });
+		resource({ extra: required(string()) }, { extends: Parent });
 
 	});
 
@@ -487,36 +487,36 @@ describe("resource()", () => {
 			return resource({ code: required(string()) });
 		}
 
-		resource({ extends: [Parent1, Parent2] }, { extra: required(string()) });
+		resource({ extra: required(string()) }, { extends: [Parent1, Parent2] });
 
 	});
 
 	test("accepts empty extends array (ignored)", () => {
-		resource({ extends: [] }, { name: required(string()) });
+		resource({ name: required(string()) }, { extends: [] });
 	});
 
 	test("accepts non-empty classes array", () => {
-		resource({ classes: ["https://example.org/Type" as IRI] }, {});
+		resource({}, { classes: ["https://example.org/Type" as IRI] });
 	});
 
 	test("accepts non-empty in array", () => {
-		resource({ in: ["https://example.org/a" as IRI, "https://example.org/b" as IRI] }, {});
+		resource({}, { in: ["https://example.org/a" as IRI, "https://example.org/b" as IRI] });
 	});
 
 	test("accepts non-empty hasValue array", () => {
-		resource({ hasValue: ["https://example.org/x" as IRI] }, {});
+		resource({}, { hasValue: ["https://example.org/x" as IRI] });
 	});
 
 	test("accepts empty classes array (ignored)", () => {
-		resource({ classes: [] }, {});
+		resource({}, { classes: [] });
 	});
 
 	test("accepts empty in array (ignored)", () => {
-		resource({ in: [] }, {});
+		resource({}, { in: [] });
 	});
 
 	test("accepts empty hasValue array (ignored)", () => {
-		resource({ hasValue: [] }, {});
+		resource({}, { hasValue: [] });
 	});
 
 	test("child accepts optional entries with inherited parent", () => {
@@ -525,9 +525,9 @@ describe("resource()", () => {
 			return resource({ name: required(string()) });
 		}
 
-		resource({ extends: Parent }, {
+		resource({
 			extra: optional(string())
-		});
+		}, { extends: Parent });
 
 	});
 

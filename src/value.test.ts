@@ -326,8 +326,8 @@ describe("utilities", () => {
 		it("returns the default app:/ model for a reference shape regardless of target constraints", async () => {
 
 			expect(model(reference(resource({}, {})))).toBe("app:/");
-			expect(model(reference(resource({ in: ["app:/users/1"] }, {})))).toBe("app:/");
-			expect(model(reference(resource({ pattern: "/users/{id}" }, {})))).toBe("app:/");
+			expect(model(reference(resource({}, { in: ["app:/users/1"] })))).toBe("app:/");
+			expect(model(reference(resource({}, { pattern: "/users/{id}" })))).toBe("app:/");
 
 		});
 
@@ -358,7 +358,7 @@ describe("utilities", () => {
 
 		it("indexes reference variant models for a union shape", async () => {
 
-			const target = resource({ pattern: "/things/{id}" }, {});
+			const target = resource({}, { pattern: "/things/{id}" });
 
 			expect(model(union(reference(target), string()))).toEqual({ "0": "app:/", "1": "" });
 
@@ -1300,9 +1300,9 @@ describe("utilities", () => {
 					label: required(string())
 				});
 
-				const Derived = resource({ extends: Base }, {
+				const Derived = resource({
 					extra: required(integer())
-				});
+				}, { extends: Base });
 
 				expect(range(probeRange(probe(["label"]), Derived)).variants[0]).toEqual(string());
 
@@ -1401,10 +1401,10 @@ describe("utilities", () => {
 
 				it("resolves single-segment path to type field", async () => {
 
-					const s = resource({ class: "app:/types/T" }, {
+					const s = resource({
 						kind: type(),
 						name: required(string())
-					});
+					}, { class: "app:/types/T" });
 
 					expect(range(probeRange(probe(["kind"]), s)).variants[0]).toEqual(idType);
 
@@ -1412,10 +1412,10 @@ describe("utilities", () => {
 
 				it("resolves type field with optional cardinality", async () => {
 
-					const s = resource({ class: "app:/types/T" }, {
+					const s = resource({
 						kind: type(),
 						name: required(string())
-					});
+					}, { class: "app:/types/T" });
 
 					const result = probeRange(probe(["kind"]), s);
 
@@ -1426,10 +1426,10 @@ describe("utilities", () => {
 
 				it("resolves trailing path segment to type through reference", async () => {
 
-					const Inner = resource({ class: "app:/types/T" }, {
+					const Inner = resource({
 						kind: type(),
 						label: required(string())
-					});
+					}, { class: "app:/types/T" });
 
 					const s = resource({
 						child: optional(reference(Inner))
@@ -1441,10 +1441,10 @@ describe("utilities", () => {
 
 				it("rejects leading type with trailing segments", async () => {
 
-					const s = resource({ class: "app:/types/T" }, {
+					const s = resource({
 						kind: type(),
 						name: required(string())
-					});
+					}, { class: "app:/types/T" });
 
 					expect(effective(s, probe(["kind", "something"]))).toEqual("undefined property path");
 
@@ -1452,12 +1452,12 @@ describe("utilities", () => {
 
 				it("rejects inner type in multi-segment path", async () => {
 
-					const Inner = resource({ class: "app:/types/T" }, {
+					const Inner = resource({
 						kind: type(),
 						nested: required(resource({
 							value: required(string())
 						}))
-					});
+					}, { class: "app:/types/T" });
 
 					const s = resource({
 						child: required(reference(Inner))
@@ -1504,8 +1504,8 @@ describe("utilities", () => {
 
 					const s = resource({
 						value: required(union(
-							resource({ class: "app:/types/A" }, { name: type() }),
-							resource({ class: "app:/types/B" }, { name: type() })
+							resource({ name: type() }, { class: "app:/types/A" }),
+							resource({ name: type() }, { class: "app:/types/B" })
 						))
 					});
 
@@ -2021,8 +2021,8 @@ describe("internals", () => {
 
 		it("rejects a reference child targeting a different class", async () => {
 
-			const Person = resource({ class: "http://example.org/Person" }, { name: required(string()) });
-			const Org = resource({ class: "http://example.org/Org" }, { name: required(string()) });
+			const Person = resource({ name: required(string()) }, { class: "http://example.org/Person" });
+			const Org = resource({ name: required(string()) }, { class: "http://example.org/Org" });
 
 			expect(narrowsValue(reference(Person), reference(Org))).toBeDefined();
 
@@ -2060,7 +2060,7 @@ describe("internals", () => {
 
 		it("accepts a resource child carrying the base class", async () => {
 
-			const Person = resource({ class: "http://example.org/Person" }, { name: required(string()) });
+			const Person = resource({ name: required(string()) }, { class: "http://example.org/Person" });
 
 			expect(narrowsValue(Person, Person)).toBeUndefined();
 
@@ -2068,8 +2068,8 @@ describe("internals", () => {
 
 		it("rejects a resource child missing the base class", async () => {
 
-			const Person = resource({ class: "http://example.org/Person" }, { name: required(string()) });
-			const Org = resource({ class: "http://example.org/Org" }, { name: required(string()) });
+			const Person = resource({ name: required(string()) }, { class: "http://example.org/Person" });
+			const Org = resource({ name: required(string()) }, { class: "http://example.org/Org" });
 
 			expect(narrowsValue(Org, Person)).toBeDefined();
 
@@ -2335,8 +2335,8 @@ describe("internals", () => {
 
 			it("narrows a parent union containing references by target class", async () => {
 
-				const Person = resource({ class: "http://example.org/Person" }, { name: required(string()) });
-				const Org = resource({ class: "http://example.org/Org" }, { name: required(string()) });
+				const Person = resource({ name: required(string()) }, { class: "http://example.org/Person" });
+				const Org = resource({ name: required(string()) }, { class: "http://example.org/Org" });
 
 				const merged = mergeValues(
 					required(reference(Person)),
@@ -2407,7 +2407,7 @@ describe("internals", () => {
 
 		it("returns the stored reference model", async () => {
 
-			expect(deriveValue(reference(resource({ in: ["app:/users/1"] }, {})))).toBe("app:/");
+			expect(deriveValue(reference(resource({}, { in: ["app:/users/1"] })))).toBe("app:/");
 
 		});
 

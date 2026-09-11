@@ -136,9 +136,9 @@ describe("factories", () => {
 			it("normalizes naked ranges with constraints", async () => {
 
 				const shape = resource({
-					namespace: createNamespace("http://example.org/")
-				}, {
 					name: required(string())
+				}, {
+					namespace: createNamespace("http://example.org/")
 				});
 
 				expect(shape.entries.name).toBeDefined();
@@ -192,9 +192,9 @@ describe("factories", () => {
 
 			it("accepts specs and entries", async () => {
 
-				const shape = resource({}, {
+				const shape = resource({
 					name: property(required(string()))
-				});
+				}, {});
 
 				expect(shape.kind).toBe("resource");
 				expect(shape.entries.name).toBeDefined();
@@ -308,9 +308,9 @@ describe("factories", () => {
 
 				const ns = createNamespace("http://example.org/");
 
-				const Outer = resource({ namespace: ns }, {
+				const Outer = resource({
 					person: required(Unflattened)
-				});
+				}, { namespace: ns });
 
 				const nested = ((Outer.entries.person as Property).range as SetShape).shape as ResourceShape;
 
@@ -401,9 +401,9 @@ describe("factories", () => {
 
 				it("uses app namespace when no namespace is defined (with empty constraints)", async () => {
 
-					const shape = resource({}, {
+					const shape = resource({
 						name: required(string())
-					});
+					}, {});
 
 					expect((shape.entries.name as Property).forward).toBe("app:/#name");
 					expect((shape.entries.name as Property).reverse).toBeUndefined();
@@ -414,9 +414,9 @@ describe("factories", () => {
 
 					const ns = createNamespace("http://example.org/");
 
-					const shape = resource({ namespace: ns }, {
+					const shape = resource({
 						name: required(string())
-					});
+					}, { namespace: ns });
 
 					expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
 					expect((shape.entries.name as Property).reverse).toBeUndefined();
@@ -427,13 +427,13 @@ describe("factories", () => {
 
 					const ns = createNamespace("http://example.org/");
 
-					const Parent = resource({ namespace: ns }, {
+					const Parent = resource({
 						id: required(string())
-					});
+					}, { namespace: ns });
 
-					const Child = resource({ extends: Parent }, {
+					const Child = resource({
 						name: required(string())
-					});
+					}, { extends: Parent });
 
 					expect((Child.entries.name as Property).forward).toBe("http://example.org/name");
 					expect((Child.entries.name as Property).reverse).toBeUndefined();
@@ -444,17 +444,17 @@ describe("factories", () => {
 
 					const ns = createNamespace("http://example.org/");
 
-					const Parent1 = resource({ namespace: ns }, {
+					const Parent1 = resource({
 						id: required(string())
-					});
+					}, { namespace: ns });
 
-					const Parent2 = resource({ namespace: ns }, {
+					const Parent2 = resource({
 						code: required(string())
-					});
+					}, { namespace: ns });
 
-					const Child = resource({ extends: [Parent1, Parent2] }, {
+					const Child = resource({
 						name: required(string())
-					});
+					}, { extends: [Parent1, Parent2] });
 
 					expect((Child.entries.name as Property).forward).toBe("http://example.org/name");
 					expect((Child.entries.name as Property).reverse).toBeUndefined();
@@ -467,9 +467,9 @@ describe("factories", () => {
 						id: required(string())
 					});
 
-					const Child = resource({ extends: Parent }, {
+					const Child = resource({
 						name: required(string())
-					});
+					}, { extends: Parent });
 
 					expect((Child.entries.name as Property).forward).toBe("app:/#name");
 					expect((Child.entries.name as Property).reverse).toBeUndefined();
@@ -491,9 +491,9 @@ describe("factories", () => {
 
 					const ns = createNamespace("http://schema.org/");
 
-					const shape = resource({ namespace: ns }, {
+					const shape = resource({
 						name: property({ forward: "http://custom.org/name" }, required(string()))
-					});
+					}, { namespace: ns });
 
 					expect((shape.entries.name as Property).forward).toBe("http://custom.org/name");
 
@@ -503,11 +503,11 @@ describe("factories", () => {
 
 					const ns = createNamespace("http://example.org/");
 
-					const shape = resource({ namespace: ns }, {
+					const shape = resource({
 						name: required(string()),
 						age: optional(integer()),
 						email: required(string())
-					});
+					}, { namespace: ns });
 
 					expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
 					expect((shape.entries.age as Property).forward).toBe("http://example.org/age");
@@ -528,11 +528,11 @@ describe("factories", () => {
 				});
 
 				const shape = resource({
+					age: property(optional(integer()))
+				}, {
 					name: { [assert("en", isTag)]: "Person" },
 					description: { [assert("en", isTag)]: "A person resource" },
 					extends: Base
-				}, {
-					age: property(optional(integer()))
 				});
 
 				expect(shape).toMatchObject({
@@ -557,10 +557,10 @@ describe("factories", () => {
 			it("expands string name and description shorthands", async () => {
 
 				const shape = resource({
+					age: property(optional(integer()))
+				}, {
 					name: "Person",
 					description: "A *person* resource"
-				}, {
-					age: property(optional(integer()))
 				});
 
 				expect(shape).toMatchObject({
@@ -577,9 +577,9 @@ describe("factories", () => {
 			it("throws on non-function namespace", async () => {
 
 				// namespace validation is manual (typia can't validate function signatures)
-				expect(() => resource({ namespace: "http://example.org/" } as any, {
+				expect(() => resource({
 					name: property(required(string()))
-				})).toThrow(TypeError);
+				}, { namespace: "http://example.org/" } as any)).toThrow(TypeError);
 
 			});
 
@@ -594,10 +594,10 @@ describe("factories", () => {
 
 			it("throws on duplicate type entries", async () => {
 
-				expect(() => resource({ class: "app:/types/T" }, {
+				expect(() => resource({
 					first: type(),
 					second: type()
-				})).toThrow(TraceError);
+				}, { class: "app:/types/T" })).toThrow(TraceError);
 
 			});
 
@@ -615,10 +615,10 @@ describe("factories", () => {
 
 			it("accepts a type field with a declared class", async () => {
 
-				expect(() => resource({ class: "app:/types/Person" }, {
+				expect(() => resource({
 					type: type(),
 					name: required(string())
-				})).not.toThrow();
+				}, { class: "app:/types/Person" })).not.toThrow();
 
 			});
 
@@ -629,22 +629,22 @@ describe("factories", () => {
 					name: required(string())
 				});
 
-				expect(() => resource({ extends: Parent }, {
+				expect(() => resource({
 					uid: id()
-				})).toThrow(TraceError);
+				}, { extends: Parent })).toThrow(TraceError);
 
 			});
 
 			it("throws on inherited type duplicated under a distinct name", async () => {
 
-				const Parent = resource({ class: "app:/types/T" }, {
+				const Parent = resource({
 					rtype: type(),
 					name: required(string())
-				});
+				}, { class: "app:/types/T" });
 
-				expect(() => resource({ extends: Parent, class: "app:/types/U" }, {
+				expect(() => resource({
 					utype: type()
-				})).toThrow(TraceError);
+				}, { extends: Parent, class: "app:/types/U" })).toThrow(TraceError);
 
 			});
 
@@ -655,30 +655,30 @@ describe("factories", () => {
 					name: required(string())
 				});
 
-				const Parent = resource({ extends: GrandParent }, {
+				const Parent = resource({
 					age: required(integer())
-				});
+				}, { extends: GrandParent });
 
-				expect(() => resource({ extends: Parent }, {
+				expect(() => resource({
 					uid: id()
-				})).toThrow(TraceError);
+				}, { extends: Parent })).toThrow(TraceError);
 
 			});
 
 			it("throws on deeply inherited type duplicated under a distinct name", async () => {
 
-				const GrandParent = resource({ class: "app:/types/T" }, {
+				const GrandParent = resource({
 					rtype: type(),
 					name: required(string())
-				});
+				}, { class: "app:/types/T" });
 
-				const Parent = resource({ extends: GrandParent, class: "app:/types/U" }, {
+				const Parent = resource({
 					age: required(integer())
-				});
+				}, { extends: GrandParent, class: "app:/types/U" });
 
-				expect(() => resource({ extends: Parent, class: "app:/types/V" }, {
+				expect(() => resource({
 					utype: type()
-				})).toThrow(TraceError);
+				}, { extends: Parent, class: "app:/types/V" })).toThrow(TraceError);
 
 			});
 
@@ -691,22 +691,22 @@ describe("factories", () => {
 
 				// same name, same kind: a compatible override, collapsed by name before counting
 
-				expect(() => resource({ extends: Parent }, {
+				expect(() => resource({
 					rid: id()
-				})).not.toThrow();
+				}, { extends: Parent })).not.toThrow();
 
 			});
 
 			it("accepts a child redeclaring an inherited type under the same name", async () => {
 
-				const Parent = resource({ class: "app:/types/T" }, {
+				const Parent = resource({
 					rtype: type(),
 					name: required(string())
-				});
+				}, { class: "app:/types/T" });
 
-				expect(() => resource({ extends: Parent, class: "app:/types/U" }, {
+				expect(() => resource({
 					rtype: type()
-				})).not.toThrow();
+				}, { extends: Parent, class: "app:/types/U" })).not.toThrow();
 
 			});
 
@@ -717,13 +717,13 @@ describe("factories", () => {
 					name: required(string())
 				});
 
-				const Parent = resource({ extends: GrandParent }, {
+				const Parent = resource({
 					age: required(integer())
-				});
+				}, { extends: GrandParent });
 
-				expect(() => resource({ extends: Parent }, {
+				expect(() => resource({
 					rid: id()
-				})).not.toThrow();
+				}, { extends: Parent })).not.toThrow();
 
 			});
 
@@ -736,24 +736,24 @@ describe("factories", () => {
 
 				// the same marker reaches the child through both parents: one entry, not a duplicate
 
-				const Left = resource({ extends: Base }, { age: required(integer()) });
-				const Right = resource({ extends: Base }, { code: required(string()) });
+				const Left = resource({ age: required(integer()) }, { extends: Base });
+				const Right = resource({ code: required(string()) }, { extends: Base });
 
-				expect(() => resource({ extends: [Left, Right] }, {})).not.toThrow();
+				expect(() => resource({}, { extends: [Left, Right] })).not.toThrow();
 
 			});
 
 			it("accepts a type inherited through a diamond", async () => {
 
-				const Base = resource({ class: "app:/types/B" }, {
+				const Base = resource({
 					rtype: type(),
 					name: required(string())
-				});
+				}, { class: "app:/types/B" });
 
-				const Left = resource({ extends: Base, class: "app:/types/L" }, {});
-				const Right = resource({ extends: Base, class: "app:/types/R" }, {});
+				const Left = resource({}, { extends: Base, class: "app:/types/L" });
+				const Right = resource({}, { extends: Base, class: "app:/types/R" });
 
-				expect(() => resource({ extends: [Left, Right], class: "app:/types/C" }, {})).not.toThrow();
+				expect(() => resource({}, { extends: [Left, Right], class: "app:/types/C" })).not.toThrow();
 
 			});
 
@@ -761,10 +761,10 @@ describe("factories", () => {
 
 				const Base = resource({ rid: id(), name: required(string()) });
 
-				const Left = resource({ extends: Base }, {});
-				const Right = resource({ extends: Base }, {});
+				const Left = resource({}, { extends: Base });
+				const Right = resource({}, { extends: Base });
 
-				expect(() => resource({ extends: [Left, Right] }, { rid: id() })).not.toThrow();
+				expect(() => resource({ rid: id() }, { extends: [Left, Right] })).not.toThrow();
 
 			});
 
@@ -773,7 +773,7 @@ describe("factories", () => {
 				const ParentA = resource({ rid: id() });
 				const ParentB = resource({ uid: id() });
 
-				expect(() => resource({ extends: [ParentA, ParentB] }, {})).toThrow(TraceError);
+				expect(() => resource({}, { extends: [ParentA, ParentB] })).toThrow(TraceError);
 
 			});
 
@@ -784,24 +784,24 @@ describe("factories", () => {
 					name: required(string())
 				});
 
-				expect(() => resource({ extends: Parent }, {
+				expect(() => resource({
 					age: required(integer())
-				})).not.toThrow();
+				}, { extends: Parent })).not.toThrow();
 
 			});
 
 			it("accepts inherited type when child declares its own class", async () => {
 
-				const Parent = resource({ class: "app:/types/T" }, {
+				const Parent = resource({
 					rtype: type(),
 					name: required(string())
-				});
+				}, { class: "app:/types/T" });
 
 				// the type field is inherited, but each shape declares its own class
 
-				expect(() => resource({ extends: Parent, class: "app:/types/U" }, {
+				expect(() => resource({
 					age: required(integer())
-				})).not.toThrow();
+				}, { extends: Parent, class: "app:/types/U" })).not.toThrow();
 
 			});
 
@@ -815,9 +815,9 @@ describe("factories", () => {
 
 			it("throws on invalid property (with options)", async () => {
 
-				expect(() => resource({}, {
+				expect(() => resource({
 					name: { invalid: "structure" } as any
-				})).toThrow(TypeError);
+				}, {})).toThrow(TypeError);
 
 			});
 
@@ -835,9 +835,9 @@ describe("factories", () => {
 					age: property(optional(integer()))
 				});
 
-				expect(() => resource({ extends: [Parent1, Parent2] }, {
+				expect(() => resource({
 					email: property(required(string()))
-				})).not.toThrow();
+				}, { extends: [Parent1, Parent2] })).not.toThrow();
 
 			});
 
@@ -845,17 +845,17 @@ describe("factories", () => {
 
 				const ns = createNamespace("http://example.org/");
 
-				const Parent1 = resource({ namespace: ns }, {
+				const Parent1 = resource({
 					name: property(required(string()))
-				});
+				}, { namespace: ns });
 
-				const Parent2 = resource({ namespace: ns }, {
+				const Parent2 = resource({
 					age: property(optional(integer()))
-				});
+				}, { namespace: ns });
 
-				expect(() => resource({ extends: [Parent1, Parent2] }, {
+				expect(() => resource({
 					email: property(required(string()))
-				})).not.toThrow();
+				}, { extends: [Parent1, Parent2] })).not.toThrow();
 
 			});
 
@@ -863,17 +863,17 @@ describe("factories", () => {
 
 				const ns = createNamespace("http://example.org/");
 
-				const Parent1 = resource({ namespace: ns }, {
+				const Parent1 = resource({
 					name: property(required(string()))
-				});
+				}, { namespace: ns });
 
 				const Parent2 = resource({
 					age: property(optional(integer()))
 				});
 
-				expect(() => resource({ extends: [Parent1, Parent2] }, {
+				expect(() => resource({
 					email: property(required(string()))
-				})).toThrow(RangeError);
+				}, { extends: [Parent1, Parent2] })).toThrow(RangeError);
 
 			});
 
@@ -882,17 +882,17 @@ describe("factories", () => {
 				const ns1 = createNamespace("http://example.org/");
 				const ns2 = createNamespace("http://other.org/");
 
-				const Parent1 = resource({ namespace: ns1 }, {
+				const Parent1 = resource({
 					name: property(required(string()))
-				});
+				}, { namespace: ns1 });
 
-				const Parent2 = resource({ namespace: ns2 }, {
+				const Parent2 = resource({
 					age: property(optional(integer()))
-				});
+				}, { namespace: ns2 });
 
-				expect(() => resource({ extends: [Parent1, Parent2] }, {
+				expect(() => resource({
 					email: property(required(string()))
-				})).toThrow(RangeError);
+				}, { extends: [Parent1, Parent2] })).toThrow(RangeError);
 
 			});
 
@@ -902,17 +902,17 @@ describe("factories", () => {
 				const ns2 = createNamespace("http://other.org/");
 				const override = createNamespace("http://override.org/");
 
-				const Parent1 = resource({ namespace: ns1 }, {
+				const Parent1 = resource({
 					name: property(required(string()))
-				});
+				}, { namespace: ns1 });
 
-				const Parent2 = resource({ namespace: ns2 }, {
+				const Parent2 = resource({
 					age: property(optional(integer()))
-				});
+				}, { namespace: ns2 });
 
-				expect(() => resource({ namespace: override, extends: [Parent1, Parent2] }, {
+				expect(() => resource({
 					email: property(required(string()))
-				})).not.toThrow();
+				}, { namespace: override, extends: [Parent1, Parent2] })).not.toThrow();
 
 			});
 
@@ -920,13 +920,13 @@ describe("factories", () => {
 
 				const ns = createNamespace("http://example.org/");
 
-				const Parent = resource({ namespace: ns }, {
+				const Parent = resource({
 					name: property(required(string()))
-				});
+				}, { namespace: ns });
 
-				expect(() => resource({ extends: Parent }, {
+				expect(() => resource({
 					age: property(optional(integer()))
-				})).not.toThrow();
+				}, { extends: Parent })).not.toThrow();
 
 			});
 
@@ -1078,9 +1078,9 @@ describe("factories", () => {
 
 				it("uses reference model for type entry", async () => {
 
-					const shape = resource({ class: "app:/types/T" }, {
+					const shape = resource({
 						type: type()
-					});
+					}, { class: "app:/types/T" });
 
 					expect(shape.model).toHaveProperty("type");
 
@@ -1088,11 +1088,11 @@ describe("factories", () => {
 
 				it("includes id and type alongside regular entries", async () => {
 
-					const shape = resource({ class: "app:/types/T" }, {
+					const shape = resource({
 						id: id(),
 						type: type(),
 						name: required(string())
-					});
+					}, { class: "app:/types/T" });
 
 					expect(shape.model).toHaveProperty("id");
 					expect(shape.model).toHaveProperty("type");
@@ -1169,7 +1169,7 @@ describe("factories", () => {
 				it("includes entries from single parent", async () => {
 
 					const Parent = resource({ name: required(string()) });
-					const Child = resource({ extends: Parent }, { age: optional(integer()) });
+					const Child = resource({ age: optional(integer()) }, { extends: Parent });
 
 					expect(Child.model).toEqual({ name: "", age: 0 });
 
@@ -1179,7 +1179,7 @@ describe("factories", () => {
 
 					const Named = resource({ name: required(string()) });
 					const Aged = resource({ age: required(integer()) });
-					const Person = resource({ extends: [Named, Aged] }, { email: optional(string()) });
+					const Person = resource({ email: optional(string()) }, { extends: [Named, Aged] });
 
 					expect(Person.model).toEqual({ name: "", age: 0, email: "" });
 
@@ -1188,12 +1188,12 @@ describe("factories", () => {
 				it("compatible local override preserves type", async () => {
 
 					const Parent = resource({ name: required(string()) });
-					const Child = resource({ extends: Parent }, {
+					const Child = resource({
 						name: required(string({
 							model: "x",
 							minLength: 1
 						}))
-					});
+					}, { extends: Parent });
 
 					expect(Child.model).toEqual({ name: "x" });
 
@@ -1207,9 +1207,9 @@ describe("factories", () => {
 						label: property({ forward: rdfs.label }, required(string()))
 					});
 
-					const Child = resource({ extends: Parent }, {
+					const Child = resource({
 						label: required(string({ model: "x", minLength: 1 }))
-					});
+					}, { extends: Parent });
 
 					expect((Child.entries.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
 
@@ -1223,9 +1223,9 @@ describe("factories", () => {
 						owner: property({ reverse: ex.owner }, required(string()))
 					});
 
-					const Child = resource({ extends: Parent }, {
+					const Child = resource({
 						owner: required(string({ model: "x", minLength: 1 }))
-					});
+					}, { extends: Parent });
 
 					expect((Child.entries.owner as Property).reverse).toBe("http://example.org/owner");
 
@@ -1236,15 +1236,15 @@ describe("factories", () => {
 					const First = resource({ name: required(string()) });
 					const Second = resource({ name: required(integer()) });
 
-					expect(() => resource({ extends: [First, Second] }, {})).toThrow(RangeError);
+					expect(() => resource({}, { extends: [First, Second] })).toThrow(RangeError);
 
 				});
 
 				it("includes transitive inherited entries", async () => {
 
 					const GrandParent = resource({ id: required(string()) });
-					const Parent = resource({ extends: GrandParent }, { name: required(string()) });
-					const Child = resource({ extends: Parent }, { age: optional(integer()) });
+					const Parent = resource({ name: required(string()) }, { extends: GrandParent });
+					const Child = resource({ age: optional(integer()) }, { extends: Parent });
 
 					expect(Child.model).toEqual({ id: "", name: "", age: 0 });
 
@@ -1507,7 +1507,7 @@ describe("utilities", () => {
 			it("merges parent entries into child", async () => {
 
 				const parent = resource({ age: optional(integer()) });
-				const child = resource({ extends: parent }, { name: required(string()) });
+				const child = resource({ name: required(string()) }, { extends: parent });
 
 				const flat = flatten(child);
 
@@ -1519,12 +1519,12 @@ describe("utilities", () => {
 			it("narrows overlapping constraints from parent", async () => {
 
 				const parent = resource({ name: required(string({ maxLength: 100 })) });
-				const child = resource({ extends: parent }, {
+				const child = resource({
 					name: required(string({
 						model: "hello",
 						minLength: 5
 					}))
-				});
+				}, { extends: parent });
 
 				const flat = flatten(child);
 
@@ -1538,7 +1538,7 @@ describe("utilities", () => {
 			it("preserves extends for reference", async () => {
 
 				const parent = resource({});
-				const child = resource({ extends: parent }, {});
+				const child = resource({}, { extends: parent });
 
 				const flat = flatten(child);
 
@@ -1553,8 +1553,8 @@ describe("utilities", () => {
 			it("merges grandparent entries through chain", async () => {
 
 				const grandparent = resource({ code: required(string()) });
-				const parent = resource({ extends: grandparent }, { age: optional(integer()) });
-				const child = resource({ extends: parent }, { name: required(string()) });
+				const parent = resource({ age: optional(integer()) }, { extends: grandparent });
+				const child = resource({ name: required(string()) }, { extends: parent });
 
 				const flat = flatten(child);
 
@@ -1578,8 +1578,8 @@ describe("utilities", () => {
 
 			it("preserves name from input shape", async () => {
 
-				const parent = resource({ name: { und: "Parent" } }, {});
-				const child = resource({ extends: parent, name: { und: "Child" } }, {});
+				const parent = resource({}, { name: { und: "Parent" } });
+				const child = resource({}, { extends: parent, name: { und: "Child" } });
 
 				const flat = flatten(child);
 
@@ -1589,8 +1589,8 @@ describe("utilities", () => {
 
 			it("preserves description from input shape", async () => {
 
-				const parent = resource({ description: { und: "Parent desc" } }, {});
-				const child = resource({ extends: parent, description: { und: "Child desc" } }, {});
+				const parent = resource({}, { description: { und: "Parent desc" } });
+				const child = resource({}, { extends: parent, description: { und: "Child desc" } });
 
 				const flat = flatten(child);
 
@@ -1600,8 +1600,8 @@ describe("utilities", () => {
 
 			it("preserves class from input shape", async () => {
 
-				const parent = resource({ class: "http://example.org/Parent" }, {});
-				const child = resource({ extends: parent, class: "http://example.org/Child" }, {});
+				const parent = resource({}, { class: "http://example.org/Parent" });
+				const child = resource({}, { extends: parent, class: "http://example.org/Child" });
 
 				const flat = flatten(child);
 
@@ -1615,12 +1615,12 @@ describe("utilities", () => {
 
 			it("accumulates classes from lineage", async () => {
 
-				const parent = resource({ class: "http://example.org/Parent" }, {});
-				const child = resource({
+				const parent = resource({}, { class: "http://example.org/Parent" });
+				const child = resource({}, {
 					extends: parent,
 					class: "http://example.org/Child",
 					classes: ["http://example.org/A"]
-				}, {});
+				});
 
 				const flat = flatten(child);
 
@@ -1631,14 +1631,14 @@ describe("utilities", () => {
 
 			it("intersects in constraints from lineage", async () => {
 
-				const parent = resource({
+				const parent = resource({}, {
 					in: ["http://example.org/a", "http://example.org/b"]
-				}, {});
+				});
 
-				const child = resource({
+				const child = resource({}, {
 					extends: parent,
 					in: ["http://example.org/b", "http://example.org/c"]
-				}, {});
+				});
 
 				const flat = flatten(child);
 
@@ -1648,11 +1648,11 @@ describe("utilities", () => {
 
 			it("unions hasValue from lineage", async () => {
 
-				const parent = resource({ hasValue: ["http://example.org/a"] }, {});
-				const child = resource({
+				const parent = resource({}, { hasValue: ["http://example.org/a"] });
+				const child = resource({}, {
 					extends: parent,
 					hasValue: ["http://example.org/b"]
-				}, {});
+				});
 
 				const flat = flatten(child);
 
@@ -1666,8 +1666,8 @@ describe("utilities", () => {
 				const v1: (value: Resource) => undefined | Trace = () => undefined;
 				const v2: (value: Resource) => undefined | Trace = () => undefined;
 
-				const parent = resource({ validators: [v1] }, {});
-				const child = resource({ extends: parent, validators: [v2] }, {});
+				const parent = resource({}, { validators: [v1] });
+				const child = resource({}, { extends: parent, validators: [v2] });
 
 				const flat = flatten(child);
 
@@ -1686,8 +1686,8 @@ describe("utilities", () => {
 
 					it("inherits virtual from parent when child has none", async () => {
 
-						const parent = resource({ virtual: true }, {});
-						const child = resource({ extends: parent }, {});
+						const parent = resource({}, { virtual: true });
+						const child = resource({}, { extends: parent });
 
 						const flat = flatten(child);
 
@@ -1697,8 +1697,8 @@ describe("utilities", () => {
 
 					it("child overrides parent virtual", async () => {
 
-						const parent = resource({ virtual: true }, {});
-						const child = resource({ extends: parent, virtual: false }, {});
+						const parent = resource({}, { virtual: true });
+						const child = resource({}, { extends: parent, virtual: false });
 
 						const flat = flatten(child);
 
@@ -1708,9 +1708,9 @@ describe("utilities", () => {
 
 					it("grandparent virtual overridden by parent propagates to child", async () => {
 
-						const grandparent = resource({ virtual: true }, {});
-						const parent = resource({ extends: grandparent, virtual: false }, {});
-						const child = resource({ extends: parent }, {});
+						const grandparent = resource({}, { virtual: true });
+						const parent = resource({}, { extends: grandparent, virtual: false });
+						const child = resource({}, { extends: parent });
 
 						const flat = flatten(child);
 
@@ -1724,9 +1724,9 @@ describe("utilities", () => {
 
 					it("inherits virtual when both parents agree", async () => {
 
-						const parentA = resource({ virtual: true }, {});
-						const parentB = resource({ virtual: true }, {});
-						const child = resource({ extends: [parentA, parentB] }, {});
+						const parentA = resource({}, { virtual: true });
+						const parentB = resource({}, { virtual: true });
+						const child = resource({}, { extends: [parentA, parentB] });
 
 						const flat = flatten(child);
 
@@ -1736,9 +1736,9 @@ describe("utilities", () => {
 
 					it("child overrides conflicting parents", async () => {
 
-						const parentA = resource({ virtual: true }, {});
-						const parentB = resource({ virtual: false }, {});
-						const child = resource({ extends: [parentA, parentB], virtual: true }, {});
+						const parentA = resource({}, { virtual: true });
+						const parentB = resource({}, { virtual: false });
+						const child = resource({}, { extends: [parentA, parentB], virtual: true });
 
 						const flat = flatten(child);
 
@@ -1748,19 +1748,19 @@ describe("utilities", () => {
 
 					it("rejects conflicting parents without child override", async () => {
 
-						const parentA = resource({ virtual: true }, {});
-						const parentB = resource({ virtual: false }, {});
+						const parentA = resource({}, { virtual: true });
+						const parentB = resource({}, { virtual: false });
 
-						expect(() => resource({ extends: [parentA, parentB] }, {})).toThrow();
+						expect(() => resource({}, { extends: [parentA, parentB] })).toThrow();
 
 					});
 
 					it("rejects undefined vs defined conflict without child override", async () => {
 
-						const parentA = resource({ virtual: true }, {});
+						const parentA = resource({}, { virtual: true });
 						const parentB = resource({});
 
-						expect(() => resource({ extends: [parentA, parentB] }, {})).toThrow();
+						expect(() => resource({}, { extends: [parentA, parentB] })).toThrow();
 
 					});
 
@@ -1775,8 +1775,8 @@ describe("utilities", () => {
 					it("inherits namespace from parent when child has none", async () => {
 
 						const ns = createNamespace("http://example.org/");
-						const parent = resource({ namespace: ns }, {});
-						const child = resource({ extends: parent }, {});
+						const parent = resource({}, { namespace: ns });
+						const child = resource({}, { extends: parent });
 
 						const flat = flatten(child);
 
@@ -1788,8 +1788,8 @@ describe("utilities", () => {
 
 						const nsParent = createNamespace("http://parent.org/");
 						const nsChild = createNamespace("http://child.org/");
-						const parent = resource({ namespace: nsParent }, {});
-						const child = resource({ extends: parent, namespace: nsChild }, {});
+						const parent = resource({}, { namespace: nsParent });
+						const child = resource({}, { extends: parent, namespace: nsChild });
 
 						const flat = flatten(child);
 
@@ -1801,9 +1801,9 @@ describe("utilities", () => {
 
 						const nsGrand = createNamespace("http://grand.org/");
 						const nsParent = createNamespace("http://parent.org/");
-						const grandparent = resource({ namespace: nsGrand }, {});
-						const parent = resource({ extends: grandparent, namespace: nsParent }, {});
-						const child = resource({ extends: parent }, {});
+						const grandparent = resource({}, { namespace: nsGrand });
+						const parent = resource({}, { extends: grandparent, namespace: nsParent });
+						const child = resource({}, { extends: parent });
 
 						const flat = flatten(child);
 
@@ -1818,9 +1818,9 @@ describe("utilities", () => {
 					it("inherits namespace when both parents agree", async () => {
 
 						const ns = createNamespace("http://example.org/");
-						const parentA = resource({ namespace: ns }, {});
-						const parentB = resource({ namespace: ns }, {});
-						const child = resource({ extends: [parentA, parentB] }, {});
+						const parentA = resource({}, { namespace: ns });
+						const parentB = resource({}, { namespace: ns });
+						const child = resource({}, { extends: [parentA, parentB] });
 
 						const flat = flatten(child);
 
@@ -1833,9 +1833,9 @@ describe("utilities", () => {
 						const nsA = createNamespace("http://a.org/");
 						const nsB = createNamespace("http://b.org/");
 						const nsChild = createNamespace("http://child.org/");
-						const parentA = resource({ namespace: nsA }, {});
-						const parentB = resource({ namespace: nsB }, {});
-						const child = resource({ extends: [parentA, parentB], namespace: nsChild }, {});
+						const parentA = resource({}, { namespace: nsA });
+						const parentB = resource({}, { namespace: nsB });
+						const child = resource({}, { extends: [parentA, parentB], namespace: nsChild });
 
 						const flat = flatten(child);
 
@@ -1847,20 +1847,20 @@ describe("utilities", () => {
 
 						const nsA = createNamespace("http://a.org/");
 						const nsB = createNamespace("http://b.org/");
-						const parentA = resource({ namespace: nsA }, {});
-						const parentB = resource({ namespace: nsB }, {});
+						const parentA = resource({}, { namespace: nsA });
+						const parentB = resource({}, { namespace: nsB });
 
-						expect(() => resource({ extends: [parentA, parentB] }, {})).toThrow();
+						expect(() => resource({}, { extends: [parentA, parentB] })).toThrow();
 
 					});
 
 					it("rejects undefined vs defined conflict without child override", async () => {
 
 						const ns = createNamespace("http://example.org/");
-						const parentA = resource({ namespace: ns }, {});
+						const parentA = resource({}, { namespace: ns });
 						const parentB = resource({});
 
-						expect(() => resource({ extends: [parentA, parentB] }, {})).toThrow();
+						expect(() => resource({}, { extends: [parentA, parentB] })).toThrow();
 
 					});
 
@@ -1878,7 +1878,7 @@ describe("utilities", () => {
 					it(`inherits ${field} from parent property when child has none`, async () => {
 
 						const parent = resource({ field: property({ [field]: true }, required(string())) });
-						const child = resource({ extends: parent }, { field: property(required(string())) });
+						const child = resource({ field: property(required(string())) }, { extends: parent });
 
 						const flat = flatten(child);
 
@@ -1889,7 +1889,7 @@ describe("utilities", () => {
 					it(`child overrides parent ${field}`, async () => {
 
 						const parent = resource({ field: property({ [field]: true }, required(string())) });
-						const child = resource({ extends: parent }, { field: property({ [field]: false }, required(string())) });
+						const child = resource({ field: property({ [field]: false }, required(string())) }, { extends: parent });
 
 						const flat = flatten(child);
 
@@ -1900,8 +1900,8 @@ describe("utilities", () => {
 					it(`grandparent ${field} overridden by parent propagates to child`, async () => {
 
 						const grandparent = resource({ field: property({ [field]: true }, required(string())) });
-						const parent = resource({ extends: grandparent }, { field: property({ [field]: false }, required(string())) });
-						const child = resource({ extends: parent }, { field: property(required(string())) });
+						const parent = resource({ field: property({ [field]: false }, required(string())) }, { extends: grandparent });
+						const child = resource({ field: property(required(string())) }, { extends: parent });
 
 						const flat = flatten(child);
 
@@ -1917,7 +1917,7 @@ describe("utilities", () => {
 
 						const parentA = resource({ field: property({ [field]: true }, required(string())) });
 						const parentB = resource({ field: property({ [field]: true }, required(string())) });
-						const child = resource({ extends: [parentA, parentB] }, { field: property(required(string())) });
+						const child = resource({ field: property(required(string())) }, { extends: [parentA, parentB] });
 
 						const flat = flatten(child);
 
@@ -1929,7 +1929,7 @@ describe("utilities", () => {
 
 						const parentA = resource({ field: property({ [field]: true }, required(string())) });
 						const parentB = resource({ field: property({ [field]: false }, required(string())) });
-						const child = resource({ extends: [parentA, parentB] }, { field: property({ [field]: true }, required(string())) });
+						const child = resource({ field: property({ [field]: true }, required(string())) }, { extends: [parentA, parentB] });
 
 						const flat = flatten(child);
 
@@ -1942,7 +1942,7 @@ describe("utilities", () => {
 						const parentA = resource({ field: property({ [field]: true }, required(string())) });
 						const parentB = resource({ field: property({ [field]: false }, required(string())) });
 
-						expect(() => resource({ extends: [parentA, parentB] }, { field: property(required(string())) })).toThrow(RangeError);
+						expect(() => resource({ field: property(required(string())) }, { extends: [parentA, parentB] })).toThrow(RangeError);
 
 					});
 
@@ -1951,7 +1951,7 @@ describe("utilities", () => {
 						const parentA = resource({ field: property({ [field]: true }, required(string())) });
 						const parentB = resource({ field: property(required(string())) });
 
-						expect(() => resource({ extends: [parentA, parentB] }, { field: property(required(string())) })).toThrow(RangeError);
+						expect(() => resource({ field: property(required(string())) }, { extends: [parentA, parentB] })).toThrow(RangeError);
 
 					});
 
@@ -1967,7 +1967,7 @@ describe("utilities", () => {
 
 				const parent = resource({ field: id() });
 
-				expect(() => resource({ extends: parent }, { field: required(string()) })).toThrow(RangeError);
+				expect(() => resource({ field: required(string()) }, { extends: parent })).toThrow(RangeError);
 
 			});
 
@@ -2057,9 +2057,9 @@ describe("utilities", () => {
 						name: required(string())
 					});
 
-					const child = resource({ extends: parent }, {
+					const child = resource({
 						age: required(integer())
-					});
+					}, { extends: parent });
 
 					// manually assemble a shape with duplicate id — bypassing factory check
 					const manual: ResourceShape = {
@@ -2076,14 +2076,14 @@ describe("utilities", () => {
 
 				it("rejects duplicate type entries from inheritance", async () => {
 
-					const parent = resource({ class: "app:/types/T" }, {
+					const parent = resource({
 						rtype: type(),
 						name: required(string())
-					});
+					}, { class: "app:/types/T" });
 
-					const child = resource({ extends: parent, class: "app:/types/U" }, {
+					const child = resource({
 						age: required(integer())
-					});
+					}, { extends: parent, class: "app:/types/U" });
 
 					// manually assemble a shape with duplicate type — bypassing factory check
 					const manual: ResourceShape = {
@@ -2105,9 +2105,9 @@ describe("utilities", () => {
 						name: required(string())
 					});
 
-					const child = resource({ extends: parent }, {
+					const child = resource({
 						age: required(integer())
-					});
+					}, { extends: parent });
 
 					expect(() => flatten(child)).not.toThrow();
 
@@ -2122,7 +2122,7 @@ describe("utilities", () => {
 			it("returns undefined for single parent", async () => {
 
 				const parent = resource({ name: required(string()) });
-				const child = resource({ extends: parent }, { age: required(integer()) });
+				const child = resource({ age: required(integer()) }, { extends: parent });
 
 				expect(checkParents(child, [flatten(parent)])).toBeUndefined();
 
@@ -2130,9 +2130,9 @@ describe("utilities", () => {
 
 			it("returns undefined when parents agree on virtual", async () => {
 
-				const parentA = resource({ virtual: true }, { name: required(string()) });
-				const parentB = resource({ virtual: true }, { age: required(integer()) });
-				const child = resource({ extends: [parentA, parentB] }, {});
+				const parentA = resource({ name: required(string()) }, { virtual: true });
+				const parentB = resource({ age: required(integer()) }, { virtual: true });
+				const child = resource({}, { extends: [parentA, parentB] });
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
 
@@ -2140,8 +2140,8 @@ describe("utilities", () => {
 
 			it("reports conflicting virtual without child override", async () => {
 
-				const parentA = resource({ virtual: true }, { name: required(string()) });
-				const parentB = resource({}, { age: required(integer()) });
+				const parentA = resource({ name: required(string()) }, { virtual: true });
+				const parentB = resource({ age: required(integer()) }, {});
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeDefined();
@@ -2150,9 +2150,9 @@ describe("utilities", () => {
 
 			it("returns undefined when child overrides conflicting virtual", async () => {
 
-				const parentA = resource({ virtual: true }, { name: required(string()) });
-				const parentB = resource({}, { age: required(integer()) });
-				const child = resource({ virtual: false }, {});
+				const parentA = resource({ name: required(string()) }, { virtual: true });
+				const parentB = resource({ age: required(integer()) }, {});
+				const child = resource({}, { virtual: false });
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
 
@@ -2161,8 +2161,8 @@ describe("utilities", () => {
 			it("returns undefined when parents agree on namespace", async () => {
 
 				const ns = createNamespace("http://example.org/");
-				const parentA = resource({ namespace: ns }, { name: required(string()) });
-				const parentB = resource({ namespace: ns }, { age: required(integer()) });
+				const parentA = resource({ name: required(string()) }, { namespace: ns });
+				const parentB = resource({ age: required(integer()) }, { namespace: ns });
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
@@ -2171,8 +2171,8 @@ describe("utilities", () => {
 
 			it("reports conflicting namespace without child override", async () => {
 
-				const parentA = resource({ namespace: createNamespace("http://example.org/") }, { name: required(string()) });
-				const parentB = resource({ namespace: createNamespace("http://other.org/") }, { age: required(integer()) });
+				const parentA = resource({ name: required(string()) }, { namespace: createNamespace("http://example.org/") });
+				const parentB = resource({ age: required(integer()) }, { namespace: createNamespace("http://other.org/") });
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeDefined();
@@ -2336,11 +2336,11 @@ describe("utilities", () => {
 
 			it("ignores non-property entries", async () => {
 
-				const shape = resource({ class: "app:/types/T" }, {
+				const shape = resource({
 					rid: id(),
 					rtype: type(),
 					name: property({ forward: "http://example.org/name" }, required(string()))
-				});
+				}, { class: "app:/types/T" });
 
 				expect(checkPredicates(shape)).toBeUndefined();
 
@@ -2369,10 +2369,10 @@ describe("utilities", () => {
 			it("accepts an embedded resource declaring a type", async () => {
 
 				const shape = resource({
-					child: optional(resource({ class: "app:/types/T" }, {
+					child: optional(resource({
 						rtype: type(),
 						label: required(string())
-					}))
+					}, { class: "app:/types/T" }))
 				});
 
 				expect(checkId(shape)).toBeUndefined();
@@ -2485,9 +2485,9 @@ describe("utilities", () => {
 
 					const parent = resource({ [prop1]: property({ [direction]: iri1 }, required(string())) });
 
-					expect(() => resource({ extends: parent }, {
+					expect(() => resource({
 						[prop2]: property({ [direction]: iri1 }, required(string()))
-					})).toThrow(RangeError);
+					}, { extends: parent })).toThrow(RangeError);
 
 				});
 
@@ -2522,7 +2522,7 @@ describe("utilities", () => {
 			it("computes model from merged entries", async () => {
 
 				const parent = resource({ age: optional(integer()) });
-				const child = resource({ extends: parent }, { name: required(string()) });
+				const child = resource({ name: required(string()) }, { extends: parent });
 
 				const flat = flatten(child);
 
@@ -2538,7 +2538,7 @@ describe("utilities", () => {
 			it("returns same reference on repeated calls", async () => {
 
 				const parent = resource({ age: optional(integer()) });
-				const child = resource({ extends: parent }, { name: required(string()) });
+				const child = resource({ name: required(string()) }, { extends: parent });
 
 				const first = flatten(child);
 				const second = flatten(first);
@@ -2565,7 +2565,7 @@ describe("utilities", () => {
 			it("rejects direct self-extension", async () => {
 
 				function Self(): ResourceShape {
-					return resource({ extends: Self }, { name: required(string()) });
+					return resource({ name: required(string()) }, { extends: Self });
 				}
 
 				expect(() => flatten(Self())).toThrow(TraceError);
@@ -2575,11 +2575,11 @@ describe("utilities", () => {
 			it("rejects two-node cycle", async () => {
 
 				function A(): ResourceShape {
-					return resource({ extends: B }, { a: required(string()) });
+					return resource({ a: required(string()) }, { extends: B });
 				}
 
 				function B(): ResourceShape {
-					return resource({ extends: A }, { b: required(string()) });
+					return resource({ b: required(string()) }, { extends: A });
 				}
 
 				expect(() => flatten(A())).toThrow(TraceError);
@@ -2589,15 +2589,15 @@ describe("utilities", () => {
 			it("rejects three-node cycle", async () => {
 
 				function A(): ResourceShape {
-					return resource({ extends: B }, { a: required(string()) });
+					return resource({ a: required(string()) }, { extends: B });
 				}
 
 				function B(): ResourceShape {
-					return resource({ extends: C }, { b: required(string()) });
+					return resource({ b: required(string()) }, { extends: C });
 				}
 
 				function C(): ResourceShape {
-					return resource({ extends: A }, { c: required(string()) });
+					return resource({ c: required(string()) }, { extends: A });
 				}
 
 				expect(() => flatten(A())).toThrow(TraceError);
@@ -2609,11 +2609,11 @@ describe("utilities", () => {
 				const Base = resource({ base: required(string()) });
 
 				function X(): ResourceShape {
-					return resource({ extends: [Base, Y] }, { x: required(string()) });
+					return resource({ x: required(string()) }, { extends: [Base, Y] });
 				}
 
 				function Y(): ResourceShape {
-					return resource({ extends: X }, { y: required(string()) });
+					return resource({ y: required(string()) }, { extends: X });
 				}
 
 				expect(() => flatten(X())).toThrow(TraceError);
@@ -3021,8 +3021,8 @@ describe("operators", () => {
 
 		it("ignores class differences (composition is class-conjunctive)", async () => {
 
-			const A = resource({ class: "http://example.org/A" }, { name: required(string()) });
-			const B = resource({ class: "http://example.org/B" }, { name: required(string()) });
+			const A = resource({ name: required(string()) }, { class: "http://example.org/A" });
+			const B = resource({ name: required(string()) }, { class: "http://example.org/B" });
 
 			expect(narrowsResource(A, B)).toBeUndefined();
 
@@ -3102,9 +3102,9 @@ describe("operators", () => {
 
 			it("inherits base model for entries not in target", async () => {
 
-				const base = resource({
+				const base = resource({}, {
 					extends: resource({ inherited: optional(integer()) })
-				}, {});
+				});
 
 				const merged = mergeResource(
 					resource({ name: required(string()) }),
@@ -3123,7 +3123,7 @@ describe("operators", () => {
 			it("inherits virtual from target", async () => {
 
 				const merged = mergeResource(
-					resource({ virtual: true }, {}),
+					resource({}, { virtual: true }),
 					resource({})
 				);
 
@@ -3135,7 +3135,7 @@ describe("operators", () => {
 
 				const merged = mergeResource(
 					resource({}),
-					resource({ virtual: true }, {})
+					resource({}, { virtual: true })
 				);
 
 				expect(merged.virtual).toBe(true);
@@ -3157,8 +3157,8 @@ describe("operators", () => {
 			it("preserves name from target", async () => {
 
 				const merged = mergeResource(
-					resource({ name: { und: "child" } }, {}),
-					resource({ name: { und: "parent" } }, {})
+					resource({}, { name: { und: "child" } }),
+					resource({}, { name: { und: "parent" } })
 				);
 
 				expect(merged.name).toEqual({ und: "child" });
@@ -3172,8 +3172,8 @@ describe("operators", () => {
 			it("preserves description from target", async () => {
 
 				const merged = mergeResource(
-					resource({ description: { und: "child desc" } }, {}),
-					resource({ description: { und: "parent desc" } }, {})
+					resource({}, { description: { und: "child desc" } }),
+					resource({}, { description: { und: "parent desc" } })
 				);
 
 				expect(merged.description).toEqual({ und: "child desc" });
@@ -3189,7 +3189,7 @@ describe("operators", () => {
 				const ns = createNamespace("http://example.org/");
 
 				const merged = mergeResource(
-					resource({ namespace: ns }, {}),
+					resource({}, { namespace: ns }),
 					resource({})
 				);
 
@@ -3203,7 +3203,7 @@ describe("operators", () => {
 
 				const merged = mergeResource(
 					resource({}),
-					resource({ namespace: ns }, {})
+					resource({}, { namespace: ns })
 				);
 
 				expect(merged.namespace).toBe(ns);
@@ -3218,7 +3218,7 @@ describe("operators", () => {
 
 				const merged = mergeResource(
 					resource({}),
-					resource({ class: "http://example.org/Parent" }, {})
+					resource({}, { class: "http://example.org/Parent" })
 				);
 
 				expect(merged.classes).toContain("http://example.org/Parent");
@@ -3228,8 +3228,8 @@ describe("operators", () => {
 			it("merges parent classes with target classes", async () => {
 
 				const merged = mergeResource(
-					resource({ classes: ["http://example.org/A"] }, {}),
-					resource({ classes: ["http://example.org/B"] }, {})
+					resource({}, { classes: ["http://example.org/A"] }),
+					resource({}, { classes: ["http://example.org/B"] })
 				);
 
 				expect(merged.classes).toContain("http://example.org/A");
@@ -3240,8 +3240,8 @@ describe("operators", () => {
 			it("deduplicates class entries", async () => {
 
 				const merged = mergeResource(
-					resource({ classes: ["http://example.org/A"] }, {}),
-					resource({ class: "http://example.org/A", classes: ["http://example.org/A"] }, {})
+					resource({}, { classes: ["http://example.org/A"] }),
+					resource({}, { class: "http://example.org/A", classes: ["http://example.org/A"] })
 				);
 
 				expect(merged.classes!.filter(c => c === "http://example.org/A")).toHaveLength(1);
@@ -3251,7 +3251,7 @@ describe("operators", () => {
 			it("preserves target class outside merge", async () => {
 
 				const merged = mergeResource(
-					resource({ class: "http://example.org/Child" }, {}),
+					resource({}, { class: "http://example.org/Child" }),
 					resource({})
 				);
 
@@ -3266,7 +3266,7 @@ describe("operators", () => {
 			it("inherits pattern from target", async () => {
 
 				const merged = mergeResource(
-					resource({ pattern: "/products/{id}" }, {}),
+					resource({}, { pattern: "/products/{id}" }),
 					resource({})
 				);
 
@@ -3278,7 +3278,7 @@ describe("operators", () => {
 
 				const merged = mergeResource(
 					resource({}),
-					resource({ pattern: "/products/{id}" }, {})
+					resource({}, { pattern: "/products/{id}" })
 				);
 
 				expect(merged.pattern).toBe("/products/{id}");
@@ -3288,8 +3288,8 @@ describe("operators", () => {
 			it("accepts equal patterns", async () => {
 
 				const merged = mergeResource(
-					resource({ pattern: "/products/{id}" }, {}),
-					resource({ pattern: "/products/{id}" }, {})
+					resource({}, { pattern: "/products/{id}" }),
+					resource({}, { pattern: "/products/{id}" })
 				);
 
 				expect(merged.pattern).toBe("/products/{id}");
@@ -3299,8 +3299,8 @@ describe("operators", () => {
 			it("narrows parent wildcard pattern", async () => {
 
 				const merged = mergeResource(
-					resource({ pattern: "/products/{id}/reviews/{rid}" }, {}),
-					resource({ pattern: "/products/*" }, {})
+					resource({}, { pattern: "/products/{id}/reviews/{rid}" }),
+					resource({}, { pattern: "/products/*" })
 				);
 
 				expect(merged.pattern).toBe("/products/{id}/reviews/{rid}");
@@ -3310,8 +3310,8 @@ describe("operators", () => {
 			it("narrows parent wildcard with child wildcard", async () => {
 
 				const merged = mergeResource(
-					resource({ pattern: "/products/{id}/reviews/*" }, {}),
-					resource({ pattern: "/products/*" }, {})
+					resource({}, { pattern: "/products/{id}/reviews/*" }),
+					resource({}, { pattern: "/products/*" })
 				);
 
 				expect(merged.pattern).toBe("/products/{id}/reviews/*");
@@ -3321,8 +3321,8 @@ describe("operators", () => {
 			it("rejects incompatible patterns without wildcard", async () => {
 
 				expect(() => mergeResource(
-					resource({ pattern: "/items/{id}" }, {}),
-					resource({ pattern: "/products/{id}" }, {})
+					resource({}, { pattern: "/items/{id}" }),
+					resource({}, { pattern: "/products/{id}" })
 				)).toThrow(RangeError);
 
 			});
@@ -3330,8 +3330,8 @@ describe("operators", () => {
 			it("rejects incompatible patterns with mismatched prefix", async () => {
 
 				expect(() => mergeResource(
-					resource({ pattern: "/items/{id}" }, {}),
-					resource({ pattern: "/products/*" }, {})
+					resource({}, { pattern: "/items/{id}" }),
+					resource({}, { pattern: "/products/*" })
 				)).toThrow(RangeError);
 
 			});
@@ -3343,7 +3343,7 @@ describe("operators", () => {
 			it("inherits in from target", async () => {
 
 				const merged = mergeResource(
-					resource({ in: ["http://example.org/a"] }, {}),
+					resource({}, { in: ["http://example.org/a"] }),
 					resource({})
 				);
 
@@ -3355,7 +3355,7 @@ describe("operators", () => {
 
 				const merged = mergeResource(
 					resource({}),
-					resource({ in: ["http://example.org/a"] }, {})
+					resource({}, { in: ["http://example.org/a"] })
 				);
 
 				expect(merged.in).toEqual(["http://example.org/a"]);
@@ -3365,8 +3365,8 @@ describe("operators", () => {
 			it("computes intersection of target and source", async () => {
 
 				const merged = mergeResource(
-					resource({ in: ["http://example.org/a", "http://example.org/b"] }, {}),
-					resource({ in: ["http://example.org/b", "http://example.org/c"] }, {})
+					resource({}, { in: ["http://example.org/a", "http://example.org/b"] }),
+					resource({}, { in: ["http://example.org/b", "http://example.org/c"] })
 				);
 
 				expect(merged.in).toEqual(["http://example.org/b"]);
@@ -3376,8 +3376,8 @@ describe("operators", () => {
 			it("rejects empty intersection", async () => {
 
 				expect(() => mergeResource(
-					resource({ in: ["http://example.org/a"] }, {}),
-					resource({ in: ["http://example.org/b"] }, {})
+					resource({}, { in: ["http://example.org/a"] }),
+					resource({}, { in: ["http://example.org/b"] })
 				)).toThrow(RangeError);
 
 			});
@@ -3389,7 +3389,7 @@ describe("operators", () => {
 			it("inherits hasValue from target", async () => {
 
 				const merged = mergeResource(
-					resource({ hasValue: ["http://example.org/a"] }, {}),
+					resource({}, { hasValue: ["http://example.org/a"] }),
 					resource({})
 				);
 
@@ -3400,8 +3400,8 @@ describe("operators", () => {
 			it("computes union of target and source", async () => {
 
 				const merged = mergeResource(
-					resource({ hasValue: ["http://example.org/a"] }, {}),
-					resource({ hasValue: ["http://example.org/b"] }, {})
+					resource({}, { hasValue: ["http://example.org/a"] }),
+					resource({}, { hasValue: ["http://example.org/b"] })
 				);
 
 				expect(merged.hasValue).toContain("http://example.org/a");
@@ -3412,8 +3412,8 @@ describe("operators", () => {
 			it("deduplicates hasValue entries", async () => {
 
 				const merged = mergeResource(
-					resource({ hasValue: ["http://example.org/a"] }, {}),
-					resource({ hasValue: ["http://example.org/a"] }, {})
+					resource({}, { hasValue: ["http://example.org/a"] }),
+					resource({}, { hasValue: ["http://example.org/a"] })
 				);
 
 				expect(merged.hasValue).toEqual(["http://example.org/a"]);
@@ -3429,7 +3429,7 @@ describe("operators", () => {
 				const v: (value: Resource) => undefined | Trace = () => undefined;
 
 				const merged = mergeResource(
-					resource({ validators: [v] }, {}),
+					resource({}, { validators: [v] }),
 					resource({})
 				);
 
@@ -3443,8 +3443,8 @@ describe("operators", () => {
 				const v2: (value: Resource) => undefined | Trace = () => undefined;
 
 				const merged = mergeResource(
-					resource({ validators: [v1] }, {}),
-					resource({ validators: [v2] }, {})
+					resource({}, { validators: [v1] }),
+					resource({}, { validators: [v2] })
 				);
 
 				expect(merged.validators).toContain(v1);
@@ -3457,8 +3457,8 @@ describe("operators", () => {
 				const v: (value: Resource) => undefined | Trace = () => undefined;
 
 				const merged = mergeResource(
-					resource({ validators: [v] }, {}),
-					resource({ validators: [v] }, {})
+					resource({}, { validators: [v] }),
+					resource({}, { validators: [v] })
 				);
 
 				expect(merged.validators).toHaveLength(1);
@@ -3510,8 +3510,8 @@ describe("operators", () => {
 			it("preserves type entries as immutable", async () => {
 
 				const merged = mergeResource(
-					resource({ class: "app:/types/T" }, { rdfType: type() }),
-					resource({ class: "app:/types/T" }, { rdfType: type() })
+					resource({ rdfType: type() }, { class: "app:/types/T" }),
+					resource({ rdfType: type() }, { class: "app:/types/T" })
 				);
 
 				expect(merged.entries["rdfType"].kind).toBe("type");
@@ -3545,8 +3545,8 @@ describe("operators", () => {
 			it("rejects hasValue entries not in 'in' set", async () => {
 
 				expect(() => mergeResource(
-					resource({ hasValue: ["http://example.org/a"] }, {}),
-					resource({ in: ["http://example.org/b"] }, {})
+					resource({}, { hasValue: ["http://example.org/a"] }),
+					resource({}, { in: ["http://example.org/b"] })
 				)).toThrow(RangeError);
 
 			});
@@ -3736,7 +3736,7 @@ describe("operators", () => {
 
 		it("projects reference entries to the stored model", async () => {
 
-			const shape = resource({ ref: required(reference(resource({ pattern: "/things/{id}" }, {}))) });
+			const shape = resource({ ref: required(reference(resource({}, { pattern: "/things/{id}" }))) });
 
 			expect(deriveResource(shape)).toEqual({ ref: "app:/" });
 
@@ -3785,10 +3785,10 @@ describe("validators", () => {
 
 				it("accepts declared type property", async () => {
 
-					const shape = resource({ class: "app:/types/Person" }, {
+					const shape = resource({
 						type: type(),
 						name: required(string())
-					});
+					}, { class: "app:/types/Person" });
 
 					expect(validateResource([{
 						"type": "app:/types/Person",
@@ -3803,9 +3803,9 @@ describe("validators", () => {
 						code: required(integer())
 					});
 
-					const Derived = resource({ extends: Base }, {
+					const Derived = resource({
 						name: required(string())
-					});
+					}, { extends: Base });
 
 					expect(validateResource([{ code: 1, name: "Alice" }], Derived)).toBeUndefined();
 
@@ -3948,9 +3948,9 @@ describe("validators", () => {
 				};
 
 				const validated = resource({
-					validators: [adultValidator]
-				}, {
 					age: required(integer())
+				}, {
+					validators: [adultValidator]
 				});
 
 
@@ -3972,10 +3972,10 @@ describe("validators", () => {
 					const v2: (value: Resource) => undefined | Trace = (r) => (r as any).b > 0 ? undefined : ["b must be positive"];
 
 					const shape = resource({
-						validators: [v1, v2]
-					}, {
 						a: required(integer()),
 						b: required(integer())
+					}, {
+						validators: [v1, v2]
 					});
 
 					// both pass
@@ -3998,13 +3998,13 @@ describe("validators", () => {
 						return (r as any).age >= 18 ? undefined : ["must be adult"];
 					};
 
-					const Base = resource({ validators: [validator] }, {
+					const Base = resource({
 						age: required(integer())
-					});
+					}, { validators: [validator] });
 
-					const Derived = resource({ extends: Base }, {
+					const Derived = resource({
 						name: required(string())
-					});
+					}, { extends: Base });
 
 					expect(validateResource([{ age: 25, name: "Alice" }], Derived)).toBeUndefined();
 					expect(validateResource([{ age: 15, name: "Bob" }], Derived)).toBeDefined();
@@ -4127,10 +4127,10 @@ describe("validators", () => {
 
 			it("accepts embedded resource containing type entry", async () => {
 
-				const Nested = resource({ class: "app:/T" }, {
+				const Nested = resource({
 					rtype: type(),
 					label: required(string())
-				});
+				}, { class: "app:/T" });
 
 				const shape = resource({
 					child: optional(Nested)
@@ -4142,11 +4142,11 @@ describe("validators", () => {
 
 			it("rejects embedded resource containing id entry alongside type entry", async () => {
 
-				const Nested = resource({ class: "app:/types/T" }, {
+				const Nested = resource({
 					rid: id(),
 					rtype: type(),
 					label: required(string())
-				});
+				}, { class: "app:/types/T" });
 
 				const shape = resource({
 					child: optional(Nested)
@@ -4225,7 +4225,7 @@ describe("validators", () => {
 
 				it("accepts id matching pattern", async () => {
 
-					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+					const shape = resource({ id: id() }, { pattern: "/users/{id}" });
 
 					expect(validateResource([{ "id": "app:/users/123" }], shape)).toBeUndefined();
 
@@ -4233,7 +4233,7 @@ describe("validators", () => {
 
 				it("accepts wildcard pattern", async () => {
 
-					const shape = resource({ pattern: "/users/*" }, { id: id() });
+					const shape = resource({ id: id() }, { pattern: "/users/*" });
 
 					expect(validateResource([{ "id": "app:/users/123/profile" }], shape)).toBeUndefined();
 
@@ -4241,7 +4241,7 @@ describe("validators", () => {
 
 				it("rejects id not matching pattern", async () => {
 
-					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+					const shape = resource({ id: id() }, { pattern: "/users/{id}" });
 
 					const trace = validateResource([{ "id": "/products/123" }], shape);
 					const inner = rec(trace, "0");
@@ -4253,7 +4253,7 @@ describe("validators", () => {
 
 				it("accepts missing id", async () => {
 
-					const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+					const shape = resource({ id: id() }, { pattern: "/users/{id}" });
 
 					expect(validateResource([{}], shape)).toBeUndefined();
 
@@ -4265,7 +4265,7 @@ describe("validators", () => {
 
 				it("accepts id in allowed enumeration", async () => {
 
-					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
+					const shape = resource({ id: id() }, { in: ["app:/users/alice", "app:/users/bob"] });
 
 					expect(validateResource([{ "id": "app:/users/alice" }], shape)).toBeUndefined();
 
@@ -4273,7 +4273,7 @@ describe("validators", () => {
 
 				it("rejects id not in allowed enumeration", async () => {
 
-					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
+					const shape = resource({ id: id() }, { in: ["app:/users/alice", "app:/users/bob"] });
 
 					const trace = validateResource([{ "id": "app:/users/charlie" }], shape);
 					const inner = rec(trace, "<app:/users/charlie>");
@@ -4285,7 +4285,7 @@ describe("validators", () => {
 
 				it("accepts missing id", async () => {
 
-					const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
+					const shape = resource({ id: id() }, { in: ["app:/users/alice", "app:/users/bob"] });
 
 					expect(validateResource([{}], shape)).toBeUndefined();
 
@@ -4297,7 +4297,7 @@ describe("validators", () => {
 
 				it("accepts id matching required value", async () => {
 
-					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+					const shape = resource({ id: id() }, { hasValue: ["app:/users/admin"] });
 
 					expect(validateResource([{ "id": "app:/users/admin" }], shape)).toBeUndefined();
 
@@ -4305,7 +4305,7 @@ describe("validators", () => {
 
 				it("rejects id not matching required value", async () => {
 
-					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+					const shape = resource({ id: id() }, { hasValue: ["app:/users/admin"] });
 
 					const trace = validateResource([{ "id": "app:/users/guest" }], shape);
 					const inner = rec(trace, "<app:/users/guest>");
@@ -4317,7 +4317,7 @@ describe("validators", () => {
 
 				it("accepts missing id", async () => {
 
-					const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+					const shape = resource({ id: id() }, { hasValue: ["app:/users/admin"] });
 
 					expect(validateResource([{}], shape)).toBeUndefined();
 
@@ -4333,8 +4333,8 @@ describe("validators", () => {
 
 				it("enforces parent pattern on child", async () => {
 
-					const Parent = resource({ pattern: "/users/{id}" }, { id: id() });
-					const Child = resource({ extends: Parent }, { name: required(string()) });
+					const Parent = resource({ id: id() }, { pattern: "/users/{id}" });
+					const Child = resource({ name: required(string()) }, { extends: Parent });
 
 					expect(validateResource([{ "id": "app:/users/123", "name": "Alice" }], Child)).toBeUndefined();
 
@@ -4351,11 +4351,11 @@ describe("validators", () => {
 
 				it("enforces both parent and child patterns conjunctively", async () => {
 
-					const Parent = resource({ pattern: "/org/*" }, { id: id() });
-					const Child = resource({
+					const Parent = resource({ id: id() }, { pattern: "/org/*" });
+					const Child = resource({ name: required(string()) }, {
 						extends: Parent,
 						pattern: "/org/users/{id}"
-					}, { name: required(string()) });
+					});
 
 					expect(validateResource([{ "id": "app:/org/users/123", "name": "Alice" }], Child)).toBeUndefined();
 
@@ -4377,8 +4377,8 @@ describe("validators", () => {
 
 				it("enforces parent in constraint on child", async () => {
 
-					const Parent = resource({ in: ["app:/users/alice", "app:/users/bob"] }, { id: id() });
-					const Child = resource({ extends: Parent }, { name: required(string()) });
+					const Parent = resource({ id: id() }, { in: ["app:/users/alice", "app:/users/bob"] });
+					const Child = resource({ name: required(string()) }, { extends: Parent });
 
 					expect(validateResource([{ "id": "app:/users/alice", "name": "Alice" }], Child)).toBeUndefined();
 
@@ -4399,8 +4399,8 @@ describe("validators", () => {
 
 				it("enforces parent hasValue constraint on child", async () => {
 
-					const Parent = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
-					const Child = resource({ extends: Parent }, { name: required(string()) });
+					const Parent = resource({ id: id() }, { hasValue: ["app:/users/admin"] });
+					const Child = resource({ name: required(string()) }, { extends: Parent });
 
 					expect(validateResource([{ "id": "app:/users/admin", "name": "Admin" }], Child)).toBeUndefined();
 
@@ -4417,11 +4417,11 @@ describe("validators", () => {
 
 				it("enforces parent and child hasValue conjunctively", async () => {
 
-					const Parent = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
-					const Child = resource({
+					const Parent = resource({ id: id() }, { hasValue: ["app:/users/admin"] });
+					const Child = resource({ name: required(string()) }, {
 						extends: Parent,
 						hasValue: ["app:/users/root"]
-					}, { name: required(string()) });
+					});
 
 					// id "app:/users/guest" fails both parent and child hasValue
 
@@ -4444,7 +4444,7 @@ describe("validators", () => {
 
 			it("accepts single absolute IRI", async () => {
 
-				const shape = resource({ class: "app:/types/Person" }, { type: type() });
+				const shape = resource({ type: type() }, { class: "app:/types/Person" });
 
 				expect(validateResource([{ "type": "app:/types/Person" }], shape)).toBeUndefined();
 
@@ -4452,7 +4452,7 @@ describe("validators", () => {
 
 			it("accepts missing type", async () => {
 
-				const shape = resource({ class: "app:/types/Person" }, { type: type() });
+				const shape = resource({ type: type() }, { class: "app:/types/Person" });
 
 				expect(validateResource([{}], shape)).toBeUndefined();
 
@@ -4460,7 +4460,7 @@ describe("validators", () => {
 
 			it("rejects non-IRI value", async () => {
 
-				const shape = resource({ class: "app:/types/Person" }, { type: type() });
+				const shape = resource({ type: type() }, { class: "app:/types/Person" });
 
 				const trace = validateResource([{ "type": "not an iri" }], shape);
 				const inner = rec(trace, "0");
@@ -4472,7 +4472,7 @@ describe("validators", () => {
 
 			it("rejects multiple values", async () => {
 
-				const shape = resource({ class: "app:/types/Person" }, { type: type() });
+				const shape = resource({ type: type() }, { class: "app:/types/Person" });
 
 				const trace = validateResource([{ "type": ["/types/A", "/types/B"] }], shape);
 				const inner = rec(trace, "0");
@@ -4896,9 +4896,9 @@ describe("validators", () => {
 					name: required(string())
 				});
 
-				const Derived = resource({ extends: Base }, {
+				const Derived = resource({
 					age: optional(integer())
-				});
+				}, { extends: Base });
 
 				expect(validateResource([{ name: "Alice" }], Derived)).toBeUndefined();
 				expect(validateResource([{}], Derived)).toHaveProperty([0, "0", 0, "name"]);
@@ -4915,9 +4915,9 @@ describe("validators", () => {
 					age: required(integer())
 				});
 
-				const Person = resource({ extends: [Named, Aged] }, {
+				const Person = resource({
 					email: optional(string())
-				});
+				}, { extends: [Named, Aged] });
 
 				expect(validateResource([{ name: "Alice", age: 30 }], Person)).toBeUndefined();
 				expect(validateResource([{ name: "Alice" }], Person)).toHaveProperty([0, "0", 0, "age"]);
@@ -4931,9 +4931,9 @@ describe("validators", () => {
 					name: required(string({ model: "abc", minLength: 3 }))
 				});
 
-				const Derived = resource({ extends: Base }, {
+				const Derived = resource({
 					name: required(string({ model: "ABC", pattern: "^[A-Z]" }))
-				});
+				}, { extends: Base });
 
 				// satisfies both parent (minLength: 3) and child (pattern: ^[A-Z])
 
@@ -4957,9 +4957,9 @@ describe("validators", () => {
 
 				// child tries to relax parent constraints — rejected at factory time
 
-				expect(() => resource({ extends: Base }, {
+				expect(() => resource({
 					name: required(string({ model: "x", minLength: 1, maxLength: 100 }))
-				})).toThrow(RangeError);
+				}, { extends: Base })).toThrow(RangeError);
 
 			});
 
@@ -4969,17 +4969,17 @@ describe("validators", () => {
 					name: required(string({ model: "abc", minLength: 3 }))
 				});
 
-				const Parent1 = resource({ extends: GrandParent }, {
+				const Parent1 = resource({
 					name: required(string({ model: "ABC", pattern: "^[A-Z]" }))
-				});
+				}, { extends: GrandParent });
 
-				const Parent2 = resource({ extends: GrandParent }, {
+				const Parent2 = resource({
 					name: required(string({ maxLength: 50 }))
-				});
+				}, { extends: GrandParent });
 
-				const Child = resource({ extends: [Parent1, Parent2] }, {
+				const Child = resource({
 					name: required(string())
-				});
+				}, { extends: [Parent1, Parent2] });
 
 				// satisfies grandparent (minLength: 3), last parent (maxLength: 50) and child
 
@@ -5186,9 +5186,9 @@ describe("validators", () => {
 
 				it("accepts inherited union property", async () => {
 
-					const Derived = resource({ extends: textOrCount }, {
+					const Derived = resource({
 						name: required(string())
-					});
+					}, { extends: textOrCount });
 
 					expect(validateResource([{ value: "hello", name: "Alice" }], Derived)).toBeUndefined();
 					expect(validateResource([{
@@ -5453,12 +5453,12 @@ describe("validators", () => {
 			};
 
 			const shape = resource({
-				pattern: "/users/{id}",
-				validators: [validator]
-			}, {
 				id: id(),
 				name: required(string({ model: "x", minLength: 1 })),
 				age: optional(integer({ minInclusive: 0, maxInclusive: 150 }))
+			}, {
+				pattern: "/users/{id}",
+				validators: [validator]
 			});
 
 			it("accepts resource satisfying all constraints", async () => {
@@ -5776,9 +5776,9 @@ describe("validators", () => {
 					code: required(integer())
 				});
 
-				const Derived = resource({ extends: Base }, {
+				const Derived = resource({
 					name: required(string())
-				});
+				}, { extends: Base });
 
 				// model projects only `name`; `code` is inherited from Base but not requested — reject
 				const trace = validateResult([{ code: 1, name: "Alice" }], {
@@ -6280,10 +6280,10 @@ describe("validators", () => {
 
 			it("accepts projected type", async () => {
 
-				const shape = resource({ class: "app:/types/Person" }, {
+				const shape = resource({
 					type: type(),
 					name: required(string())
-				});
+				}, { class: "app:/types/Person" });
 
 				expect(validateResult([{ type: "app:/types/Person", name: "Alice" }], {
 					shape,
@@ -6308,10 +6308,10 @@ describe("validators", () => {
 
 			it("rejects non-IRI for projected type", async () => {
 
-				const shape = resource({ class: "app:/types/Person" }, {
+				const shape = resource({
 					type: type(),
 					name: required(string())
-				});
+				}, { class: "app:/types/Person" });
 
 				expect(validateResult([{ type: 42, name: "Alice" }], {
 					shape,
@@ -6322,10 +6322,10 @@ describe("validators", () => {
 
 			it("rejects projected id violating pattern constraint", async () => {
 
-				const shape = resource({ pattern: "/users/*" }, {
+				const shape = resource({
 					id: id(),
 					name: required(string())
-				});
+				}, { pattern: "/users/*" });
 
 				expect(validateResult([{ id: "app:/products/1", name: "Alice" }], {
 					shape,
@@ -6336,10 +6336,10 @@ describe("validators", () => {
 
 			it("rejects projected id not in allowed set", async () => {
 
-				const shape = resource({ in: ["app:/users/alice", "app:/users/bob"] }, {
+				const shape = resource({
 					id: id(),
 					name: required(string())
-				});
+				}, { in: ["app:/users/alice", "app:/users/bob"] });
 
 				expect(validateResult([{ id: "app:/users/99", name: "Alice" }], {
 					shape,
@@ -6452,8 +6452,8 @@ describe("validators", () => {
 
 		describe("unions", () => {
 
-			const Book = resource({ class: "app:/types/Book" }, { type: type(), title: required(string()) });
-			const Song = resource({ class: "app:/types/Song" }, { type: type(), duration: required(integer()) });
+			const Book = resource({ type: type(), title: required(string()) }, { class: "app:/types/Book" });
+			const Song = resource({ type: type(), duration: required(integer()) }, { class: "app:/types/Song" });
 
 			it("accepts projection matching one union variant", async () => {
 
@@ -6668,8 +6668,8 @@ describe("validators", () => {
 					// singles out the variant whose target it is a legal value of, not merely a
 					// well-formed IRI for every reference branch
 
-					const Person = resource({ pattern: "/people/{id}" }, { name: required(string()) });
-					const Org = resource({ pattern: "/orgs/{id}" }, { title: required(string()) });
+					const Person = resource({ name: required(string()) }, { pattern: "/people/{id}" });
+					const Org = resource({ title: required(string()) }, { pattern: "/orgs/{id}" });
 
 					const shape = resource({
 						link: required(union(reference(Person), reference(Org)))
@@ -6707,9 +6707,9 @@ describe("validators", () => {
 					code: required(integer())
 				});
 
-				const Derived = resource({ extends: Base }, {
+				const Derived = resource({
 					name: required(string())
-				});
+				}, { extends: Base });
 
 				expect(validateResult([{ code: 1, name: "Alice" }], {
 					shape: Derived,
@@ -6725,9 +6725,9 @@ describe("validators", () => {
 					secret: required(string())
 				});
 
-				const Derived = resource({ extends: Base }, {
+				const Derived = resource({
 					name: required(string())
-				});
+				}, { extends: Base });
 
 				expect(validateResult([{ name: "Alice" }], {
 					shape: Derived,
@@ -6742,9 +6742,9 @@ describe("validators", () => {
 					contact: required(union(string(), integer()))
 				});
 
-				const Derived = resource({ extends: Base }, {
+				const Derived = resource({
 					contact: required(string({ model: "abc", minLength: 3 }))
-				});
+				}, { extends: Base });
 
 				expect(Derived.model).toEqual({ contact: "abc" });
 
@@ -6771,9 +6771,9 @@ describe("validators", () => {
 					value: required(union(string(), integer(), boolean()))
 				});
 
-				const Derived = resource({ extends: Base }, {
+				const Derived = resource({
 					value: required(union(string(), integer()))
-				});
+				}, { extends: Base });
 
 				expect(Derived.model).toEqual({ value: { "0": "", "1": 0 } });
 
@@ -6859,8 +6859,8 @@ describe("validators", () => {
 						: undefined;
 
 				const shape = resource(
-					{ validators: [adult] },
-					{ age: required(integer()) }
+					{ age: required(integer()) },
+					{ validators: [adult] }
 				);
 
 				expect(validateResult([{ age: 25 }], { shape, model: { age: 0 } })).toBeUndefined();
@@ -6875,8 +6875,8 @@ describe("validators", () => {
 				}
 
 				const shape = resource(
-					{ validators: [adult] },
-					{ age: required(integer()) }
+					{ age: required(integer()) },
+					{ validators: [adult] }
 				);
 
 				const trace = validateResult([{ age: 15 }], {
@@ -7169,9 +7169,9 @@ describe("validators", () => {
 						id: required(integer())
 					});
 
-					const Derived = resource({ extends: Base }, {
+					const Derived = resource({
 						name: required(string())
-					});
+					}, { extends: Base });
 
 					expect(validateTemplate([{ id: 1, name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
 
@@ -7264,9 +7264,9 @@ describe("validators", () => {
 						id: required(integer())
 					});
 
-					const Derived = resource({ extends: Base }, {
+					const Derived = resource({
 						name: required(string())
-					});
+					}, { extends: Base });
 
 					expect(validateTemplate([{
 						id: 1,
@@ -7314,9 +7314,9 @@ describe("validators", () => {
 					const validator: (value: Resource) => undefined | Trace = () => ["always fails"];
 
 					const shape = resource({
-						validators: [validator]
-					}, {
 						name: required(string())
+					}, {
+						validators: [validator]
 					});
 
 					expect(validateTemplate([{ name: "Alice" }], shape, { depth: 0 })).toBeUndefined();
@@ -7327,13 +7327,13 @@ describe("validators", () => {
 
 					const validator: (value: Resource) => undefined | Trace = () => ["always fails"];
 
-					const Base = resource({ validators: [validator] }, {
+					const Base = resource({
 						age: required(integer())
-					});
+					}, { validators: [validator] });
 
-					const Derived = resource({ extends: Base }, {
+					const Derived = resource({
 						name: required(string())
-					});
+					}, { extends: Base });
 
 					expect(validateTemplate([{ age: 15, name: "Bob" }], Derived, { depth: 0 })).toBeUndefined();
 
@@ -7377,7 +7377,7 @@ describe("validators", () => {
 
 			it("accepts missing id", async () => {
 
-				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+				const shape = resource({ id: id() }, { pattern: "/users/{id}" });
 
 				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
 
@@ -7393,7 +7393,7 @@ describe("validators", () => {
 
 			it("skips pattern", async () => {
 
-				const shape = resource({ pattern: "/users/{id}" }, { id: id() });
+				const shape = resource({ id: id() }, { pattern: "/users/{id}" });
 
 				expect(validateTemplate([{ "id": "app:/invalid" }], shape, { depth: 0 })).toBeUndefined();
 
@@ -7401,7 +7401,7 @@ describe("validators", () => {
 
 			it("skips in", async () => {
 
-				const shape = resource({ in: ["app:/users/alice"] }, { id: id() });
+				const shape = resource({ id: id() }, { in: ["app:/users/alice"] });
 
 				expect(validateTemplate([{ "id": "app:/users/charlie" }], shape, { depth: 0 })).toBeUndefined();
 
@@ -7409,7 +7409,7 @@ describe("validators", () => {
 
 			it("skips hasValue", async () => {
 
-				const shape = resource({ hasValue: ["app:/users/admin"] }, { id: id() });
+				const shape = resource({ id: id() }, { hasValue: ["app:/users/admin"] });
 
 				expect(validateTemplate([{ "id": "app:/users/guest" }], shape, { depth: 0 })).toBeUndefined();
 
@@ -7421,7 +7421,7 @@ describe("validators", () => {
 
 			it("accepts string value", async () => {
 
-				const shape = resource({ class: "app:/types/T" }, { type: type() });
+				const shape = resource({ type: type() }, { class: "app:/types/T" });
 
 				expect(validateTemplate([{ "type": "some-type" }], shape, { depth: 0 })).toBeUndefined();
 
@@ -7429,7 +7429,7 @@ describe("validators", () => {
 
 			it("accepts missing type", async () => {
 
-				const shape = resource({ class: "app:/types/T" }, { type: type() });
+				const shape = resource({ type: type() }, { class: "app:/types/T" });
 
 				expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
 
@@ -7437,7 +7437,7 @@ describe("validators", () => {
 
 			it("rejects multiple values", async () => {
 
-				const shape = resource({ class: "app:/types/T" }, { type: type() });
+				const shape = resource({ type: type() }, { class: "app:/types/T" });
 
 				expect(validateTemplate([{ "type": ["/types/A", "/types/B"] } as any], shape, { depth: 0 })).toBeDefined();
 
@@ -7833,9 +7833,9 @@ describe("validators", () => {
 						name: required(string())
 					});
 
-					const Derived = resource({ extends: Base }, {
+					const Derived = resource({
 						age: optional(integer())
-					});
+					}, { extends: Base });
 
 					expect(validateTemplate([{ name: "Alice" }], Derived, { depth: 0 })).toBeUndefined();
 					expect(validateTemplate([{ name: ["Alice"] } as any], Derived, { depth: 0 })).toBeDefined();
@@ -7852,9 +7852,9 @@ describe("validators", () => {
 						age: required(integer())
 					});
 
-					const Person = resource({ extends: [Named, Aged] }, {
+					const Person = resource({
 						email: optional(string())
-					});
+					}, { extends: [Named, Aged] });
 
 					expect(validateTemplate([{}], Person, { depth: 0 })).toBeUndefined();
 					expect(validateTemplate([{ name: "Alice", age: 30 }], Person, { depth: 0 })).toBeUndefined();
@@ -7870,9 +7870,9 @@ describe("validators", () => {
 					name: required(string())
 				});
 
-				const Derived = resource({ extends: Base }, {
+				const Derived = resource({
 					name: required(string({ model: "abc", minLength: 3 }))
-				});
+				}, { extends: Base });
 
 				// type shape still enforced on overridden property
 
@@ -7969,9 +7969,9 @@ describe("validators", () => {
 
 				it("rejects plain placeholder over inherited union", async () => {
 
-					const Derived = resource({ extends: textOrCount }, {
+					const Derived = resource({
 						name: required(string())
-					});
+					}, { extends: textOrCount });
 
 					expect(validateTemplate([{ value: "hello" }], Derived, { depth: 0 })).toBeDefined();
 					expect(validateTemplate([{ value: true }], Derived, { depth: 0 })).toBeDefined();
@@ -7980,9 +7980,9 @@ describe("validators", () => {
 
 				it("accepts indexed form over inherited union", async () => {
 
-					const Derived = resource({ extends: textOrCount }, {
+					const Derived = resource({
 						name: required(string())
-					});
+					}, { extends: textOrCount });
 
 					expect(validateTemplate([{ value: { "0": "hello" } }], Derived, { depth: 0 })).toBeUndefined();
 
@@ -8641,8 +8641,8 @@ describe("validators", () => {
 				// a reference placeholder is matched by kind: any well-formed IRI reference fits every reference
 				// variant, its value immaterial and not required to be legal for any target
 
-				const Person = resource({ pattern: "/people/{id}" }, { name: required(string()) });
-				const Org = resource({ pattern: "/orgs/{id}" }, { title: required(string()) });
+				const Person = resource({ name: required(string()) }, { pattern: "/people/{id}" });
+				const Org = resource({ title: required(string()) }, { pattern: "/orgs/{id}" });
 
 				const shape = resource({
 					link: required(union(reference(Person), reference(Org)))
@@ -9393,11 +9393,11 @@ describe("validators", () => {
 
 			describe("type projection", () => {
 
-				const Target = resource({ class: "app:/types/Target" }, {
+				const Target = resource({
 					type: type(),
 					name: required(string()),
 					age: optional(integer())
-				});
+				}, { class: "app:/types/Target" });
 				const Wrapper = resource({ items: multiple(reference(Target)) });
 
 				it.each([

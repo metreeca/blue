@@ -679,9 +679,9 @@ describe("apply", () => {
 				label: required(string())
 			});
 
-			const Derived = resource({ extends: Base }, {
+			const Derived = resource({
 				extra: required(integer())
-			});
+			}, { extends: Base });
 
 			expect(range(probeRange(probe(["label"]), Derived)).variants[0]).toEqual(string());
 
@@ -772,10 +772,10 @@ describe("apply", () => {
 
 			it("resolves single-segment path to type field", async () => {
 
-				const s = resource({ class: "app:/types/T" }, {
+				const s = resource({
 					kind: type(),
 					name: required(string())
-				});
+				}, { class: "app:/types/T" });
 
 				expect(range(probeRange(probe(["kind"]), s)).variants[0]).toHaveProperty("datatype", sh.IRI);
 
@@ -783,10 +783,10 @@ describe("apply", () => {
 
 			it("resolves type field with optional cardinality", async () => {
 
-				const s = resource({ class: "app:/types/T" }, {
+				const s = resource({
 					kind: type(),
 					name: required(string())
-				});
+				}, { class: "app:/types/T" });
 
 				const result = probeRange(probe(["kind"]), s);
 
@@ -797,10 +797,10 @@ describe("apply", () => {
 
 			it("resolves trailing path segment to type through reference", async () => {
 
-				const Inner = resource({ class: "app:/types/T" }, {
+				const Inner = resource({
 					kind: type(),
 					label: required(string())
-				});
+				}, { class: "app:/types/T" });
 
 				const s = resource({
 					child: optional(reference(Inner))
@@ -812,10 +812,10 @@ describe("apply", () => {
 
 			it("rejects leading type with trailing segments", async () => {
 
-				const s = resource({ class: "app:/types/T" }, {
+				const s = resource({
 					kind: type(),
 					name: required(string())
-				});
+				}, { class: "app:/types/T" });
 
 				expect(effective(s, probe(["kind", "something"]))).toEqual("undefined property path");
 
@@ -823,12 +823,12 @@ describe("apply", () => {
 
 			it("rejects inner type in multi-segment path", async () => {
 
-				const Inner = resource({ class: "app:/types/T" }, {
+				const Inner = resource({
 					kind: type(),
 					nested: required(resource({
 						value: required(string())
 					}))
-				});
+				}, { class: "app:/types/T" });
 
 				const s = resource({
 					child: required(reference(Inner))
@@ -993,7 +993,7 @@ describe("validation", () => {
 
 			it("returns value for resource with type", async () => {
 
-				const shape = resource({ class: "app:/types/Person" }, { type: type() });
+				const shape = resource({ type: type() }, { class: "app:/types/Person" });
 
 				const result = validate({ type: "app:/types/Person" }, { shape });
 				expect(result({ value: v => v })).toEqual({ type: "app:/types/Person" });

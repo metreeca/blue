@@ -190,9 +190,11 @@
  *   name: required(string({ model: "name", minLength: 1 }))
  * });
  *
- * const Employee = resource({ extends: NamedEntity }, {
+ * const Employee = resource({
  *   department: required(string()),
  *   salary: required(integer({ minInclusive: 0 }))
+ * }, {
+ *   extends: NamedEntity
  * });
  * ```
  *
@@ -239,13 +241,17 @@
  * });
  *
  * // Form 1 — narrows the slot to a bare string
- * const Vendor = resource({ extends: Entity }, {
+ * const Vendor = resource({
  *   code: required(string({ model: "ABC", pattern: "^[A-Z]" }))
+ * }, {
+ *   extends: Entity
  * });
  *
  * // Form 2 — keeps the union but drops the string variant wholesale
- * const Numbered = resource({ extends: Entity }, {
+ * const Numbered = resource({
  *   code: required(union(integer()))
+ * }, {
+ *   extends: Entity
  * });
  * ```
  *
@@ -320,11 +326,13 @@
  *
  * };
  *
- * const Product = resource({ validators: [checkProduct] }, {
+ * const Product = resource({
  *   minPrice: optional(integer()),
  *   maxPrice: optional(integer()),
  *   startDate: optional(date()),
  *   endDate: optional(date())
+ * }, {
+ *   validators: [checkProduct]
  * });
  * ```
  *
@@ -1311,7 +1319,7 @@ export function resource<E extends Members>(
 ): Omit<ResourceShape, "model"> & { readonly model: Prototype<E> };
 
 /**
- * Creates a resource shape from constraints and property definitions.
+ * Creates a resource shape from property definitions and constraints.
  *
  * Accepts {@link Member} values including full {@link Property} definitions, naked
  * {@link SetShape} values for the concise syntax, and {@link Id}/{@link Type} markers. The
@@ -1328,12 +1336,11 @@ export function resource<E extends Members>(
  * > This function is idempotent: the returned shape is branded and won't be re-flattened if used
  * > as a parent in another shape.
  *
- * @typeParam C The constraints type, used to infer the inherited model
  * @typeParam E The entries record type
- * @typeParam M The composed model type, combining local entries with inherited entries
+ * @typeParam C The constraints type, used to infer the inherited model
  *
- * @param constraints Shape constraints including namespace, name, validators, and optionally `extends`
  * @param entries The property definitions, mapping property names to entries
+ * @param constraints Shape constraints including namespace, name, validators, and optionally `extends`
  *
  * @returns An immutable resource shape with inherited constraints and entries flattened and merged
  *
@@ -1343,33 +1350,33 @@ export function resource<E extends Members>(
  *
  * ```typescript
  * // without inheritance
- * const Person = resource({ namespace: schema }, {
+ * const Person = resource({
  *   name: required(string())  // naked range
+ * }, {
+ *   namespace: schema
  * });
  *
  * // with inheritance
- * const Employee = resource({ extends: Person }, {
+ * const Employee = resource({
  *   department: required(string())  // naked range
+ * }, {
+ *   extends: Person
  * });
  * ```
  */
-export function resource<
-	const C extends ResourceConstraints,
-	E extends Members,
-	M extends Composition<E, C> = Composition<E, C>
->(
+export function resource<E extends Members, const C extends ResourceConstraints>(
+	entries: E & Override<E, Inheritance<C>>,
 	constraints: C & {
-		readonly validators?: readonly [(value: M) => undefined | Trace, ...((value: M) => undefined | Trace)[]]
-	},
-	entries: E & Override<E, Inheritance<C>>
-): Omit<ResourceShape, "model"> & { readonly model: M };
+		readonly validators?: readonly [Validator<Composition<E, C>>, ...Validator<Composition<E, C>>[]]
+	}
+): Omit<ResourceShape, "model"> & { readonly model: Composition<E, C> };
 
 /**
  * Creates resource shapes.
  */
 export function resource(
-	a: Members | ResourceConstraints,
-	b?: Members
+	entries: Members,
+	constraints?: ResourceConstraints
 ): ResourceShape {
 
 	type Parents = ResourceConstraints["extends"];
@@ -1377,11 +1384,10 @@ export function resource(
 	type Properties = { readonly [entry: Identifier]: Entry };
 
 
-	if ( b === undefined ) {
+	if ( constraints === undefined ) {
 
-		const properties = a as Members;
 		const namespace = locate({});
-		const resolved = resolve(normalize(properties), namespace);
+		const resolved = resolve(normalize(entries), namespace);
 
 		return flatten({
 
@@ -1394,13 +1400,10 @@ export function resource(
 
 	} else {
 
-		const constraints = a as ResourceConstraints;
-		const properties = b;
-
 		const { name, description, ...labelless } = constraints;
 
 		const namespace = locate(constraints);
-		const resolved = resolve(normalize(properties, constraints.extends), namespace);
+		const resolved = resolve(normalize(entries, constraints.extends), namespace);
 
 		return flatten({
 
