@@ -20,15 +20,8 @@ import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import { type BooleanShape } from "./boolean.js";
 import { type DictionaryShape } from "./dictionary.js";
-import {
-	type Arity,
-	type Instance,
-	type Compound,
-	type Range,
-	type RangeCount,
-	type Shape,
-	type Skippable
-} from "./index.js";
+import { type Arity, type Skippable } from "./index.core.js";
+import { type Compound, type Instance, type Range, type RangeCount, type Shape } from "./index.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import { id, multiple, type Property, required, resource, type ResourceShape } from "./resource.js";
 import { type StringShape, string } from "./string.js";

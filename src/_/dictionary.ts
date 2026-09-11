@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import type { Eager, Lazy } from "@metreeca/core";
 import type { TagRange } from "@metreeca/core/language";
 
 
@@ -135,21 +134,6 @@ export type DictionaryConstraints = {
 	readonly languageIn?: readonly TagRange[];
 
 }
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Checks whether a localised shape admits a single string under each tag.
- *
- * Yields `true` where the shape states {@link DictionaryConstraints.uniqueLang | uniqueLang}, so that the content of a
- * tag is resolved at the arity the shape admits: a bare string where it is unique, an array of strings otherwise. A
- * shape leaving the constraint unstated, or stating it only as a boolean, admits several strings under each tag.
- *
- * @typeParam S The describing shape, possibly deferred to break definition cycles
- */
-export type Unique<S extends Lazy<DictionaryShape>> =
-	Eager<S> extends { readonly uniqueLang: true } ? true : false
 
 
 //// Factories ///////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -20,14 +20,11 @@ import { describe, expectTypeOf, test } from "vitest";
 import { type Instance, type Compound, type Range, type RangeCount, type Shape } from "./index.js";
 import { number } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
+import { type Carried, type Content, type Input, type Retrieved } from "./resource.core.js";
 import {
-	type Carried,
-	type Content,
 	type Id,
 	id,
-	type Retrieved,
 	multiple,
-	type Input,
 	nonempty,
 	optional,
 	type Property,

@@ -21,7 +21,8 @@ import { type NumberShape } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import { id, type Id, multiple, type Property, required, resource } from "./resource.js";
 import { string, type StringShape } from "./string.js";
-import { type Branch, union, type UnionShape } from "./union.js";
+import { type Branch } from "./union.core.js";
+import { union, type UnionShape } from "./union.js";
 
 
 type LinkShape={
