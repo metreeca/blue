@@ -611,15 +611,15 @@ describe("factories", () => {
 
 			});
 
-			it("throws on a type field without a declared class", async () => {
+			it("accepts a type field without a declared class", async () => {
 
-				// a type value materialises the resource's own class; a type field with no class has
-				// nothing to match against and is rejected at construction
+				// the member stays inactive until a class is declared; declaring it is admissible on its own,
+				// so a shared supershape may factor it out for its descendants
 
 				expect(() => resource({
 					type: type(),
 					name: required(string())
-				})).toThrow(TraceError);
+				})).not.toThrow();
 
 			});
 
@@ -629,6 +629,22 @@ describe("factories", () => {
 					type: type(),
 					name: required(string())
 				}, { class: "app:/types/Person" })).not.toThrow();
+
+			});
+
+			it("accepts a type field inherited by a class-less child", async () => {
+
+				const Parent = resource({
+					rtype: type(),
+					name: required(string())
+				}, { class: "app:/types/T" });
+
+				// class is shape-specific and not inherited: the child carries the factored-out member
+				// without a class of its own
+
+				expect(() => resource(Parent, {
+					age: required(integer())
+				})).not.toThrow();
 
 			});
 
@@ -4623,6 +4639,47 @@ describe("validators", () => {
 
 				expect(inner).toHaveProperty("type");
 				expect(inner["type"]).toContainEqual(expect.stringContaining("{kind}"));
+
+			});
+
+			it("accepts missing type on a class-less shape", async () => {
+
+				const shape = resource({ type: type() });
+
+				expect(validateResource([{}], shape)).toBeUndefined();
+
+			});
+
+			it("rejects a type value on a class-less shape", async () => {
+
+				// no own class means no value to materialise, whatever IRI is supplied
+
+				const shape = resource({ type: type() });
+
+				const trace = validateResource([{ "type": "app:/types/Person" }], shape);
+				const inner = rec(trace, "0");
+
+				expect(inner).toHaveProperty("type");
+				expect(inner["type"]).toContainEqual(
+					expect.stringContaining("{class} unexpected <type> value without declared class")
+				);
+
+			});
+
+			it("rejects a type value on a class-less shape inheriting a class", async () => {
+
+				const Parent = resource({ type: type() }, { class: "app:/types/Person" });
+				const Child = resource(Parent, {});
+
+				// the parent class reaches the child as an inherited class, which no type value materialises
+
+				const trace = validateResource([{ "type": "app:/types/Person" }], Child);
+				const inner = rec(trace, "0");
+
+				expect(inner).toHaveProperty("type");
+				expect(inner["type"]).toContainEqual(
+					expect.stringContaining("{class} unexpected <type> value without declared class")
+				);
 
 			});
 

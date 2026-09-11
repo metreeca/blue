@@ -309,32 +309,6 @@ export function checkId(shape: ResourceShape): undefined | Trace {
 }
 
 /**
- * Checks that a shape declaring a `type` property also declares a target `class`.
- *
- * A `type` value materialises the resource's own declared class, so a shape carrying a `kind: "type"` property but no
- * own `class` has nothing to match that value against and is rejected: a type field may not be declared without a
- * class. Inherited classes (`classes`) are ignored; each shape declares its own class.
- *
- * @param shape The flattened resource shape to check
- *
- * @returns A keyed trace of violations, or `undefined` when no type property lacks a declared class
- */
-export function checkType(shape: ResourceShape): undefined | Trace {
-
-	return all<ResourceShape>(
-		test(({ class: cls, members }) => {
-
-			return cls !== undefined || !Object.values(members).some(p => p.kind === "type") || [
-				`{class} <type> property without a declared class`
-			];
-
-		})
-	)(shape);
-
-}
-
-
-/**
  * Reports whether an overriding resource shape narrows an inherited base shape.
  *
  * Tests the override relation without building the merged shape: returns `undefined` when the `pattern` stays
@@ -2174,11 +2148,9 @@ export function flatten(shape: ResourceShape): ResourceShape {
 		const trace = all(
 			() => checkParents(shape, parents),
 			() => checkSingletons(Object.values(merged.members)),
-			() => checkPredicates(merged),
+			() => checkPredicates(merged)
 
 			// checkId is deferred to validateResource, not run here at construction (see checkId)
-
-			() => checkType(merged)
 		)(undefined);
 
 		if ( trace !== undefined ) {
@@ -2575,8 +2547,10 @@ function validateId(value: unknown, shape: ResourceShape, entry: undefined | Ref
  * Validates a resource type value against a {@link ResourceShape}'s declared class.
  *
  * An absent value is vacuously valid (cardinality is enforced by the caller). A present value must be a single
- * absolute IRI equal to the shape's declared `class`; that a `type`-bearing shape declares a class is guaranteed
- * structurally by {@link checkType} at flatten time. Shared by {@link validateResource} and {@link validateResult}.
+ * absolute IRI equal to the shape's declared `class`. A shape with no own `class` has nothing for a type value to
+ * materialise, so every present value is rejected: a `type` member factored out by a shared supershape is admissible
+ * there but stays inactive until a descendant declares a class of its own. Inherited classes (`classes`) don't count.
+ * Shared by {@link validateResource} and {@link validateResult}.
  *
  * @param value The candidate type value
  * @param shape The resource shape declaring the expected class
@@ -2595,7 +2569,10 @@ function validateType(value: unknown, shape: ResourceShape): undefined | Trace {
 		// a type value materialises the resource's declared class and must match it
 
 		(isReference(value) && value !== clazz)
-		&& fail([`{class} expected declared class <${clazz}>`])
+		&& fail([clazz === undefined
+			? `{class} unexpected <type> value without declared class`
+			: `{class} expected declared class <${clazz}>`
+		])
 	)(undefined);
 
 }

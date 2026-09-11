@@ -752,9 +752,10 @@ export interface Id {
  *
  * > [!IMPORTANT]
  * > This property is system-managed: its value is derived from the
- * > {@link ResourceConstraints.class | class} constraint defined in the shape, defaulting to
- * > `rdfs:Resource` when no class is declared. Client-supplied values, for instance in state
- * > updates, are silently ignored.
+ * > {@link ResourceConstraints.class | class} constraint defined in the shape, and the member is active
+ * > only on a shape declaring its own class. A class-less shape accepts the member but exposes no value
+ * > through it, rejecting every supplied one. A shared supershape may therefore factor the member out for
+ * > its descendants, each activating it by declaring a class of its own.
  *
  * **Inheritance**
  *
@@ -767,7 +768,6 @@ export interface Id {
  * | `hidden` | Taken from the most derived declaration; among sibling parents, from the first declared |
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#specifying-the-type JSON-LD 1.1 § 3.5 Specifying the Type}
- * @see {@link https://www.w3.org/TR/rdf-schema/#ch_resource RDF Schema 1.1 § 2.1 rdfs:Resource}
  */
 export interface Type {
 
@@ -1720,8 +1720,9 @@ export function id(constraints: {
  * counted after inheritance merging: markers sharing a property name collapse into a single member, so a marker
  * reaching the shape through several parents or redeclared by the shape counts once, while two `type` markers under
  * distinct property names are rejected. The resulting property has implicit `0..1` cardinality and is system-managed:
- * its value is derived from the {@link ResourceConstraints.class | class} constraint and client-supplied values are
- * silently ignored.
+ * its value is derived from the {@link ResourceConstraints.class | class} constraint, so the marker is active only on
+ * a shape declaring its own class and a class-less shape rejects every supplied value. A shared supershape may thus
+ * factor the marker out for its descendants, each activating it by declaring a class of its own.
  *
  * @param constraints The type property constraints
  * @param constraints.hidden Excludes the property from default serialisation
