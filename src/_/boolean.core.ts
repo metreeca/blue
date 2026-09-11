@@ -20,4 +20,84 @@
  * @module
  */
 
-export {};
+import { isBoolean } from "@metreeca/core";
+import { immutable } from "@metreeca/core/structures";
+import { array, type Trace, type } from "@metreeca/core/trace";
+import type { BooleanShape } from "./boolean.js";
+import type { Scope } from "./index.core.js";
+
+
+/**
+ * Creates a boolean shape.
+ *
+ * Backs the factory the {@link boolean!} module exposes. The shape takes no constraints, so there is nothing to check
+ * and nothing that could make it contradictory.
+ *
+ * @returns An immutable shape admitting truth values
+ */
+export function create(): BooleanShape {
+
+	return immutable({
+
+		kind: "boolean"
+
+	});
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Reports whether a boolean shape narrows an inherited one.
+ *
+ * Tests the override relation without building the merged shape. A boolean shape states nothing beyond its kind, so
+ * every override narrows and the relation never reports an obstacle; it is stated all the same, so that a caller may
+ * test any pair of shapes without knowing which kind it holds.
+ *
+ * @returns `undefined`, as a boolean shape carries nothing an override could widen
+ */
+export function narrowsBoolean(_target: BooleanShape, _source: BooleanShape): undefined | Trace {
+
+	return undefined;
+
+}
+
+/**
+ * Merges a boolean shape with an inherited one.
+ *
+ * Yields the single shape an extending member is validated against. A boolean shape states nothing beyond its kind,
+ * so the merge carries that alone.
+ *
+ * @returns An immutable shape admitting truth values
+ */
+export function mergeBoolean(_target: BooleanShape, _source: BooleanShape): BooleanShape {
+
+	return create();
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Validates values against a boolean shape.
+ *
+ * Reports each value that is not a boolean as a `{type}` violation keyed by its index, so that a caller may tell which
+ * value failed. A boolean shape closes its domain by kind alone, leaving nothing further to enforce at any
+ * {@link Scope | strictness}.
+ *
+ * @param values The values to validate
+ * @param _ The shape the values are matched against, stating nothing the kind check doesn't already enforce
+ *
+ * @returns A trace of the violations found, or `undefined` where every value is a boolean
+ */
+export function validateBoolean(values: readonly unknown[], _: BooleanShape, {}: {
+
+	scope?: Scope
+
+} = {}): undefined | Trace {
+
+	return array(type(isBoolean))(values);
+
+}
