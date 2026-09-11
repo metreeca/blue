@@ -97,7 +97,7 @@
  * > An embedded resource shape may not carry an {@link id} member: embedded resources have no
  * > independent identity, so a nested resource state bearing an identifier is rejected during state
  * > validation rather than at shape construction, since an id-bearing embedded range is
- * > indistinguishable from an expanded captive reference until a state is checked against it. A
+ * > indistinguishable from an expanded captive target until a state is checked against it. A
  * > {@link type} member is accepted and validated in both state and template retrieval.
  *
  * ```typescript
@@ -146,31 +146,29 @@
  * has no independent identifier of its own. See {@link index!validate | validate} for the full form comparison
  * and {@link reference!ReferenceShape} for the companion standalone form.
  *
- * **Property Mappings versus Foreign References**
+ * **Property Mappings versus Foreign Properties**
  *
  * The {@link PropertyConstraints.forward | forward} and
  * {@link PropertyConstraints.reverse | reverse} mappings on a property control how property
  * values are persisted — both write actual property mappings. The
- * {@link reference!ReferenceConstraints.foreign | foreign} flag on a reference shape is an
- * independent concept: a read-only view over mappings owned by another property that does not
- * write any mappings on insert. During resource validation, foreign reference members are
- * rejected; during template validation they are accepted for data retrieval.
+ * {@link PropertyConstraints.foreign | foreign} flag is an independent concept: a read-only view
+ * over mappings owned by another property that does not write any mappings on insert. During
+ * resource validation, foreign members are rejected; during template validation they are accepted
+ * for data retrieval.
  *
  * **Embedded versus Captive Resources**
  *
  * **Embedded resources** have no independent identity or lifecycle and are always managed as part
  * of their parent. An embedded resource shape may not carry an {@link id} member: the rejection is
  * enforced during state validation rather than at shape construction, since an id-bearing embedded
- * range is indistinguishable from an expanded captive reference until a resource state is checked
+ * range is indistinguishable from an expanded captive target until a resource state is checked
  * against it. A {@link type} member is accepted and validated in both state and template retrieval.
- * Embedded resources are
- * defined by directly including a resource shape without a {@link reference!reference | reference}
- * wrapper.
+ * Embedded resources are defined by directly including a resource shape without a
+ * {@link reference!reference | reference} wrapper.
  *
- * **Captive resources**, identified by the
- * {@link reference!ReferenceConstraints.captive | captive} flag, have independent identity and
- * lifecycle but cannot outlive the source resource and are automatically cascade-removed when it
- * is deleted.
+ * **Captive resources**, identified by the {@link PropertyConstraints.captive | captive} flag on
+ * the property referencing them, have independent identity and lifecycle but cannot outlive the
+ * source resource and are automatically cascade-removed when it is deleted.
  *
  * **Inheritance**
  *
@@ -706,7 +704,7 @@ export type Member =
  * > Rejected on embedded resource shapes during state validation, as embedded resources have no
  * > independent identity; the rejection surfaces when a nested resource state is checked, not at
  * > shape construction, since an id-bearing embedded range is indistinguishable from an expanded
- * > captive reference until then. A standalone {@link reference!reference | reference} target carries
+ * > captive target until then. A standalone {@link reference!reference | reference} target carries
  * > its own identifier and is unaffected.
  *
  * **Inheritance**
@@ -812,6 +810,8 @@ export interface Type {
  * | `reverse`     | Cannot be overridden                                                                   |
  * | `range`       | Delegated to {@link SetShape} merge rules                                              |
  * | `hidden`      | Inherited; conflicting parents without child override are reported as an error        |
+ * | `foreign`     | Cannot be overridden                                                                   |
+ * | `captive`     | Cannot be overridden                                                                   |
  *
  * @typeParam R The value range type, defaulting to an unconstrained {@link SetShape}
  *
@@ -859,8 +859,7 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
 	 *
 	 * > [!IMPORTANT]
 	 * > Both `forward` and {@link reverse} mappings write actual property values. This is independent from
-	 * > {@link reference!ReferenceConstraints.foreign | foreign}, which marks a reference as a read-only view over
-	 * > mappings owned by another property.
+	 * > {@link foreign}, which marks the property as a read-only view over mappings owned by another property.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -873,8 +872,7 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
 	 *
 	 * > [!IMPORTANT]
 	 * > Both {@link forward} and `reverse` mappings write actual property values. This is independent from
-	 * > {@link reference!ReferenceConstraints.foreign | foreign}, which marks a reference as a read-only view over
-	 * > mappings owned by another property.
+	 * > {@link foreign}, which marks the property as a read-only view over mappings owned by another property.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -897,6 +895,8 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
 /**
  * Constraints for property shape factories.
  *
+ * **Predicate Mapping**
+ *
  * When neither {@link forward} nor {@link reverse} is explicitly defined, a default forward IRI is generated by
  * resolving the property name against the effective namespace, determined in this order:
  *
@@ -904,8 +904,26 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
  * 2. The common inherited namespace from parent shapes
  * 3. The default {@link defaultNamespace} namespace
  *
- * @typeParam R The value range type threaded from the {@link property} factory, defaulting to an
- *   unconstrained {@link SetShape}
+ * **Ownership and Lifecycle**
+ *
+ * The {@link foreign} and {@link captive} flags are independent and may be combined. Their interaction determines how insert and remove operations behave on the
+ * property:
+ *
+ * | `foreign` | `captive` | Insert                    | Remove                              |
+ * |:---------:|:---------:|---------------------------|-------------------------------------|
+ * |     —     |     —     | Writes forward/reverse    | Deletes forward/reverse             |
+ * |     ✓     |     —     | No-op (read-only view)    | Deletes forward/reverse             |
+ * |     —     |     ✓     | Writes forward/reverse    | Deletes forward/reverse and cascade |
+ * |     ✓     |     ✓     | No-op (read-only view)    | Deletes forward/reverse and cascade |
+ *
+ * Here *forward/reverse* is shorthand for the {@link forward} and {@link reverse} predicates declared on the
+ * property, which determine which mappings these operations write and delete; *cascade* means the referenced
+ * resource is removed with the same semantics.
+ *
+ * The `foreign` + `captive` combination models the parent side of a parent/children composition: the child owns the
+ * link, while the parent's view writes nothing on insert (`foreign`) but cascade-removes the children on deletion
+ * (`captive`). Link direction is immaterial, as long as both definitions share the same predicate IRI; children keep
+ * independent identity and lifecycle otherwise.
  *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
  */
@@ -919,6 +937,44 @@ export interface PropertyConstraints {
 	 * @defaultValue `undefined` (`false`)
 	 */
 	readonly hidden?: boolean;
+
+	/**
+	 * Marks the property as managed by the referenced resource.
+	 *
+	 * A foreign property is read-only for the resource declaring it: retrieval templates may select it, but a
+	 * resource state carrying it is rejected, since the link belongs to the referenced resource. Templates describe
+	 * retrieval rather than state, so they accept it normally.
+	 *
+	 * > [!IMPORTANT]
+	 * > A foreign property is independent from a {@link reverse} mapping. A `reverse` mapping writes an actual
+	 * > inverse mapping; `foreign` exposes a read-only view over mappings another property owns and writes nothing
+	 * > on insert.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @defaultValue `undefined` (`false`)
+	 */
+	readonly foreign?: boolean;
+
+	/**
+	 * Marks the referenced resources as unable to outlive the declaring one.
+	 *
+	 * A captive resource keeps an identity and a lifecycle of its own and may be created, updated and deleted on its
+	 * own, but is existentially dependent on the resource declaring the property: it cannot outlive it and is
+	 * cascade-removed with it. A captive property additionally admits the target state inline, alongside its IRI,
+	 * within the retrieval `depth` budget.
+	 *
+	 * > [!IMPORTANT]
+	 * > A captive resource is independent from an {@link resource | embedded} one. An embedded resource has no
+	 * > identity or lifecycle of its own ({@link id} is rejected during state validation) and is always managed as
+	 * > part of the resource containing it; a captive resource has both and may be managed on its own, but is
+	 * > cascade-deleted with the resource declaring it.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @defaultValue `undefined` (`false`)
+	 */
+	readonly captive?: boolean;
 
 
 	/**
@@ -961,8 +1017,7 @@ export interface PropertyConstraints {
 	 *
 	 * > [!IMPORTANT]
 	 * > Both `forward` and {@link reverse} mappings write actual property values. This is independent from
-	 * > {@link reference!ReferenceConstraints.foreign | foreign}, which marks a reference as a read-only view over
-	 * > mappings owned by another property.
+	 * > {@link foreign}, which marks the property as a read-only view over mappings owned by another property.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -978,8 +1033,7 @@ export interface PropertyConstraints {
 	 *
 	 * > [!IMPORTANT]
 	 * > Both {@link forward} and `reverse` mappings write actual property values. This is independent from
-	 * > {@link reference!ReferenceConstraints.foreign | foreign}, which marks a reference as a read-only view over
-	 * > mappings owned by another property.
+	 * > {@link foreign}, which marks the property as a read-only view over mappings owned by another property.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *

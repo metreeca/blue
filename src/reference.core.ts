@@ -36,10 +36,9 @@ import { eager, type Shape } from "./value.js";
  * Reports whether an overriding reference shape narrows an inherited base shape.
  *
  * Tests the override relation without building the merged shape: a reference carries no tightenable constraints of its
- * own, so `target` narrows `source` exactly when their `model` matches, the non-overridable fields (`foreign`,
- * `captive`) are not redefined, and the overriding target shape is the inherited one or
- * {@link resource!ResourceShape.parents | parents} it, directly or transitively. Returns a {@link Trace}
- * describing the obstacles otherwise.
+ * own, so `target` narrows `source` exactly when their `model` matches and the overriding target shape is the
+ * inherited one or {@link resource!ResourceShape.parents | parents} it, directly or transitively. Returns a
+ * {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
@@ -53,20 +52,6 @@ export function narrowsReference(target: ReferenceShape, source: ReferenceShape)
 
 			return model === source.model || [
 				`{model} mismatched types <${model}> and <${source.model}>`
-			];
-
-		}),
-		test(({ foreign }) => {
-
-			return foreign === undefined || foreign === source.foreign || [
-				`{foreign} unexpected <foreign> redefinition`
-			];
-
-		}),
-		test(({ captive }) => {
-
-			return captive === undefined || captive === source.captive || [
-				`{captive} unexpected <captive> redefinition`
 			];
 
 		}),
@@ -98,8 +83,7 @@ export function narrowsReference(target: ReferenceShape, source: ReferenceShape)
 /**
  * Merges an overriding reference shape with an inherited base shape.
  *
- * Validates `model` strict equality and rejects redefinition of non-overridable fields (`foreign`, `captive`) and any
- * target shape unrelated to the inherited one. Non-overridable fields are inherited from the source; `kind` and `model`
+ * Validates `model` strict equality and rejects any target shape unrelated to the inherited one. `kind` and `model`
  * are structural; the merged reference keeps the overriding target, which already carries the inherited definition
  * through its own inheritance chain.
  *
@@ -122,9 +106,6 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 
 		kind: target.kind,
 		model: target.model,
-
-		...source.foreign !== undefined && { foreign: source.foreign },
-		...source.captive !== undefined && { captive: source.captive },
 
 		shape: target.shape
 

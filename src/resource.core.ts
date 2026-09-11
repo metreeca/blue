@@ -376,8 +376,8 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): u
  * Reports whether an overriding property narrows an inherited base property.
  *
  * Tests the override relation without building the merged property: returns `undefined` when the non-overridable
- * fields (`name`, `description`, `forward`, `reverse`) are not redefined and the child `range` narrows the base range
- * via {@link narrowsValues}; returns a keyed {@link Trace} of obstacles otherwise.
+ * fields (`name`, `description`, `forward`, `reverse`, `foreign`, `captive`) are not redefined and the child `range`
+ * narrows the base range via {@link narrowsValues}; returns a keyed {@link Trace} of obstacles otherwise.
  *
  * @param target The overriding child property
  * @param source The inherited parent property
@@ -412,6 +412,20 @@ export function narrowsProperty(target: Property, source: Property): undefined |
 
 			return reverse === undefined || reverse === source.reverse || [
 				`{reverse} unexpected <reverse> redefinition`
+			];
+
+		}),
+		test(({ foreign }) => {
+
+			return foreign === undefined || foreign === source.foreign || [
+				`{foreign} unexpected <foreign> redefinition`
+			];
+
+		}),
+		test(({ captive }) => {
+
+			return captive === undefined || captive === source.captive || [
+				`{captive} unexpected <captive> redefinition`
 			];
 
 		}),
@@ -533,8 +547,8 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
  * Merges an overriding property with an inherited base property.
  *
  * Keeps the range narrowed under {@link mergeValues} rules and the fields the override is allowed to set. `hidden`
- * falls back to the base value when the override leaves it undefined; `name`, `description`, `forward` and `reverse`
- * always come from the base, and an override redefining any of them is rejected.
+ * falls back to the base value when the override leaves it undefined; `name`, `description`, `forward`, `reverse`,
+ * `foreign` and `captive` always come from the base, and an override redefining any of them is rejected.
  *
  * @param target The overriding child property
  * @param source The inherited parent property
@@ -564,6 +578,9 @@ export function mergeProperty(target: Property, source: Property): Property {
 
 		...source.forward !== undefined && { forward: source.forward },
 		...source.reverse !== undefined && { reverse: source.reverse },
+
+		...source.foreign !== undefined && { foreign: source.foreign },
+		...source.captive !== undefined && { captive: source.captive },
 
 		range: mergeValues(target.range, source.range)
 
@@ -610,16 +627,14 @@ export function deriveResource(shape: ResourceShape) {
  * Dictionary values are language-tagged maps (`{ tag: string }` or `{ tag: string[] }`);
  * within a single map, all values must be uniformly scalar or uniformly array.
  *
- * Foreign reference members (and unions whose variants are *all* foreign references)
- * must be absent: foreign links are managed by the target resource and are not part of the
- * source state. Unions mixing owned and foreign variants are validated against the owned
- * arm only, with foreign variants pruned.
+ * A `foreign` property must be absent whatever its range: the link is managed by the referenced
+ * resource and is not part of the source state.
  *
- * A reference-valued property accepts the linked resource's absolute IRI. A `captive` reference
+ * A reference-valued property accepts the linked resource's absolute IRI. A `captive` property
  * additionally accepts an inline target resource state, validated recursively against the target
  * shape; the `depth` option bounds how many nesting levels may be expanded (`0` rejects all
- * expansion, accepting IRIs only; `undefined` imposes no limit). Plain (non-captive) references
- * accept the IRI form only. This applies uniformly to reference variants inside and outside unions.
+ * expansion, accepting IRIs only; `undefined` imposes no limit). A plain property accepts the IRI
+ * form only. Both flags are declared on the property, so they cover every variant of its range.
  *
  * An embedded (inline, non-reference) resource state may not carry an `id`: embedded resources have
  * no independent identity, so a nested state bearing an identifier is rejected here. This check is
@@ -645,9 +660,9 @@ export function deriveResource(shape: ResourceShape) {
  * @param opts.entry Expected {@link Reference} for the resource's identifier; the resource's
  *     `id` value (if any) must match this reference exactly; ignored when the resource has
  *     no `id` member
- * @param opts.depth Maximum nesting depth for expanding `captive` reference values as inline
- *     target resource states; each expansion level counts against the budget. `0` rejects all
- *     expansion (IRI-only); if omitted, no depth limit is enforced
+ * @param opts.depth Maximum nesting depth for expanding the values of a `captive` property as
+ *     inline target resource states; each expansion level counts against the budget. `0` rejects
+ *     all expansion (IRI-only); if omitted, no depth limit is enforced
  *
  * @returns A keyed {@link Trace} of constraint violations per resource (keyed by `<iri>` for
  *     resources carrying a valid `id` and by `[index]` otherwise) or `undefined` when every
@@ -709,32 +724,19 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	)(undefined);
 
 
-	function validateProperty(value: unknown, { range }: Property, depth: undefined | number): undefined | Trace {
+	function validateProperty(
+		value: unknown,
+		{ range, foreign, captive }: Property,
+		depth: undefined | number
+	): undefined | Trace {
 
-		const { shape } = range;
+		// a foreign property belongs to the referenced resource, not to the source state
 
-		// foreign references belong to the target resource, not the source state: reject a present
-		// value, pruning foreign variants from a union and rejecting a wholly-foreign one
+		return foreign
 
-		if ( shape.kind === "union" ) {
+			? value !== undefined ? ["unexpected foreign property"] : undefined
 
-			const owned = shape.variants.filter(v => !(v.kind === "reference" && v.foreign));
-
-			return owned.length > 0 ? validateValues(value, { ...range, shape: { ...shape, variants: owned } }, depth)
-				: value !== undefined ? ["unexpected foreign property"]
-					: undefined;
-
-		} else if ( shape.kind === "reference" && shape.foreign ) {
-
-			return value !== undefined
-				? ["unexpected foreign property"]
-				: undefined;
-
-		} else {
-
-			return validateValues(value, range, depth);
-
-		}
+			: validateValues(value, range, captive, depth);
 
 	}
 
@@ -745,7 +747,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 		shape
 
-	}: SetShape, depth: undefined | number): undefined | Trace {
+	}: SetShape, captive: undefined | boolean, depth: undefined | number): undefined | Trace {
 
 		const effective = value === undefined || isArray(value, []) ? undefined : value;
 
@@ -777,7 +779,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 			// report the arity error first, then per-value errors, then cardinality
 
 			return arity
-				?? validateValueSet(values, shape, depth)
+				?? validateValueSet(values, shape, captive, depth)
 				?? all(
 					(minCount !== undefined && values.length < minCount)
 					&& fail([`{minCount} expected at least <${minCount}> value(s)`]),
@@ -790,15 +792,20 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 	}
 
-	function validateValueSet(values: readonly unknown[], shape: Shape, depth: undefined | number): undefined | Trace {
+	function validateValueSet(
+		values: readonly unknown[],
+		shape: Shape,
+		captive: undefined | boolean,
+		depth: undefined | number
+	): undefined | Trace {
 
 		switch ( shape.kind ) {
 
 			case "reference":
 
-				return shape.captive
+				return captive
 
-					? array((value: unknown) => validateReferenceElement(value, shape, depth))(values)
+					? array((value: unknown) => validateReferenceElement(value, shape, captive, depth))(values)
 
 					: validateReference(values, shape);
 
@@ -810,7 +817,8 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 				return validateUnion(values, shape.variants, {
 					match: (value, variant) =>
-						variant.kind === "reference" ? validateReferenceElement(value, variant, depth) === undefined
+						variant.kind === "reference"
+							? validateReferenceElement(value, variant, captive, depth) === undefined
 							: variant.kind === "resource" ? validateResource([value], variant, { depth }) === undefined
 								: validateValue([value], variant) === undefined
 				});
@@ -826,12 +834,13 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	function validateReferenceElement(
 		value: unknown,
 		shape: ReferenceShape,
+		captive: undefined | boolean,
 		depth: undefined | number
 	): undefined | Trace {
 
 		const next = depth === undefined ? undefined : depth-1;
 
-		return !isObject(value) || !shape.captive ? validateReference([value], shape)
+		return !isObject(value) || !captive ? validateReference([value], shape)
 			: depth === undefined || depth > 0 ? validateResource([value], eager(shape.shape), { depth: next })
 				: ["exceeded maximum nesting depth"];
 

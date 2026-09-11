@@ -137,9 +137,9 @@ const Validated: unique symbol = Symbol("Validated");
  * to the shape's `model` slot.
  *
  * > [!CAUTION]
- * > By default, resources accept captive reference expansion to unbounded depth. To enforce a strict update process
- * > that admits only bare references, set `depth` to `0` to reject all expansion; set it to a positive value to cap
- * > the nesting depth admitted.
+ * > By default, a `captive` property expands to unbounded depth. To enforce a strict update process that admits only
+ * > bare references, set `depth` to `0` to reject all expansion; set it to a positive value to cap the nesting depth
+ * > admitted.
  *
  * > [!TIP]
  * > When the projection template is not bonded to the shape (for example, at API boundaries where `shape` and the
@@ -159,9 +159,10 @@ const Validated: unique symbol = Symbol("Validated");
  * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} member; if provided and
  *     the resource contains an `id` property, the `id` value must match this reference exactly; ignored if the
  *     resource has no `id` member
- * @param opts.depth Maximum nesting depth for expanding `captive` reference values as inline target resource states;
- *     each expansion level counts against the budget; `0` rejects all expansion, accepting bare IRI references only;
- *     if omitted, no depth limit is enforced
+ * @param opts.depth Maximum nesting depth for expanding the values of a
+ *     {@link resource!PropertyConstraints.captive | captive} property as inline target resource states; each
+ *     expansion level counts against the budget; `0` rejects all expansion, accepting bare IRI references only; if
+ *     omitted, no depth limit is enforced
  *
  * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the
  *     value is an immutable copy validated against a verified and flattened copy of the shape

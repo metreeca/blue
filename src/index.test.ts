@@ -1241,8 +1241,8 @@ describe("validation", () => {
 			const Contact = resource({
 				address: optional(union(
 					string(),
-					reference(PostalAddress, { captive: true })
-				))
+					reference(PostalAddress)
+				), { captive: true })
 			});
 
 
@@ -1303,7 +1303,7 @@ describe("validation", () => {
 			const Inner = resource({ id: id(), label: required(string()) });
 
 			const shape = resource({
-				child: optional(reference(Inner, { captive: true }))
+				child: optional(reference(Inner), { captive: true })
 			});
 
 			const value = { child: { id: "app:/inner/1", label: "x" } };

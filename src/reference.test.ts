@@ -17,7 +17,7 @@
 import { TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
 import { mergeReference, narrowsReference, validateReference } from "./reference.core.js";
-import { getShapeTarget, reference, type ReferenceConstraints } from "./reference.js";
+import { getShapeTarget, reference } from "./reference.js";
 import { id, resource, type ResourceShape } from "./resource.js";
 import { string } from "./string.js";
 import { multiple, nonempty, optional, required } from "./resource.js";
@@ -62,50 +62,26 @@ describe("factories", () => {
 
 	});
 
-	describe.each<[string, ReferenceConstraints]>([
-		["reference", {}],
-		["foreign", { foreign: true }],
-		["captive", { captive: true }]
-	])("%s", (_label, constraints) => {
+	describe("shape", () => {
 
-		describe("shape", () => {
+		it("returns a shape with kind 'reference'", async () => {
 
-			it("returns a shape with kind 'reference'", async () => {
-
-				expect(reference(resource({}), constraints).kind).toBe("reference");
-
-			});
-
-			it("returns a shape with default model", async () => {
-
-				expect(reference(resource({}), constraints).model).toBe("app:/");
-
-			});
-
-			it("returns an immutable shape", async () => {
-
-				const shape = reference(resource({}), constraints);
-
-				expect(() => (shape as any).kind = "string").toThrow();
-				expect(() => (shape as any).model = "/test").toThrow();
-
-			});
+			expect(reference(resource({})).kind).toBe("reference");
 
 		});
 
-	});
+		it("returns a shape with default model", async () => {
 
-	describe.each<[string, "foreign" | "captive", ReferenceConstraints]>([
-		["foreign", "foreign", { foreign: true }],
-		["captive", "captive", { captive: true }]
-	])("%s", (_label, flag, constraints) => {
+			expect(reference(resource({})).model).toBe("app:/");
 
-		it(`exposes ${flag} set to true and is immutable`, async () => {
+		});
 
-			const shape = reference(resource({}), constraints);
+		it("returns an immutable shape", async () => {
 
-			expect(shape[flag]).toBe(true);
-			expect(() => (shape as any)[flag] = false).toThrow();
+			const shape = reference(resource({}));
+
+			expect(() => (shape as any).kind = "string").toThrow();
+			expect(() => (shape as any).model = "/test").toThrow();
 
 		});
 
@@ -182,49 +158,6 @@ describe("operators", () => {
 			const merged = mergeReference(reference(resource({})), reference(resource({})));
 
 			expect(merged.model).toBe("app:/");
-
-		});
-
-		describe.each<[string, "foreign" | "captive", ReferenceConstraints]>([
-			["foreign", "foreign", { foreign: true }],
-			["captive", "captive", { captive: true }]
-		])("%s", (_label, flag, constraints) => {
-
-			it(`inherits ${flag} from source`, async () => {
-
-				const merged = mergeReference(reference(resource({})), reference(resource({}), constraints));
-
-				expect(merged[flag]).toBe(true);
-
-			});
-
-			it(`preserves absent ${flag} when neither defines it`, async () => {
-
-				const merged = mergeReference(reference(resource({})), reference(resource({})));
-
-				expect(merged[flag]).toBeUndefined();
-
-			});
-
-			it(`tolerates matching ${flag} on both target and source`, async () => {
-
-				const merged = mergeReference(
-					reference(resource({}), constraints),
-					reference(resource({}), constraints)
-				);
-
-				expect(merged[flag]).toBe(true);
-
-			});
-
-			it(`rejects ${flag} redefinition by target`, async () => {
-
-				expect(() => mergeReference(
-					reference(resource({}), constraints),
-					reference(resource({}))
-				)).toThrow(TraceError);
-
-			});
 
 		});
 

@@ -3984,6 +3984,43 @@ describe("operators", () => {
 		});
 
 		describe.each([
+			{ field: "foreign" as const },
+			{ field: "captive" as const }
+		])("$field", ({ field }) => {
+
+			it("inherits source value when target has none", async () => {
+
+				const merged = mergeProperty(base, { ...base, [field]: true });
+
+				expect(merged[field]).toBe(true);
+
+			});
+
+			it("preserves absence when neither defines it", async () => {
+
+				const merged = mergeProperty(base, base);
+
+				expect(merged[field]).toBeUndefined();
+
+			});
+
+			it("tolerates a matching value on both target and source", async () => {
+
+				const merged = mergeProperty({ ...base, [field]: true }, { ...base, [field]: true });
+
+				expect(merged[field]).toBe(true);
+
+			});
+
+			it("rejects redefinition by target when source has none", async () => {
+
+				expect(() => mergeProperty({ ...base, [field]: true }, base)).toThrow(TraceError);
+
+			});
+
+		});
+
+		describe.each([
 			{ field: "name" as const },
 			{ field: "description" as const }
 		])("$field", ({ field }) => {
@@ -4144,7 +4181,7 @@ describe("validators", () => {
 
 				const shape = resource({
 					name: required(string()),
-					children: multiple(reference(Target, { foreign: true }))
+					children: multiple(reference(Target), { foreign: true })
 				});
 
 
@@ -4199,58 +4236,38 @@ describe("validators", () => {
 					const Other = resource({ id: id(), code: required(integer()) });
 
 
-					it("rejects property when all union variants are foreign", async () => {
+					it("rejects a foreign union property whatever the value", async () => {
 
-						const all = resource({
+						// foreign is declared on the property, so it covers every variant of the range
+
+						const links = resource({
 							name: required(string()),
-							links: required(union(
-								reference(Target, { foreign: true }),
-								reference(Other, { foreign: true })
-							))
+							links: required(union(reference(Target), reference(Other)), { foreign: true })
 						});
 
-						const trace = validateResource([{
+						expect(rec(validateResource([{
+							name: "Alice",
+							links: "app:/target/1"
+						}], links), "0")).toHaveProperty("links");
+
+						expect(rec(validateResource([{
 							name: "Alice",
 							links: { label: "Child" }
-						}], all);
-
-						expect(rec(trace, "0")).toHaveProperty("links");
+						}], links), "0")).toHaveProperty("links");
 
 					});
 
-					it("accepts property when at least one union variant is non-foreign", async () => {
+					it("accepts an owned union property", async () => {
 
-						const mixed = resource({
+						const links = resource({
 							name: required(string()),
-							links: required(union(
-								reference(Target),
-								reference(Other, { foreign: true })
-							))
+							links: required(union(integer(), reference(Target)))
 						});
 
 						expect(validateResource([{
 							name: "Alice",
 							links: "app:/target/1"
-						}], mixed)).toBeUndefined();
-
-					});
-
-					it("rejects foreign variant key in mixed union", async () => {
-
-						const mixed = resource({
-							name: required(string()),
-							links: required(union(
-								reference(Target),
-								reference(Other, { foreign: true })
-							))
-						});
-
-						const trace = validateResource([{
-							name: "Alice",
-							links: { code: 1 }
-						}], mixed);
-
-						expect(rec(trace, "0")).toHaveProperty("links");
+						}], links)).toBeUndefined();
 
 					});
 
@@ -5629,8 +5646,8 @@ describe("validators", () => {
 				const textOrAddress = resource({
 					address: optional(union(
 						string(),
-						reference(PostalAddress, { captive: true })
-					))
+						reference(PostalAddress)
+					), { captive: true })
 				});
 
 
@@ -5725,7 +5742,7 @@ describe("validators", () => {
 			const Inner = resource({ id: id(), label: required(string()) });
 
 			const captiveStandalone = resource({
-				child: required(reference(Inner, { captive: true }))
+				child: required(reference(Inner), { captive: true })
 			});
 
 			const plainStandalone = resource({
@@ -5733,7 +5750,7 @@ describe("validators", () => {
 			});
 
 			const captiveUnion = resource({
-				link: required(union(integer(), reference(Inner, { captive: true })))
+				link: required(union(integer(), reference(Inner)), { captive: true })
 			});
 
 			const plainUnion = resource({
@@ -5836,10 +5853,10 @@ describe("validators", () => {
 
 			describe("depth budget", () => {
 
-				const Mid = resource({ id: id(), inner: required(reference(Inner, { captive: true })) });
+				const Mid = resource({ id: id(), inner: required(reference(Inner), { captive: true }) });
 
 				const captiveChain = resource({
-					child: required(reference(Mid, { captive: true }))
+					child: required(reference(Mid), { captive: true })
 				});
 
 				it("accepts one expansion level when depth is 1", async () => {
@@ -6825,7 +6842,7 @@ describe("validators", () => {
 
 				const shape = resource({
 					name: required(string()),
-					children: multiple(reference(Target, { foreign: true }))
+					children: multiple(reference(Target), { foreign: true })
 				});
 
 				expect(validateResult([{ name: "Alice" }], {
@@ -6842,7 +6859,7 @@ describe("validators", () => {
 
 				const shape = resource({
 					name: required(string()),
-					children: multiple(reference(Target, { foreign: true }))
+					children: multiple(reference(Target), { foreign: true })
 				});
 
 				expect(validateResult([{ name: "Alice", children: ["app:/items/1"] }], {
@@ -6856,7 +6873,7 @@ describe("validators", () => {
 
 				const shape = resource({
 					name: required(string()),
-					children: multiple(reference(Target, { foreign: true }))
+					children: multiple(reference(Target), { foreign: true })
 				});
 
 				expect(validateResult([{ name: "Alice", children: ["app:/items/1"] }], {
@@ -9231,7 +9248,7 @@ describe("validators", () => {
 				const Target = resource({ id: id(), name: required(string()) });
 
 				const shape = resource({
-					children: multiple(reference(Target, { foreign: true }))
+					children: multiple(reference(Target), { foreign: true })
 				});
 
 				expect(validateTemplate([{ children: ["app:/items/1"] } as any], shape, { depth: 0 })).toBeUndefined();
@@ -9243,7 +9260,7 @@ describe("validators", () => {
 				const Target = resource({ id: id(), name: required(string()) });
 
 				const shape = resource({
-					children: multiple(reference(Target, { foreign: true }))
+					children: multiple(reference(Target), { foreign: true })
 				});
 
 				expect(validateTemplate([{ children: [{ name: "Child" }] }], shape, {})).toBeUndefined();
