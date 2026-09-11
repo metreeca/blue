@@ -600,8 +600,8 @@ export function buildValues(
 	const resolved = eager(range);
 
 	const model = resolved.kind === "dictionary"
-		? Object.fromEntries(Object.entries(resolved.model).map(([ tag, value ]) =>
-			[ tag, upper === 1 ? value : [value] ]
+		? Object.fromEntries(Object.entries(resolved.model).map(([tag, value]) =>
+			[tag, upper === 1 ? value : [value]]
 		))
 		: upper === 1 ? resolved.model
 			: [resolved.model];
@@ -729,7 +729,7 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
 
 			try {
 
-				const model = deriveValue(eager(shape));
+				const model = error("tbi !!!")!; // !!! deriveValue(eager(shape));
 
 				models.set(shape, model);
 
@@ -747,7 +747,7 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
 
 	} else {
 
-		return deriveValue(eager(shape));
+		return error("tbi !!!")!; // !!! deriveValue(eager(shape));
 
 	}
 
