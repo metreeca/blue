@@ -14,9 +14,134 @@
  * limitations under the License.
  */
 
+/**
+ * Textual shape and factories.
+ *
+ * Defines shapes and factories for validating textual values, mapping the
+ * [JSON string](https://datatracker.ietf.org/doc/html/rfc8259#section-7) type to
+ * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) string datatypes.
+ *
+ * > Factories validate constraint consistency at construction time:
+ * > contradictory constraints like `minLength > maxLength` throw a `TraceError`.
+ *
+ * | XSD Datatype ¹    | Factory             | Description                        | Format                        |
+ * | ----------------- | ------------------- | ---------------------------------- | ----------------------------- |
+ * | [string][]        | {@link string}      | Unicode character sequence         |                               |
+ * | string            | {@link text}        | Single-line plain text             |                               |
+ * | string            | {@link markdown}    | [Markdown][] formatted text        |                               |
+ * | string            | {@link email}       | [RFC 5321][] email address         |                               |
+ * | string            | {@link phone}       | [ITU-T E.164][] telephone number   |                               |
+ * | string            | {@link iri}         | [RFC 3987][] IRI reference         |                               |
+ * | string            | {@link url}         | [RFC 3986][] hierarchical URL      |                               |
+ * | string            | {@link tag}         | [BCP 47][] language tag            |                               |
+ * | [gYear][]         | {@link year} ²      | [ISO 8601][iso-year] year          | YYYY[Z/±hh:mm]                |
+ * | [date][]          | {@link date}        | [ISO 8601][iso-date] date          | YYYY-MM-DD[Z/±hh:mm]          |
+ * | [time][]          | {@link time}        | [ISO 8601][iso-time] time          | hh:mm:ss[.sss][Z/±hh:mm]      |
+ * | [dateTime][]      | {@link instant}     | [ISO 8601][iso-datetime] date+time | YYYY-MM-DDThh:mm:ss[.sss][TZ] |
+ * | [dateTime][]      | {@link timestamp} ³ | [ISO 8601][iso-datetime] UTC timestamp | YYYY-MM-DDThh:mm:ss.sssZ |
+ * | [duration][]      | {@link duration}    | [ISO 8601][iso-duration] duration  | [-]PnYnMnDTnHnMnS             |
+ *
+ * [string]: https://www.w3.org/TR/xmlschema-2/#string
+ * [anyURI]: https://www.w3.org/TR/xmlschema-2/#anyURI
+ * [gYear]: https://www.w3.org/TR/xmlschema-2/#gYear
+ * [date]: https://www.w3.org/TR/xmlschema-2/#date
+ * [time]: https://www.w3.org/TR/xmlschema-2/#time
+ * [dateTime]: https://www.w3.org/TR/xmlschema-2/#dateTime
+ * [duration]: https://www.w3.org/TR/xmlschema-2/#duration
+ *
+ * [Markdown]: https://commonmark.org/
+ * [RFC 5321]: https://datatracker.ietf.org/doc/html/rfc5321
+ * [RFC 3986]: https://datatracker.ietf.org/doc/html/rfc3986
+ * [RFC 3987]: https://datatracker.ietf.org/doc/html/rfc3987
+ * [ITU-T E.164]: https://www.itu.int/rec/T-REC-E.164
+ * [BCP 47]: https://www.rfc-editor.org/info/bcp47
+ * [iso-year]: https://en.wikipedia.org/wiki/ISO_8601#Years
+ * [iso-date]: https://en.wikipedia.org/wiki/ISO_8601#Dates
+ * [iso-time]: https://en.wikipedia.org/wiki/ISO_8601#Times
+ * [iso-datetime]: https://en.wikipedia.org/wiki/ISO_8601#Combined_date_and_time_representations
+ * [iso-duration]: https://en.wikipedia.org/wiki/ISO_8601#Durations
+ *
+ * ¹ XSD 1.0 datatypes are referenced by [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/) and
+ * [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) as normative
+ *
+ * ² [XSD 1.1 Part 2 § D.3.4](https://www.w3.org/TR/xmlschema11-2/#deviantformats) permits optional timezone indicators
+ * for `gYear` as a deviation from ISO 8601
+ *
+ * ³ Requires exactly 3 fractional second digits (millisecond precision) and UTC timezone (`Z` only); typed as
+ * `xsd:dateTime` rather than the more specific `xsd:dateTimeStamp` for compatibility with SPARQL temporal functions,
+ * which are defined over `xsd:dateTime`
+ *
+ * **Compatibility**
+ *
+ * | JSON          | XSD                         | JavaScript                    |
+ * | ------------- | --------------------------- | ----------------------------- |
+ * | UTF-8 encoded | Unicode (XML 1.0 Char)      | UTF-16 encoded (compatible)   |
+ *
+ * **Defining String Shapes**
+ *
+ * ```typescript
+ * import { string } from '@metreeca/blue/string';
+ *
+ * const value = string();                                     // unconstrained string
+ * const name = string({ minLength: 1, maxLength: 100 });      // length-constrained
+ * const code = string({ pattern: /^[A-Z]{3}-\d{4}$/ });       // pattern-constrained
+ * const status = string({ in: ["active", "inactive"] });      // enumeration-constrained
+ * ```
+ *
+ * > An enumeration also narrows the state the shape describes: `status` admits `"active" | "inactive"`, not the whole
+ * > textual domain.
+ *
+ * **Specialised String Factories**
+ *
+ * Predefined factories for common string formats:
+ *
+ * ```typescript
+ * import {
+ *   text, markdown, email, iri, url, tag, date, time, instant, timestamp, duration
+ * } from '@metreeca/blue/string';
+ *
+ * const label = text();         // single-line plain text
+ * const body = markdown();      // Markdown formatted text
+ * const contact = email();      // RFC 5321 email address
+ * const identifier = iri();     // RFC 3987 IRI reference
+ * const link = url();           // RFC 3986 hierarchical URL
+ * const language = tag();       // BCP 47 language tag
+ * const birthday = date();      // ISO 8601 date (YYYY-MM-DD)
+ * const start = time();         // ISO 8601 time (hh:mm:ss)
+ * const created = instant();    // ISO 8601 datetime
+ * const modified = timestamp(); // ISO 8601 timestamp (millisecond precision, UTC)
+ * const validity = duration();  // ISO 8601 duration
+ * ```
+ *
+ * **Using in Resource Shapes**
+ *
+ * ```typescript
+ * import { multiple, optional, required, resource } from '@metreeca/blue/resource';
+ * import { date, email, string } from '@metreeca/blue/string';
+ *
+ * const Person = resource({
+ *   name: required(string({ minLength: 1 })),
+ *   email: optional(email()),
+ *   birthDate: optional(date())
+ * });
+ * ```
+ *
+ * @module
+ *
+ * @see {@link https://datatracker.ietf.org/doc/html/rfc8259#section-7 RFC 8259 § 7 Strings}
+ * @see {@link https://www.w3.org/TR/xmlschema-2/#built-in-datatypes XSD 1.0 Part 2: Datatypes § 3 Built-in
+ *     Datatypes}
+ */
+
+import { isRegExp } from "@metreeca/core";
+import { xsd } from "@metreeca/core/datatype";
+import { TagPattern } from "@metreeca/core/language";
 import type { Variant } from "@metreeca/core/resource";
+import { immutable } from "@metreeca/core/structures";
+import { TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Legal } from "./index.core.js";
+import { checkString } from "./string.core.js";
 
 
 /**
@@ -40,8 +165,8 @@ import type { Legal } from "./index.core.js";
  * | `pattern`   | Must be strictly equal when both defined; the single defined value carries through |
  * | `minLength` | Child ≥ parent, narrowing the minimum length                                       |
  * | `maxLength` | Child ≤ parent, narrowing the maximum length                                       |
- * | `in`        | Intersection of parent and child sets; empty result is reported as an error        |
- * | `hasValue`  | Union of parent and child required values; child must require all parent values    |
+ * | `in`        | Child may only drop allowed values                                                 |
+ * | `hasValue`  | Child may only add required values                                                 |
  *
  * **Cross-Field Validation**
  *
@@ -162,7 +287,7 @@ export type StringValueConstraints<V extends string = string> = {
 	 * the state the shape describes to the listed values, wherever they are stated precisely enough to be told apart;
 	 * a list whose values are only known to be strings leaves the state as the whole textual domain.
 	 *
-	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
+	 * **Inheritance** — child may only drop allowed values.
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
@@ -175,7 +300,7 @@ export type StringValueConstraints<V extends string = string> = {
 	 *
 	 * When specified, all listed values must appear in the resource. Empty arrays are ignored.
 	 *
-	 * **Inheritance** — union of parent and child required values; child must require all parent values.
+	 * **Inheritance** — child may only add required values.
 	 *
 	 * @defaultValue `undefined` (no required values)
 	 *
@@ -198,10 +323,12 @@ export type StringValueConstraints<V extends string = string> = {
  * @param constraints Optional shape {@link StringConstraints constraints}
  *
  * @returns An immutable shape admitting the strings the constraints bound, narrowed to the values they enumerate
+ *
+ * @throws {TraceError} Where the stated constraints contradict one another
  */
 export function string<const C extends StringConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({ ...constraints });
 
 }
 
@@ -219,10 +346,19 @@ export function string<const C extends StringConstraints = {}>(constraints?: C):
  * @param constraints Optional {@link StringLengthConstraints length bounds}
  *
  * @returns An immutable shape admitting single-line plain text
+ *
+ * @throws {TraceError} Where the stated constraints contradict one another
  */
 export function text(constraints?: StringLengthConstraints): StringShape {
 
-	throw new Error(";( to be implemented");
+	return build({
+
+		datatype: xsd.string,
+		pattern: /^\S+(?: \S+)*$/,
+
+		...constraints
+
+	});
 
 }
 
@@ -239,11 +375,19 @@ export function text(constraints?: StringLengthConstraints): StringShape {
  *
  * @returns An immutable shape admitting Markdown text
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://commonmark.org/ CommonMark Spec}
  */
 export function markdown(constraints?: StringLengthConstraints): StringShape {
 
-	throw new Error(";( to be implemented");
+	return build({
+
+		datatype: xsd.string,
+
+		...constraints
+
+	});
 
 }
 
@@ -258,11 +402,20 @@ export function markdown(constraints?: StringLengthConstraints): StringShape {
  *
  * @returns An immutable shape admitting email addresses, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc5321 RFC 5321 - Simple Mail Transfer Protocol}
  */
 export function email<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({
+
+		datatype: xsd.string,
+		pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+
+		...constraints
+
+	});
 
 }
 
@@ -278,11 +431,20 @@ export function email<const C extends StringValueConstraints = {}>(constraints?:
  *
  * @returns An immutable shape admitting E.164 telephone numbers, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.itu.int/rec/T-REC-E.164 ITU-T E.164 - International public telecommunication numbering plan}
  */
 export function phone<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({
+
+		datatype: xsd.string,
+		pattern: /^\+[1-9]\d{1,14}$/,
+
+		...constraints
+
+	});
 
 }
 
@@ -300,6 +462,8 @@ export function phone<const C extends StringValueConstraints = {}>(constraints?:
  *
  * @returns An immutable shape admitting IRIs of the stated variant, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3987 RFC 3987 - Internationalized Resource Identifiers}
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
  */
@@ -314,7 +478,16 @@ export function iri<const C extends StringValueConstraints & {
 
 } = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	const { variant = "relative", ...values } = constraints ?? {};
+
+	return build<Legal<C, string>>({
+
+		datatype: xsd.string,
+		pattern: IRIPatterns[variant],
+
+		...values
+
+	});
 
 }
 
@@ -330,11 +503,20 @@ export function iri<const C extends StringValueConstraints & {
  *
  * @returns An immutable shape admitting hierarchical URLs, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
  */
 export function url<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({
+
+		datatype: xsd.string,
+		pattern: IRIPatterns.hierarchical,
+
+		...constraints
+
+	});
 
 }
 
@@ -355,11 +537,20 @@ export function url<const C extends StringValueConstraints = {}>(constraints?: C
  *
  * @returns An immutable shape admitting language tags, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.rfc-editor.org/info/bcp47 BCP 47 - Tags for Identifying Languages}
  */
 export function tag<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({
+
+		datatype: xsd.string,
+		pattern: TagPattern,
+
+		...constraints
+
+	});
 
 }
 
@@ -377,6 +568,8 @@ export function tag<const C extends StringValueConstraints = {}>(constraints?: C
  *
  * @returns An immutable shape admitting ISO 8601 years, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @remarks
  *
  * XSD permits timezone indicators for gYear as a deviation from ISO 8601.
@@ -385,7 +578,14 @@ export function tag<const C extends StringValueConstraints = {}>(constraints?: C
  */
 export function year<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({
+
+		datatype: xsd.gYear,
+		pattern: /^\d{4}(?:Z|[+-]\d{2}:\d{2})?$/,
+
+		...constraints
+
+	});
 
 }
 
@@ -400,11 +600,20 @@ export function year<const C extends StringValueConstraints = {}>(constraints?: 
  *
  * @returns An immutable shape admitting ISO 8601 dates, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#date XSD 1.0 Part 2: Datatypes § 3.2.9 date}
  */
 export function date<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({
+
+		datatype: xsd.date,
+		pattern: /^\d{4}-\d{2}-\d{2}(?:Z|[+-]\d{2}:\d{2})?$/,
+
+		...constraints
+
+	});
 
 }
 
@@ -419,11 +628,20 @@ export function date<const C extends StringValueConstraints = {}>(constraints?: 
  *
  * @returns An immutable shape admitting ISO 8601 times, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#time XSD 1.0 Part 2: Datatypes § 3.2.8 time}
  */
 export function time<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({
+
+		datatype: xsd.time,
+		pattern: /^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
+
+		...constraints
+
+	});
 
 }
 
@@ -439,11 +657,20 @@ export function time<const C extends StringValueConstraints = {}>(constraints?: 
  * @returns An immutable shape admitting ISO 8601 date and time values, narrowed to the values the constraints
  *     enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
 export function instant<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({
+
+		datatype: xsd.dateTime,
+		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
+
+		...constraints
+
+	});
 
 }
 
@@ -460,11 +687,20 @@ export function instant<const C extends StringValueConstraints = {}>(constraints
  *
  * @returns An immutable shape admitting UTC timestamps, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
 export function timestamp<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({
+
+		datatype: xsd.dateTime,
+		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+
+		...constraints
+
+	});
 
 }
 
@@ -479,10 +715,70 @@ export function timestamp<const C extends StringValueConstraints = {}>(constrain
  *
  * @returns An immutable shape admitting ISO 8601 durations, narrowed to the values the constraints enumerate
  *
+ * @throws {TraceError} Where the stated constraints contradict one another
+ *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#duration XSD 1.0 Part 2: Datatypes § 3.2.6 duration}
  */
 export function duration<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	throw new Error(";( to be implemented");
+	return build<Legal<C, string>>({
+
+		datatype: xsd.duration,
+		pattern: /^-?P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/,
+
+		...constraints
+
+	});
+
+}
+
+
+//// Assembly ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Lexical patterns admitting each subset of the IRI hierarchy.
+ */
+const IRIPatterns: Readonly<Record<Variant, RegExp>> = {
+
+	hierarchical: /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\S*$/,
+	absolute: /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/,
+	internal: /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\S+|\/\S*)$/,
+	relative: /^\S+$/
+
+};
+
+/**
+ * Builds a textual shape from a stated set of constraints.
+ *
+ * Normalises a stated `pattern` to its source, so that a built shape carries the lexical constraint in the single form
+ * {@link StringShape} states, and rejects a contradictory set outright.
+ *
+ * @typeParam V The values the built shape admits
+ *
+ * @param constraints The stated constraints
+ *
+ * @returns An immutable shape admitting the strings `constraints` bound
+ *
+ * @throws {TraceError} Where `constraints` contradict one another
+ */
+function build<V extends string>(constraints: StringConstraints): StringShape<V> {
+
+	const shape = immutable({
+
+		kind: "string",
+
+		...constraints,
+
+		pattern: isRegExp(constraints.pattern) ? constraints.pattern.source : constraints.pattern
+
+	}) as StringShape<V>; // ;(cast) the factory signatures fix the admitted values to the enumerated ones
+
+	const trace = checkString(shape);
+
+	if ( trace !== undefined ) {
+		throw new TraceError("inconsistent string shape constraints", trace);
+	}
+
+	return shape;
 
 }
