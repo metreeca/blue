@@ -116,7 +116,7 @@ describe("resource factories", () => {
 	});
 
 	test("Property admits any shape as its range", () => {
-		expectTypeOf<Property["range"]>().toEqualTypeOf<Parameters<typeof property>[0]>();
+		expectTypeOf<Property["shape"]>().toEqualTypeOf<Parameters<typeof property>[0]>();
 	});
 
 	test("Property states the values it admits as a range", () => {

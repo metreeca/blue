@@ -51,8 +51,8 @@ export type Shape =
 /**
  * Description of a cardinality-constrained value set.
  *
- * Pairs the shape the values are drawn from with the bounds on their number, so that the set a property declares and
- * the set a path resolves to are described alike.
+ * Describes the set a property declares and the set a path resolves to alike, so that either may be read for how many
+ * values it admits and for the shape those values are drawn from.
  *
  * @typeParam R The shape the values are drawn from, possibly deferred to break definition cycles
  * @typeParam L The least number of values admitted
@@ -65,14 +65,9 @@ export type Range<
 > = {
 
 	/**
-	 * Shape the values are drawn from.
-	 */
-	readonly range: R
-
-	/**
 	 * Least number of values admitted.
 	 *
-	 * @defaultValue `undefined` (no lower bound)
+	 * `undefined` leaves the set unbounded below.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
 	 */
@@ -81,11 +76,20 @@ export type Range<
 	/**
 	 * Greatest number of values admitted.
 	 *
-	 * @defaultValue `undefined` (no upper bound)
+	 * `undefined` leaves the set unbounded above.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
 	 */
 	readonly maxCount: U
+
+
+	/**
+	 * Shape shared by every value in the set.
+	 *
+	 * Possibly deferred to break definition cycles: resolve it with {@link Eager} before reading it as a
+	 * {@link Shape}.
+	 */
+	readonly shape: R
 
 }
 

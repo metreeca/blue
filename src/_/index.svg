@@ -161,26 +161,26 @@
       </g>
       <g id="Group_924">
         <g id="Graphic_927">
-          <rect x="72.62595" y="775.0903" width="81.858" height="17.251999" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(78.62595 778.0903)" fill="black">
+          <rect x="72.62595" y="763.8383" width="81.858" height="17.251999" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+          <text transform="translate(78.62595 766.8383)" fill="black">
             <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">hidden?: boolean</tspan>
           </text>
         </g>
         <g id="Graphic_926">
-          <rect x="72.62595" y="757.8383" width="81.858" height="17.251999" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(78.62595 760.8383)" fill="black">
+          <rect x="72.62595" y="746.5863" width="81.858" height="17.251999" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+          <text transform="translate(78.62595 749.5863)" fill="black">
             <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">kind:”type”</tspan>
           </text>
         </g>
         <g id="Graphic_925">
-          <rect x="72.62595" y="740.5772" width="81.858" height="17.261063" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(103.63695 743.5772)" fill="black">
+          <rect x="72.62595" y="729.3252" width="81.858" height="17.261063" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+          <text transform="translate(103.63695 732.3252)" fill="black">
             <tspan font-family="Helvetica Neue" font-weight="bold" font-size="9" fill="black" x="0" y="9" xml:space="preserve">Type</tspan>
           </text>
         </g>
       </g>
       <g id="Line_923">
-        <line x1="113.55495" y1="740.5772" x2="113.55495" y2="715.4533" marker-end="url(#NegativeControls_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+        <line x1="113.55495" y1="729.3252" x2="113.55495" y2="715.4533" marker-end="url(#NegativeControls_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Group_916">
         <g id="Group_918">

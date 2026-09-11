@@ -187,11 +187,11 @@ describe("Compound", () => {
 describe("Range", () => {
 
 	test("carries the shape its values are drawn from", () => {
-		expectTypeOf<Range<StringShape, 1, 1>["range"]>().toEqualTypeOf<StringShape>();
+		expectTypeOf<Range<StringShape, 1, 1>["shape"]>().toEqualTypeOf<StringShape>();
 	});
 
 	test("carries a deferred shape as it stands", () => {
-		expectTypeOf<Range<() => StringShape, 1, 1>["range"]>().toEqualTypeOf<() => StringShape>();
+		expectTypeOf<Range<() => StringShape, 1, 1>["shape"]>().toEqualTypeOf<() => StringShape>();
 	});
 
 	test("carries the bounds it is given", () => {
@@ -209,7 +209,7 @@ describe("Range", () => {
 	});
 
 	test("admits a range assembled from a shape", () => {
-		expectTypeOf<{ readonly range: StringShape, readonly minCount: 1, readonly maxCount: 1 }>().toExtend<Range>();
+		expectTypeOf<{ readonly shape: StringShape, readonly minCount: 1, readonly maxCount: 1 }>().toExtend<Range>();
 	});
 
 });
