@@ -693,7 +693,7 @@ export function eager<S extends Lazy<Shape | RangeShape>>(shape: S): Resolved<S>
  *
  * Scalar and {@link reference!ReferenceShape | reference} models are returned as the stored placeholder; a
  * {@link union!UnionShape | union} model is rebuilt from its per-variant models, and dictionary and resource models are
- * likewise returned as stored. A resource template is derived by recursing through its entries, resolving the target
+ * likewise returned as stored. A resource template is derived by recursing through its members, resolving the target
  * on access to support the circular and self-referential definitions the {@link resource!resource | resource} factory
  * admits.
  *
@@ -757,20 +757,20 @@ export function model<S extends Lazy<Shape>>(shape: S): Schema<S> {
 /**
  * Resolve the effective {@link RangeShape} a {@link Probe} yields against a shape.
  *
- * Traverses the {@link Probe.path} segments through nested resource entries to locate the target shape, then
+ * Traverses the {@link Probe.path} segments through nested resource members to locate the target shape, then
  * applies the {@link Probe.pipe} transforms to compute the effective value set with accumulated cardinality.
  *
  * **Shape dispatch:**
  *
- * - {@link ResourceShape}: traverses path segments through nested entries
+ * - {@link ResourceShape}: traverses path segments through nested members
  * - {@link ReferenceShape}: eagerly resolves the lazy target shape, then proceeds as for {@link ResourceShape}
  * - {@link UnionShape}: seeds traversal with each variant, then proceeds as for the per-variant shape
  * - {@link RangeShape}: re-probes a previously resolved range, seeding traversal with each variant carrying the
  *   range's own accumulated cardinality, then proceeds as for the per-variant shape
  * - Other shapes: any non-empty path fails resolution; the empty path applies the transform pipe directly
  *
- * **Path traversal** — at each step, flattens inheritance and looks up the next property. Unknown entries cause
- * the path to fail. At {@link UnionShape} boundaries (either at the entry or encountered as a property range),
+ * **Path traversal** — at each step, flattens inheritance and looks up the next property. Unknown members cause
+ * the path to fail. At {@link UnionShape} boundaries (either at the root or encountered as a property range),
  * variants lacking the property are skipped; the path fails only when no variant defines it. Mid-path traversal past
  * an `id` or `type` field fails as an `"undefined property path"`, since these resolve to scalar IRIs with no
  * traversable structure; terminal `id`/`type` access remains valid.
@@ -927,7 +927,7 @@ export function effective(shape: Lazy<Shape | RangeShape>, probe: Probe): RangeS
 		const resolved = getShapeTarget(shape);
 
 		const entries = resolved !== undefined
-			? resolved.entries
+			? resolved.members
 			: undefined;
 
 		if ( entries === undefined ) {

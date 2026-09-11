@@ -275,7 +275,7 @@ describe("inheritance", () => {
 
 	function target(shape: ResourceShape, entry: string): undefined | ResourceShape {
 
-		const member = shape.entries[entry];
+		const member = shape.members[entry];
 
 		return member?.kind === "property" ? getShapeTarget(member.range.shape) : undefined;
 
@@ -301,7 +301,7 @@ describe("inheritance", () => {
 
 		const Child = resource(Parent, { link: required(reference(Narrower)) });
 
-		expect(Object.keys(target(Child, "link")?.entries ?? {})).toEqual(expect.arrayContaining(["id", "label"]));
+		expect(Object.keys(target(Child, "link")?.members ?? {})).toEqual(expect.arrayContaining(["id", "label"]));
 
 	});
 

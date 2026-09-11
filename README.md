@@ -141,10 +141,10 @@ many values are expected and determining the inferred TypeScript type:
 Each factory takes the constraints the property carries beyond its cardinality, such as IRI mappings, labels, or
 visibility flags, as a trailing argument: `required(string(), { forward: schema })`.
 
-Cardinalities admitting absence also relax their entry to an optional key, so a value literal spells out only the
-entries it actually carries; reading an omitted entry still yields `undefined`.
+Cardinalities admitting absence also relax their key to an optional one, so a value literal spells out only the
+members it actually carries; reading an omitted member still yields `undefined`.
 
-Resource entries link to other resources in two ways. A `reference()` wrapper links to a **standalone resource**, an
+Resource members link to other resources in two ways. A `reference()` wrapper links to a **standalone resource**, an
 independently identified and managed entity like `Vendor`. A direct shape inclusion defines an **embedded resource**, a
 nested object with no independent identity, created and managed together with its parent like `Rating`.
 
@@ -172,8 +172,8 @@ Either of the following representations is accepted at the same `address` positi
 
 ## Extending Schemas
 
-Use `extends` to inherit entries and constraints from a parent shape. Local entries augment the parent and may override
-inherited ones, but only by *narrowing*: overrides may restrict inherited constraints, never relax them. Cardinality
+Declare parent shapes ahead of the member definitions to inherit their members and constraints. Local members augment
+the parent and may override inherited ones, but only by *narrowing*: overrides may restrict inherited constraints, never relax them. Cardinality
 narrows monotonically (`required` may override `optional`, but not the reverse), per-kind constraints intersect, and the
 override is rejected at the call site when the child relaxes the parent.
 
@@ -193,7 +193,7 @@ const Vendor = resource(NamedThing, {
 
 A slot holding a nested resource or a `reference(...)` is refined by re-pointing it at a shape that extends the
 inherited target. The refining shape declares only what it adds or narrows: it reaches the inherited definition through
-its own `extends`, so the parent definition is never restated. A target that doesn't extend the inherited one, the
+its own parents, so the parent definition is never restated. A target that doesn't extend the inherited one, the
 inherited target's own parent included, is rejected at the call site.
 
 ```ts
@@ -221,7 +221,7 @@ const ResearchUnit = resource(Unit, {
 ```
 
 Extending the inherited target is what makes the refinement legal for an embedded slot: a nested resource value must
-carry every `class` the inherited target declares, so a standalone shape that merely repeats its entries is rejected.
+carry every `class` the inherited target declares, so a standalone shape that merely repeats its members is rejected.
 
 ### Narrowing union slots
 
@@ -301,7 +301,7 @@ validate(data, { shape: Product })({
 ```
 
 All constraints are enforced, including type, cardinality, closed-shape checks, and custom validators. Unknown and
-missing entries are both rejected. On success, the value is an immutable copy validated against a verified and flattened
+missing members are both rejected. On success, the value is an immutable copy validated against a verified and flattened
 copy of the shape. The function is idempotent on a specific shape: re-validation against the same shape trusts the
 previous result without repeating the validation process.
 
@@ -345,7 +345,7 @@ validate(data, { model: true, shape: Product, limit: 100 });
 ```
 
 Type and structural constraints are enforced; value constraints are skipped as query values are placeholders. Missing
-entries are accepted as not requested; explicit `undefined` entries are equivalent and mark optional template or
+members are accepted as not requested; explicit `undefined` members are equivalent and mark optional template or
 projection slots elided at construction time. Where a property specifies a reference shape, the query may be either an
 IRI reference placeholder, retrieving only the identifier, or a nested template validated against the target shape. A
 reference placeholder is never resolved on decoding, so it accepts any IRI reference (the empty string, a root-relative
@@ -423,10 +423,10 @@ This controlled subset is specified by:
 - [value constraints](https://www.w3.org/TR/shacl/#core-components-others) (`sh:in`, `sh:hasValue`) for enumerations and
   required values
 - [logical constraints](https://www.w3.org/TR/shacl/#core-components-logical) limited to `sh:xone` typed unions on
-  entries, matched exactly-one on write and relaxed to at-least-one (`sh:or`) on read; the `sh:not`, `sh:and`, and
+  members, matched exactly-one on write and relaxed to at-least-one (`sh:or`) on read; the `sh:not`, `sh:and`, and
   `sh:or` shape combinators are not supported for authoring
 - [closed shapes](https://www.w3.org/TR/shacl/#ClosedConstraintComponent) enforced by default on all resource shapes;
-  unknown entries are always rejected
+  unknown properties are always rejected
 
 [Property pair constraints](https://www.w3.org/TR/shacl/#core-components-property-pairs) and
 [property paths](https://www.w3.org/TR/shacl/#property-paths) are not supported; cross-property logic can be implemented

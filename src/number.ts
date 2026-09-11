@@ -134,7 +134,7 @@ const FloatLimit = (2-2** -23)*2**127;
  * **Inheritance**
  *
  * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceShape.parents | parents},
- * numeric-valued entries are merged according to the following rules. The *child* is the extending shape; the
+ * numeric-valued members are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
  * | Field          | Override Rule                                                                               |
@@ -158,7 +158,7 @@ const FloatLimit = (2-2** -23)*2**127;
  * - merged `minExclusive` must be < merged `maxExclusive`
  * - merged `minInclusive` must be ≤ merged `maxInclusive`
  * - exclusive and inclusive bounds must not contradict
- * - all merged `hasValue` entries must be members of the merged `in` set (if defined)
+ * - all merged `hasValue` values must belong to the merged `in` set (if defined)
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#built-in-datatypes XSD 1.0 Part 2: Datatypes § 3 Built-in Datatypes}
  */

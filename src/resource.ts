@@ -25,8 +25,8 @@
  * stored on a resource shape.
  *
  * > [!IMPORTANT]
- * > Resource shapes are **closed**: validated resources may only contain entries explicitly
- * > defined in the shape. Any additional entries will cause validation to fail.
+ * > Resource shapes are **closed**: validated resources may only contain members explicitly
+ * > defined in the shape. Any additional fields will cause validation to fail.
  *
  * > [!IMPORTANT]
  * > All IRI values in validated resources must be absolute. When decoding client input, relative
@@ -87,18 +87,18 @@
  *
  * **Resource References and Embedding**
  *
- * Resource entries link to other resources in two ways. A
+ * Resource members link to other resources in two ways. A
  * {@link reference!reference | reference} wrapper links to a **standalone resource**, an
  * independently identified and managed entity. A direct shape inclusion defines an
  * **embedded resource**, a nested object with no independent identity, created and managed
  * together with its parent.
  *
  * > [!NOTE]
- * > An embedded resource shape may not carry an {@link id} entry: embedded resources have no
+ * > An embedded resource shape may not carry an {@link id} member: embedded resources have no
  * > independent identity, so a nested resource state bearing an identifier is rejected during state
  * > validation rather than at shape construction, since an id-bearing embedded range is
  * > indistinguishable from an expanded captive reference until a state is checked against it. A
- * > {@link type} entry is accepted and validated in both state and template retrieval.
+ * > {@link type} member is accepted and validated in both state and template retrieval.
  *
  * ```typescript
  * import { required, optional } from '@metreeca/blue/value';
@@ -153,16 +153,16 @@
  * values are persisted — both write actual property mappings. The
  * {@link reference!ReferenceConstraints.foreign | foreign} flag on a reference shape is an
  * independent concept: a read-only view over mappings owned by another property that does not
- * write any mappings on insert. During resource validation, foreign reference entries are
+ * write any mappings on insert. During resource validation, foreign reference members are
  * rejected; during template validation they are accepted for data retrieval.
  *
  * **Embedded versus Captive Resources**
  *
  * **Embedded resources** have no independent identity or lifecycle and are always managed as part
- * of their parent. An embedded resource shape may not carry an {@link id} entry: the rejection is
+ * of their parent. An embedded resource shape may not carry an {@link id} member: the rejection is
  * enforced during state validation rather than at shape construction, since an id-bearing embedded
  * range is indistinguishable from an expanded captive reference until a resource state is checked
- * against it. A {@link type} entry is accepted and validated in both state and template retrieval.
+ * against it. A {@link type} member is accepted and validated in both state and template retrieval.
  * Embedded resources are
  * defined by directly including a resource shape without a {@link reference!reference | reference}
  * wrapper.
@@ -174,7 +174,7 @@
  *
  * **Inheritance**
  *
- * Extend parent shapes to inherit entries and constraints:
+ * Extend parent shapes to inherit members and constraints:
  *
  * ```typescript
  * import { required } from '@metreeca/blue/value';
@@ -252,7 +252,7 @@
  *
  * **Polymorphic Properties**
  *
- * Use {@link union!union | union} for entries accepting multiple value types. Variants are
+ * Use {@link union!union | union} for members accepting multiple value types. Variants are
  * supplied as positional arguments and act as mutually exclusive alternatives (`sh:xone`): a `state` value singles out
  * exactly one variant (`sh:xone`) on write, while a `model` placeholder matches at least one by kind (`sh:or`) on read.
  * Cardinality constraints belong on the enclosing
@@ -374,8 +374,8 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * type inference for property values.
  *
  * > [!IMPORTANT]
- * > Resource shapes are **closed**: validated resources may only contain entries explicitly defined in the shape.
- * > Any additional entries will cause validation to fail.
+ * > Resource shapes are **closed**: validated resources may only contain members explicitly defined in the shape.
+ * > Any additional fields will cause validation to fail.
  *
  * **Inheritance**
  *
@@ -385,19 +385,19 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | Field         | Override Rule                                                                           |
  * | ------------- | --------------------------------------------------------------------------------------- |
  * | `kind`        | Cannot be overridden                                                                    |
- * | `model`       | Computed from entries, not user-defined                                              |
+ * | `model`       | Computed from members, not user-defined                                                 |
  * | `virtual`     | Inherited; conflicting parents without child override are reported as an error          |
  * | `name`        | Always from child; not inherited                                                        |
  * | `description` | Always from child; not inherited                                                        |
  * | `space`       | Inherited; conflicting parents without child override are reported as an error          |
  * | `parents`     | Structural; outside inheritance scope                                                   |
  * | `class`       | Shape-specific target class; outside inheritance scope                                  |
- * | `classes`     | Union of parent `class` and child/parent `classes`                                      |
+ * | `classes`     | Computed from the `class` of the extended shapes, not user-defined                      |
  * | `pattern`     | Child may replace trailing `/*` wildcard with more specific segments                    |
  * | `in`          | Intersection of parent and child sets; empty result is reported as an error             |
  * | `hasValue`    | Union of parent and child required values; child must require all parent values         |
  * | `validators`  | Union of parent and child validators; all apply                                         |
- * | `entries`  | Union; clashing keys merged per property rules; `kind` mismatch is reported as an error |
+ * | `members`     | Union; clashing keys merged per property rules; `kind` mismatch is reported as an error  |
  *
  * **Refinement as a Nested Value**
  *
@@ -408,9 +408,9 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  *
  * **Cross-Field Validation**
  *
- * - all merged `hasValue` entries must be members of the merged `in` set (if defined)
- * - `forward` predicate IRIs must be unique across all entries
- * - `reverse` predicate IRIs must be unique across all entries
+ * - all merged `hasValue` values must belong to the merged `in` set (if defined)
+ * - `forward` predicate IRIs must be unique across all members
+ * - `reverse` predicate IRIs must be unique across all members
  * - `forward` and `reverse` are independent sets: the same IRI may appear in both
  *
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
@@ -429,30 +429,13 @@ export interface ResourceShape extends ResourceConstraints {
 	 * Prototype value for runtime model assembly.
 	 *
 	 * Provides an immutable retrieval template matching this shape. When a shape extends parent shapes, inherited
-	 * entries are merged into the template; local definitions override inherited ones. Entries whose cardinality
-	 * admits absence are carried as optional keys, so a matching literal spells out only the entries it supplies.
+	 * members are merged into the template; local definitions override inherited ones. Members whose cardinality
+	 * admits absence are carried as optional keys, so a matching literal spells out only the members it supplies.
 	 * The runtime state type may be recovered via {@link @metreeca/qest!Instance | Instance}.
 	 *
-	 * **Inheritance** — computed from entries, not user-defined.
+	 * **Inheritance** — computed from members, not user-defined.
 	 */
 	readonly model: Template;
-
-	/**
-	 * Parent shapes this shape inherits from.
-	 *
-	 * Lists the shapes handed to the factory ahead of the member definitions, each possibly deferred to a
-	 * {@link @metreeca/core!Lazy | lazy} factory. Inherited entries and constraints are merged into the derived shape.
-	 * When a child overrides an inherited property, constraints are enforced conjunctively: values must satisfy both
-	 * the child's and all inherited constraints. This ensures overrides can only restrict, never relax, inherited
-	 * definitions.
-	 *
-	 * > [!WARNING]
-	 * > When inheriting from multiple shapes with different {@link ResourceConstraints.space | space} values, an
-	 * > overriding namespace must be declared on the extending shape.
-	 *
-	 * **Inheritance** — structural; outside inheritance scope.
-	 */
-	readonly parents?: Parents;
 
 
 	/**
@@ -481,6 +464,53 @@ export interface ResourceShape extends ResourceConstraints {
 
 
 	/**
+	 * Ancillary class constraints for resource instances.
+	 *
+	 * Lists the classes resource instances must conform to on top of their own
+	 * {@link ResourceConstraints.class | class}: the {@link ResourceConstraints.class | class} declared by every shape
+	 * reached through {@link parents}, transitively, deduplicated and in inheritance order. Read it to test a resource
+	 * against a supertype without walking the inheritance chain.
+	 *
+	 * **Inheritance** — computed from the `class` of the extended shapes, not user-defined.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#ClassConstraintComponent SHACL § 4.1.1 sh:class}
+	 */
+	readonly classes?: readonly Reference[];
+
+	/**
+	 * Parent shapes this shape inherits from.
+	 *
+	 * Lists the shapes handed to the factory ahead of the member definitions, each possibly deferred to a
+	 * {@link @metreeca/core!Lazy | lazy} factory. Inherited members and constraints are merged into the derived shape.
+	 * When a child overrides an inherited property, constraints are enforced conjunctively: values must satisfy both
+	 * the child's and all inherited constraints. This ensures overrides can only restrict, never relax, inherited
+	 * definitions.
+	 *
+	 * > [!WARNING]
+	 * > When inheriting from multiple shapes with different {@link ResourceConstraints.space | space} values, an
+	 * > overriding namespace must be declared on the extending shape.
+	 *
+	 * **Inheritance** — structural; outside inheritance scope.
+	 */
+	readonly parents?: Parents;
+
+	/**
+	 * The {@link Member | members} constraining the resource.
+	 *
+	 * Each member constrains one field of the JSON-LD node object the shape describes: its `@id` (an {@link Id}), its
+	 * `@type` (a {@link Type}), or a data or object {@link Property} keyed by a predicate IRI. At most one {@link Id}
+	 * and one {@link Type} member are allowed, counted after inheritance merging: declarations sharing a property name
+	 * collapse into a single member, so a marker reaching the shape through several parents or redeclared by the shape
+	 * counts once, while markers of the same kind under distinct names are rejected.
+	 *
+	 * **Inheritance** — parent and child members are merged; clashing keys are merged per property rules.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
+	 */
+	readonly members: { readonly [field: Identifier]: Member };
+
+
+	/**
 	 * Custom resource validators.
 	 *
 	 * When specified, all validators are applied during validation. Must be non-empty. Each validator reports
@@ -495,21 +525,6 @@ export interface ResourceShape extends ResourceConstraints {
 	 * @see {@link https://www.w3.org/TR/shacl/#constraints SHACL § 2.1.1 Constraint Components}
 	 */
 	readonly validators?: readonly [Validator<Resource>, ...Validator<Resource>[]];
-
-	/**
-	 * The {@link Entry | entries} constraining the resource.
-	 *
-	 * Each entry constrains one field of the JSON-LD node object the shape describes: its `@id` (an {@link Id}), its
-	 * `@type` (a {@link Type}), or a data or object {@link Property} keyed by a predicate IRI. At most one {@link Id}
-	 * and one {@link Type} entry are allowed, counted after inheritance merging: declarations sharing a property name
-	 * collapse into a single entry, so a marker reaching the shape through several parents or redeclared by the shape
-	 * counts once, while markers of the same kind under distinct names are rejected.
-	 *
-	 * **Inheritance** — parent and child entries are merged; clashing keys are merged per property rules.
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
-	 */
-	readonly entries: { readonly [entry: Identifier]: Entry };
 
 }
 
@@ -590,17 +605,6 @@ export interface ResourceConstraints {
 	 */
 	readonly class?: Reference;
 
-	/**
-	 * Ancillary class constraints for resource instances.
-	 *
-	 * Additional class IRIs that resource instances must conform to. Empty arrays are ignored.
-	 *
-	 * **Inheritance** — union of parent `class` and child/parent `classes`.
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#ClassConstraintComponent SHACL § 4.1.1 sh:class}
-	 */
-	readonly classes?: readonly Reference[];
-
 
 	/**
 	 * IRI path pattern that resource {@link Id identifiers} must match.
@@ -657,24 +661,49 @@ export interface ResourceConstraints {
 
 
 /**
- * A {@link ResourceShape} entry.
+ * Parent shapes accepted by the {@link resource} factory.
  *
- * Constrains a single field of the JSON-LD node object the shape describes: its `@id` (an
- * {@link Id}), its `@type` (a {@link Type}), or a data or object {@link Property} identified by a
- * predicate IRI.
+ * Lists the shapes a resource inherits from, in the order they are declared ahead of the member definitions. Each
+ * parent may be deferred to a {@link @metreeca/core!Lazy | lazy} factory, so mutually recursive shapes reference one
+ * another without a definition cycle. An empty list describes a resource inheriting nothing.
  */
-export type Entry =
+export type Parents = readonly Lazy<ResourceShape>[];
+
+/**
+ * Member definitions for a {@link ResourceShape} factory.
+ *
+ * Maps property names to their {@link Member} definitions. Property names must be valid
+ * {@link @metreeca/core!Identifier | identifiers}; their effective IRIs are derived from the
+ * enclosing shape's namespace unless explicit {@link PropertyConstraints.forward | forward} or
+ * {@link PropertyConstraints.reverse | reverse} mappings are declared.
+ */
+export type Members = {
+
+	readonly [member: Identifier]: Member
+
+};
+
+/**
+ * A {@link ResourceShape} member.
+ *
+ * Constrains a single field of the JSON-LD node object the shape describes: its `@id` (an {@link Id}), its `@type`
+ * (a {@link Type}), or a data or object {@link Property} identified by a predicate IRI. Accepted by the
+ * {@link resource} factory, which tightens any {@link Namespace} `forward`/`reverse` mapping to an absolute IRI and
+ * expands plain-string `name`/`description` labels to their localised form before storing it on the shape.
+ */
+export type Member =
 	| Id
 	| Type
 	| Property;
 
+
 /**
  * Shape definition for the resource identifier property.
  *
- * Tags a resource property as mapping to JSON-LD `@id`. Created by the {@link id} factory. At most one `id` entry is
+ * Tags a resource property as mapping to JSON-LD `@id`. Created by the {@link id} factory. At most one `id` member is
  * allowed per resource shape, counted after inheritance merging: declarations sharing a property name collapse into a
- * single entry, so an entry reaching the shape through several parents or redeclared by the shape counts once, while
- * two `id` entries under distinct names are rejected.
+ * single member, so a marker reaching the shape through several parents or redeclared by the shape counts once, while
+ * two `id` members under distinct names are rejected.
  *
  * > [!IMPORTANT]
  * > Rejected on embedded resource shapes during state validation, as embedded resources have no
@@ -686,7 +715,7 @@ export type Entry =
  * **Inheritance**
  *
  * When a {@link ResourceShape} extends a parent via {@link ResourceShape.parents | parents},
- * identifier entries are subject to the following rules.
+ * identifier members are subject to the following rules.
  *
  * | Field    | Override Rule                                                                           |
  * | -------- | --------------------------------------------------------------------------------------- |
@@ -719,11 +748,11 @@ export interface Id {
  * Shape definition for the resource type property.
  *
  * Tags a resource property as mapping to JSON-LD `@type`. Created by the {@link type} factory. At most one `type`
- * entry is allowed per resource shape, counted after inheritance merging: declarations sharing a property name
- * collapse into a single entry, so an entry reaching the shape through several parents or redeclared by the shape
- * counts once, while two `type` entries under distinct names are rejected.
+ * member is allowed per resource shape, counted after inheritance merging: declarations sharing a property name
+ * collapse into a single member, so a marker reaching the shape through several parents or redeclared by the shape
+ * counts once, while two `type` members under distinct names are rejected.
  *
- * Unlike an {@link id} entry, a `type` entry is accepted on embedded resource shapes during both
+ * Unlike an {@link id} member, a `type` member is accepted on embedded resource shapes during both
  * state and template validation.
  *
  * > [!IMPORTANT]
@@ -735,7 +764,7 @@ export interface Id {
  * **Inheritance**
  *
  * When a {@link ResourceShape} extends a parent via {@link ResourceShape.parents | parents},
- * type entries are subject to the following rules.
+ * type members are subject to the following rules.
  *
  * | Field    | Override Rule                                                                           |
  * | -------- | --------------------------------------------------------------------------------------- |
@@ -775,7 +804,7 @@ export interface Type {
  * **Inheritance**
  *
  * When a {@link ResourceShape} extends a parent via {@link ResourceShape.parents | parents},
- * entries with matching keys are merged according to the following rules.
+ * members with matching keys are merged according to the following rules.
  *
  * | Field         | Override Rule                                                                          |
  * | ------------- | -------------------------------------------------------------------------------------- |
@@ -890,7 +919,7 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	/**
 	 * Discriminator identifying the value produced by the property factories.
 	 *
-	 * Absent from a bare constraints argument; set to `"property"` on the factory's result, so that a property entry
+	 * Absent from a bare constraints argument; set to `"property"` on the factory's result, so that a property member
 	 * is told apart from an {@link Id} or {@link Type} marker.
 	 */
 	readonly kind?: "property";
@@ -899,8 +928,8 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	 * Value range for this property.
 	 *
 	 * Absent from a bare constraints argument; carried on the factory's result to thread the range
-	 * type. Computed by the {@link resource} factory from the entries. **Inheritance** — delegated
-	 * to {@link SetShape} merge rules.
+	 * type. Computed by the {@link resource} factory from the member definitions. **Inheritance** —
+	 * delegated to {@link SetShape} merge rules.
 	 */
 	readonly range?: R;
 
@@ -917,7 +946,7 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	 * Marks the property as system-managed.
 	 *
 	 * > [!IMPORTANT]
-	 * > Computed entries are populated by the system and may be silently overwritten on mutation operations.
+	 * > Computed properties are populated by the system and may be silently overwritten on mutation operations.
 	 * > Client-supplied values must still be present in mutation payloads but carry no guarantees of being preserved.
 	 *
 	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
@@ -1000,43 +1029,6 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 //// Factory Arguments /////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Member definitions for a {@link ResourceShape} factory.
- *
- * Maps property names to their {@link Member} definitions. Property names must be valid
- * {@link @metreeca/core!Identifier | identifiers}; their effective IRIs are derived from the
- * enclosing shape's namespace unless explicit {@link PropertyConstraints.forward | forward} or
- * {@link PropertyConstraints.reverse | reverse} mappings are declared.
- */
-export type Members = {
-
-	readonly [member: Identifier]: Member
-
-};
-
-/**
- * Parent shapes accepted by the {@link resource} factory.
- *
- * Lists the shapes a resource inherits from, in the order they are declared ahead of the member definitions. Each
- * parent may be deferred to a {@link @metreeca/core!Lazy | lazy} factory, so mutually recursive shapes reference one
- * another without a definition cycle. An empty list describes a resource inheriting nothing.
- */
-export type Parents = readonly Lazy<ResourceShape>[];
-
-/**
- * Member definition accepted by the {@link resource} factory.
- *
- * Accepts {@link Id} and {@link Type} markers for the resource identifier and type entries, or a {@link Property}
- * produced by one of the cardinality factories ({@link required}, {@link optional}, {@link nonempty},
- * {@link multiple}) or by {@link property}. The {@link resource} factory resolves each into the stored
- * {@link Entry} form, tightening any {@link Namespace} `forward`/`reverse` mapping to an absolute IRI and expanding
- * plain-string `name`/`description` labels to their localised form.
- */
-export type Member =
-	| Id
-	| Type
-	| Property;
-
-/**
  * Property constraints admitting explicit cardinality bounds.
  *
  * Extends {@link PropertyConstraints} with the bounds the four named cardinality factories fix, so that
@@ -1088,10 +1080,10 @@ export type Bound<C extends PropertyBounds, K extends "minCount" | "maxCount"> =
  * complete template stored on the shape at runtime. Surfaces in the {@link resource} factory's
  * return type as the full, authoritative template.
  *
- * Entries whose cardinality admits absence are {@link Relaxed | relaxed} to optional keys, so a value
- * literal may omit them; every other entry stays a required key.
+ * Members whose cardinality admits absence are {@link Relaxed | relaxed} to optional keys, so a value
+ * literal may omit them; every other member stays a required key.
  *
- * @typeParam E The entries record type
+ * @typeParam E The members record type
  */
 export type Prototype<E extends Members> = Relaxed<{
 
@@ -1100,11 +1092,11 @@ export type Prototype<E extends Members> = Relaxed<{
 }>;
 
 /**
- * Narrows locally-declared entries against an inherited template, flagging incompatible overrides.
+ * Narrows locally-declared members against an inherited template, flagging incompatible overrides.
  *
- * Retains each entry whose key is also inherited only when its {@link Slot} projection is assignable to the
+ * Retains each member whose key is also inherited only when its {@link Slot} projection is assignable to the
  * {@link Narrowings} expansion of the inherited property type; a mismatch collapses to `never`, surfacing the
- * conflict at the {@link resource} call site as a type error on the offending entry. Entries with keys not present
+ * conflict at the {@link resource} call site as a type error on the offending member. Members with keys not present
  * on the parent pass through unchanged. Enforces the rule that overrides may restrict inherited constraints but never
  * relax them.
  *
@@ -1114,7 +1106,7 @@ export type Prototype<E extends Members> = Relaxed<{
  * intentionally permissive: a child variant that narrows no parent variant, several, or the same parent as another
  * child variant compiles but throws at runtime.
  *
- * @typeParam E The local entries record type
+ * @typeParam E The local members record type
  * @typeParam I The inherited template model type produced by {@link Inheritance}
  */
 export type Override<E extends Members, I> = {
@@ -1164,13 +1156,13 @@ export type Narrowings<T> =
 /**
  * Projects a {@link Member} to the template-side value type it contributes to {@link Prototype}.
  *
- * Routes {@link Id} and {@link Type} markers to {@link @metreeca/qest!Reference | Reference} and ranged entries to
+ * Routes {@link Id} and {@link Type} markers to {@link @metreeca/qest!Reference | Reference} and ranged members to
  * their range's template model, which already carries cardinality-driven optionality and the scalar-versus-tuple
  * distinction. Feeds both {@link Prototype} assembly (where the projection supplies the value type of the resource's
  * `model`, relaxed to an optional key when it admits absence) and {@link Override} assignability (where the inherited
  * side is expanded via {@link Narrowings} so the new union-narrowing inheritance forms are accepted).
  *
- * @typeParam E The entry type
+ * @typeParam E The member type
  */
 export type Slot<E extends Member> =
 	E extends Id | Type ? Reference
@@ -1182,7 +1174,7 @@ export type Slot<E extends Member> =
  *
  * Reads each parent shape's complete template via {@link Schema}, merges the contributions
  * across multiple parents via {@link Intersected}, and strips index signatures via {@link Declared} so that
- * {@link Override} checks against concrete inherited entries only. Yields `{}` when no parent is declared.
+ * {@link Override} checks against concrete inherited members only. Yields `{}` when no parent is declared.
  *
  * @typeParam P The parent shapes to inspect
  */
@@ -1191,13 +1183,13 @@ export type Inheritance<P extends Parents> =
 		: Declared<Intersected<Schema<P[number]>>>;
 
 /**
- * Composes the resource model from local entries and inherited template.
+ * Composes the resource model from local members and inherited template.
  *
  * Locally-redeclared keys are taken from {@link Prototype | Prototype<E>}: the child slot replaces the inherited
  * contribution wholesale; non-overridden inherited keys flow through from {@link Inheritance | Inheritance<P>}.
  * Mirrors at the type level the override semantics enforced by {@link resource} on the runtime side. The result is
- * {@link Merged | merged} into a single flat property list, so local and inherited entries read alike and both keep
- * the optional keys {@link Relaxed} assigns to entries admitting absence.
+ * {@link Merged | merged} into a single flat property list, so local and inherited members read alike and both keep
+ * the optional keys {@link Relaxed} assigns to members admitting absence.
  *
  * @remarks
  *
@@ -1206,7 +1198,7 @@ export type Inheritance<P extends Parents> =
  * leaving residue such as `string & { readonly "0": string; readonly "1": Locales }` on slots narrowed via
  * single-variant {@link union!UnionShape | union} narrowing (Form 1).
  *
- * @typeParam E The local entries record type
+ * @typeParam E The local members record type
  * @typeParam P The parent shapes providing the inherited template via {@link Inheritance}
  */
 export type Composition<E extends Members, P extends Parents> = Merged<
@@ -1218,11 +1210,11 @@ export type Composition<E extends Members, P extends Parents> = Merged<
  * Projects a {@link Member} to its state-side runtime value type.
  *
  * Routes {@link Id} and {@link Type} markers to {@link @metreeca/qest!Reference | Reference}
- * and ranged entries to the range's value type conditioned on cardinality: a scalar when
+ * and ranged members to the range's value type conditioned on cardinality: a scalar when
  * `maxCount === 1`, a read-only array otherwise, unioned with `undefined` whenever `minCount`
  * admits absence.
  *
- * @typeParam E The entry type
+ * @typeParam E The member type
  */
 export type Content<E extends Member> =
 	E extends Id | Type ? Reference
@@ -1233,10 +1225,10 @@ export type Content<E extends Member> =
 /**
  * Extracts the {@link SetShape} range carried by a {@link Member}.
  *
- * Returns the declared range for {@link Property} entries; resolves to `never` for marker entries
+ * Returns the declared range for {@link Property} members; resolves to `never` for marker members
  * ({@link Id}, {@link Type}), which carry no range.
  *
- * @typeParam E The entry type
+ * @typeParam E The member type
  */
 export type Range<E extends Member> =
 	E extends PropertyConstraints<infer R> ? R : never;
@@ -1249,9 +1241,9 @@ export type Range<E extends Member> =
  * so a value literal spells out only the entries it actually carries instead of padding absent ones
  * with `undefined`. Reading is unaffected: an omitted key still yields `undefined`.
  *
- * Used by {@link Prototype} to relax template entries whose cardinality admits absence. The
+ * Used by {@link Prototype} to relax template members whose cardinality admits absence. The
  * modifiers are carried into {@link value!State | State} by {@link @metreeca/qest!Slots | Slots},
- * which preserves them as it projects the template, so nested and inherited entries relax alongside
+ * which preserves them as it projects the template, so nested and inherited members relax alongside
  * local ones.
  *
  * @remarks
@@ -1337,7 +1329,7 @@ type Argument =
  * {@link property}, and {@link Id}/{@link Type} markers. Parent shapes are declared
  * ahead of the definitions, each possibly deferred to a {@link @metreeca/core!Lazy | lazy} factory; property IRIs are
  * resolved against {@link defaultNamespace} unless a parent declares a namespace. Use the constraints overload to
- * declare a different default namespace, target classes, identifier patterns, or resource-level validators.
+ * declare a different default namespace, a target class, identifier patterns, or resource-level validators.
  *
  * > [!TIP]
  * > `name: required(string())` is equivalent to `name: property(required(string()))`.
@@ -1352,14 +1344,13 @@ type Argument =
  * > as a parent in another shape.
  *
  * @typeParam P The parent shapes, used to infer the inherited model
- * @typeParam E The entries record type
+ * @typeParam E The members record type
  *
- * @param args The parent shapes to inherit from, followed by the property definitions mapping property names to
- * entries
+ * @param args The parent shapes to inherit from, followed by the definitions mapping property names to members
  *
- * @returns An immutable resource shape with inherited entries flattened and merged
+ * @returns An immutable resource shape with inherited members flattened and merged
  *
- * @throws {TraceError} If entry definitions are invalid (for example, duplicate `id`/`type` markers) or inherited
+ * @throws {TraceError} If member definitions are invalid (for example, duplicate `id`/`type` markers) or inherited
  * constraints are incompatible
  *
  * @example
@@ -1384,18 +1375,18 @@ export function resource<const P extends Parents, E extends Members>(
 /**
  * Creates a resource shape from parent shapes, property definitions and constraints.
  *
- * Behaves as the bare overload, with a trailing `constraints` argument declaring a custom namespace, target classes,
+ * Behaves as the bare overload, with a trailing `constraints` argument declaring a custom namespace, a target class,
  * identifier patterns, or resource-level validators. Validators are typed against the composed model, so a validator
- * reads inherited entries alongside local ones.
+ * reads inherited members alongside local ones.
  *
  * @typeParam P The parent shapes, used to infer the inherited model
- * @typeParam E The entries record type
+ * @typeParam E The members record type
  *
- * @param args The parent shapes to inherit from, followed by the property definitions and the shape constraints
+ * @param args The parent shapes to inherit from, followed by the member definitions and the shape constraints
  *
- * @returns An immutable resource shape with inherited constraints and entries flattened and merged
+ * @returns An immutable resource shape with inherited constraints and members flattened and merged
  *
- * @throws {TraceError} If entry definitions are invalid or inherited constraints are incompatible
+ * @throws {TraceError} If member definitions are invalid or inherited constraints are incompatible
  *
  * @example
  *
@@ -1427,7 +1418,7 @@ export function resource<const P extends Parents, E extends Members>(
 export function resource(...args: readonly Argument[]): ResourceShape {
 
 	type Sources = { readonly [entry: Identifier]: Id | Type | PropertyConstraints };
-	type Properties = { readonly [entry: Identifier]: Entry };
+	type Properties = { readonly [member: Identifier]: Member };
 
 
 	const parents = args.filter(isParent);
@@ -1458,7 +1449,7 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 		...name !== undefined && { name: localize(name) },
 		...description !== undefined && { description: localize(description) },
 
-		entries: resolved
+		members: resolved
 
 	});
 
@@ -1556,25 +1547,25 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 	}
 
 	/**
-	 * Completes entries with the predicate mappings they inherit.
+	 * Completes members with the predicate mappings they inherit.
 	 *
-	 * A property declaring neither `forward` nor `reverse` takes the mapping of the entry it overrides, so an
+	 * A property declaring neither `forward` nor `reverse` takes the mapping of the member it overrides, so an
 	 * override restates the range alone and keeps pointing at the inherited predicate. Singleton markers are counted
-	 * over the inherited and local entries collapsed by property name: a marker reaching the child under the same
+	 * over the inherited and local members collapsed by property name: a marker reaching the child under the same
 	 * name through several parents, or redeclared by the child over the inherited one, counts once. Override
-	 * compatibility is settled elsewhere: `narrowsResource` rejects an overriding entry that changes the inherited
+	 * compatibility is settled elsewhere: `narrowsResource` rejects an overriding member that changes the inherited
 	 * kind.
 	 *
-	 * @param entries The property definitions to normalise
+	 * @param entries The member definitions to normalise
 	 * @param parents The parent shapes for inheritance-aware duplicate detection
 	 *
-	 * @returns Entries carrying their inherited predicate mappings
+	 * @returns Members carrying their inherited predicate mappings
 	 *
 	 * @throws {TraceError} If two markers of the same kind are declared under distinct property names
 	 */
 	function normalize(entries: Members, parents: Parents): Sources {
 
-		const bases: Properties[] = parents.map(parent => eager(parent).entries);
+		const bases: Properties[] = parents.map(parent => eager(parent).members);
 
 		const merged: Members = [...bases, entries].reduce((collapsed, source) => ({ ...collapsed, ...source }), {});
 
@@ -1617,7 +1608,7 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 	 *
 	 * When neither `forward` nor `reverse` is defined, generates a default forward IRI using the effective namespace.
 	 *
-	 * @param properties The entries to resolve
+	 * @param properties The members to resolve
 	 * @param namespace The effective namespace for default forward resolution
 	 *
 	 * @returns Properties with `forward` and `reverse` resolved to IRIs and `name` and `description` in dictionary form
@@ -1669,8 +1660,8 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 	 * Constructs an immutable object where each property contains a model value derived from its range:
 	 * scalar if `maxCount === 1`, array otherwise; unions produce records mapping each variant's index to its model.
 	 *
-	 * When parent shapes are provided, their models are merged before applying local entries, so local
-	 * definitions override inherited ones. Parent models already contain transitive inherited entries.
+	 * When parent shapes are provided, their models are merged before applying local members, so local
+	 * definitions override inherited ones. Parent models already contain transitive inherited members.
 	 *
 	 * @param properties The resolved property definitions
 	 * @param parents The parent shapes whose models should be inherited
@@ -1699,7 +1690,7 @@ export function resource(...args: readonly Argument[]): ResourceShape {
  * Creates a marker for the resource identifier property.
  *
  * Tags the enclosing property as mapping to JSON-LD `@id`. At most one `id` marker is allowed per resource shape,
- * counted after inheritance merging: markers sharing a property name collapse into a single entry, so a marker
+ * counted after inheritance merging: markers sharing a property name collapse into a single member, so a marker
  * reaching the shape through several parents or redeclared by the shape counts once, while two `id` markers under
  * distinct property names are rejected. The resulting property has implicit `0..1` cardinality and accepts a single
  * absolute IRI value.
@@ -1731,7 +1722,7 @@ export function id(constraints: {
  * Creates a marker for the resource type property.
  *
  * Tags the enclosing property as mapping to JSON-LD `@type`. At most one `type` marker is allowed per resource shape,
- * counted after inheritance merging: markers sharing a property name collapse into a single entry, so a marker
+ * counted after inheritance merging: markers sharing a property name collapse into a single member, so a marker
  * reaching the shape through several parents or redeclared by the shape counts once, while two `type` markers under
  * distinct property names are rejected. The resulting property has implicit `0..1` cardinality and is system-managed:
  * its value is derived from the {@link ResourceConstraints.class | class} constraint and client-supplied values are

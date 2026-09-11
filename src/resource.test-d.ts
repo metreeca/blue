@@ -496,7 +496,8 @@ describe("resource()", () => {
 
 	});
 
-	test("accepts non-empty classes array", () => {
+	test("rejects a declared classes array", () => {
+		// @ts-expect-error - classes are computed from the extended shapes, never declared
 		resource({}, { classes: ["https://example.org/Type" as IRI] });
 	});
 
@@ -506,10 +507,6 @@ describe("resource()", () => {
 
 	test("accepts non-empty hasValue array", () => {
 		resource({}, { hasValue: ["https://example.org/x" as IRI] });
-	});
-
-	test("accepts empty classes array (ignored)", () => {
-		resource({}, { classes: [] });
 	});
 
 	test("accepts empty in array (ignored)", () => {
@@ -678,7 +675,7 @@ describe("markers", () => {
 		expectTypeOf(type()).toEqualTypeOf<Type>();
 	});
 
-	test("Id and Type are assignable to Entry", () => {
+	test("Id and Type are assignable to Member", () => {
 		expectTypeOf<Id>().toExtend<Member>();
 		expectTypeOf<Type>().toExtend<Member>();
 	});

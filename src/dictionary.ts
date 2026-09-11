@@ -94,7 +94,7 @@ import { checkDictionary, deriveDictionary } from "./dictionary.core.js";
  * **Inheritance**
  *
  * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceShape.parents | parents},
- * language-tagged entries are merged according to the following rules. The *child* is the extending shape; the
+ * language-tagged members are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
  * | Field        | Override Rule                                                               |

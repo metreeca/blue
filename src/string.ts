@@ -153,7 +153,7 @@ import { checkString } from "./string.core.js";
  * **Inheritance**
  *
  * When a {@link resource!ResourceShape} extends a parent via {@link resource!ResourceShape.parents | parents},
- * string-valued entries are merged according to the following rules. The *child* is the extending shape; the
+ * string-valued members are merged according to the following rules. The *child* is the extending shape; the
  * *parent* is the inherited shape.
  *
  * | Field       | Override Rule                                                                      |
@@ -170,7 +170,7 @@ import { checkString } from "./string.core.js";
  * **Cross-Field Validation**
  *
  * - merged `minLength` must be ≤ merged `maxLength`
- * - all merged `hasValue` entries must be members of the merged `in` set (if defined)
+ * - all merged `hasValue` values must belong to the merged `in` set (if defined)
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#string XSD 1.0 Part 2: Datatypes § 3.2.1 string}
  */

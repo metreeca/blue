@@ -23,7 +23,7 @@ Both regimes reject a value matching **no** branch as **unsatisfiable**; only a 
 rejected, as **ambiguous**. Deletion stands outside the rule, carrying no value to match and clearing every branch at
 once.
 
-The same rule carries through path traversal: when a query path crosses several union-valued entries, their branches
+The same rule carries through path traversal: when a query path crosses several union-valued members, their branches
 collapse into a single combined set, and the caller's input is matched against that set under the regime that applies.
 
 # Context
@@ -55,7 +55,7 @@ able to reach every branch that could answer.
 
 ## Traversal must route nested branches
 
-Collection retrieval projects across paths, and a path can cross several union-valued entries while applying transforms
+Collection retrieval projects across paths, and a path can cross several union-valued members while applying transforms
 along the way. Branch templates then compound, and the caller must keep each branch addressable through the whole
 traversal.
 
@@ -73,11 +73,11 @@ membership** against **all** shape constraints, so the value is a legal member o
 on **storage class**: the value's literal datatype or node kind separates a string branch from the nodes and tells
 differently-typed branches apart. Where branches share a storage class, a finer value-borne trait must separate them: a
 string `pattern`, a numeric `integral` flag, a reference's target-identifier pattern, or, for nodes, the branch's own
-structure (class and required entries). A value matching no branch is **unsatisfiable** and a value matching several is
+structure (class and required members). A value matching no branch is **unsatisfiable** and a value matching several is
 **ambiguous**, and both are rejected. In a multi-valued union each value is matched independently, so the property may
 span several branches with one branch fixed per value.
 
-Branch shapes may share or omit entries, so a partial value can fit several branches at once. Blue does not try to prove
+Branch shapes may share or omit members, so a partial value can fit several branches at once. Blue does not try to prove
 the branches distinguishable when the shape is built: in general, `pattern` and IRI disjointness are undecidable.
 **Disjointness is therefore a modelling requirement:** branches sharing a storage class must carry disjoint
 discriminating traits, so a legal value fits exactly one branch and an ambiguous value is rejected at runtime rather
@@ -103,7 +103,7 @@ that project the property, and, inside a collection query, the **operands** of a
 A model placeholder MUST match **at least one** branch (`sh:or`), but no more is required. Matching tests **kind (type
 compatibility) alone** and ignores every other constraint: a literal placeholder matches every branch of its processing
 kind, a reference placeholder every reference branch, and a template placeholder every nested-resource branch whose type
-its entries fit. The placeholder's value is **immaterial** and need not be a legal value of any branch, so it selects
+its members fit. The placeholder's value is **immaterial** and need not be a legal value of any branch, so it selects
 nothing on its own; it only names, by kind, the branches to project. A placeholder matching several branches retrieves
 each; one matching **no** branch is **unsatisfiable** and rejected, exactly as a state value is.
 

@@ -132,7 +132,7 @@ const Validated: unique symbol = Symbol("Validated");
  * Validates a resource against a shape.
  *
  * Enforces all shape constraints including type, cardinality, closed-shape checks, and custom validators.
- * Unknown and missing entries are both rejected; all declared entries are required unless marked optional
+ * Unknown and missing members are both rejected; all declared members are required unless marked optional
  * by the shape. The return value is narrowed to `Instance<T>` where `T` is the projection {@link Template} bonded
  * to the shape's `model` slot.
  *
@@ -156,9 +156,9 @@ const Validated: unique symbol = Symbol("Validated");
  * @param opts Validation options
  * @param opts.shape The {@link Lazy} {@link ResourceShape} defining validation constraints
  * @param opts.model Omit (or pass `false`) to validate `value` as a full resource instance against the shape
- * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} entry; if provided and the
- *     resource contains an `id` property, the `id` value must match this reference exactly; ignored if the resource
- *     has no `id` entry
+ * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} member; if provided and
+ *     the resource contains an `id` property, the `id` value must match this reference exactly; ignored if the
+ *     resource has no `id` member
  * @param opts.depth Maximum nesting depth for expanding `captive` reference values as inline target resource states;
  *     each expansion level counts against the budget; `0` rejects all expansion, accepting bare IRI references only;
  *     if omitted, no depth limit is enforced
@@ -215,9 +215,9 @@ export function validate<T extends Template>(value: unknown, opts: {
  * @param opts.shape The {@link Lazy} {@link ResourceShape} defining the admissible surface
  * @param opts.model Projection {@link Template} narrowing the admissibility check to the projected surface and the
  *     return value to `Instance<T>`
- * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} entry; if provided and the
- *     resource contains an `id` property, the `id` value must match this reference exactly; ignored if the resource
- *     has no `id` entry
+ * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} member; if provided and
+ *     the resource contains an `id` property, the `id` value must match this reference exactly; ignored if the
+ *     resource has no `id` member
  *
  * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the
  *     value is an immutable copy validated against a verified and flattened copy of the shape narrowed by `model`
@@ -244,7 +244,7 @@ export function validate<T extends Template>(value: unknown, opts: {
  *
  * Enforces type and structural constraints; value constraints are skipped as query values are placeholders.
  * Cardinality is checked for shape consistency (scalar if `maxCount` is 1, singleton tuple otherwise);
- * missing entries are accepted as not requested. Bindings whose probe — `path` and `pipe` — fails to resolve
+ * missing members are accepted as not requested. Bindings whose probe — `path` and `pipe` — fails to resolve
  * against the shape are rejected with an atomic trace under the binding key.
  *
  * > [!CAUTION]

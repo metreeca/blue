@@ -44,7 +44,7 @@
  *   carrying cardinality-driven optionality both on the value types and, for properties admitting
  *   absence, as an optional key (template side).
  * - {@link State} — the runtime state value matching the template, recovered through the
- *   {@link @metreeca/qest!Instance | Instance}; entries admitting absence may be `undefined` or
+ *   {@link @metreeca/qest!Instance | Instance}; members admitting absence may be `undefined` or
  *   omitted outright (state side).
  *
  * Ancillary helpers {@link Resolved}, {@link Bounds}, and {@link Boxed}
@@ -56,7 +56,7 @@
  * **Utilities**
  *
  * - {@link eager} resolves a {@link Lazy} shape factory to its concrete {@link Shape}, caching
- *   results and flattening {@link ResourceShape} entries; a resolved {@link RangeShape} passes
+ *   results and flattening {@link ResourceShape} members; a resolved {@link RangeShape} passes
  *   through unchanged.
  * - {@link model} extracts the runtime {@link Schema} of a shape, an ergonomic shortcut for
  *   `eager(shape).model`.
@@ -305,8 +305,8 @@ export type Schema<S extends Lazy<Shape>> =
 /**
  * Projects a shape to the runtime value type its values satisfy.
  *
- * Required entries are present on every value; optional and multi-valued entries may be `undefined`
- * and may equally be omitted, so a value literal spells out only the entries it carries, whether
+ * Required members are present on every value; optional and multi-valued members may be `undefined`
+ * and may equally be omitted, so a value literal spells out only the members it carries, whether
  * declared locally or inherited. Use to annotate retrieved resources, mutation payloads, and any
  * runtime instance the shape constrains. Pair with {@link Schema} when both the template and the
  * values satisfying it are needed.

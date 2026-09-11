@@ -147,6 +147,18 @@ export type ResourceConstraints = {
 }
 
 
+export type Members = {
+
+	readonly [field: Identifier]: Member
+
+}
+
+export type Member =
+	| Id
+	| Type
+	| Property
+
+
 export type Id = {
 
 	readonly kind: "id"
@@ -220,7 +232,7 @@ export type PropertyConstrains = {
 	 * Marks the property as system-managed.
 	 *
 	 * > [!IMPORTANT]
-	 * > Computed entries are populated by the system and may be silently overwritten on mutation operations.
+	 * > Computed properties are populated by the system and may be silently overwritten on mutation operations.
 	 * > Client-supplied values must still be present in mutation payloads but carry no guarantees of being preserved.
 	 *
 	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
@@ -312,17 +324,6 @@ export type PropertyBounds = PropertyConstrains & {
 
 export type Parents =
 	readonly Lazy<ResourceShape>[]
-
-export type Members = {
-
-	readonly [field: Identifier]: Member
-
-}
-
-export type Member =
-	| Id
-	| Type
-	| Property
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

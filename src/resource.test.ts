@@ -110,9 +110,9 @@ describe("factories", () => {
 					name: required(string())
 				});
 
-				expect(shape.entries.name).toBeDefined();
-				expect((shape.entries.name as Property).range.kind).toBe("set");
-				expect(((shape.entries.name as Property).range as SetShape).shape.kind).toBe("string");
+				expect(shape.members.name).toBeDefined();
+				expect((shape.members.name as Property).range.kind).toBe("set");
+				expect(((shape.members.name as Property).range as SetShape).shape.kind).toBe("string");
 
 			});
 
@@ -122,10 +122,10 @@ describe("factories", () => {
 					value: optional(union(string(), integer()))
 				});
 
-				expect(shape.entries.value).toBeDefined();
-				expect((shape.entries.value as Property).range.kind).toBe("set");
+				expect(shape.members.value).toBeDefined();
+				expect((shape.members.value as Property).range.kind).toBe("set");
 
-				const rangeShape = ((shape.entries.value as Property).range as SetShape).shape;
+				const rangeShape = ((shape.members.value as Property).range as SetShape).shape;
 				expect(rangeShape.kind).toBe("union");
 				expect((rangeShape as UnionShape).variants[0].kind).toBe("string");
 				expect((rangeShape as UnionShape).variants[1].kind).toBe("number");
@@ -139,8 +139,8 @@ describe("factories", () => {
 					age: optional(integer())
 				});
 
-				expect(((shape.entries.name as Property).range as SetShape).shape.kind).toBe("string");
-				expect(((shape.entries.age as Property).range as SetShape).shape.kind).toBe("number");
+				expect(((shape.members.name as Property).range as SetShape).shape.kind).toBe("string");
+				expect(((shape.members.age as Property).range as SetShape).shape.kind).toBe("number");
 
 			});
 
@@ -152,9 +152,9 @@ describe("factories", () => {
 					space: createNamespace("http://example.org/")
 				});
 
-				expect(shape.entries.name).toBeDefined();
-				expect((shape.entries.name as Property).range.kind).toBe("set");
-				expect(((shape.entries.name as Property).range as SetShape).shape.kind).toBe("string");
+				expect(shape.members.name).toBeDefined();
+				expect((shape.members.name as Property).range.kind).toBe("set");
+				expect(((shape.members.name as Property).range as SetShape).shape.kind).toBe("string");
 
 			});
 
@@ -191,9 +191,9 @@ describe("factories", () => {
 					age: optional(integer())
 				});
 
-				expect(shape.entries).toBeDefined();
-				expect(shape.entries.name).toBeDefined();
-				expect(shape.entries.age).toBeDefined();
+				expect(shape.members).toBeDefined();
+				expect(shape.members.name).toBeDefined();
+				expect(shape.members.age).toBeDefined();
 
 			});
 
@@ -208,7 +208,7 @@ describe("factories", () => {
 				}, {});
 
 				expect(shape.kind).toBe("resource");
-				expect(shape.entries.name).toBeDefined();
+				expect(shape.members.name).toBeDefined();
 
 			});
 
@@ -228,7 +228,7 @@ describe("factories", () => {
 					kind: "resource",
 					model: {},
 					parents: [Parent],
-					entries: {
+					members: {
 						age: optional(integer())
 					}
 				} as ResourceShape;
@@ -237,10 +237,10 @@ describe("factories", () => {
 					person: required(Unflattened)
 				});
 
-				const nested = ((Outer.entries.person as Property).range as SetShape).shape as ResourceShape;
+				const nested = ((Outer.members.person as Property).range as SetShape).shape as ResourceShape;
 
-				expect(nested.entries.name).toBeDefined();
-				expect(nested.entries.age).toBeDefined();
+				expect(nested.members.name).toBeDefined();
+				expect(nested.members.age).toBeDefined();
 
 			});
 
@@ -254,7 +254,7 @@ describe("factories", () => {
 					kind: "resource",
 					model: {},
 					parents: [Parent],
-					entries: {
+					members: {
 						age: optional(integer())
 					}
 				} as ResourceShape;
@@ -263,12 +263,12 @@ describe("factories", () => {
 					contact: required(union(Unflattened, string()))
 				});
 
-				const range = (Outer.entries.contact as Property).range as SetShape;
+				const range = (Outer.members.contact as Property).range as SetShape;
 				const variants = (range.shape as UnionShape).variants;
 				const nested = variants[0] as ResourceShape;
 
-				expect(nested.entries.name).toBeDefined();
-				expect(nested.entries.age).toBeDefined();
+				expect(nested.members.name).toBeDefined();
+				expect(nested.members.age).toBeDefined();
 
 			});
 
@@ -282,7 +282,7 @@ describe("factories", () => {
 					kind: "resource",
 					model: {},
 					parents: [Parent],
-					entries: {
+					members: {
 						age: optional(integer())
 					}
 				} as ResourceShape;
@@ -291,14 +291,14 @@ describe("factories", () => {
 					ref: required(reference(() => Unflattened))
 				});
 
-				const ref = ((Outer.entries.ref as Property).range as SetShape).shape;
+				const ref = ((Outer.members.ref as Property).range as SetShape).shape;
 
 				expect(ref.kind).toBe("reference");
 
 				const target = eager((ref as { shape: () => ResourceShape }).shape);
 
-				expect(target.entries.name).toBeDefined();
-				expect(target.entries.age).toBeDefined();
+				expect(target.members.name).toBeDefined();
+				expect(target.members.age).toBeDefined();
 
 			});
 
@@ -312,7 +312,7 @@ describe("factories", () => {
 					kind: "resource",
 					model: {},
 					parents: [Parent],
-					entries: {
+					members: {
 						age: optional(integer())
 					}
 				} as ResourceShape;
@@ -323,10 +323,10 @@ describe("factories", () => {
 					person: required(Unflattened)
 				}, { space: ns });
 
-				const nested = ((Outer.entries.person as Property).range as SetShape).shape as ResourceShape;
+				const nested = ((Outer.members.person as Property).range as SetShape).shape as ResourceShape;
 
-				expect(nested.entries.name).toBeDefined();
-				expect(nested.entries.age).toBeDefined();
+				expect(nested.members.name).toBeDefined();
+				expect(nested.members.age).toBeDefined();
 
 			});
 
@@ -343,7 +343,7 @@ describe("factories", () => {
 					person: required(reference(Person))
 				});
 
-				const ref = ((shape.entries.person as Property).range as SetShape).shape;
+				const ref = ((shape.members.person as Property).range as SetShape).shape;
 
 				expect(ref.kind).toBe("reference");
 
@@ -361,7 +361,7 @@ describe("factories", () => {
 					label: required(string(), { forward: rdfs })
 				});
 
-				expect((shape.entries.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
+				expect((shape.members.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
 
 			});
 
@@ -373,7 +373,7 @@ describe("factories", () => {
 					owner: required(string(), { reverse: ex })
 				});
 
-				expect((shape.entries.owner as Property).reverse).toBe("http://example.org/owner");
+				expect((shape.members.owner as Property).reverse).toBe("http://example.org/owner");
 
 			});
 
@@ -383,7 +383,7 @@ describe("factories", () => {
 					name: required(string(), { forward: "http://example.org/name" })
 				});
 
-				expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
+				expect((shape.members.name as Property).forward).toBe("http://example.org/name");
 
 			});
 
@@ -393,7 +393,7 @@ describe("factories", () => {
 					owner: required(string(), { reverse: "http://example.org/owner" })
 				});
 
-				expect((shape.entries.owner as Property).reverse).toBe("http://example.org/owner");
+				expect((shape.members.owner as Property).reverse).toBe("http://example.org/owner");
 
 			});
 
@@ -405,8 +405,8 @@ describe("factories", () => {
 						name: required(string())
 					});
 
-					expect((shape.entries.name as Property).forward).toBe("app:/#name");
-					expect((shape.entries.name as Property).reverse).toBeUndefined();
+					expect((shape.members.name as Property).forward).toBe("app:/#name");
+					expect((shape.members.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -416,8 +416,8 @@ describe("factories", () => {
 						name: required(string())
 					}, {});
 
-					expect((shape.entries.name as Property).forward).toBe("app:/#name");
-					expect((shape.entries.name as Property).reverse).toBeUndefined();
+					expect((shape.members.name as Property).forward).toBe("app:/#name");
+					expect((shape.members.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -429,8 +429,8 @@ describe("factories", () => {
 						name: required(string())
 					}, { space: ns });
 
-					expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
-					expect((shape.entries.name as Property).reverse).toBeUndefined();
+					expect((shape.members.name as Property).forward).toBe("http://example.org/name");
+					expect((shape.members.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -446,8 +446,8 @@ describe("factories", () => {
 						name: required(string())
 					});
 
-					expect((Child.entries.name as Property).forward).toBe("http://example.org/name");
-					expect((Child.entries.name as Property).reverse).toBeUndefined();
+					expect((Child.members.name as Property).forward).toBe("http://example.org/name");
+					expect((Child.members.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -467,8 +467,8 @@ describe("factories", () => {
 						name: required(string())
 					});
 
-					expect((Child.entries.name as Property).forward).toBe("http://example.org/name");
-					expect((Child.entries.name as Property).reverse).toBeUndefined();
+					expect((Child.members.name as Property).forward).toBe("http://example.org/name");
+					expect((Child.members.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -482,8 +482,8 @@ describe("factories", () => {
 						name: required(string())
 					});
 
-					expect((Child.entries.name as Property).forward).toBe("app:/#name");
-					expect((Child.entries.name as Property).reverse).toBeUndefined();
+					expect((Child.members.name as Property).forward).toBe("app:/#name");
+					expect((Child.members.name as Property).reverse).toBeUndefined();
 
 				});
 
@@ -493,8 +493,8 @@ describe("factories", () => {
 						owner: required(string(), { reverse: "http://example.org/owns" })
 					});
 
-					expect((shape.entries.owner as Property).forward).toBeUndefined();
-					expect((shape.entries.owner as Property).reverse).toBe("http://example.org/owns");
+					expect((shape.members.owner as Property).forward).toBeUndefined();
+					expect((shape.members.owner as Property).reverse).toBe("http://example.org/owns");
 
 				});
 
@@ -506,7 +506,7 @@ describe("factories", () => {
 						name: required(string(), { forward: "http://custom.org/name" })
 					}, { space: ns });
 
-					expect((shape.entries.name as Property).forward).toBe("http://custom.org/name");
+					expect((shape.members.name as Property).forward).toBe("http://custom.org/name");
 
 				});
 
@@ -520,9 +520,9 @@ describe("factories", () => {
 						email: required(string())
 					}, { space: ns });
 
-					expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
-					expect((shape.entries.age as Property).forward).toBe("http://example.org/age");
-					expect((shape.entries.email as Property).forward).toBe("http://example.org/email");
+					expect((shape.members.name as Property).forward).toBe("http://example.org/name");
+					expect((shape.members.age as Property).forward).toBe("http://example.org/age");
+					expect((shape.members.email as Property).forward).toBe("http://example.org/email");
 
 				});
 
@@ -1221,7 +1221,7 @@ describe("factories", () => {
 						label: required(string({ model: "x", minLength: 1 }))
 					});
 
-					expect((Child.entries.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
+					expect((Child.members.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
 
 				});
 
@@ -1237,7 +1237,7 @@ describe("factories", () => {
 						owner: required(string({ model: "x", minLength: 1 }))
 					});
 
-					expect((Child.entries.owner as Property).reverse).toBe("http://example.org/owner");
+					expect((Child.members.owner as Property).reverse).toBe("http://example.org/owner");
 
 				});
 
@@ -1503,7 +1503,7 @@ describe("factories", () => {
 					age: optional(integer(), { name: "Age", description: "The *age* in years" })
 				});
 
-				expect(shape.entries.age).toMatchObject({
+				expect(shape.members.age).toMatchObject({
 					name: { [assert("en", isTag)]: "Age" },
 					description: { [assert("en", isTag)]: "The *age* in years" }
 				});
@@ -1641,8 +1641,8 @@ describe("utilities", () => {
 				const flat = flatten(shape);
 
 				expect(flat.kind).toBe("resource");
-				expect(flat.entries).toHaveProperty("name");
-				expect(flat.entries).toHaveProperty("age");
+				expect(flat.members).toHaveProperty("name");
+				expect(flat.members).toHaveProperty("age");
 
 			});
 
@@ -1666,8 +1666,8 @@ describe("utilities", () => {
 
 				const flat = flatten(child);
 
-				expect(flat.entries).toHaveProperty("name");
-				expect(flat.entries).toHaveProperty("age");
+				expect(flat.members).toHaveProperty("name");
+				expect(flat.members).toHaveProperty("age");
 
 			});
 
@@ -1683,7 +1683,7 @@ describe("utilities", () => {
 
 				const flat = flatten(child);
 
-				const prop = flat.entries["name"] as Property;
+				const prop = flat.members["name"] as Property;
 
 				expect((prop.range.shape as any).minLength).toBe(5);
 				expect((prop.range.shape as any).maxLength).toBe(100);
@@ -1713,9 +1713,9 @@ describe("utilities", () => {
 
 				const flat = flatten(child);
 
-				expect(flat.entries).toHaveProperty("code");
-				expect(flat.entries).toHaveProperty("age");
-				expect(flat.entries).toHaveProperty("name");
+				expect(flat.members).toHaveProperty("code");
+				expect(flat.members).toHaveProperty("age");
+				expect(flat.members).toHaveProperty("name");
 
 			});
 
@@ -1770,13 +1770,15 @@ describe("utilities", () => {
 
 			it("accumulates classes from lineage", async () => {
 
-				const parent = resource({}, { class: "http://example.org/Parent" });
-				const child = resource(parent, {}, { class: "http://example.org/Child", classes: ["http://example.org/A"] });
+				const grandparent = resource({}, { class: "http://example.org/GrandParent" });
+				const parent = resource(grandparent, {}, { class: "http://example.org/Parent" });
+				const child = resource(parent, {}, { class: "http://example.org/Child" });
 
 				const flat = flatten(child);
 
 				expect(flat.classes).toContain("http://example.org/Parent");
-				expect(flat.classes).toContain("http://example.org/A");
+				expect(flat.classes).toContain("http://example.org/GrandParent");
+				expect(flat.classes).not.toContain("http://example.org/Child");
 
 			});
 
@@ -2027,7 +2029,7 @@ describe("utilities", () => {
 
 						const flat = flatten(child);
 
-						expect((flat.entries.field as Property)[field]).toBe(true);
+						expect((flat.members.field as Property)[field]).toBe(true);
 
 					});
 
@@ -2038,7 +2040,7 @@ describe("utilities", () => {
 
 						const flat = flatten(child);
 
-						expect((flat.entries.field as Property)[field]).toBe(false);
+						expect((flat.members.field as Property)[field]).toBe(false);
 
 					});
 
@@ -2050,7 +2052,7 @@ describe("utilities", () => {
 
 						const flat = flatten(child);
 
-						expect((flat.entries.field as Property)[field]).toBe(false);
+						expect((flat.members.field as Property)[field]).toBe(false);
 
 					});
 
@@ -2066,7 +2068,7 @@ describe("utilities", () => {
 
 						const flat = flatten(child);
 
-						expect((flat.entries.field as Property)[field]).toBe(true);
+						expect((flat.members.field as Property)[field]).toBe(true);
 
 					});
 
@@ -2078,7 +2080,7 @@ describe("utilities", () => {
 
 						const flat = flatten(child);
 
-						expect((flat.entries.field as Property)[field]).toBe(true);
+						expect((flat.members.field as Property)[field]).toBe(true);
 
 					});
 
@@ -2209,8 +2211,8 @@ describe("utilities", () => {
 					// manually assemble a shape with duplicate id — bypassing factory check
 					const manual: ResourceShape = {
 						...child,
-						entries: {
-							...child.entries,
+						members: {
+							...child.members,
 							rid2: id()
 						}
 					};
@@ -2233,8 +2235,8 @@ describe("utilities", () => {
 					// manually assemble a shape with duplicate type — bypassing factory check
 					const manual: ResourceShape = {
 						...child,
-						entries: {
-							...child.entries,
+						members: {
+							...child.members,
 							rtype2: type()
 						}
 					};
@@ -2415,8 +2417,8 @@ describe("utilities", () => {
 
 				const manual: ResourceShape = {
 					...base,
-					entries: {
-						...base.entries,
+					members: {
+						...base.members,
 						label: { kind: "property", forward: "http://example.org/name", range: required(string()).range }
 					}
 				};
@@ -2431,8 +2433,8 @@ describe("utilities", () => {
 
 				const manual: ResourceShape = {
 					...base,
-					entries: {
-						...base.entries,
+					members: {
+						...base.members,
 						label: { kind: "property", forward: "http://example.org/name", range: required(string()).range }
 					}
 				};
@@ -2458,8 +2460,8 @@ describe("utilities", () => {
 
 				const manual: ResourceShape = {
 					...base,
-					entries: {
-						...base.entries,
+					members: {
+						...base.members,
 						creator: { kind: "property", reverse: "http://example.org/owns", range: required(string()).range }
 					}
 				};
@@ -2543,8 +2545,8 @@ describe("utilities", () => {
 
 				const manual: ResourceShape = {
 					...base,
-					entries: {
-						...base.entries,
+					members: {
+						...base.members,
 						child: {
 							kind: "property",
 							forward: "http://example.org/child",
@@ -2563,8 +2565,8 @@ describe("utilities", () => {
 
 				const manual: ResourceShape = {
 					...base,
-					entries: {
-						...base.entries,
+					members: {
+						...base.members,
 						child: {
 							kind: "property",
 							forward: "http://example.org/child",
@@ -2583,8 +2585,8 @@ describe("utilities", () => {
 
 				const manual: ResourceShape = {
 					...base,
-					entries: {
-						...base.entries,
+					members: {
+						...base.members,
 						child: {
 							kind: "property",
 							forward: "http://example.org/child",
@@ -3370,9 +3372,12 @@ describe("operators", () => {
 
 			it("merges parent classes with target classes", async () => {
 
+				const A = resource({}, { class: "http://example.org/A" });
+				const B = resource({}, { class: "http://example.org/B" });
+
 				const merged = mergeResource(
-					resource({}, { classes: ["http://example.org/A"] }),
-					resource({}, { classes: ["http://example.org/B"] })
+					resource(A, {}),
+					resource(B, {})
 				);
 
 				expect(merged.classes).toContain("http://example.org/A");
@@ -3382,9 +3387,11 @@ describe("operators", () => {
 
 			it("deduplicates class entries", async () => {
 
+				const A = resource({}, { class: "http://example.org/A" });
+
 				const merged = mergeResource(
-					resource({}, { classes: ["http://example.org/A"] }),
-					resource({}, { class: "http://example.org/A", classes: ["http://example.org/A"] })
+					resource(A, {}),
+					resource(A, {}, { class: "http://example.org/A" })
 				);
 
 				expect(merged.classes!.filter(c => c === "http://example.org/A")).toHaveLength(1);
@@ -3619,8 +3626,8 @@ describe("operators", () => {
 					resource({ age: optional(integer()) })
 				);
 
-				expect(merged.entries).toHaveProperty("name");
-				expect(merged.entries).toHaveProperty("age");
+				expect(merged.members).toHaveProperty("name");
+				expect(merged.members).toHaveProperty("age");
 
 			});
 
@@ -3631,7 +3638,7 @@ describe("operators", () => {
 					resource({ name: required(string({ maxLength: 20 })) })
 				);
 
-				const prop = merged.entries["name"] as Property;
+				const prop = merged.members["name"] as Property;
 
 				expect(prop.kind).toBe("property");
 				expect((prop.range.shape as any).minLength).toBe(5);
@@ -3646,7 +3653,7 @@ describe("operators", () => {
 					resource({ iri: id() })
 				);
 
-				expect(merged.entries["iri"].kind).toBe("id");
+				expect(merged.members["iri"].kind).toBe("id");
 
 			});
 
@@ -3657,7 +3664,7 @@ describe("operators", () => {
 					resource({ rdfType: type() }, { class: "app:/types/T" })
 				);
 
-				expect(merged.entries["rdfType"].kind).toBe("type");
+				expect(merged.members["rdfType"].kind).toBe("type");
 
 			});
 
