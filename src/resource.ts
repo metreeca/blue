@@ -330,6 +330,7 @@
 
 import { assert, type Identifier, isFunction, isObject, isString, type Lazy } from "@metreeca/core";
 import { createNamespace, type IRI, isIRI, type Namespace } from "@metreeca/core/resource";
+import { dedent, tidy } from "@metreeca/core/strings";
 import { immutable } from "@metreeca/core/structures";
 import { type Trace, TraceError, type Validator } from "@metreeca/core/trace";
 import { app } from "@metreeca/qest";
@@ -436,8 +437,7 @@ export interface ResourceShape extends ResourceConstraints {
 	/**
 	 * Human-readable name for the shape.
 	 *
-	 * Always a localised map: a plain-text {@link ResourceConstraints.name | shorthand} handed to the factory is
-	 * expanded to `{ en: <value> }`.
+	 * A localised map, as {@link ResourceConstraints.name | declared}, whose entries are single-line plain text.
 	 *
 	 * **Inheritance** — always from child; not inherited.
 	 *
@@ -448,8 +448,7 @@ export interface ResourceShape extends ResourceConstraints {
 	/**
 	 * Human-readable description of the shape.
 	 *
-	 * Always a localised map: a Markdown {@link ResourceConstraints.description | shorthand} handed to the factory is
-	 * expanded to `{ en: <value> }`.
+	 * A localised map, as {@link ResourceConstraints.description | declared}, whose entries are Markdown blocks.
 	 *
 	 * **Inheritance** — always from child; not inherited.
 	 *
@@ -546,8 +545,8 @@ export interface ResourceConstraints {
 	 * Human-readable name for the shape.
 	 *
 	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a plain
-	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
-	 * {@link ResourceShape.name | built shape}.
+	 * {@link string!text | text} string. A bare string is keyed under `en`, and every entry is folded to a single
+	 * line, whatever the layout it was written in, on the {@link ResourceShape.name | built shape}.
 	 *
 	 * **Inheritance** — always from child; not inherited.
 	 *
@@ -563,8 +562,9 @@ export interface ResourceConstraints {
 	 * Human-readable description of the shape.
 	 *
 	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a
-	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
-	 * {@link ResourceShape.description | built shape}.
+	 * {@link string!markdown | Markdown} string. A bare string is keyed under `en`, and every entry is realigned flush
+	 * left on the {@link ResourceShape.description | built shape}, so a block laid out to match the indentation of the
+	 * surrounding code keeps its own structure without carrying that margin.
 	 *
 	 * **Inheritance** — always from child; not inherited.
 	 *
@@ -829,8 +829,7 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
 	/**
 	 * Human-readable name for the property.
 	 *
-	 * Always a localised map: a plain-text {@link PropertyConstraints.name | shorthand} handed to the factory is
-	 * expanded to `{ en: <value> }`.
+	 * A localised map, as {@link PropertyConstraints.name | declared}, whose entries are single-line plain text.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -843,8 +842,7 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
 	/**
 	 * Human-readable description of the property.
 	 *
-	 * Always a localised map: a Markdown {@link PropertyConstraints.description | shorthand} handed to the factory is
-	 * expanded to `{ en: <value> }`.
+	 * A localised map, as {@link PropertyConstraints.description | declared}, whose entries are Markdown blocks.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -938,12 +936,13 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	 */
 	readonly hidden?: boolean;
 
+
 	/**
 	 * Human-readable name for the property.
 	 *
 	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a plain
-	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
-	 * {@link Property.name | resolved property}.
+	 * {@link string!text | text} string. A bare string is keyed under `en`, and every entry is folded to a single
+	 * line, whatever the layout it was written in, on the {@link Property.name | resolved property}.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -957,8 +956,9 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	 * Human-readable description of the property.
 	 *
 	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a
-	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
-	 * {@link Property.description | resolved property}.
+	 * {@link string!markdown | Markdown} string. A bare string is keyed under `en`, and every entry is realigned flush
+	 * left on the {@link Property.description | resolved property}, so a block laid out to match the indentation of
+	 * the surrounding code keeps its own structure without carrying that margin.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
@@ -1428,8 +1428,8 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 
 		...parents.length > 0 && { parents },
 
-		...name !== undefined && { name: localize(name) },
-		...description !== undefined && { description: localize(description) },
+		...name !== undefined && { name: localize(name, tidy) },
+		...description !== undefined && { description: localize(description, dedent) },
 
 		members: resolved
 
@@ -1494,14 +1494,24 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 
 
 	/**
-	 * Expands a localisable label to its dictionary form.
+	 * Expands a localisable label to its dictionary form, normalising its content.
 	 *
 	 * @param label The declared label, either a localised dictionary or a string taken as English content
+	 * @param normalise The layout normalisation applied to every entry: {@link tidy} for a single-line name,
+	 *     {@link dedent} for a description whose line structure carries meaning
 	 *
-	 * @returns `label` unchanged when already a dictionary; `{ en: label }` otherwise
+	 * @returns `label` as a dictionary, each entry normalised; keyed by `en` when `label` is a bare string
 	 */
-	function localize(label: string | Dictionary): Dictionary {
-		return isString(label) ? { en: label } : label;
+	function localize(label: string | Dictionary, normalise: (content: string) => string): Dictionary {
+
+		return isString(label) ? {
+
+			en: normalise(label)
+
+		} : Object.fromEntries(Object.entries(label).map(([tag, content]) =>
+			[tag, isString(content) ? normalise(content) : content.map(normalise)]
+		));
+
 	}
 
 	/**
@@ -1518,9 +1528,7 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 
 			return space;
 
-		} else {
-
-			// conflicts validated later by flatten() using flattened parent namespaces
+		} else { // conflicts validated later by flatten() using flattened parent namespaces
 
 			return parents.map(parent => eager(parent).space)[0] ?? defaultNamespace;
 
@@ -1618,8 +1626,8 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 
 					...property,
 
-					...property.name !== undefined && { name: localize(property.name) },
-					...property.description !== undefined && { description: localize(property.description) },
+					...property.name !== undefined && { name: localize(property.name, tidy) },
+					...property.description !== undefined && { description: localize(property.description, dedent) },
 
 					// generate default forward when neither forward nor reverse is defined
 

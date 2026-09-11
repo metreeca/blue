@@ -580,6 +580,42 @@ describe("factories", () => {
 
 			});
 
+			it("folds a name to a single line", async () => {
+
+				const shape = resource({ age: optional(integer()) }, {
+					name: "  A  person\n  resource  "
+				});
+
+				expect(shape).toMatchObject({ name: { [assert("en", isTag)]: "A person resource" } });
+
+			});
+
+			it("realigns a description flush left", async () => {
+
+				const shape = resource({ age: optional(integer()) }, {
+					description: "\n\t\t\t\t\tA *person* resource.\n\n\t\t\t\t\t- born\n\t\t\t\t\t- named\n"
+				});
+
+				expect(shape).toMatchObject({
+					description: { [assert("en", isTag)]: "A *person* resource.\n\n- born\n- named" }
+				});
+
+			});
+
+			it("normalises every entry of a localised name and description", async () => {
+
+				const shape = resource({ age: optional(integer()) }, {
+					name: { en: "  A  person  ", it: "  Una  persona  " },
+					description: { en: "\n\t\t\t\t\tBorn.\n", it: "\n\t\t\t\t\tNato.\n" }
+				});
+
+				expect(shape).toMatchObject({
+					name: { [assert("en", isTag)]: "A person", [assert("it", isTag)]: "Una persona" },
+					description: { [assert("en", isTag)]: "Born.", [assert("it", isTag)]: "Nato." }
+				});
+
+			});
+
 		});
 
 		describe("type conformance", () => {
@@ -1586,6 +1622,30 @@ describe("factories", () => {
 				expect(shape.members.age).toMatchObject({
 					name: { [assert("en", isTag)]: "Age" },
 					description: { [assert("en", isTag)]: "The *age* in years" }
+				});
+
+			});
+
+			it("folds a property name to a single line", async () => {
+
+				const shape = resource({
+					age: optional(integer(), { name: "  The  age\n  in years  " })
+				});
+
+				expect(shape.members.age).toMatchObject({
+					name: { [assert("en", isTag)]: "The age in years" }
+				});
+
+			});
+
+			it("realigns a property description flush left", async () => {
+
+				const shape = resource({
+					age: optional(integer(), { description: "\n\t\t\t\t\tThe *age*.\n\n\t\t\t\t\t- in years\n" })
+				});
+
+				expect(shape.members.age).toMatchObject({
+					description: { [assert("en", isTag)]: "The *age*.\n\n- in years" }
 				});
 
 			});
