@@ -17,7 +17,7 @@
 import type { Eager, Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import type { Dictionary, Reference } from "@metreeca/qest/resource";
-import type { Arity, Instance, Proposal, Range, RangeCount, Shape, Skippable } from "./index.js";
+import type { Arity, Instance, Compound, Range, RangeCount, Shape, Skippable } from "./index.js";
 import type { ReferenceShape } from "./reference.js";
 
 
@@ -371,7 +371,7 @@ export function property<R extends Lazy<Shape>, const C extends PropertyBounds =
 //// Resource Members ////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Resolves the value a retrieved resource exposes.
+ * Resolves the value an instance of a resource carries.
  *
  * Maps every member the shape carries to its content, leaving optional the ones a resource may {@link Omitted | leave
  * out}.
@@ -385,9 +385,9 @@ export type Retrieved<S extends Lazy<Shape>> = {
 }
 
 /**
- * Resolves the value a submitted resource satisfies.
+ * Resolves the value a resource carries with the ones it holds captive inlined.
  *
- * Maps the members the submitter {@link Owned | owns} to their payload, leaving optional the ones a submitter may
+ * Maps the members the resource {@link Owned | owns} to their input, leaving optional the ones a writer may
  * {@link Omitted | leave out}, as the system {@link Managed | fills them in} or the resource may do without them.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
@@ -399,7 +399,7 @@ export type Submitted<S extends Lazy<Shape>> = {
 }
 
 /**
- * Resolves the members a submitter owns: every member the shape carries but a {@link Foreign | foreign} one.
+ * Resolves the members a resource owns: every member the shape carries but a {@link Foreign | foreign} one.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
@@ -429,7 +429,7 @@ export type Managed =
  * mapped over them requires exactly the members the resource is bound to carry.
  *
  * @typeParam M The members to mark
- * @typeParam X The members left out on top of the ones a retrieved resource may leave out
+ * @typeParam X The members left out on top of the ones any resource may leave out
  */
 export type Loose<M, X = never> = Joined<
 	& { readonly [field in keyof M as Omitted<M[field], X> extends true ? never : field]: M[field] }
@@ -479,9 +479,9 @@ export type Omitted<M, X = never> =
 				: false
 
 /**
- * Resolves the value a retrieved member carries.
+ * Resolves the value a member carries in an instance.
  *
- * Yields an IRI for an identifier, an optional IRI for a type and, for a property, the state its range describes in
+ * Yields an IRI for an identifier, an optional IRI for a type and, for a property, the value its range describes in
  * the form its cardinality admits.
  *
  * @typeParam M The member to resolve
@@ -493,16 +493,16 @@ export type Content<M> =
 				: never
 
 /**
- * Resolves the value a submitted member carries.
+ * Resolves the value a member carries in a compound.
  *
- * Admits a captive target inline alongside its IRI and otherwise carries what the retrieved member does, as a scalar
- * has nothing to hold captive.
+ * Admits a captive target inline alongside its IRI and otherwise carries what the member carries in an
+ * {@link Content | instance}, as a scalar has nothing to hold captive.
  *
  * @typeParam M The member to resolve
  */
 export type Input<M> =
 	M extends { readonly captive: true } & Property<Lazy<ReferenceShape<infer T>>, infer L, infer U>
-		? Arity<Reference | Proposal<T>, L, U>
+		? Arity<Reference | Compound<T>, L, U>
 		: Content<M>
 
 

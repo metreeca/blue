@@ -15,7 +15,7 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Proposal } from "./index.js";
+import { type Instance, type Compound } from "./index.js";
 import { multiple, optional, required, resource } from "./resource.js";
 import {
 	date,
@@ -203,7 +203,7 @@ describe("members", () => {
 	});
 
 	test("carries the admitted values into a submission", () => {
-		expectTypeOf<Proposal<typeof Ticket>["status"]>().toEqualTypeOf<undefined | "open" | "closed">();
+		expectTypeOf<Compound<typeof Ticket>["status"]>().toEqualTypeOf<undefined | "open" | "closed">();
 	});
 
 	test("carries the admitted values through inheritance", () => {

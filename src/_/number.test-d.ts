@@ -15,7 +15,7 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Proposal } from "./index.js";
+import { type Instance, type Compound } from "./index.js";
 import { byte, decimal, double, float, int, integer, long, type NumberShape, number, short } from "./number.js";
 import { multiple, optional, required, resource } from "./resource.js";
 
@@ -159,7 +159,7 @@ describe("members", () => {
 	});
 
 	test("carries the admitted values into a submission", () => {
-		expectTypeOf<Proposal<typeof Product>["rating"]>().toEqualTypeOf<undefined | 1 | 2 | 3>();
+		expectTypeOf<Compound<typeof Product>["rating"]>().toEqualTypeOf<undefined | 1 | 2 | 3>();
 	});
 
 	test("carries the admitted values through inheritance", () => {

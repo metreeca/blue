@@ -17,7 +17,7 @@
 import type { Lazy, Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Proposal, type Range, type RangeCount, type Shape } from "./index.js";
+import { type Instance, type Compound, type Range, type RangeCount, type Shape } from "./index.js";
 import { number } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import {
@@ -219,12 +219,12 @@ describe("Input", () => {
 
 	test("Property → an IRI or an inline proposal for a captive reference range", () => {
 		expectTypeOf<Input<Captive<ReferenceShape<LabelShape>, 1, 1>>>()
-			.toEqualTypeOf<Reference | Proposal<LabelShape>>();
+			.toEqualTypeOf<Reference | Compound<LabelShape>>();
 	});
 
 	test("Property → inline proposals at every cardinality", () => {
 		expectTypeOf<Input<Captive<ReferenceShape<LabelShape>, undefined, undefined>>>()
-			.toEqualTypeOf<undefined | readonly (Reference | Proposal<LabelShape>)[]>();
+			.toEqualTypeOf<undefined | readonly (Reference | Compound<LabelShape>)[]>();
 	});
 
 	test("Property → the state of a captive range that points at nothing", () => {

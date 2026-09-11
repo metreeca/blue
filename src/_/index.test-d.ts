@@ -23,7 +23,7 @@ import { type DictionaryShape } from "./dictionary.js";
 import {
 	type Arity,
 	type Instance,
-	type Proposal,
+	type Compound,
 	type Range,
 	type RangeCount,
 	type Shape,
@@ -117,7 +117,7 @@ describe("Instance", () => {
 });
 
 
-describe("Proposal", () => {
+describe("Compound", () => {
 
 	function target() {
 		return resource({ id: id(), label: required(string()) });
@@ -136,7 +136,7 @@ describe("Proposal", () => {
 
 	});
 
-	type Submitted=Proposal<typeof shape>
+	type Submitted=Compound<typeof shape>
 
 	test("carries a plain member as the state does", () => {
 		expectTypeOf<Submitted["plain"]>().toEqualTypeOf<string>();
@@ -147,16 +147,31 @@ describe("Proposal", () => {
 	});
 
 	test("admits a captive target inline alongside its IRI", () => {
-		expectTypeOf<Submitted["owned"]>().toEqualTypeOf<Reference | Proposal<ReturnType<typeof target>>>();
+		expectTypeOf<Submitted["owned"]>().toEqualTypeOf<Reference | Compound<ReturnType<typeof target>>>();
+	});
+
+	test("takes a captive target in either form", () => {
+		expectTypeOf<Reference>().toExtend<Submitted["owned"]>();
+		expectTypeOf<{ readonly label: string }>().toExtend<Submitted["owned"]>();
 	});
 
 	test("admits captive targets inline at every cardinality", () => {
 		expectTypeOf<Submitted["many"]>()
-			.toEqualTypeOf<undefined | readonly (Reference | Proposal<ReturnType<typeof target>>)[]>();
+			.toEqualTypeOf<undefined | readonly (Reference | Compound<ReturnType<typeof target>>)[]>();
+	});
+
+	test("takes captive targets in either form within a single set", () => {
+		expectTypeOf<readonly [Reference, { readonly label: string }]>()
+			.toExtend<NonNullable<Submitted["many"]>>();
+	});
+
+	test("takes a plain reference in reference form alone", () => {
+		expectTypeOf<Reference>().toExtend<Submitted["linked"]>();
+		expectTypeOf<{ readonly label: string }>().not.toExtend<Submitted["linked"]>();
 	});
 
 	test("proposes a captive target in its own right", () => {
-		expectTypeOf<Proposal<ReturnType<typeof target>>["label"]>().toEqualTypeOf<string>();
+		expectTypeOf<Compound<ReturnType<typeof target>>["label"]>().toEqualTypeOf<string>();
 	});
 
 	test("leaves an identifier optional", () => {
@@ -176,13 +191,13 @@ describe("Proposal", () => {
 	});
 
 	test("resolves a scalar shape as the state does", () => {
-		expectTypeOf<Proposal<StringShape>>().toEqualTypeOf<string>();
-		expectTypeOf<Proposal<ReferenceShape>>().toEqualTypeOf<Reference>();
+		expectTypeOf<Compound<StringShape>>().toEqualTypeOf<string>();
+		expectTypeOf<Compound<ReferenceShape>>().toEqualTypeOf<Reference>();
 	});
 
 	test("resolves a localised shape as the state does", () => {
-		expectTypeOf<Proposal<DictionaryShape>>().toEqualTypeOf<Plural>();
-		expectTypeOf<Proposal<UniqueShape>>().toEqualTypeOf<Singular>();
+		expectTypeOf<Compound<DictionaryShape>>().toEqualTypeOf<Plural>();
+		expectTypeOf<Compound<UniqueShape>>().toEqualTypeOf<Singular>();
 	});
 
 });
