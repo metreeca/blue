@@ -31,7 +31,7 @@ import { validate } from "./index.js";
 import { integer } from "./number.js";
 import { id, resource } from "./resource.js";
 import { string } from "./string.js";
-import { required } from "./value.js";
+import { required } from "./resource.js";
 
 
 describe("validate (projection) overload", () => {

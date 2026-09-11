@@ -43,10 +43,21 @@ import {
 	validateResult,
 	validateTemplate
 } from "./resource.core.js";
-import { id, property, type Property, resource, type ResourceShape, type } from "./resource.js";
+import {
+	id,
+	multiple,
+	nonempty,
+	optional,
+	property,
+	type Property,
+	required,
+	resource,
+	type ResourceShape,
+	type
+} from "./resource.js";
 import { date, email, string } from "./string.js";
 import { union, type UnionShape } from "./union.js";
-import { cardinality, eager, multiple, optional, repeatable, required, type SetShape } from "./value.js";
+import { eager, type SetShape } from "./value.js";
 
 
 // navigate an array-shaped trace by key path, returning the raw value at the path or undefined
@@ -124,7 +135,7 @@ describe("factories", () => {
 			it("preserves explicit property with naked range", async () => {
 
 				const shape = resource({
-					name: property(required(string())),
+					name: required(string()),
 					age: optional(integer())
 				});
 
@@ -154,7 +165,7 @@ describe("factories", () => {
 			it("returns a shape with kind 'resource'", async () => {
 
 				const shape = resource({
-					name: property(required(string()))
+					name: required(string())
 				});
 
 				expect(shape.kind).toBe("resource");
@@ -164,7 +175,7 @@ describe("factories", () => {
 			it("returns an immutable shape", async () => {
 
 				const shape = resource({
-					name: property(required(string()))
+					name: required(string())
 				});
 
 				expect(() => {
@@ -176,8 +187,8 @@ describe("factories", () => {
 			it("includes entries in the shape", async () => {
 
 				const shape = resource({
-					name: property(required(string())),
-					age: property(optional(integer()))
+					name: required(string()),
+					age: optional(integer())
 				});
 
 				expect(shape.entries).toBeDefined();
@@ -193,7 +204,7 @@ describe("factories", () => {
 			it("accepts specs and entries", async () => {
 
 				const shape = resource({
-					name: property(required(string()))
+					name: required(string())
 				}, {});
 
 				expect(shape.kind).toBe("resource");
@@ -218,7 +229,7 @@ describe("factories", () => {
 					model: {},
 					parents: [Parent],
 					entries: {
-						age: property(optional(integer()))
+						age: optional(integer())
 					}
 				} as ResourceShape;
 
@@ -244,7 +255,7 @@ describe("factories", () => {
 					model: {},
 					parents: [Parent],
 					entries: {
-						age: property(optional(integer()))
+						age: optional(integer())
 					}
 				} as ResourceShape;
 
@@ -272,7 +283,7 @@ describe("factories", () => {
 					model: {},
 					parents: [Parent],
 					entries: {
-						age: property(optional(integer()))
+						age: optional(integer())
 					}
 				} as ResourceShape;
 
@@ -302,7 +313,7 @@ describe("factories", () => {
 					model: {},
 					parents: [Parent],
 					entries: {
-						age: property(optional(integer()))
+						age: optional(integer())
 					}
 				} as ResourceShape;
 
@@ -347,7 +358,7 @@ describe("factories", () => {
 				const rdfs = createNamespace("http://www.w3.org/2000/01/rdf-schema#");
 
 				const shape = resource({
-					label: property({ forward: rdfs }, required(string()))
+					label: required(string(), { forward: rdfs })
 				});
 
 				expect((shape.entries.label as Property).forward).toBe("http://www.w3.org/2000/01/rdf-schema#label");
@@ -359,7 +370,7 @@ describe("factories", () => {
 				const ex = createNamespace("http://example.org/");
 
 				const shape = resource({
-					owner: property({ reverse: ex }, required(string()))
+					owner: required(string(), { reverse: ex })
 				});
 
 				expect((shape.entries.owner as Property).reverse).toBe("http://example.org/owner");
@@ -369,7 +380,7 @@ describe("factories", () => {
 			it("keeps IRI forward as-is", async () => {
 
 				const shape = resource({
-					name: property({ forward: "http://example.org/name" }, required(string()))
+					name: required(string(), { forward: "http://example.org/name" })
 				});
 
 				expect((shape.entries.name as Property).forward).toBe("http://example.org/name");
@@ -379,7 +390,7 @@ describe("factories", () => {
 			it("keeps IRI reverse as-is", async () => {
 
 				const shape = resource({
-					owner: property({ reverse: "http://example.org/owner" }, required(string()))
+					owner: required(string(), { reverse: "http://example.org/owner" })
 				});
 
 				expect((shape.entries.owner as Property).reverse).toBe("http://example.org/owner");
@@ -479,7 +490,7 @@ describe("factories", () => {
 				it("does not generate default forward when reverse is explicitly defined", async () => {
 
 					const shape = resource({
-						owner: property({ reverse: "http://example.org/owns" }, required(string()))
+						owner: required(string(), { reverse: "http://example.org/owns" })
 					});
 
 					expect((shape.entries.owner as Property).forward).toBeUndefined();
@@ -492,7 +503,7 @@ describe("factories", () => {
 					const ns = createNamespace("http://schema.org/");
 
 					const shape = resource({
-						name: property({ forward: "http://custom.org/name" }, required(string()))
+						name: required(string(), { forward: "http://custom.org/name" })
 					}, { space: ns });
 
 					expect((shape.entries.name as Property).forward).toBe("http://custom.org/name");
@@ -524,11 +535,11 @@ describe("factories", () => {
 			it("includes provided specs", async () => {
 
 				const Base = resource({
-					name: property(required(string()))
+					name: required(string())
 				});
 
 				const shape = resource(Base, {
-					age: property(optional(integer()))
+					age: optional(integer())
 				}, {
 					name: { [assert("en", isTag)]: "Person" },
 					description: { [assert("en", isTag)]: "A person resource" }
@@ -546,7 +557,7 @@ describe("factories", () => {
 			it("includes only provided entries", async () => {
 
 				const shape = resource({
-					name: property(required(string()))
+					name: required(string())
 				});
 
 				expect(shape).toMatchObject({ kind: "resource", entries: { name: expect.anything() } });
@@ -556,7 +567,7 @@ describe("factories", () => {
 			it("expands string name and description shorthands", async () => {
 
 				const shape = resource({
-					age: property(optional(integer()))
+					age: optional(integer())
 				}, {
 					name: "Person",
 					description: "A *person* resource"
@@ -577,7 +588,7 @@ describe("factories", () => {
 
 				// namespace validation is manual (typia can't validate function signatures)
 				expect(() => resource({
-					name: property(required(string()))
+					name: required(string())
 				}, { space: "http://example.org/" } as any)).toThrow(TypeError);
 
 			});
@@ -827,15 +838,15 @@ describe("factories", () => {
 			it("accepts multiple parents with no namespace defined", async () => {
 
 				const Parent1 = resource({
-					name: property(required(string()))
+					name: required(string())
 				});
 
 				const Parent2 = resource({
-					age: property(optional(integer()))
+					age: optional(integer())
 				});
 
 				expect(() => resource(Parent1, Parent2, {
-					email: property(required(string()))
+					email: required(string())
 				})).not.toThrow();
 
 			});
@@ -845,15 +856,15 @@ describe("factories", () => {
 				const ns = createNamespace("http://example.org/");
 
 				const Parent1 = resource({
-					name: property(required(string()))
+					name: required(string())
 				}, { space: ns });
 
 				const Parent2 = resource({
-					age: property(optional(integer()))
+					age: optional(integer())
 				}, { space: ns });
 
 				expect(() => resource(Parent1, Parent2, {
-					email: property(required(string()))
+					email: required(string())
 				})).not.toThrow();
 
 			});
@@ -863,15 +874,15 @@ describe("factories", () => {
 				const ns = createNamespace("http://example.org/");
 
 				const Parent1 = resource({
-					name: property(required(string()))
+					name: required(string())
 				}, { space: ns });
 
 				const Parent2 = resource({
-					age: property(optional(integer()))
+					age: optional(integer())
 				});
 
 				expect(() => resource(Parent1, Parent2, {
-					email: property(required(string()))
+					email: required(string())
 				})).toThrow(RangeError);
 
 			});
@@ -882,15 +893,15 @@ describe("factories", () => {
 				const ns2 = createNamespace("http://other.org/");
 
 				const Parent1 = resource({
-					name: property(required(string()))
+					name: required(string())
 				}, { space: ns1 });
 
 				const Parent2 = resource({
-					age: property(optional(integer()))
+					age: optional(integer())
 				}, { space: ns2 });
 
 				expect(() => resource(Parent1, Parent2, {
-					email: property(required(string()))
+					email: required(string())
 				})).toThrow(RangeError);
 
 			});
@@ -902,15 +913,15 @@ describe("factories", () => {
 				const override = createNamespace("http://override.org/");
 
 				const Parent1 = resource({
-					name: property(required(string()))
+					name: required(string())
 				}, { space: ns1 });
 
 				const Parent2 = resource({
-					age: property(optional(integer()))
+					age: optional(integer())
 				}, { space: ns2 });
 
 				expect(() => resource(Parent1, Parent2, {
-					email: property(required(string()))
+					email: required(string())
 				}, { space: override })).not.toThrow();
 
 			});
@@ -920,11 +931,11 @@ describe("factories", () => {
 				const ns = createNamespace("http://example.org/");
 
 				const Parent = resource({
-					name: property(required(string()))
+					name: required(string())
 				}, { space: ns });
 
 				expect(() => resource(Parent, {
-					age: property(optional(integer()))
+					age: optional(integer())
 				})).not.toThrow();
 
 			});
@@ -955,10 +966,10 @@ describe("factories", () => {
 
 				});
 
-				it("uses array model for repeatable property (maxCount=undefined)", async () => {
+				it("uses array model for nonempty property (maxCount=undefined)", async () => {
 
 					const shape = resource({
-						tags: repeatable(string())
+						tags: nonempty(string())
 					});
 
 					expect(shape.model).toEqual({ tags: [""] });
@@ -978,7 +989,7 @@ describe("factories", () => {
 				it("uses array model for custom cardinality with maxCount>1", async () => {
 
 					const shape = resource({
-						items: cardinality(2, 5)(string())
+						items: property(string(), { minCount: 2, maxCount: 5 })
 					});
 
 					expect(shape.model).toEqual({ items: [""] });
@@ -990,7 +1001,7 @@ describe("factories", () => {
 					const shape = resource({
 						name: required(string()),
 						age: optional(integer()),
-						tags: repeatable(string())
+						tags: nonempty(string())
 					});
 
 					expect(shape.model).toEqual({
@@ -1021,14 +1032,14 @@ describe("factories", () => {
 
 				});
 
-				it("uses array of nested resource model for repeatable nested resource", async () => {
+				it("uses array of nested resource model for nonempty nested resource", async () => {
 
 					const Address = resource({
 						city: required(string())
 					});
 
 					const Person = resource({
-						addresses: repeatable(Address)
+						addresses: nonempty(Address)
 					});
 
 					expect(Person.model).toEqual({
@@ -1051,10 +1062,10 @@ describe("factories", () => {
 
 				});
 
-				it("uses array of reference model for repeatable reference", async () => {
+				it("uses array of reference model for nonempty reference", async () => {
 
 					const shape = resource({
-						managers: repeatable(reference(resource({})))
+						managers: nonempty(reference(resource({})))
 					});
 
 					expect(shape.model).toEqual({ managers: ["app:/"] });
@@ -1152,7 +1163,7 @@ describe("factories", () => {
 				it("returns a deeply immutable model", async () => {
 
 					const shape = resource({
-						tags: repeatable(string())
+						tags: nonempty(string())
 					});
 
 					expect(() => {
@@ -1203,7 +1214,7 @@ describe("factories", () => {
 					const rdfs = createNamespace("http://www.w3.org/2000/01/rdf-schema#", ["label"]);
 
 					const Parent = resource({
-						label: property({ forward: rdfs.label }, required(string()))
+						label: required(string(), { forward: rdfs.label })
 					});
 
 					const Child = resource(Parent, {
@@ -1219,7 +1230,7 @@ describe("factories", () => {
 					const ex = createNamespace("http://example.org/", ["owner"]);
 
 					const Parent = resource({
-						owner: property({ reverse: ex.owner }, required(string()))
+						owner: required(string(), { reverse: ex.owner })
 					});
 
 					const Child = resource(Parent, {
@@ -1282,11 +1293,156 @@ describe("factories", () => {
 
 	describe("property", () => {
 
+		describe("cardinality bounds", () => {
+
+			it.each([
+				["multiple", multiple, undefined, undefined],
+				["nonempty", nonempty, 1, undefined],
+				["optional", optional, undefined, 1],
+				["required", required, 1, 1]
+			])("%s sets correct cardinality bounds", async (_name, factory, expectedMin, expectedMax) => {
+
+				const { range } = factory(string());
+
+				expect(range.minCount).toBe(expectedMin);
+				expect(range.maxCount).toBe(expectedMax);
+				expect(range.shape.kind).toBe("string");
+
+			});
+
+			it("accepts a lazy resource shape", async () => {
+
+				const { range } = multiple(() => resource({}));
+
+				expect(range.shape.kind).toBe("resource");
+
+			});
+
+			it("returns an immutable range", async () => {
+
+				const { range } = required(string());
+
+				expect(() => {
+					(range as any).minCount = 99;
+				}).toThrow();
+
+			});
+
+			it("includes only expected range entries", async () => {
+
+				const { range } = required(string());
+
+				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "model", "shape"]);
+
+			});
+
+		});
+
+		describe("stated bounds", () => {
+
+			it("reads the bounds off the constraints", async () => {
+
+				const { range } = property(string(), { minCount: 2, maxCount: 5 });
+
+				expect(range.minCount).toBe(2);
+				expect(range.maxCount).toBe(5);
+				expect(range.shape.kind).toBe("string");
+
+			});
+
+			it("leaves the lower bound unstated", async () => {
+
+				const { range } = property(string(), { maxCount: 3 });
+
+				expect(range.minCount).toBeUndefined();
+				expect(range.maxCount).toBe(3);
+
+			});
+
+			it("leaves the upper bound unstated", async () => {
+
+				const { range } = property(string(), { minCount: 2 });
+
+				expect(range.minCount).toBe(2);
+				expect(range.maxCount).toBeUndefined();
+
+			});
+
+			it("leaves both bounds unstated", async () => {
+
+				const { range } = property(string());
+
+				expect(range.minCount).toBeUndefined();
+				expect(range.maxCount).toBeUndefined();
+
+			});
+
+			it("rejects a negative lower bound", async () => {
+				expect(() => property(string(), { minCount: -1 })).toThrow(TypeError);
+			});
+
+			it("rejects a negative upper bound", async () => {
+				expect(() => property(string(), { maxCount: -1 })).toThrow(TypeError);
+			});
+
+			it("rejects inconsistent bounds", async () => {
+				expect(() => property(string(), { minCount: 5, maxCount: 2 })).toThrow(TypeError);
+			});
+
+		});
+
+		describe("model projection", () => {
+
+			it("boxes a multi-valued model into a singleton tuple", async () => {
+				expect(property(string(), { minCount: 2, maxCount: 5 }).range.model).toEqual([""]);
+			});
+
+			it("boxes a multi-valued model with an unstated upper bound", async () => {
+				expect(property(string(), { minCount: 2 }).range.model).toEqual([""]);
+			});
+
+			it("boxes a multi-valued resource model into a singleton tuple", async () => {
+				expect(property(resource({ name: required(string()) }), { minCount: 2, maxCount: 5 }).range.model)
+					.toEqual([{ name: "" }]);
+			});
+
+			it("projects a localised dictionary model per tag for collection cardinality", async () => {
+				expect(property(dictionary({ en: "", it: "" }), { minCount: 2, maxCount: 5 }).range.model)
+					.toEqual({ en: [""], it: [""] });
+			});
+
+			it("projects a localised dictionary model per tag for scalar cardinality", async () => {
+				expect(property(dictionary({ en: "", it: "" }), { minCount: 1, maxCount: 1 }).range.model)
+					.toEqual({ en: "", it: "" });
+			});
+
+			it("wraps the default tag map for scalar cardinality", async () => {
+				expect(required(dictionary()).range.model).toEqual({ "*": "" });
+			});
+
+			it("wraps the default tag map for optional cardinality", async () => {
+				expect(optional(dictionary()).range.model).toEqual({ "*": "" });
+			});
+
+			it("boxes default tag values into singleton tuples for collection cardinality", async () => {
+				expect(multiple(dictionary()).range.model).toEqual({ "*": [""] });
+			});
+
+			it("boxes default tag values into singleton tuples for nonempty cardinality", async () => {
+				expect(nonempty(dictionary()).range.model).toEqual({ "*": [""] });
+			});
+
+			it("boxes default tag values into singleton tuples for stated bounds", async () => {
+				expect(property(dictionary(), { minCount: 2, maxCount: 5 }).range.model).toEqual({ "*": [""] });
+			});
+
+		});
+
 		describe("single range", () => {
 
 			it("creates Property from single range", async () => {
 
-				const prop = property(required(string()));
+				const prop = required(string());
 
 				expect(prop.range.kind).toBe("set");
 				expect((prop.range as SetShape).shape.kind).toBe("string");
@@ -1295,7 +1451,7 @@ describe("factories", () => {
 
 			it("returns an immutable property", async () => {
 
-				const prop = property(required(string()));
+				const prop = required(string());
 
 				expect(() => {
 					(prop as any).range = {};
@@ -1309,7 +1465,7 @@ describe("factories", () => {
 
 			it("accepts a range with union shape", async () => {
 
-				const prop = property(required(union(string(), integer())));
+				const prop = required(union(string(), integer()));
 
 				expect(prop.range.kind).toBe("set");
 
@@ -1326,7 +1482,7 @@ describe("factories", () => {
 
 			it("accepts specs and single range", async () => {
 
-				const prop = property({ hidden: true }, required(string()));
+				const prop = required(string(), { hidden: true });
 
 				expect(prop.range.kind).toBe("set");
 				expect((prop.range as SetShape).shape.kind).toBe("string");
@@ -1335,7 +1491,7 @@ describe("factories", () => {
 
 			it("includes hidden in the property", async () => {
 
-				const prop = property({ hidden: true }, required(string()));
+				const prop = required(string(), { hidden: true });
 
 				expect(prop.hidden).toBe(true);
 
@@ -1344,7 +1500,7 @@ describe("factories", () => {
 			it("expands string name and description shorthands", async () => {
 
 				const shape = resource({
-					age: property({ name: "Age", description: "The *age* in years" }, optional(integer()))
+					age: optional(integer(), { name: "Age", description: "The *age* in years" })
 				});
 
 				expect(shape.entries.age).toMatchObject({
@@ -1356,7 +1512,7 @@ describe("factories", () => {
 
 			it("converts string forward to IRI", async () => {
 
-				const prop = property({ forward: "http://example.org/name" }, required(string()));
+				const prop = required(string(), { forward: "http://example.org/name" });
 
 				expect(prop.forward).toBe("http://example.org/name");
 
@@ -1364,7 +1520,7 @@ describe("factories", () => {
 
 			it("converts string reverse to IRI", async () => {
 
-				const prop = property({ reverse: "http://example.org/owner" }, required(string()));
+				const prop = required(string(), { reverse: "http://example.org/owner" });
 
 				expect(prop.reverse).toBe("http://example.org/owner");
 
@@ -1376,11 +1532,11 @@ describe("factories", () => {
 
 			it("includes provided specs", async () => {
 
-				const prop = property({
+				const prop = required(string(), {
 					hidden: true,
 					forward: "http://example.org/name",
 					reverse: "http://example.org/owner"
-				}, required(string()));
+				});
 
 				expect(prop).toMatchObject({
 					hidden: true,
@@ -1393,7 +1549,7 @@ describe("factories", () => {
 
 			it("includes only provided entries", async () => {
 
-				const prop = property({ hidden: true }, required(string()));
+				const prop = required(string(), { hidden: true });
 
 				expect(prop).toMatchObject({ hidden: true });
 				expect(prop.range).toBeDefined();
@@ -1866,8 +2022,8 @@ describe("utilities", () => {
 
 					it(`inherits ${field} from parent property when child has none`, async () => {
 
-						const parent = resource({ field: property({ [field]: true }, required(string())) });
-						const child = resource(parent, { field: property(required(string())) });
+						const parent = resource({ field: required(string(), { [field]: true }) });
+						const child = resource(parent, { field: required(string()) });
 
 						const flat = flatten(child);
 
@@ -1877,8 +2033,8 @@ describe("utilities", () => {
 
 					it(`child overrides parent ${field}`, async () => {
 
-						const parent = resource({ field: property({ [field]: true }, required(string())) });
-						const child = resource(parent, { field: property({ [field]: false }, required(string())) });
+						const parent = resource({ field: required(string(), { [field]: true }) });
+						const child = resource(parent, { field: required(string(), { [field]: false }) });
 
 						const flat = flatten(child);
 
@@ -1888,9 +2044,9 @@ describe("utilities", () => {
 
 					it(`grandparent ${field} overridden by parent propagates to child`, async () => {
 
-						const grandparent = resource({ field: property({ [field]: true }, required(string())) });
-						const parent = resource(grandparent, { field: property({ [field]: false }, required(string())) });
-						const child = resource(parent, { field: property(required(string())) });
+						const grandparent = resource({ field: required(string(), { [field]: true }) });
+						const parent = resource(grandparent, { field: required(string(), { [field]: false }) });
+						const child = resource(parent, { field: required(string()) });
 
 						const flat = flatten(child);
 
@@ -1904,9 +2060,9 @@ describe("utilities", () => {
 
 					it(`inherits ${field} when both parents agree`, async () => {
 
-						const parentA = resource({ field: property({ [field]: true }, required(string())) });
-						const parentB = resource({ field: property({ [field]: true }, required(string())) });
-						const child = resource(parentA, parentB, { field: property(required(string())) });
+						const parentA = resource({ field: required(string(), { [field]: true }) });
+						const parentB = resource({ field: required(string(), { [field]: true }) });
+						const child = resource(parentA, parentB, { field: required(string()) });
 
 						const flat = flatten(child);
 
@@ -1916,9 +2072,9 @@ describe("utilities", () => {
 
 					it("child overrides conflicting parents", async () => {
 
-						const parentA = resource({ field: property({ [field]: true }, required(string())) });
-						const parentB = resource({ field: property({ [field]: false }, required(string())) });
-						const child = resource(parentA, parentB, { field: property({ [field]: true }, required(string())) });
+						const parentA = resource({ field: required(string(), { [field]: true }) });
+						const parentB = resource({ field: required(string(), { [field]: false }) });
+						const child = resource(parentA, parentB, { field: required(string(), { [field]: true }) });
 
 						const flat = flatten(child);
 
@@ -1928,19 +2084,19 @@ describe("utilities", () => {
 
 					it("rejects conflicting parents without child override", async () => {
 
-						const parentA = resource({ field: property({ [field]: true }, required(string())) });
-						const parentB = resource({ field: property({ [field]: false }, required(string())) });
+						const parentA = resource({ field: required(string(), { [field]: true }) });
+						const parentB = resource({ field: required(string(), { [field]: false }) });
 
-						expect(() => resource(parentA, parentB, { field: property(required(string())) })).toThrow(RangeError);
+						expect(() => resource(parentA, parentB, { field: required(string()) })).toThrow(RangeError);
 
 					});
 
 					it("rejects undefined vs defined conflict without child override", async () => {
 
-						const parentA = resource({ field: property({ [field]: true }, required(string())) });
-						const parentB = resource({ field: property(required(string())) });
+						const parentA = resource({ field: required(string(), { [field]: true }) });
+						const parentB = resource({ field: required(string()) });
 
-						expect(() => resource(parentA, parentB, { field: property(required(string())) })).toThrow(RangeError);
+						expect(() => resource(parentA, parentB, { field: required(string()) })).toThrow(RangeError);
 
 					});
 
@@ -2173,8 +2329,8 @@ describe("utilities", () => {
 				"computed" as const
 			])("reports conflicting %s without child override", async (field) => {
 
-				const parentA = resource({ field: property({ [field]: true }, required(string())) });
-				const parentB = resource({ field: property({ [field]: false }, required(string())) });
+				const parentA = resource({ field: required(string(), { [field]: true }) });
+				const parentB = resource({ field: required(string(), { [field]: false }) });
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeDefined();
@@ -2186,8 +2342,8 @@ describe("utilities", () => {
 				"computed" as const
 			])("keys a conflicting %s by bare entry name and braced constraint", async (field) => {
 
-				const parentA = resource({ field: property({ [field]: true }, required(string())) });
-				const parentB = resource({ field: property({ [field]: false }, required(string())) });
+				const parentA = resource({ field: required(string(), { [field]: true }) });
+				const parentB = resource({ field: required(string(), { [field]: false }) });
 				const child = resource({}, {});
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)]))
@@ -2200,9 +2356,9 @@ describe("utilities", () => {
 				"computed" as const
 			])("returns undefined when child overrides conflicting %s", async (field) => {
 
-				const parentA = resource({ field: property({ [field]: true }, required(string())) });
-				const parentB = resource({ field: property({ [field]: false }, required(string())) });
-				const child = resource({ field: property({ [field]: true }, required(string())) });
+				const parentA = resource({ field: required(string(), { [field]: true }) });
+				const parentB = resource({ field: required(string(), { [field]: false }) });
+				const child = resource({ field: required(string(), { [field]: true }) });
 
 				expect(checkParents(child, [flatten(parentA), flatten(parentB)])).toBeUndefined();
 
@@ -2245,8 +2401,8 @@ describe("utilities", () => {
 			it("returns undefined for distinct forward predicates", async () => {
 
 				const shape = resource({
-					name: property({ forward: "http://example.org/name" }, required(string())),
-					label: property({ forward: "http://example.org/label" }, required(string()))
+					name: required(string(), { forward: "http://example.org/name" }),
+					label: required(string(), { forward: "http://example.org/label" })
 				});
 
 				expect(checkPredicates(shape)).toBeUndefined();
@@ -2255,13 +2411,13 @@ describe("utilities", () => {
 
 			it("reports duplicate forward predicates", async () => {
 
-				const base = resource({ name: property({ forward: "http://example.org/name" }, required(string())) });
+				const base = resource({ name: required(string(), { forward: "http://example.org/name" }) });
 
 				const manual: ResourceShape = {
 					...base,
 					entries: {
 						...base.entries,
-						label: { kind: "property", forward: "http://example.org/name", range: required(string()) }
+						label: { kind: "property", forward: "http://example.org/name", range: required(string()).range }
 					}
 				};
 
@@ -2271,13 +2427,13 @@ describe("utilities", () => {
 
 			it("keys a duplicate forward predicate by bare entry name and braced constraint", async () => {
 
-				const base = resource({ name: property({ forward: "http://example.org/name" }, required(string())) });
+				const base = resource({ name: required(string(), { forward: "http://example.org/name" }) });
 
 				const manual: ResourceShape = {
 					...base,
 					entries: {
 						...base.entries,
-						label: { kind: "property", forward: "http://example.org/name", range: required(string()) }
+						label: { kind: "property", forward: "http://example.org/name", range: required(string()).range }
 					}
 				};
 
@@ -2288,8 +2444,8 @@ describe("utilities", () => {
 			it("returns undefined for distinct reverse predicates", async () => {
 
 				const shape = resource({
-					owner: property({ reverse: "http://example.org/owns" }, required(string())),
-					creator: property({ reverse: "http://example.org/created" }, required(string()))
+					owner: required(string(), { reverse: "http://example.org/owns" }),
+					creator: required(string(), { reverse: "http://example.org/created" })
 				});
 
 				expect(checkPredicates(shape)).toBeUndefined();
@@ -2298,13 +2454,13 @@ describe("utilities", () => {
 
 			it("reports duplicate reverse predicates", async () => {
 
-				const base = resource({ owner: property({ reverse: "http://example.org/owns" }, required(string())) });
+				const base = resource({ owner: required(string(), { reverse: "http://example.org/owns" }) });
 
 				const manual: ResourceShape = {
 					...base,
 					entries: {
 						...base.entries,
-						creator: { kind: "property", reverse: "http://example.org/owns", range: required(string()) }
+						creator: { kind: "property", reverse: "http://example.org/owns", range: required(string()).range }
 					}
 				};
 
@@ -2315,8 +2471,8 @@ describe("utilities", () => {
 			it("checks forward and reverse independently", async () => {
 
 				const shape = resource({
-					name: property({ forward: "http://example.org/name" }, required(string())),
-					owner: property({ reverse: "http://example.org/name" }, required(string()))
+					name: required(string(), { forward: "http://example.org/name" }),
+					owner: required(string(), { reverse: "http://example.org/name" })
 				});
 
 				expect(checkPredicates(shape)).toBeUndefined();
@@ -2328,7 +2484,7 @@ describe("utilities", () => {
 				const shape = resource({
 					rid: id(),
 					rtype: type(),
-					name: property({ forward: "http://example.org/name" }, required(string()))
+					name: required(string(), { forward: "http://example.org/name" })
 				}, { class: "app:/types/T" });
 
 				expect(checkPredicates(shape)).toBeUndefined();
@@ -2392,7 +2548,7 @@ describe("utilities", () => {
 						child: {
 							kind: "property",
 							forward: "http://example.org/child",
-							range: optional(resource({ rid: id() }))
+							range: optional(resource({ rid: id() })).range
 						}
 					}
 				};
@@ -2412,7 +2568,7 @@ describe("utilities", () => {
 						child: {
 							kind: "property",
 							forward: "http://example.org/child",
-							range: optional(resource({ rid: id() }))
+							range: optional(resource({ rid: id() })).range
 						}
 					}
 				};
@@ -2432,7 +2588,7 @@ describe("utilities", () => {
 						child: {
 							kind: "property",
 							forward: "http://example.org/child",
-							range: optional(union(resource({ rid: id() }), resource({ value: required(integer()) })))
+							range: optional(union(resource({ rid: id() }), resource({ value: required(integer()) }))).range
 						}
 					}
 				};
@@ -2453,8 +2609,8 @@ describe("utilities", () => {
 				it(`accepts distinct ${direction} predicates`, async () => {
 
 					const shape = resource({
-						[prop1]: property({ [direction]: iri1 }, required(string())),
-						[prop2]: property({ [direction]: iri2 }, required(string()))
+						[prop1]: required(string(), { [direction]: iri1 }),
+						[prop2]: required(string(), { [direction]: iri2 })
 					});
 
 					expect(() => flatten(shape)).not.toThrow();
@@ -2464,18 +2620,18 @@ describe("utilities", () => {
 				it(`rejects duplicate ${direction} predicates`, async () => {
 
 					expect(() => resource({
-						[prop1]: property({ [direction]: iri1 }, required(string())),
-						[prop2]: property({ [direction]: iri1 }, required(string()))
+						[prop1]: required(string(), { [direction]: iri1 }),
+						[prop2]: required(string(), { [direction]: iri1 })
 					})).toThrow(RangeError);
 
 				});
 
 				it(`rejects duplicate ${direction} predicates from inheritance`, async () => {
 
-					const parent = resource({ [prop1]: property({ [direction]: iri1 }, required(string())) });
+					const parent = resource({ [prop1]: required(string(), { [direction]: iri1 }) });
 
 					expect(() => resource(parent, {
-						[prop2]: property({ [direction]: iri1 }, required(string()))
+						[prop2]: required(string(), { [direction]: iri1 })
 					})).toThrow(RangeError);
 
 				});
@@ -2483,8 +2639,8 @@ describe("utilities", () => {
 				it(`ignores properties without ${direction} predicates`, async () => {
 
 					const shape = resource({
-						[prop1]: property({ [opposite]: iri1 }, required(string())),
-						[prop2]: property({ [opposite]: iri2 }, required(string()))
+						[prop1]: required(string(), { [opposite]: iri1 }),
+						[prop2]: required(string(), { [opposite]: iri2 })
 					});
 
 					expect(() => flatten(shape)).not.toThrow();
@@ -2496,8 +2652,8 @@ describe("utilities", () => {
 			it("checks forward and reverse independently", async () => {
 
 				const shape = resource({
-					name: property({ forward: "http://example.org/name" }, required(string())),
-					owner: property({ reverse: "http://example.org/name" }, required(string()))
+					name: required(string(), { forward: "http://example.org/name" }),
+					owner: required(string(), { reverse: "http://example.org/name" })
 				});
 
 				expect(() => flatten(shape)).not.toThrow();
@@ -3032,8 +3188,8 @@ describe("operators", () => {
 
 		it("accepts a child that tightens the range", async () => {
 
-			const base: Property = { kind: "property", range: required(string()) };
-			const child: Property = { kind: "property", range: required(string({ model: "x", minLength: 1 })) };
+			const base: Property = { kind: "property", range: required(string()).range };
+			const child: Property = { kind: "property", range: required(string({ model: "x", minLength: 1 })).range };
 
 			expect(narrowsProperty(child, base)).toBeUndefined();
 
@@ -3041,8 +3197,8 @@ describe("operators", () => {
 
 		it("rejects a child that widens the range", async () => {
 
-			const base: Property = { kind: "property", range: required(string({ model: "hello", minLength: 5 })) };
-			const child: Property = { kind: "property", range: required(string({ model: "x", minLength: 1 })) };
+			const base: Property = { kind: "property", range: required(string({ model: "hello", minLength: 5 })).range };
+			const child: Property = { kind: "property", range: required(string({ model: "x", minLength: 1 })).range };
 
 			expect(narrowsProperty(child, base)).toBeDefined();
 
@@ -3544,7 +3700,7 @@ describe("operators", () => {
 
 	describe("mergeProperty", () => {
 
-		const base: Property = { kind: "property", range: required(string()) };
+		const base: Property = { kind: "property", range: required(string()).range };
 
 		describe("kind", () => {
 
@@ -3563,7 +3719,7 @@ describe("operators", () => {
 			it("delegates range merge", async () => {
 
 				const merged = mergeProperty(
-					{ ...base, range: required(string({ model: "hello", minLength: 5 })) },
+					{ ...base, range: required(string({ model: "hello", minLength: 5 })).range },
 					base
 				);
 
@@ -4533,10 +4689,10 @@ describe("validators", () => {
 
 			});
 
-			describe("repeatable property", () => {
+			describe("nonempty property", () => {
 
 				const tagged = resource({
-					tags: repeatable(string())
+					tags: nonempty(string())
 				});
 
 
@@ -4562,7 +4718,7 @@ describe("validators", () => {
 
 				});
 
-				it("rejects missing repeatable property", async () => {
+				it("rejects missing nonempty property", async () => {
 
 					const trace = validateResource([{}], tagged);
 					const inner = rec(trace, "0");
@@ -4693,7 +4849,7 @@ describe("validators", () => {
 						["optional string", { name: optional(string()) }, "name"],
 						["optional integer", { age: optional(integer()) }, "age"],
 						["optional boolean", { flag: optional(boolean()) }, "flag"],
-						["repeatable string", { tags: repeatable(string()) }, "tags"],
+						["nonempty string", { tags: nonempty(string()) }, "tags"],
 						["multiple integer", { scores: multiple(integer()) }, "scores"]
 					] as const)("rejects `{}` on %s as type mismatch", async (_label, props, key) => {
 
@@ -4728,7 +4884,7 @@ describe("validators", () => {
 
 					it("does not treat partially-empty language map as absent", async () => {
 
-						const required = resource({ label: repeatable(dictionary()) });
+						const required = resource({ label: nonempty(dictionary()) });
 
 						// `fr` carries a value, so the map is not absent — normal validation runs
 						// and flags `en` against its per-tag minCount
@@ -4747,10 +4903,10 @@ describe("validators", () => {
 					// kinds, or unions containing such a variant); on pure-literal slots `{}`
 					// is not a nested Resource and remains a `{kind}` type mismatch
 
-					it("drops `{}` elements on repeatable reference slot", async () => {
+					it("drops `{}` elements on nonempty reference slot", async () => {
 
 						const shape = resource({
-							parents: repeatable(reference(Target))
+							parents: nonempty(reference(Target))
 						});
 
 						expect(validateResource([{
@@ -4759,11 +4915,11 @@ describe("validators", () => {
 
 					});
 
-					it("drops `{}` elements on repeatable union slot containing reference", async () => {
+					it("drops `{}` elements on nonempty union slot containing reference", async () => {
 
 						const WithName = resource({ name: required(string()) });
 						const shape = resource({
-							contacts: repeatable(union(string(), reference(WithName)))
+							contacts: nonempty(union(string(), reference(WithName)))
 						});
 
 						expect(validateResource([{
@@ -4772,10 +4928,10 @@ describe("validators", () => {
 
 					});
 
-					it("does not drop `{}` elements on repeatable literal slot", async () => {
+					it("does not drop `{}` elements on nonempty literal slot", async () => {
 
 						const shape = resource({
-							tags: repeatable(string())
+							tags: nonempty(string())
 						});
 
 						const trace = validateResource([{ tags: ["a", {}] }], shape);
@@ -4789,7 +4945,7 @@ describe("validators", () => {
 					it("enforces cardinality against filtered count", async () => {
 
 						const shape = resource({
-							parents: repeatable(reference(Target))
+							parents: nonempty(reference(Target))
 						});
 
 						const trace = validateResource([{ parents: [{}, {}] }], shape);
@@ -4837,7 +4993,7 @@ describe("validators", () => {
 					it("accepts arrays within bounds", async () => {
 
 						const shape = resource({
-							tags: cardinality(cardinalityArgs[0], cardinalityArgs[1])(string())
+							tags: property(string(), { minCount: cardinalityArgs[0], maxCount: cardinalityArgs[1] })
 						});
 
 						for (const tags of accepted) {
@@ -4849,7 +5005,7 @@ describe("validators", () => {
 					it("rejects arrays outside bounds", async () => {
 
 						const shape = resource({
-							tags: cardinality(cardinalityArgs[0], cardinalityArgs[1])(string())
+							tags: property(string(), { minCount: cardinalityArgs[0], maxCount: cardinalityArgs[1] })
 						});
 
 						for (const tags of rejected) {
@@ -5017,7 +5173,7 @@ describe("validators", () => {
 				{
 					type: "text",
 					field: "labels",
-					range: repeatable(dictionary()),
+					range: nonempty(dictionary()),
 					valid: [{ labels: { en: ["Hello"] } }, { labels: { und: ["Hello"] } }],
 					invalid: { labels: 42 }
 				}
@@ -5049,7 +5205,7 @@ describe("validators", () => {
 				it("validates array elements individually", async () => {
 
 					const shape = resource({
-						tags: repeatable(string({ model: "ab", minLength: 2 }))
+						tags: nonempty(string({ model: "ab", minLength: 2 }))
 					});
 
 					expect(validateResource([{ tags: ["abc", "de", "fgh"] }], shape)).toBeUndefined();
@@ -5118,7 +5274,7 @@ describe("validators", () => {
 				});
 
 				const multiUnion = resource({
-					value: repeatable(union(string(), integer()))
+					value: nonempty(union(string(), integer()))
 				});
 
 
@@ -5140,7 +5296,7 @@ describe("validators", () => {
 
 				});
 
-				it("accepts a heterogeneous array for repeatable union", async () => {
+				it("accepts a heterogeneous array for nonempty union", async () => {
 
 					expect(validateResource([{ value: ["hello", 42, "world"] }], multiUnion)).toBeUndefined();
 
@@ -5244,7 +5400,7 @@ describe("validators", () => {
 					it("accepts union values within cardinality bounds", async () => {
 
 						const bounded = resource({
-							value: cardinality(1, 3)(union(string(), integer()))
+							value: property(union(string(), integer()), { minCount: 1, maxCount: 3 })
 						});
 
 						expect(validateResource([{
@@ -5256,7 +5412,7 @@ describe("validators", () => {
 					it("rejects union values below minCount", async () => {
 
 						const bounded = resource({
-							value: cardinality(2, 5)(union(string(), integer()))
+							value: property(union(string(), integer()), { minCount: 2, maxCount: 5 })
 						});
 
 						expect(validateResource([{
@@ -5268,7 +5424,7 @@ describe("validators", () => {
 					it("rejects union values above maxCount", async () => {
 
 						const bounded = resource({
-							value: cardinality(1, 2)(union(string(), integer()))
+							value: property(union(string(), integer()), { minCount: 1, maxCount: 2 })
 						});
 
 						expect(validateResource([{
@@ -5826,10 +5982,10 @@ describe("validators", () => {
 
 			});
 
-			it("rejects response with empty array for projected repeatable field", async () => {
+			it("rejects response with empty array for projected nonempty field", async () => {
 
 				const shape = resource({
-					tags: repeatable(string())
+					tags: nonempty(string())
 				});
 
 				expect(validateResult([{ tags: [] }], { shape, model: { tags: [""] } })).toBeDefined();
@@ -5887,10 +6043,10 @@ describe("validators", () => {
 
 			});
 
-			it("accepts multi-value response for a projected repeatable field", async () => {
+			it("accepts multi-value response for a projected nonempty field", async () => {
 
 				const shape = resource({
-					tags: repeatable(string())
+					tags: nonempty(string())
 				});
 
 				expect(validateResult([{ tags: ["a", "b", "c"] }], {
@@ -6000,7 +6156,7 @@ describe("validators", () => {
 
 				it("accepts string-array response on coalesced array localised slot", async () => {
 
-					const shape = resource({ keywords: repeatable(dictionary()) });
+					const shape = resource({ keywords: nonempty(dictionary()) });
 
 					expect(validateResult([{ keywords: ["alpha", "beta"] }], {
 						shape,
@@ -6011,7 +6167,7 @@ describe("validators", () => {
 
 				it("rejects tag-map response on coalesced array localised slot", async () => {
 
-					const shape = resource({ keywords: repeatable(dictionary()) });
+					const shape = resource({ keywords: nonempty(dictionary()) });
 
 					expect(validateResult([{ keywords: { en: ["alpha"] } }], {
 						shape,
@@ -6022,7 +6178,7 @@ describe("validators", () => {
 
 				it("rejects scalar string response on coalesced array localised slot", async () => {
 
-					const shape = resource({ keywords: repeatable(dictionary()) });
+					const shape = resource({ keywords: nonempty(dictionary()) });
 
 					expect(validateResult([{ keywords: "alpha" }], { shape, model: { keywords: [""] } })).toBeDefined();
 
@@ -6030,7 +6186,7 @@ describe("validators", () => {
 
 				it("rejects coalesced array element shorter than shape's minLength", async () => {
 
-					const shape = resource({ keywords: repeatable(dictionary({ minLength: 3 })) });
+					const shape = resource({ keywords: nonempty(dictionary({ minLength: 3 })) });
 
 					expect(validateResult([{ keywords: ["ab"] }], { shape, model: { keywords: [""] } })).toBeDefined();
 
@@ -6038,7 +6194,7 @@ describe("validators", () => {
 
 				it("skips languageIn on coalesced array response", async () => {
 
-					const shape = resource({ keywords: repeatable(dictionary({ languageIn: ["en"] })) });
+					const shape = resource({ keywords: nonempty(dictionary({ languageIn: ["en"] })) });
 
 					expect(validateResult([{ keywords: ["alpha", "beta"] }], {
 						shape,
@@ -6151,10 +6307,10 @@ describe("validators", () => {
 
 			});
 
-			it("accepts repeatable reference with mixed IRI and expanded resource", async () => {
+			it("accepts nonempty reference with mixed IRI and expanded resource", async () => {
 
 				const shape = resource({
-					items: repeatable(reference(Inner))
+					items: nonempty(reference(Inner))
 				});
 
 				expect(validateResult([{ items: ["app:/inner/1", { label: "x" }] }], {
@@ -7074,7 +7230,7 @@ describe("validators", () => {
 			it("rejects response missing number required by hasValue", async () => {
 
 				const shape = resource({
-					codes: repeatable(integer({ hasValue: [42] }))
+					codes: nonempty(integer({ hasValue: [42] }))
 				});
 
 				expect(validateResult([{ codes: [1, 2] }], { shape, model: { codes: [0] } })).toBeDefined();
@@ -7084,7 +7240,7 @@ describe("validators", () => {
 			it("rejects response missing string required by hasValue", async () => {
 
 				const shape = resource({
-					tags: repeatable(string({ hasValue: ["required"] }))
+					tags: nonempty(string({ hasValue: ["required"] }))
 				});
 
 				expect(validateResult([{ tags: ["a", "b"] }], { shape, model: { tags: [""] } })).toBeDefined();
@@ -7094,7 +7250,7 @@ describe("validators", () => {
 			it("rejects array exceeding maxCount", async () => {
 
 				const shape = resource({
-					tags: cardinality(undefined, 2)(string())
+					tags: property(string(), { maxCount: 2 })
 				});
 
 				expect(validateResult([{ tags: ["a", "b", "c"] }], { shape, model: { tags: [""] } })).toBeDefined();
@@ -7440,10 +7596,10 @@ describe("validators", () => {
 
 				});
 
-				it("accepts absent repeatable property", async () => {
+				it("accepts absent nonempty property", async () => {
 
 					const shape = resource({
-						tags: repeatable(string())
+						tags: nonempty(string())
 					});
 
 					expect(validateTemplate([{}], shape, { depth: 0 })).toBeUndefined();
@@ -7456,9 +7612,9 @@ describe("validators", () => {
 
 				it.each([
 					["accepts scalar on scalar", "name", required(string()), { name: "Alice" }, true],
-					["accepts array on array", "tags", repeatable(string()), { tags: ["a"] }, true],
+					["accepts array on array", "tags", nonempty(string()), { tags: ["a"] }, true],
 					["rejects array on scalar", "name", required(string()), { name: ["Alice"] }, false],
-					["rejects scalar on array", "tags", repeatable(string()), { tags: "a" }, false]
+					["rejects scalar on array", "tags", nonempty(string()), { tags: "a" }, false]
 				] as const)("%s", async (_label, key, range, value, valid) => {
 
 					const shape = resource({ [key]: range });
@@ -7508,7 +7664,7 @@ describe("validators", () => {
 						// `[""]` is the array-per-tag coalesced placeholder, the counterpart of the bare
 						// string on a single-string-per-tag slot (qest §5.3)
 
-						const shape = resource({ labels: repeatable(dictionary()) });
+						const shape = resource({ labels: nonempty(dictionary()) });
 
 						expect(validateTemplate([{ labels: ["hello"] }], shape, { depth: 0 })).toBeUndefined();
 
@@ -7516,7 +7672,7 @@ describe("validators", () => {
 
 					it("accepts tag-range map with array values on array property", async () => {
 
-						const shape = resource({ labels: repeatable(dictionary()) });
+						const shape = resource({ labels: nonempty(dictionary()) });
 
 						expect(validateTemplate([{ labels: { en: ["hello"] } }], shape, { depth: 0 })).toBeUndefined();
 
@@ -7526,7 +7682,7 @@ describe("validators", () => {
 
 						// array-per-tag pins the structural map to the singleton-tuple arm
 
-						const shape = resource({ labels: repeatable(dictionary()) });
+						const shape = resource({ labels: nonempty(dictionary()) });
 
 						expect(validateTemplate([{ labels: { en: "hello" } }], shape, { depth: 0 })).toBeDefined();
 
@@ -7633,7 +7789,7 @@ describe("validators", () => {
 
 					it("rejects bare string array on required localised property", async () => {
 
-						const shape = resource({ labels: repeatable(dictionary()) });
+						const shape = resource({ labels: nonempty(dictionary()) });
 
 						expect(validateResource([{ labels: ["hello"] }], shape)).toHaveProperty([0, "0", 0, "labels"]);
 
@@ -7641,7 +7797,7 @@ describe("validators", () => {
 
 					it("rejects empty localised object on required property", async () => {
 
-						const shape = resource({ labels: repeatable(dictionary()) });
+						const shape = resource({ labels: nonempty(dictionary()) });
 
 						expect(validateResource([{ labels: {} }], shape)).toHaveProperty([0, "0", 0, "labels"]);
 
@@ -7649,7 +7805,7 @@ describe("validators", () => {
 
 					it("accepts multi-tag localised on required property", async () => {
 
-						const shape = resource({ labels: repeatable(dictionary()) });
+						const shape = resource({ labels: nonempty(dictionary()) });
 
 						expect(validateResource([{
 							labels: {
@@ -7662,7 +7818,7 @@ describe("validators", () => {
 
 					it("rejects empty-array tag on required property", async () => {
 
-						const shape = resource({ labels: repeatable(dictionary()) });
+						const shape = resource({ labels: nonempty(dictionary()) });
 
 						expect(validateResource([{
 							labels: {
@@ -7683,7 +7839,7 @@ describe("validators", () => {
 
 				it.each([
 					["scalar", "name", required(string()), { name: undefined }],
-					["array", "tags", repeatable(string()), { tags: undefined }]
+					["array", "tags", nonempty(string()), { tags: undefined }]
 				] as const)("accepts undefined template on %s property", async (_label, key, range, value) => {
 
 					const shape = resource({ [key]: range });
@@ -7699,7 +7855,7 @@ describe("validators", () => {
 				it("rejects empty array on string array property", async () => {
 
 					const shape = resource({
-						tags: repeatable(string())
+						tags: nonempty(string())
 					});
 
 					expect(validateTemplate([{ tags: [] }], shape, { depth: 0 })).toBeDefined();
@@ -7709,7 +7865,7 @@ describe("validators", () => {
 				it("accepts singleton array on string array property", async () => {
 
 					const shape = resource({
-						tags: repeatable(string())
+						tags: nonempty(string())
 					});
 
 					expect(validateTemplate([{ tags: ["a"] }], shape, { depth: 0 })).toBeUndefined();
@@ -7719,7 +7875,7 @@ describe("validators", () => {
 				it("rejects multi-element array on string array property", async () => {
 
 					const shape = resource({
-						tags: repeatable(string())
+						tags: nonempty(string())
 					});
 
 					expect(validateTemplate([{ tags: ["a", "b"] }], shape, { depth: 0 })).toBeDefined();
@@ -7729,7 +7885,7 @@ describe("validators", () => {
 				it("accepts singleton array on number array property", async () => {
 
 					const shape = resource({
-						scores: repeatable(integer())
+						scores: nonempty(integer())
 					});
 
 					expect(validateTemplate([{ scores: [0] }], shape, { depth: 0 })).toBeUndefined();
@@ -7739,7 +7895,7 @@ describe("validators", () => {
 				it("rejects multi-element array on number array property", async () => {
 
 					const shape = resource({
-						scores: repeatable(integer())
+						scores: nonempty(integer())
 					});
 
 					expect(validateTemplate([{ scores: [1, 2] }], shape, { depth: 0 })).toBeDefined();
@@ -7749,7 +7905,7 @@ describe("validators", () => {
 				it("accepts singleton array on boolean array property", async () => {
 
 					const shape = resource({
-						flags: repeatable(boolean())
+						flags: nonempty(boolean())
 					});
 
 					expect(validateTemplate([{ flags: [true] }], shape, { depth: 0 })).toBeUndefined();
@@ -7759,7 +7915,7 @@ describe("validators", () => {
 				it("rejects empty array on boolean array property", async () => {
 
 					const shape = resource({
-						flags: repeatable(boolean())
+						flags: nonempty(boolean())
 					});
 
 					expect(validateTemplate([{ flags: [] }], shape, { depth: 0 })).toBeDefined();
@@ -7769,7 +7925,7 @@ describe("validators", () => {
 				it("rejects multi-element array on boolean array property", async () => {
 
 					const shape = resource({
-						flags: repeatable(boolean())
+						flags: nonempty(boolean())
 					});
 
 					expect(validateTemplate([{ flags: [true, false] }], shape, { depth: 0 })).toBeDefined();
@@ -7779,7 +7935,7 @@ describe("validators", () => {
 				it("rejects non-boolean element on boolean array property", async () => {
 
 					const shape = resource({
-						flags: repeatable(boolean())
+						flags: nonempty(boolean())
 					});
 
 					expect(validateTemplate([{ flags: ["true"] } as any], shape, { depth: 0 })).toBeDefined();
@@ -9221,7 +9377,7 @@ describe("validators", () => {
 				name: required(string()),
 				age: optional(integer()),
 				status: required(string()),
-				tags: repeatable(string()),
+				tags: nonempty(string()),
 				released: required(date())
 			});
 
@@ -9462,7 +9618,7 @@ describe("validators", () => {
 
 				it("accepts conjunctive filter on existing property", async () => {
 
-					const Target = resource({ tags: repeatable(string()) });
+					const Target = resource({ tags: nonempty(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{}, { "!tags": "urgent" }] }], Wrapper, {})).toBeUndefined();
@@ -9542,7 +9698,7 @@ describe("validators", () => {
 
 				it("rejects bare sort on multi-valued property", async () => {
 
-					const Target = resource({ tags: repeatable(string()) });
+					const Target = resource({ tags: nonempty(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{}, { "^tags": "asc" }] }], Wrapper, {})).toBeDefined();
@@ -9560,7 +9716,7 @@ describe("validators", () => {
 
 				it("rejects bare sort on multi-valued localised property", async () => {
 
-					const Target = resource({ labels: repeatable(dictionary()) });
+					const Target = resource({ labels: nonempty(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{}, { "^labels": "asc" }] }], Wrapper, {})).toBeDefined();
@@ -9602,7 +9758,7 @@ describe("validators", () => {
 
 				it("accepts aggregate sort on multi-valued property", async () => {
 
-					const Target = resource({ tags: repeatable(string()) });
+					const Target = resource({ tags: nonempty(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					// `max` collapses the multi-valued property to a single-valued sort key
@@ -9613,7 +9769,7 @@ describe("validators", () => {
 
 				it("accepts count aggregate sort on multi-valued property", async () => {
 
-					const Target = resource({ tags: repeatable(string()) });
+					const Target = resource({ tags: nonempty(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{}, { "^count:tags": "asc" }] }], Wrapper, {})).toBeUndefined();
@@ -9954,7 +10110,7 @@ describe("validators", () => {
 					// qest's Projection arm admits only Placeholder (Literal | Reference | Template),
 					// excluding singleton-tuple collection placeholders
 
-					const Target = resource({ tags: repeatable(string()) });
+					const Target = resource({ tags: nonempty(string()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{
@@ -10246,7 +10402,7 @@ describe("validators", () => {
 
 				it("preserves localised model validation", async () => {
 
-					const Wrapper = resource({ labels: repeatable(dictionary()) });
+					const Wrapper = resource({ labels: nonempty(dictionary()) });
 
 					expect(validateTemplate([{ labels: { "en": ["Hello"] as const } }], Wrapper, { depth: 0 })).toBeUndefined();
 
@@ -10380,11 +10536,11 @@ describe("validators", () => {
 				it("rejects bare sort across union branches when any branch is multi-valued", async () => {
 
 					// cardinality is a property of the enclosing slot, not of a single branch: the
-					// `tag` property is multi-valued in the `repeatable` branch, so its cross-branch
+					// `tag` property is multi-valued in the `nonempty` branch, so its cross-branch
 					// envelope is multi-valued and a bare `^` — which requires a single-valued key —
 					// is rejected regardless of the single-valued sibling branch
 
-					const Many = resource({ tag: repeatable(string()) });
+					const Many = resource({ tag: nonempty(string()) });
 					const One = resource({ tag: required(string()) });
 					const Wrapper = resource({ items: multiple(union(reference(Many), reference(One))) });
 
@@ -10844,7 +11000,7 @@ describe("validators", () => {
 					// array-per-tag coalesces to a multi-valued string; a transform-derived string range
 					// takes the ordinary bare placeholder, fanning out per value
 
-					const Target = resource({ labels: repeatable(dictionary()) });
+					const Target = resource({ labels: nonempty(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{ "alias=lower:labels": "" }] }], Wrapper, {})).toBeUndefined();
@@ -10855,7 +11011,7 @@ describe("validators", () => {
 
 					// after the transform the range is a plain string, not a Locales, so the tag-map form is rejected
 
-					const Target = resource({ labels: repeatable(dictionary()) });
+					const Target = resource({ labels: nonempty(dictionary()) });
 					const Wrapper = resource({ items: multiple(reference(Target)) });
 
 					expect(validateTemplate([{ items: [{ "alias=lower:labels": { "en": "hello" } }] }], Wrapper, {})).toBeDefined();
@@ -11234,7 +11390,7 @@ describe("validators", () => {
 					age: optional(integer()),
 					active: optional(boolean()),
 					label: required(dictionary()),
-					labels: repeatable(dictionary()),
+					labels: nonempty(dictionary()),
 					link: optional(reference(resource({ id: id(), label: required(string()) })))
 				});
 				const Wrapper = resource({ items: multiple(reference(Target)) });
@@ -11488,7 +11644,7 @@ describe("validators", () => {
 
 					const Product = resource({
 						label: required(dictionary()),
-						labels: repeatable(dictionary())
+						labels: nonempty(dictionary())
 					});
 					const Vendor = resource({ products: multiple(reference(Product)) });
 					const DeepWrapper = resource({ items: multiple(reference(Vendor)) });
@@ -11693,7 +11849,7 @@ describe("validators", () => {
 					});
 
 					it("rejects focus on a multi-valued property", async () => {
-						const T = resource({ tags: repeatable(string()) });
+						const T = resource({ tags: nonempty(string()) });
 						const W = resource({ items: multiple(reference(T)) });
 						expect(validateTemplate([{ items: [{}, { "+tags": ["x"] }] }], W, {})).toBeDefined();
 					});

@@ -23,7 +23,7 @@ import { resource } from "./resource.js";
 import { date, email, string, year } from "./string.js";
 import { deriveUnion, getBoundVariant, mergeUnion, narrowsUnion } from "./union.core.js";
 import { union } from "./union.js";
-import { required } from "./value.js";
+import { required } from "./resource.js";
 
 
 describe("factories", () => {

@@ -39,7 +39,7 @@
  * Combine property definitions with value ranges to define resource structures:
  *
  * ```typescript
- * import { required, optional, repeatable } from '@metreeca/blue/value';
+ * import { required, optional, nonempty } from '@metreeca/blue/value';
  * import { resource, id } from '@metreeca/blue/resource';
  * import { string } from '@metreeca/blue/string';
  * import { integer } from '@metreeca/blue/number';
@@ -50,7 +50,7 @@
  *   name: required(string({ model: "name", minLength: 1 })),
  *   price: required(integer({ minInclusive: 0 })),
  *   available: optional(boolean()),
- *   tags: repeatable(string())
+ *   tags: nonempty(string())
  * });
  * ```
  *
@@ -59,32 +59,29 @@
  * Ranges define cardinality constraints for property values:
  *
  * ```typescript
- * import { required, optional, multiple, repeatable, cardinality } from '@metreeca/blue/value';
+ * import { multiple, nonempty, optional, property, required, resource } from '@metreeca/blue/resource';
  * import { string } from '@metreeca/blue/string';
- * import { resource } from '@metreeca/blue/resource';
  *
  * const Shape = resource({
- *   name: required(string()),           // 1..1
- *   alias: optional(string()),          // 0..1
- *   tags: repeatable(string()),         // 1..*
- *   notes: multiple(string()),          // 0..*
- *   codes: cardinality(2, 5)(string())  // 2..5
+ *   name: required(string()),                          // 1..1
+ *   alias: optional(string()),                         // 0..1
+ *   tags: nonempty(string()),                          // 1..*
+ *   notes: multiple(string()),                         // 0..*
+ *   codes: property(string(), { minCount: 2, maxCount: 5 })  // 2..5
  * });
  * ```
  *
- * Naked ranges are automatically wrapped in a {@link property}; use the explicit {@link property}
- * factory when IRI mappings or labels are needed:
+ * Each factory takes the constraints the property carries beyond its cardinality, such as IRI mappings or labels:
  *
  * ```typescript
- * import { required } from '@metreeca/blue/value';
+ * import { required, resource } from '@metreeca/blue/resource';
  * import { string } from '@metreeca/blue/string';
- * import { resource, property } from '@metreeca/blue/resource';
  * import { createNamespace } from '@metreeca/core/resource';
  *
  * const schema = createNamespace("http://schema.org/");
  *
  * const Person = resource({
- *   name: property({ forward: schema }, required(string()))
+ *   name: required(string(), { forward: schema })
  * });
  * ```
  *
@@ -344,7 +341,8 @@ import { app } from "@metreeca/qest";
 import type { Dictionary, Reference, Resource } from "@metreeca/qest/resource";
 import type { Template } from "@metreeca/qest/template";
 import { checkSingletons, flatten } from "./resource.core.js";
-import { eager, type Schema, type SetShape, type State } from "./value.js";
+import { buildValues } from "./value.core.js";
+import { eager, type Schema, type SetShape, type Shape, type State } from "./value.js";
 
 export {
 	getShapeClass,
@@ -770,9 +768,9 @@ export interface Type {
 /**
  * Shape definition for a resource property.
  *
- * Pairs a value range with optional IRI mappings, labels, and visibility flags. Created by the
- * {@link property} factory, either explicitly or implicitly when a naked {@link SetShape} entry is
- * passed to the {@link resource} factory.
+ * Pairs a value range with optional IRI mappings, labels, and visibility flags. Created by the cardinality factories
+ * ({@link required}, {@link optional}, {@link nonempty}, {@link multiple}) or by {@link property} for bounds they do
+ * not cover.
  *
  * **Inheritance**
  *
@@ -890,10 +888,10 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
 export interface PropertyConstraints<R extends SetShape = SetShape> {
 
 	/**
-	 * Discriminator identifying the value produced by the {@link property} factory.
+	 * Discriminator identifying the value produced by the property factories.
 	 *
-	 * Absent from a bare constraints argument; set to `"property"` on the factory's result so
-	 * {@link Range} can tell a property entry from a naked {@link SetShape}.
+	 * Absent from a bare constraints argument; set to `"property"` on the factory's result, so that a property entry
+	 * is told apart from an {@link Id} or {@link Type} marker.
 	 */
 	readonly kind?: "property";
 
@@ -1027,18 +1025,58 @@ export type Parents = readonly Lazy<ResourceShape>[];
 /**
  * Member definition accepted by the {@link resource} factory.
  *
- * Accepts {@link Id} and {@link Type} markers for the resource identifier and type entries,
- * naked {@link SetShape} values for the concise property syntax, or {@link PropertyConstraints}
- * produced by the {@link property} factory when additional constraints such as IRI mappings or
- * labels are needed. The factory resolves each into the stored {@link Entry} form, tightening any
- * {@link Namespace} `forward`/`reverse` mapping to an absolute IRI and expanding plain-string
- * `name`/`description` labels to their localised form.
+ * Accepts {@link Id} and {@link Type} markers for the resource identifier and type entries, or a {@link Property}
+ * produced by one of the cardinality factories ({@link required}, {@link optional}, {@link nonempty},
+ * {@link multiple}) or by {@link property}. The {@link resource} factory resolves each into the stored
+ * {@link Entry} form, tightening any {@link Namespace} `forward`/`reverse` mapping to an absolute IRI and expanding
+ * plain-string `name`/`description` labels to their localised form.
  */
 export type Member =
 	| Id
 	| Type
-	| SetShape
-	| PropertyConstraints;
+	| Property;
+
+/**
+ * Property constraints admitting explicit cardinality bounds.
+ *
+ * Extends {@link PropertyConstraints} with the bounds the four named cardinality factories fix, so that
+ * {@link property} states a cardinality they do not cover.
+ */
+export interface PropertyBounds extends PropertyConstraints {
+
+	/**
+	 * Minimum number of expected values.
+	 *
+	 * @defaultValue `undefined` (no minimum constraint, equivalent to 0)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
+	 */
+	readonly minCount?: undefined | number;
+
+	/**
+	 * Maximum number of expected values.
+	 *
+	 * @defaultValue `undefined` (no maximum constraint)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
+	 */
+	readonly maxCount?: undefined | number;
+
+}
+
+/**
+ * Resolves a cardinality bound from stated property constraints.
+ *
+ * Yields the bound where the constraints state one and `undefined` where they do not, so a property built from
+ * constraints carries the bound it was given rather than the widest one.
+ *
+ * @typeParam C The stated constraints
+ * @typeParam K The bound to resolve
+ */
+export type Bound<C extends PropertyBounds, K extends "minCount" | "maxCount"> =
+	K extends keyof C
+		? C[K] extends undefined | number ? C[K] : undefined
+		: undefined;
 
 
 //// Type Inference ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1195,16 +1233,13 @@ export type Content<E extends Member> =
 /**
  * Extracts the {@link SetShape} range carried by a {@link Member}.
  *
- * Returns the declared range for {@link Property} entries and the shape itself for naked
- * {@link SetShape} entries; resolves to `never` for marker entries ({@link Id}, {@link Type}),
- * which carry no range.
+ * Returns the declared range for {@link Property} entries; resolves to `never` for marker entries
+ * ({@link Id}, {@link Type}), which carry no range.
  *
  * @typeParam E The entry type
  */
 export type Range<E extends Member> =
-	E extends PropertyConstraints<infer R> ? R
-		: E extends SetShape ? E
-			: never;
+	E extends PropertyConstraints<infer R> ? R : never;
 
 
 /**
@@ -1298,8 +1333,8 @@ type Argument =
 /**
  * Creates a resource shape from parent shapes and property definitions.
  *
- * Accepts {@link Member} values including full {@link Property} definitions, naked
- * {@link SetShape} values for the concise syntax, and {@link Id}/{@link Type} markers. Parent shapes are declared
+ * Accepts {@link Member} values: {@link Property} definitions produced by the cardinality factories or by
+ * {@link property}, and {@link Id}/{@link Type} markers. Parent shapes are declared
  * ahead of the definitions, each possibly deferred to a {@link @metreeca/core!Lazy | lazy} factory; property IRIs are
  * resolved against {@link defaultNamespace} unless a parent declares a namespace. Use the constraints overload to
  * declare a different default namespace, target classes, identifier patterns, or resource-level validators.
@@ -1332,8 +1367,8 @@ type Argument =
  * ```typescript
  * // without inheritance
  * const Person = resource({
- *   name: required(string()),           // naked range
- *   age: property(optional(integer()))  // full property
+ *   name: required(string()),
+ *   age: optional(integer(), { hidden: true })
  * });
  *
  * // with inheritance
@@ -1367,7 +1402,7 @@ export function resource<const P extends Parents, E extends Members>(
  * ```typescript
  * // without inheritance
  * const Person = resource({
- *   name: required(string())  // naked range
+ *   name: required(string())
  * }, {
  *   space: schema
  * });
@@ -1477,7 +1512,7 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 	 *
 	 * @param value The value to inspect
 	 *
-	 * @returns `true` if `value` is a marker, a naked range, or a property definition; `false` otherwise
+	 * @returns `true` if `value` is a marker or a property definition; `false` otherwise
 	 */
 	function isMember(value: unknown): value is Member {
 		return isObject(value) && "kind" in value
@@ -1521,17 +1556,19 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 	}
 
 	/**
-	 * Wraps naked {@link SetShape} entries into {@link Property} objects.
+	 * Completes entries with the predicate mappings they inherit.
 	 *
-	 * Singleton markers are counted over the inherited and local entries collapsed by property name: a marker
-	 * reaching the child under the same name through several parents, or redeclared by the child over the inherited
-	 * one, counts once. Override compatibility is settled elsewhere: `narrowsResource` rejects an overriding entry
-	 * that changes the inherited kind.
+	 * A property declaring neither `forward` nor `reverse` takes the mapping of the entry it overrides, so an
+	 * override restates the range alone and keeps pointing at the inherited predicate. Singleton markers are counted
+	 * over the inherited and local entries collapsed by property name: a marker reaching the child under the same
+	 * name through several parents, or redeclared by the child over the inherited one, counts once. Override
+	 * compatibility is settled elsewhere: `narrowsResource` rejects an overriding entry that changes the inherited
+	 * kind.
 	 *
 	 * @param entries The property definitions to normalise
 	 * @param parents The parent shapes for inheritance-aware duplicate detection
 	 *
-	 * @returns Normalised entries with range wrapped
+	 * @returns Entries carrying their inherited predicate mappings
 	 *
 	 * @throws {TraceError} If two markers of the same kind are declared under distinct property names
 	 */
@@ -1549,26 +1586,22 @@ export function resource(...args: readonly Argument[]): ResourceShape {
 
 		return Object.fromEntries(Object.entries(entries).map(([name, entry]) => {
 
-			if ( entry.kind === "set" ) {
+			const base = bases.reduce<Member | undefined>((found, b) => found ?? b[name], undefined);
 
-				// inherit forward/reverse from parent when wrapping naked range
+			if ( entry.kind === "property"
+				&& entry.forward === undefined && entry.reverse === undefined
+				&& base !== undefined && base.kind === "property"
+				&& (base.forward !== undefined || base.reverse !== undefined)
+			) {
 
-				const base = bases.reduce<Member | undefined>((found, b) => found ?? b[name], undefined);
+				return [name, immutable({
 
-				if ( base !== undefined && base.kind === "property"
-					&& (base.forward !== undefined || base.reverse !== undefined)
-				) {
+					...entry,
 
-					return [name, property({
-						...base.forward !== undefined && { forward: base.forward },
-						...base.reverse !== undefined && { reverse: base.reverse }
-					}, entry)];
+					...base.forward !== undefined && { forward: base.forward },
+					...base.reverse !== undefined && { reverse: base.reverse }
 
-				} else {
-
-					return [name, property(entry)];
-
-				}
+				})];
 
 			} else {
 
@@ -1729,64 +1762,188 @@ export function type(constraints: {
 
 
 /**
- * Creates a property shape from a value range.
+ * Creates a property accepting any number of values (0..*).
  *
- * Wraps a {@link SetShape} into a {@link Property} with no additional constraints. The property's
- * forward IRI is generated by the enclosing {@link resource} factory by resolving the property
- * name against the effective namespace.
+ * Admits zero or more values, projecting the range model to an optional array (`undefined | readonly V[]`).
  *
- * @typeParam R The value range type
+ * > [!WARNING]
+ * > For {@link dictionary!DictionaryShape | dictionary} ranges, each tag in the map holds a string array.
+ * > `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags. This differs from vanilla SHACL
+ * > aggregate counting, though expressible via per-tag property shapes.
+ *
+ * @typeParam R The value range shape
+ * @typeParam C The stated property constraints
  *
  * @param range The value range for this property
+ * @param constraints Property constraints including IRI mappings, labels, and visibility flags
  *
- * @returns An immutable {@link Property} wrapping the supplied range
+ * @returns An immutable {@link Property} admitting any number of values of `range`
  */
-export function property<R extends SetShape>(
-	range: R
-): PropertyConstraints<R> & { readonly range: R };
+export function multiple<R extends Lazy<Shape>, const C extends PropertyConstraints = {}>(
+	range: R,
+	constraints?: C
+): C & Property<SetShape<R, undefined, undefined>> {
+
+	return build(range, constraints, undefined, undefined);
+
+}
 
 /**
- * Creates a property shape with constraints from a value range.
+ * Creates a property requiring at least one value (1..*).
  *
- * Wraps a {@link SetShape} into a {@link Property} carrying the supplied
- * {@link PropertyConstraints}. Use this overload when explicit IRI mappings, labels, or
- * visibility flags are required; otherwise prefer the bare-range overload or pass the range
- * directly to {@link resource}.
+ * Requires one or more values, projecting the range model to a non-empty array (`readonly [V, ...V[]]`).
+ *
+ * > [!WARNING]
+ * > For {@link dictionary!DictionaryShape | dictionary} ranges, each tag in the map holds a non-empty string array
+ * > and the map must contain at least one tag. `minCount`/`maxCount` apply **per tag**, not as an aggregate across
+ * > all tags. This differs from vanilla SHACL aggregate counting, though expressible via per-tag property shapes.
+ *
+ * @typeParam R The value range shape
+ * @typeParam C The stated property constraints
+ *
+ * @param range The value range for this property
+ * @param constraints Property constraints including IRI mappings, labels, and visibility flags
+ *
+ * @returns An immutable {@link Property} requiring at least one value of `range`
+ */
+export function nonempty<R extends Lazy<Shape>, const C extends PropertyConstraints = {}>(
+	range: R,
+	constraints?: C
+): C & Property<SetShape<R, 1, undefined>> {
+
+	return build(range, constraints, 1, undefined);
+
+}
+
+/**
+ * Creates a property accepting at most one value (0..1).
+ *
+ * Admits zero or one value, projecting the range model to an optional scalar (`undefined | V`).
+ *
+ * > [!WARNING]
+ * > For {@link dictionary!DictionaryShape | dictionary} ranges, each tag in the map holds a single string.
+ * > `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags. This differs from vanilla SHACL
+ * > aggregate counting, though expressible via per-tag property shapes.
+ *
+ * @typeParam R The value range shape
+ * @typeParam C The stated property constraints
+ *
+ * @param range The value range for this property
+ * @param constraints Property constraints including IRI mappings, labels, and visibility flags
+ *
+ * @returns An immutable {@link Property} admitting at most one value of `range`
+ */
+export function optional<R extends Lazy<Shape>, const C extends PropertyConstraints = {}>(
+	range: R,
+	constraints?: C
+): C & Property<SetShape<R, undefined, 1>> {
+
+	return build(range, constraints, undefined, 1);
+
+}
+
+/**
+ * Creates a property requiring exactly one value (1..1).
+ *
+ * Requires exactly one value, projecting the range model to a required scalar (`V`).
+ *
+ * > [!WARNING]
+ * > For {@link dictionary!DictionaryShape | dictionary} ranges, each tag in the map holds exactly one string and the
+ * > map must contain at least one tag. `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags.
+ * > This differs from vanilla SHACL aggregate counting, though expressible via per-tag property shapes.
+ *
+ * @typeParam R The value range shape
+ * @typeParam C The stated property constraints
+ *
+ * @param range The value range for this property
+ * @param constraints Property constraints including IRI mappings, labels, and visibility flags
+ *
+ * @returns An immutable {@link Property} requiring exactly one value of `range`
+ */
+export function required<R extends Lazy<Shape>, const C extends PropertyConstraints = {}>(
+	range: R,
+	constraints?: C
+): C & Property<SetShape<R, 1, 1>> {
+
+	return build(range, constraints, 1, 1);
+
+}
+
+/**
+ * Creates a property with stated cardinality bounds.
+ *
+ * Reads the cardinality off {@link PropertyBounds.minCount | minCount} and
+ * {@link PropertyBounds.maxCount | maxCount}, for the bounds the four named factories do not cover; an unstated
+ * bound leaves that end unconstrained. The property's forward IRI is generated by the enclosing {@link resource}
+ * factory by resolving the property name against the effective namespace.
  *
  * @remarks
  *
- * The `forward` and `reverse` fields accept plain strings for convenience; they are converted
- * to {@link IRI} values internally. Likewise, `name` and `description` accept plain strings as a
- * shorthand for English-only labels; both reach their localised form only once the enclosing
- * {@link resource} factory resolves the property.
+ * The `forward` and `reverse` fields accept plain strings for convenience; they are converted to {@link IRI} values
+ * internally. Likewise, `name` and `description` accept plain strings as a shorthand for English-only labels; both
+ * reach their localised form only once the enclosing {@link resource} factory resolves the property.
  *
- * @typeParam R The value range type
+ * @typeParam R The value range shape
+ * @typeParam C The stated property constraints and cardinality bounds
  *
- * @param constraints Property constraints including IRI mappings and labels
  * @param range The value range for this property
+ * @param constraints Property constraints including cardinality bounds, IRI mappings, and labels
  *
- * @returns An immutable {@link Property} wrapping the supplied range and constraints
+ * @returns An immutable {@link Property} admitting the stated number of values of `range`
+ *
+ * @throws {@link !TypeError TypeError} If `minCount` or `maxCount` is negative, or if `minCount` exceeds `maxCount`
+ *
+ * @example
+ *
+ * ```typescript
+ * const Product = resource({
+ *   tags: property(string(), { minCount: 2, maxCount: 5 })
+ * });
+ * ```
  */
-export function property<R extends SetShape>(
-	constraints: PropertyConstraints,
-	range: R
-): PropertyConstraints<R> & { readonly range: R };
+export function property<R extends Lazy<Shape>, const C extends PropertyBounds = {}>(
+	range: R,
+	constraints?: C
+): C & Property<SetShape<R, Bound<C, "minCount">, Bound<C, "maxCount">>> {
+
+	return build(range, constraints, constraints?.minCount, constraints?.maxCount);
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Creates property shapes.
+ * Assembles a property from a range, its constraints and its cardinality bounds.
+ *
+ * @typeParam P The property type the factory states
+ *
+ * @param range The value range for the property
+ * @param constraints The stated property constraints, less the cardinality bounds
+ * @param lower Minimum number of expected values
+ * @param upper Maximum number of expected values
+ *
+ * @returns An immutable property over `range`, carrying `constraints` and the given bounds
+ *
+ * @throws {@link !TypeError TypeError} If `lower` or `upper` is negative, or if `lower` exceeds `upper`
  */
-export function property<R extends SetShape>(
-	a: SetShape | PropertyConstraints,
-	b?: SetShape
-): PropertyConstraints<R> & { readonly range: R } {
+function build<P>(
+	range: Lazy<Shape>,
+	constraints: undefined | PropertyBounds,
+	lower: undefined | number,
+	upper: undefined | number
+): P {
 
-	const constraints = (b !== undefined ? a : {}) as PropertyConstraints;
-	const range = (b !== undefined ? b : a) as R;
+	const { minCount, maxCount, ...stated } = constraints ?? {};
 
 	return immutable({
+
 		kind: "property",
-		...constraints,
-		range
-	});
+
+		...stated,
+
+		range: buildValues(range, lower, upper)
+
+	}) as P; // ;(cast) the overloads fix the property type each factory states
 
 }

@@ -563,6 +563,65 @@ export function validateValue(values: readonly unknown[], shape: ValuesShape, {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Builds the value range of a property from a shape and cardinality bounds.
+ *
+ * Resolves the range shape and projects its model to the form the bounds call for: a
+ * {@link dictionary!DictionaryShape | dictionary} model is projected per tag within its language map; every other
+ * multi-valued model is held as a singleton `[element]` tuple, the collection form of the
+ * {@link @metreeca/qest!Query | Query} grammar. A retrieval {@link @metreeca/qest!Selection | Selection} is supplied
+ * per request in the template, never declared on the shape.
+ *
+ * @param range The shape the values belong to, possibly deferred to a factory
+ * @param lower Minimum number of expected values
+ * @param upper Maximum number of expected values
+ *
+ * @returns An immutable {@link SetShape} over `range` with the given bounds
+ *
+ * @throws {@link !TypeError TypeError} If `lower` or `upper` is negative, or if `lower` exceeds `upper`
+ */
+export function buildValues(
+	range: Lazy<Shape>,
+	lower: undefined | number,
+	upper: undefined | number
+): SetShape {
+
+	if ( lower !== undefined && lower < 0 ) {
+		throw new TypeError(`expected non-negative minCount <${lower}>`);
+	}
+
+	if ( upper !== undefined && upper < 0 ) {
+		throw new TypeError(`expected non-negative maxCount <${upper}>`);
+	}
+
+	if ( lower !== undefined && upper !== undefined && lower > upper ) {
+		throw new TypeError(`inconsistent bounds <${lower}> > <${upper}>`);
+	}
+
+	const resolved = eager(range);
+
+	const model = resolved.kind === "dictionary"
+		? Object.fromEntries(Object.entries(resolved.model).map(([ tag, value ]) =>
+			[ tag, upper === 1 ? value : [value] ]
+		))
+		: upper === 1 ? resolved.model
+			: [resolved.model];
+
+	return immutable({
+
+		kind: "set",
+		model,
+
+		minCount: lower,
+		maxCount: upper,
+
+		shape: resolved
+
+	});
+
+}
+
+
+/**
  * Resolves a {@link Lazy} shape to its eager form, caching the result on repeated calls.
  *
  * When given a factory, evaluates it on first call and caches the outcome; subsequent calls

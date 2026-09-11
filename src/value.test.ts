@@ -22,7 +22,17 @@ import { dictionary } from "./dictionary.js";
 import { sh } from "./index.core.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { reference } from "./reference.js";
-import { id, resource, type ResourceShape, type } from "./resource.js";
+import {
+	id,
+	multiple,
+	nonempty,
+	optional,
+	property,
+	required,
+	resource,
+	type ResourceShape,
+	type
+} from "./resource.js";
 import { date, duration, instant, string, time, timestamp, year } from "./string.js";
 import { union, type UnionShape } from "./union.js";
 import {
@@ -37,227 +47,13 @@ import {
 	validateValue
 } from "./value.core.js";
 import {
-	cardinality,
 	eager,
 	effective,
-	multiple,
-	optional,
 	type RangeShape,
-	repeatable,
-	required,
 	type SetShape,
 	type ValuesShape
 } from "./value.js";
 
-
-describe("factories", () => {
-
-	describe("cardinality shorthands", () => {
-
-		describe("cardinality bounds", () => {
-
-			it.each([
-				["multiple", multiple, undefined, undefined],
-				["repeatable", repeatable, 1, undefined],
-				["optional", optional, undefined, 1],
-				["required", required, 1, 1]
-			])("%s sets correct cardinality bounds", async (_name, factory, expectedMin, expectedMax) => {
-
-				const range = factory(string());
-
-				expect(range.minCount).toBe(expectedMin);
-				expect(range.maxCount).toBe(expectedMax);
-				expect(range.shape.kind).toBe("string");
-
-			});
-
-			it("accepts lazy resource shape", async () => {
-
-				const range = multiple(() => resource({}));
-
-				expect(range.shape.kind).toBe("resource");
-
-			});
-
-			it("returns an immutable range", async () => {
-
-				const range = required(string());
-
-				expect(() => {
-					(range as any).minCount = 99;
-				}).toThrow();
-
-			});
-
-			it("includes only expected entries", async () => {
-
-				const range = required(string());
-
-				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "model", "shape"]);
-
-			});
-
-		});
-
-	});
-
-	describe("cardinality", () => {
-
-		it("returns a factory function", async () => {
-
-			const twoToFive = cardinality(2, 5);
-
-			expect(typeof twoToFive).toBe("function");
-
-		});
-
-		it("creates ranges with specified cardinality", async () => {
-
-			const twoToFive = cardinality(2, 5);
-			const range = twoToFive(string());
-
-			expect(range.minCount).toBe(2);
-			expect(range.maxCount).toBe(5);
-			expect(range.shape.kind).toBe("string");
-
-		});
-
-		it("supports undefined lower bound", async () => {
-
-			const upToThree = cardinality(undefined, 3);
-			const range = upToThree(string());
-
-			expect(range.minCount).toBeUndefined();
-			expect(range.maxCount).toBe(3);
-
-		});
-
-		it("supports undefined upper bound", async () => {
-
-			const atLeastTwo = cardinality(2);
-			const range = atLeastTwo(string());
-
-			expect(range.minCount).toBe(2);
-			expect(range.maxCount).toBeUndefined();
-
-		});
-
-		it("returns immutable ranges", async () => {
-
-			const twoToFive = cardinality(2, 5);
-			const range = twoToFive(string());
-
-			expect(() => {
-				(range as any).minCount = 0;
-			}).toThrow();
-
-		});
-
-		describe("structural integrity", () => {
-
-			it("includes undefined constraints", async () => {
-
-				const upToThree = cardinality(undefined, 3);
-				const range = upToThree(string());
-
-				expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "model", "shape"]);
-				expect(range.minCount).toBeUndefined();
-
-			});
-
-		});
-
-		describe("model projection", () => {
-
-			it("boxes a multi-valued model into a singleton tuple", async () => {
-
-				const range = cardinality(2, 5)(string());
-
-				expect(range.model).toEqual([""]);
-
-			});
-
-			it("boxes a multi-valued model with undefined upper", async () => {
-
-				const range = cardinality(2)(string());
-
-				expect(range.model).toEqual([""]);
-
-			});
-
-			it("boxes a multi-valued resource model into a singleton tuple", async () => {
-
-				const range = cardinality(2, 5)(resource({ name: required(string()) }));
-
-				expect(range.model).toEqual([{ name: "" }]);
-
-			});
-
-			it("projects a localised dictionary model per tag for collection cardinality", async () => {
-
-				const range = cardinality(2, 5)(dictionary({ en: "", it: "" }));
-
-				expect(range.model).toEqual({ en: [""], it: [""] });
-
-			});
-
-			it("projects a localised dictionary model per tag for scalar cardinality", async () => {
-
-				const range = cardinality(1, 1)(dictionary({ en: "", it: "" }));
-
-				expect(range.model).toEqual({ en: "", it: "" });
-
-			});
-
-		});
-
-		describe("localised default model", () => {
-
-			it("wraps default tag map for scalar cardinality", async () => {
-
-				const range = required(dictionary());
-
-				expect(range.model).toEqual({ "*": "" });
-
-			});
-
-			it("wraps default tag map for optional cardinality", async () => {
-
-				const range = optional(dictionary());
-
-				expect(range.model).toEqual({ "*": "" });
-
-			});
-
-			it("boxes default tag values into singleton tuples for collection cardinality", async () => {
-
-				const range = multiple(dictionary());
-
-				expect(range.model).toEqual({ "*": [""] });
-
-			});
-
-			it("boxes default tag values into singleton tuples for repeatable cardinality", async () => {
-
-				const range = repeatable(dictionary());
-
-				expect(range.model).toEqual({ "*": [""] });
-
-			});
-
-			it("boxes default tag values into singleton tuples for custom bounds", async () => {
-
-				const range = cardinality(2, 5)(dictionary());
-
-				expect(range.model).toEqual({ "*": [""] });
-
-			});
-
-		});
-
-	});
-
-});
 
 describe("utilities", () => {
 
@@ -665,7 +461,7 @@ describe("utilities", () => {
 			it("coalesces array-per-tag localised dictionary to a multi-valued string set", async () => {
 
 				function arrayPerTagRange(pipe: readonly Transform[]): RangeShape | string {
-					return effective(resource({ _: repeatable(dictionary()) }), probe(["_"], pipe));
+					return effective(resource({ _: nonempty(dictionary()) }), probe(["_"], pipe));
 				}
 
 				// the winning tag's value set is a multi-valued xsd:string: a scalar transform preserves
@@ -689,7 +485,7 @@ describe("utilities", () => {
 
 			const Item = resource({
 				label: required(dictionary()),
-				labels: repeatable(dictionary())
+				labels: nonempty(dictionary())
 			});
 
 			const Wrapper = resource({ items: multiple(reference(Item)) });
@@ -810,9 +606,9 @@ describe("utilities", () => {
 
 			});
 
-			it("preserves repeatable cardinality through identity", async () => {
+			it("preserves nonempty cardinality through identity", async () => {
 
-				const result = effective(resource({ name: repeatable(string()) }), probe(["name"]));
+				const result = effective(resource({ name: nonempty(string()) }), probe(["name"]));
 
 				expect(range(result).minCount).toBe(1);
 				expect(range(result).maxCount).toBeUndefined();
@@ -832,7 +628,7 @@ describe("utilities", () => {
 
 			it("scalar transform preserves undefined maxCount", async () => {
 
-				const result = effective(resource({ value: repeatable(integer()) }), probe(["value"], ["abs"]));
+				const result = effective(resource({ value: nonempty(integer()) }), probe(["value"], ["abs"]));
 
 				expect(range(result).minCount).toBeUndefined();
 				expect(range(result).maxCount).toBeUndefined();
@@ -840,8 +636,8 @@ describe("utilities", () => {
 			});
 
 			it.each([
-				["count", ["count"], repeatable(integer())],
-				["sum", ["sum"], repeatable(integer())]
+				["count", ["count"], nonempty(integer())],
+				["sum", ["sum"], nonempty(integer())]
 			] as const)("%s total aggregate sets maxCount and minCount to 1", async (_label, pipe, set) => {
 
 				const result = effective(resource({ value: set }), probe(["value"], [...pipe]));
@@ -854,10 +650,10 @@ describe("utilities", () => {
 			});
 
 			it.each([
-				["avg", ["avg"], repeatable(integer())],
-				["min", ["min"], repeatable(string())],
-				["max", ["max"], repeatable(string())],
-				["avg+floor", ["avg", "floor"], repeatable(decimal())]
+				["avg", ["avg"], nonempty(integer())],
+				["min", ["min"], nonempty(string())],
+				["max", ["max"], nonempty(string())],
+				["avg+floor", ["avg", "floor"], nonempty(decimal())]
 			] as const)("%s aggregate sets maxCount to 1 and minCount to undefined", async (_label, pipe, set) => {
 
 				const result = effective(resource({ value: set }), probe(["value"], [...pipe]));
@@ -881,13 +677,13 @@ describe("utilities", () => {
 			it.each([
 				["required×required", required, required, 1, 1],
 				["required×optional", required, optional, undefined, 1],
-				["required×repeatable", required, repeatable, 1, undefined],
+				["required×nonempty", required, nonempty, 1, undefined],
 				["optional×required", optional, required, undefined, 1],
 				["optional×optional", optional, optional, undefined, 1],
-				["optional×repeatable", optional, repeatable, undefined, undefined],
-				["repeatable×required", repeatable, required, 1, undefined],
-				["repeatable×optional", repeatable, optional, undefined, undefined],
-				["repeatable×repeatable", repeatable, repeatable, 1, undefined]
+				["optional×nonempty", optional, nonempty, undefined, undefined],
+				["nonempty×required", nonempty, required, 1, undefined],
+				["nonempty×optional", nonempty, optional, undefined, undefined],
+				["nonempty×nonempty", nonempty, nonempty, 1, undefined]
 			] as const)("accumulates %s", async (_label, outer, inner, expectedMin, expectedMax) => {
 
 				const s = resource({
@@ -904,7 +700,7 @@ describe("utilities", () => {
 			it("accumulates across three-step path", async () => {
 
 				const s = resource({
-					a: repeatable(resource({
+					a: nonempty(resource({
 						b: optional(resource({
 							c: required(string())
 						}))
@@ -923,7 +719,7 @@ describe("utilities", () => {
 			it("preserves a forbidden step's maxCount of 0 as the strongest upper bound", async () => {
 
 				const s = resource({
-					forbidden: cardinality(0, 0)(string())
+					forbidden: property(string(), { minCount: 0, maxCount: 0 })
 				});
 
 				// minCount: 1×0 = 0; maxCount: 1×0 = 0 (exactly zero values admitted)
@@ -938,7 +734,7 @@ describe("utilities", () => {
 			it("propagates a forbidden mid-path step's 0 through the branch product", async () => {
 
 				const s = resource({
-					child: cardinality(0, 0)(resource({ name: required(string()) }))
+					child: property(resource({ name: required(string()) }), { minCount: 0, maxCount: 0 })
 				});
 
 				// the forbidden step zeroes both bounds: minCount 1×0×1 = 0, maxCount 1×0×1 = 0
@@ -953,13 +749,13 @@ describe("utilities", () => {
 			it("accumulates through union using outer range cardinality", async () => {
 
 				const s = resource({
-					value: repeatable(union(
+					value: nonempty(union(
 						resource({ name: required(string()) }),
 						resource({ name: required(integer()) })
 					))
 				});
 
-				// step 1 (value): minCount=1, maxCount=undef (repeatable)
+				// step 1 (value): minCount=1, maxCount=undef (nonempty)
 				// step 2 (name): minCount=1, maxCount=1 (required in both variants)
 				// accumulated: minCount=1×1=1, maxCount=undef×1=undef
 
@@ -1778,7 +1574,7 @@ describe("utilities", () => {
 
 					const s = union(
 						resource({ name: required(string()) }),
-						resource({ name: repeatable(integer()) })
+						resource({ name: nonempty(integer()) })
 					);
 
 					// envelope: max = maxOf(1, undefined) = undefined (unbounded wins)
@@ -2081,19 +1877,19 @@ describe("internals", () => {
 
 		it("accepts a child that tightens cardinality", async () => {
 
-			expect(narrowsValues(required(string()), optional(string()))).toBeUndefined();
+			expect(narrowsValues(required(string()).range, optional(string()).range)).toBeUndefined();
 
 		});
 
 		it("rejects a child that widens minCount", async () => {
 
-			expect(narrowsValues(cardinality(0, 1)(string()), cardinality(1, 1)(string()))).toBeDefined();
+			expect(narrowsValues(property(string(), { minCount: 0, maxCount: 1 }).range, property(string(), { minCount: 1, maxCount: 1 }).range)).toBeDefined();
 
 		});
 
 		it("rejects a child that widens maxCount", async () => {
 
-			expect(narrowsValues(cardinality(1, 5)(string()), cardinality(1, 2)(string()))).toBeDefined();
+			expect(narrowsValues(property(string(), { minCount: 1, maxCount: 5 }).range, property(string(), { minCount: 1, maxCount: 2 }).range)).toBeDefined();
 
 		});
 
@@ -2102,37 +1898,37 @@ describe("internals", () => {
 			expect(narrowsValues(required(string({
 				model: "hello",
 				minLength: 5
-			})), required(string()))).toBeUndefined();
+			})).range, required(string()).range)).toBeUndefined();
 
 		});
 
 		it("rejects a child shape of a different kind", async () => {
 
-			expect(narrowsValues(required(string()), required(boolean()))).toBeDefined();
+			expect(narrowsValues(required(string()).range, required(boolean()).range)).toBeDefined();
 
 		});
 
 		it("accepts a union child narrowing a base union", async () => {
 
-			expect(narrowsValues(required(union(string())), required(union(string(), integer())))).toBeUndefined();
+			expect(narrowsValues(required(union(string())).range, required(union(string(), integer())).range)).toBeUndefined();
 
 		});
 
 		it("accepts a non-union child narrowing one base variant", async () => {
 
-			expect(narrowsValues(required(string()), required(union(string(), integer())))).toBeUndefined();
+			expect(narrowsValues(required(string()).range, required(union(string(), integer())).range)).toBeUndefined();
 
 		});
 
 		it("rejects a non-union child narrowing no base variant", async () => {
 
-			expect(narrowsValues(required(boolean()), required(union(string(), integer())))).toBeDefined();
+			expect(narrowsValues(required(boolean()).range, required(union(string(), integer())).range)).toBeDefined();
 
 		});
 
 		it("rejects a union child against a non-union base", async () => {
 
-			expect(narrowsValues(required(union(string())), required(string()))).toBeDefined();
+			expect(narrowsValues(required(union(string())).range, required(string()).range)).toBeDefined();
 
 		});
 
@@ -2170,7 +1966,7 @@ describe("internals", () => {
 
 			it("preserves kind as 'range'", async () => {
 
-				const merged = mergeValues(required(string()), required(string()));
+				const merged = mergeValues(required(string()).range, required(string()).range);
 
 				expect(merged.kind).toBe("set");
 
@@ -2182,28 +1978,28 @@ describe("internals", () => {
 
 			{
 				bound: "minCount" as const,
-				inheritTarget: multiple(string()),
-				inheritSource: required(string()),
-				keepTarget: required(string()),
-				keepSource: multiple(string()),
-				compatibleTarget: cardinality(2)(string()),
-				compatibleSource: cardinality(1)(string()),
+				inheritTarget: multiple(string()).range,
+				inheritSource: required(string()).range,
+				keepTarget: required(string()).range,
+				keepSource: multiple(string()).range,
+				compatibleTarget: property(string(), { minCount: 2 }).range,
+				compatibleSource: property(string(), { minCount: 1 }).range,
 				compatibleExpected: 2,
-				incompatibleTarget: cardinality(1)(string()),
-				incompatibleSource: cardinality(2)(string())
+				incompatibleTarget: property(string(), { minCount: 1 }).range,
+				incompatibleSource: property(string(), { minCount: 2 }).range
 			},
 
 			{
 				bound: "maxCount" as const,
-				inheritTarget: multiple(string()),
-				inheritSource: optional(string()),
-				keepTarget: optional(string()),
-				keepSource: multiple(string()),
-				compatibleTarget: cardinality(undefined, 2)(string()),
-				compatibleSource: cardinality(undefined, 5)(string()),
+				inheritTarget: multiple(string()).range,
+				inheritSource: optional(string()).range,
+				keepTarget: optional(string()).range,
+				keepSource: multiple(string()).range,
+				compatibleTarget: property(string(), { maxCount: 2 }).range,
+				compatibleSource: property(string(), { maxCount: 5 }).range,
 				compatibleExpected: 2,
-				incompatibleTarget: cardinality(undefined, 10)(string()),
-				incompatibleSource: cardinality(undefined, 5)(string())
+				incompatibleTarget: property(string(), { maxCount: 10 }).range,
+				incompatibleSource: property(string(), { maxCount: 5 }).range
 			}
 
 		])("$bound", ({
@@ -2249,8 +2045,8 @@ describe("internals", () => {
 			it("delegates to value shape merge", async () => {
 
 				const merged = mergeValues(
-					required(string({ model: "hello", minLength: 5 })),
-					required(string())
+					required(string({ model: "hello", minLength: 5 })).range,
+					required(string()).range
 				);
 
 				expect((merged.shape as any).minLength).toBe(5);
@@ -2260,8 +2056,8 @@ describe("internals", () => {
 			it("rejects shape kind mismatch", async () => {
 
 				expect(() => mergeValues(
-					required(string()),
-					required(boolean())
+					required(string()).range,
+					required(boolean()).range
 				)).toThrow(RangeError);
 
 			});
@@ -2269,8 +2065,8 @@ describe("internals", () => {
 			it("delegates to union merge for union shapes", async () => {
 
 				const merged = mergeValues(
-					required(union(string({ model: "hello", minLength: 5 }), boolean())),
-					required(union(string(), boolean()))
+					required(union(string({ model: "hello", minLength: 5 }), boolean())).range,
+					required(union(string(), boolean())).range
 				);
 
 				expect((merged.shape as any).variants[0].minLength).toBe(5);
@@ -2280,8 +2076,8 @@ describe("internals", () => {
 			it("narrows a parent union to a single variant when the child narrows exactly one variant", async () => {
 
 				const merged = mergeValues(
-					required(string({ model: "hello", minLength: 5 })),
-					required(union(string(), integer()))
+					required(string({ model: "hello", minLength: 5 })).range,
+					required(union(string(), integer())).range
 				);
 
 				expect(merged.shape.kind).toBe("string");
@@ -2293,8 +2089,8 @@ describe("internals", () => {
 			it("rejects single-variant narrowing when the child narrows no variant", async () => {
 
 				expect(() => mergeValues(
-					required(boolean()),
-					required(union(string(), integer()))
+					required(boolean()).range,
+					required(union(string(), integer())).range
 				)).toThrow(RangeError);
 
 			});
@@ -2302,8 +2098,8 @@ describe("internals", () => {
 			it("rejects single-variant narrowing when the child narrows several variants", async () => {
 
 				expect(() => mergeValues(
-					required(string()),
-					required(union(string(), string(), integer()))
+					required(string()).range,
+					required(union(string(), string(), integer())).range
 				)).toThrow(RangeError);
 
 			});
@@ -2311,8 +2107,8 @@ describe("internals", () => {
 			it("narrows a parent union to a specific numeric datatype", async () => {
 
 				const merged = mergeValues(
-					required(integer()),
-					required(union(integer(), decimal()))
+					required(integer()).range,
+					required(union(integer(), decimal())).range
 				);
 
 				expect(merged.shape.kind).toBe("number");
@@ -2323,8 +2119,8 @@ describe("internals", () => {
 			it("preserves union form when child is a single-variant union", async () => {
 
 				const merged = mergeValues(
-					required(union(string({ model: "hello", minLength: 5 }))),
-					required(union(string(), integer()))
+					required(union(string({ model: "hello", minLength: 5 }))).range,
+					required(union(string(), integer())).range
 				);
 
 				expect(merged.shape.kind).toBe("union");
@@ -2339,8 +2135,8 @@ describe("internals", () => {
 				const Org = resource({ name: required(string()) }, { class: "http://example.org/Org" });
 
 				const merged = mergeValues(
-					required(reference(Person)),
-					required(union(reference(Person), reference(Org)))
+					required(reference(Person)).range,
+					required(union(reference(Person), reference(Org))).range
 				);
 
 				expect(merged.shape.kind).toBe("reference");
@@ -2350,8 +2146,8 @@ describe("internals", () => {
 			it("composes Form 1 narrowing with cardinality narrowing", async () => {
 
 				const merged = mergeValues(
-					required(string({ model: "hello", minLength: 5 })),
-					optional(union(string(), integer()))
+					required(string({ model: "hello", minLength: 5 })).range,
+					optional(union(string(), integer())).range
 				);
 
 				expect(merged.shape.kind).toBe("string");
@@ -2367,8 +2163,8 @@ describe("internals", () => {
 			it("rejects merged minCount > maxCount", async () => {
 
 				expect(() => mergeValues(
-					cardinality(3)(string()),
-					cardinality(undefined, 2)(string())
+					property(string(), { minCount: 3 }).range,
+					property(string(), { maxCount: 2 }).range
 				)).toThrow(RangeError);
 
 			});
@@ -2429,7 +2225,7 @@ describe("internals", () => {
 
 		it("derives a per-tag array placeholder for a multi-valued localised set", async () => {
 
-			expect(deriveValues(multiple(dictionary()))).toEqual({ "*": [""] });
+			expect(deriveValues(multiple(dictionary()).range)).toEqual({ "*": [""] });
 
 		});
 
@@ -2437,7 +2233,7 @@ describe("internals", () => {
 
 			// a multi-valued stored model overridden to scalar cardinality: the form is derived, not read from model
 
-			const set: SetShape = { ...multiple(dictionary()), maxCount: 1 };
+			const set: SetShape = { ...multiple(dictionary()).range, maxCount: 1 };
 
 			expect(deriveValues(set)).toEqual({ "*": "" });
 
@@ -2445,19 +2241,19 @@ describe("internals", () => {
 
 		it("derives a per-tag array placeholder for every languageIn range", async () => {
 
-			expect(deriveValues(multiple(dictionary({ languageIn: ["en", "it"] })))).toEqual({ en: [""], it: [""] });
+			expect(deriveValues(multiple(dictionary({ languageIn: ["en", "it"] })).range)).toEqual({ en: [""], it: [""] });
 
 		});
 
 		it("honours a stored localised model for a scalar set", async () => {
 
-			expect(deriveValues(required(dictionary({ en: "" })))).toEqual({ en: "" });
+			expect(deriveValues(required(dictionary({ en: "" })).range)).toEqual({ en: "" });
 
 		});
 
 		it("honours a stored localised model for a multi-valued set", async () => {
 
-			expect(deriveValues(multiple(dictionary({ en: "" })))).toEqual({ en: [""] });
+			expect(deriveValues(multiple(dictionary({ en: "" })).range)).toEqual({ en: [""] });
 
 		});
 

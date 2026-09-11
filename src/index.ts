@@ -23,10 +23,10 @@
  *
  * **Defining Shapes**
  *
- * Define resource shapes with property constraints and cardinality ranges from the {@link value} module:
+ * Define resource shapes with property constraints and cardinality ranges from the {@link resource} module:
  *
  * ```typescript
- * import { required, optional, repeatable } from '@metreeca/blue/value';
+ * import { required, optional, nonempty } from '@metreeca/blue/resource';
  * import { boolean } from '@metreeca/blue/boolean';
  * import { integer } from '@metreeca/blue/number';
  * import { string, date } from '@metreeca/blue/string';
@@ -37,7 +37,7 @@
  *   name: required(string({ model: "name", minLength: 1, maxLength: 100 })),
  *   price: required(integer({ minInclusive: 0 })),
  *   available: optional(boolean()),
- *   tags: repeatable(string()),
+ *   tags: nonempty(string()),
  *   releaseDate: optional(date())
  * });
  * ```

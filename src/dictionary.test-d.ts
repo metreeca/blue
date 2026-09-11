@@ -28,7 +28,8 @@ import { isTagRange } from "@metreeca/core/language";
 import { describe, expectTypeOf, test } from "vitest";
 import { dictionary, type DictionaryShape } from "./dictionary.js";
 import { resource } from "./resource.js";
-import { multiple, optional, repeatable, required, type State } from "./value.js";
+import { multiple, nonempty, optional, required } from "./resource.js";
+import { type State } from "./value.js";
 
 
 describe("DictionaryShape", () => {
@@ -52,35 +53,35 @@ describe("DictionaryShape", () => {
 	describe("cardinality overloads", () => {
 
 		test("required(dictionary()) projects { readonly [tag: string]: string } model", () => {
-			expectTypeOf(required(dictionary()).model).toEqualTypeOf<{ readonly [tag: string]: string }>();
+			expectTypeOf(required(dictionary()).range.model).toEqualTypeOf<{ readonly [tag: string]: string }>();
 		});
 
 		test("optional(dictionary()) projects undefined | { readonly [tag: string]: string } model", () => {
-			expectTypeOf(optional(dictionary()).model).toEqualTypeOf<
+			expectTypeOf(optional(dictionary()).range.model).toEqualTypeOf<
 				undefined | { readonly [tag: string]: string }
 			>();
 		});
 
 		test("multiple(dictionary()) projects undefined | { readonly [tag: string]: readonly [string] } model", () => {
-			expectTypeOf(multiple(dictionary()).model).toEqualTypeOf<undefined | {
+			expectTypeOf(multiple(dictionary()).range.model).toEqualTypeOf<undefined | {
 				readonly [tag: string]: readonly [string]
 			}>();
 		});
 
-		test("repeatable(dictionary()) projects { readonly [tag: string]: readonly [string] } model", () => {
-			expectTypeOf(repeatable(dictionary()).model).toEqualTypeOf<{
+		test("nonempty(dictionary()) projects { readonly [tag: string]: readonly [string] } model", () => {
+			expectTypeOf(nonempty(dictionary()).range.model).toEqualTypeOf<{
 				readonly [tag: string]: readonly [string]
 			}>();
 		});
 
 		test("required(dictionary()) model is { readonly [tag: string]: string }", () => {
-			const shape = required(dictionary());
-			expectTypeOf(shape.model).toEqualTypeOf<{ readonly [tag: string]: string }>();
+			const { range } = required(dictionary());
+			expectTypeOf(range.model).toEqualTypeOf<{ readonly [tag: string]: string }>();
 		});
 
 		test("multiple(dictionary()) model is undefined | { readonly [tag: string]: readonly [string] }", () => {
-			const shape = multiple(dictionary());
-			expectTypeOf(shape.model).toEqualTypeOf<undefined | {
+			const { range } = multiple(dictionary());
+			expectTypeOf(range.model).toEqualTypeOf<undefined | {
 				readonly [tag: string]: readonly [string]
 			}>();
 		});
@@ -90,19 +91,19 @@ describe("DictionaryShape", () => {
 	describe("tag narrowing", () => {
 
 		test("required(dictionary({ en: \"\" })) projects the declared tag map only (no string shorthand)", () => {
-			expectTypeOf(required(dictionary({ en: "" })).model).toEqualTypeOf<
+			expectTypeOf(required(dictionary({ en: "" })).range.model).toEqualTypeOf<
 				{ readonly en: string }
 			>();
 		});
 
 		test("multiple(dictionary({ en: \"\" })) projects the declared per-tag array map only (no string shorthand)", () => {
-			expectTypeOf(multiple(dictionary({ en: "" })).model).toEqualTypeOf<
+			expectTypeOf(multiple(dictionary({ en: "" })).range.model).toEqualTypeOf<
 				undefined | { readonly en: readonly [string] }
 			>();
 		});
 
 		test("dictionary() (no model) projects the open tag map only", () => {
-			expectTypeOf(required(dictionary()).model).toEqualTypeOf<
+			expectTypeOf(required(dictionary()).range.model).toEqualTypeOf<
 				{ readonly [tag: string]: string }
 			>();
 		});
@@ -113,8 +114,8 @@ describe("DictionaryShape", () => {
 		});
 
 		test("object literal with undeclared tag is rejected", () => {
-			const shape = required(dictionary({ en: "" }));
-			type M = typeof shape.model;
+			const { range } = required(dictionary({ en: "" }));
+			type M = typeof range.model;
 			// @ts-expect-error - undeclared "it" tag not assignable
 			const _model: M = { en: "", it: "" };
 			void _model;

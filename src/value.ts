@@ -53,14 +53,6 @@
  * and boxing values into singleton tuples for multi-valued ranges) and are exported for tests
  * and downstream shape extensions.
  *
- * **Factories**
- *
- * - The cardinality factories wrap a shape in a {@link SetShape} with fixed bounds: {@link required}
- *   (exactly one), {@link optional} (at most one), {@link repeatable} (at least one), and
- *   {@link multiple} (any number).
- * - {@link cardinality} is the general form, returning a factory for an arbitrary `minCount` /
- *   `maxCount` pair that the four named factories specialise.
- *
  * **Utilities**
  *
  * - {@link eager} resolves a {@link Lazy} shape factory to its concrete {@link Shape}, caching
@@ -139,22 +131,24 @@ export type ValueShape =
  * Shape for a cardinality-constrained value set.
  *
  * Pairs a {@link Shape} with {@link SetShape.minCount | minCount} /
- * {@link SetShape.maxCount | maxCount} constraints that bound the expected number of values.
- * Cardinality factory functions ({@link required}, {@link optional}, {@link repeatable}, and
- * {@link multiple}) produce instances with pre-set bounds; use {@link cardinality} for custom ranges.
+ * {@link SetShape.maxCount | maxCount} constraints that bound the expected number of values. Carried as the range of
+ * a {@link resource!Property | property}, whose factories fix the bounds: the named
+ * {@link resource!required | required}, {@link resource!optional | optional},
+ * {@link resource!nonempty | nonempty} and {@link resource!multiple | multiple}, or
+ * {@link resource!property | property} for an arbitrary pair.
  *
  * **Usage**
  *
  * ```typescript
- * import { required, optional, repeatable, multiple, cardinality } from '@metreeca/blue/value';
+ * import { multiple, nonempty, optional, property, required } from '@metreeca/blue/resource';
  * import { string } from '@metreeca/blue/string';
  * import { integer } from '@metreeca/blue/number';
  *
  * required(string())    // minCount=1, maxCount=1 → exactly one string
  * optional(integer())   // minCount=undefined, maxCount=1 → zero or one integer
- * repeatable(string())  // minCount=1, maxCount=undefined → one or more strings
+ * nonempty(string())    // minCount=1, maxCount=undefined → one or more strings
  * multiple(string())    // minCount=undefined, maxCount=undefined → zero or more strings
- * cardinality(2, 5)(string()) // custom range
+ * property(string(), { minCount: 2, maxCount: 5 }) // custom range
  * ```
  *
  * **Inheritance**
@@ -246,20 +240,6 @@ export type SetShape<
 	readonly shape: Shape & { readonly model: State<S> };
 
 };
-
-
-/**
- * Factory function returned by {@link cardinality}.
- *
- * Accepts a value or union shape and returns a {@link SetShape} with the enclosing cardinality bounds.
- *
- * @typeParam L The {@link SetShape.minCount | minCount} bound
- * @typeParam U The {@link SetShape.maxCount | maxCount} bound
- */
-export type SetFactory<
-	L extends undefined | number,
-	U extends undefined | number
-> = <S extends Lazy<Shape>>(shape: S) => SetShape<S, L, U>;
 
 
 /**
@@ -390,170 +370,3 @@ export type Bounds<
  */
 export type Boxed<V, U extends undefined | number> =
 	U extends 1 ? V : readonly [V];
-
-
-//// Factories /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Creates a {@link SetShape} with no cardinality constraints (0..*).
- *
- * Allows zero or more values, resulting in an optional array type (`undefined | readonly V[]`).
- *
- * > [!WARNING]
- * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds a string array.
- * > `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags. This differs from
- * > vanilla SHACL aggregate counting, though expressible via per-tag property shapes.
- *
- * @typeParam S The {@link Lazy} {@link Shape} type
- *
- * @param shape The {@link Lazy} {@link Shape} to constrain
- *
- * @returns An immutable {@link SetShape} with no minimum or maximum count
- */
-export function multiple<S extends Lazy<Shape>>(shape: S): SetShape<S, undefined, undefined> {
-
-	return cardinality(undefined, undefined)(shape);
-
-}
-
-/**
- * Creates a {@link SetShape} requiring at least one value (1..*).
- *
- * Requires one or more values, resulting in a non-empty array type (`readonly [V, ...V[]]`).
- *
- * > [!WARNING]
- * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds a non-empty string
- * > array and the map must contain at least one tag. `minCount`/`maxCount` apply **per tag**, not as
- * > an aggregate across all tags. This differs from vanilla SHACL aggregate counting, though
- * > expressible via per-tag property shapes.
- *
- * @typeParam S The {@link Lazy} {@link Shape} type
- *
- * @param shape The {@link Lazy} {@link Shape} to constrain
- *
- * @returns An immutable {@link SetShape} with minCount=1 and no maximum count
- */
-export function repeatable<S extends Lazy<Shape>>(shape: S): SetShape<S, 1, undefined> {
-
-	return cardinality(1, undefined)(shape);
-
-}
-
-/**
- * Creates a {@link SetShape} for at most one value (0..1).
- *
- * Allows zero or one value, resulting in an optional scalar type (`undefined | V`).
- *
- * > [!WARNING]
- * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds a single string.
- * > `minCount`/`maxCount` apply **per tag**, not as an aggregate across all tags. This differs from
- * > vanilla SHACL aggregate counting, though expressible via per-tag property shapes.
- *
- * @typeParam S The {@link Lazy} {@link Shape} type
- *
- * @param shape The {@link Lazy} {@link Shape} to constrain
- *
- * @returns An immutable {@link SetShape} with no minimum count and maxCount=1
- */
-export function optional<S extends Lazy<Shape>>(shape: S): SetShape<S, undefined, 1> {
-
-	return cardinality(undefined, 1)(shape);
-
-}
-
-/**
- * Creates a {@link SetShape} for exactly one value (1..1).
- *
- * Requires exactly one value, resulting in a required scalar type (`V`).
- *
- * > [!WARNING]
- * > For {@link DictionaryShape | dictionary} shapes, each tag in the map holds exactly one string and
- * > the map must contain at least one tag. `minCount`/`maxCount` apply **per tag**, not as an
- * > aggregate across all tags. This differs from vanilla SHACL aggregate counting, though
- * > expressible via per-tag property shapes.
- *
- * @typeParam S The {@link Lazy} {@link Shape} type
- *
- * @param shape The {@link Lazy} {@link Shape} to constrain
- *
- * @returns An immutable {@link SetShape} with minCount=1 and maxCount=1
- */
-export function required<S extends Lazy<Shape>>(shape: S): SetShape<S, 1, 1> {
-
-	return cardinality(1, 1)(shape);
-
-}
-
-/**
- * Creates a {@link SetFactory} with custom cardinality constraints.
- *
- * Returns a {@link SetFactory} that wraps a shape into a {@link SetShape} with the specified bounds. A
- * {@link DictionaryShape | Dictionary} model is projected per tag within its language map; every other multi-valued
- * model is held as a singleton `[element]` tuple, the collection form of the
- * {@link @metreeca/qest!Query | Query} grammar. A retrieval {@link @metreeca/qest!Selection | Selection} is supplied
- * per request in the template, never declared on the shape.
- *
- * @typeParam L The minimum count constraint type
- * @typeParam U The maximum count constraint type
- *
- * @param lower Minimum number of expected values
- * @param upper Maximum number of expected values
- *
- * @returns An immutable {@link SetFactory} with the specified cardinality bounds
- *
- * @throws {@link !TypeError TypeError} If `lower` or `upper` is negative, or if `lower` exceeds `upper`
- *
- * @example
- *
- * ```typescript
- * const twoToFive = cardinality(2, 5);
- * const tags = twoToFive(string());
- * const items = cardinality(0, 100)(resource(ItemShape));
- * ```
- */
-export function cardinality<
-	L extends undefined | number,
-	U extends undefined | number = undefined
->(
-	lower: L,
-	upper?: U
-): SetFactory<L, U> {
-
-	if ( lower !== undefined && lower < 0 ) {
-		throw new TypeError(`expected non-negative minCount <${lower}>`);
-	}
-
-	if ( upper !== undefined && upper < 0 ) {
-		throw new TypeError(`expected non-negative maxCount <${upper}>`);
-	}
-
-	if ( lower !== undefined && upper !== undefined && lower > upper ) {
-		throw new TypeError(`inconsistent bounds <${lower}> > <${upper}>`);
-	}
-
-	return (<S extends Lazy<Shape>>(shape: S) => {
-
-		const resolved = eager(shape);
-
-		const model = resolved.kind === "dictionary"
-			? Object.fromEntries(Object.entries(resolved.model).map(([key, value]) =>
-				[key, upper === 1 ? value : [value]]
-			))
-			: upper === 1 ? resolved.model
-				: [resolved.model];
-
-		return immutable({
-
-			kind: "set",
-			model: model as Bounds<S, L, U>,
-
-			minCount: lower,
-			maxCount: upper,
-
-			shape: resolved as Shape & { readonly model: State<S> }
-
-		});
-
-	}) as SetFactory<L, U>;
-
-}

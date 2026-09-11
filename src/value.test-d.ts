@@ -21,10 +21,10 @@ import type { BooleanShape } from "./boolean.js";
 import { dictionary, type DictionaryShape } from "./dictionary.js";
 import { integer, type NumberShape } from "./number.js";
 import { reference, type ReferenceShape } from "./reference.js";
-import { property, resource, type ResourceShape } from "./resource.js";
 import { string, type StringShape } from "./string.js";
 import { union } from "./union.js";
-import { type Bounds, cardinality, multiple, optional, repeatable, required, type State } from "./value.js";
+import { multiple, nonempty, optional, property, required, resource, type ResourceShape } from "./resource.js";
+import { type Bounds, type State } from "./value.js";
 
 
 describe("State", () => {
@@ -81,10 +81,10 @@ describe("State", () => {
 
 		function Shape() {
 			return resource({
-				req: property(required(string())),
-				opt: property(optional(string())),
-				mult: property(multiple(string())),
-				rep: property(repeatable(string()))
+				req: required(string()),
+				opt: optional(string()),
+				mult: multiple(string()),
+				rep: nonempty(string())
 			});
 		}
 
@@ -100,7 +100,7 @@ describe("State", () => {
 			expectTypeOf<State<typeof Shape>>().toHaveProperty("mult").toEqualTypeOf<readonly string[] | undefined>();
 		});
 
-		test("repeatable → readonly T[]", () => {
+		test("nonempty → readonly T[]", () => {
 			expectTypeOf<State<typeof Shape>>().toHaveProperty("rep").toEqualTypeOf<readonly string[]>();
 		});
 
@@ -122,7 +122,7 @@ describe("State", () => {
 				req: required(string()),
 				opt: optional(string()),
 				mult: multiple(string()),
-				rep: repeatable(string())
+				rep: nonempty(string())
 			});
 		}
 
@@ -138,7 +138,7 @@ describe("State", () => {
 			expectTypeOf<State<typeof NakedShape>>().toHaveProperty("mult").toEqualTypeOf<readonly string[] | undefined>();
 		});
 
-		test("repeatable → readonly T[]", () => {
+		test("nonempty → readonly T[]", () => {
 			expectTypeOf<State<typeof NakedShape>>().toHaveProperty("rep").toEqualTypeOf<readonly string[]>();
 		});
 
@@ -176,7 +176,7 @@ describe("State", () => {
 		test("mixed property and naked range", () => {
 			function MixedShape() {
 				return resource({
-					name: property(required(string())),
+					name: required(string()),
 					age: optional(integer())
 				});
 			}
@@ -189,7 +189,7 @@ describe("State", () => {
 			function NakedRequired() {
 				return resource({
 					req: required(string()),
-					rep: repeatable(string())
+					rep: nonempty(string())
 				});
 			}
 
@@ -250,7 +250,7 @@ describe("State", () => {
 
 		function Shape() {
 			return resource({
-				value: property(required(union(string(), integer())))
+				value: required(union(string(), integer()))
 			});
 		}
 
@@ -275,13 +275,13 @@ describe("State", () => {
 
 			function Base() {
 				return resource({
-					name: property(required(string()))
+					name: required(string())
 				});
 			}
 
 			function Derived() {
 				return resource(Base, {
-					code: property(required(string()))
+					code: required(string())
 				});
 			}
 
@@ -301,19 +301,19 @@ describe("State", () => {
 
 			function Base() {
 				return resource({
-					name: property(required(string()))
+					name: required(string())
 				});
 			}
 
 			function Mixin() {
 				return resource({
-					label: property(optional(string()))
+					label: optional(string())
 				});
 			}
 
 			function Multi() {
 				return resource(Base, Mixin, {
-					id: property(required(string()))
+					id: required(string())
 				});
 			}
 
@@ -334,19 +334,19 @@ describe("State", () => {
 
 			function GrandParent() {
 				return resource({
-					a: property(required(string()))
+					a: required(string())
 				});
 			}
 
 			function Parent() {
 				return resource(GrandParent, {
-					b: property(required(string()))
+					b: required(string())
 				});
 			}
 
 			function Child() {
 				return resource(Parent, {
-					c: property(required(string()))
+					c: required(string())
 				});
 			}
 
@@ -367,25 +367,25 @@ describe("State", () => {
 
 			function Root() {
 				return resource({
-					id: property(required(string()))
+					id: required(string())
 				});
 			}
 
 			function Left() {
 				return resource(Root, {
-					left: property(required(string()))
+					left: required(string())
 				});
 			}
 
 			function Right() {
 				return resource(Root, {
-					right: property(required(string()))
+					right: required(string())
 				});
 			}
 
 			function Diamond() {
 				return resource(Left, Right, {
-					own: property(required(string()))
+					own: required(string())
 				});
 			}
 
@@ -402,15 +402,15 @@ describe("State", () => {
 
 			function Base() {
 				return resource({
-					reqBase: property(required(string())),
-					optBase: property(optional(string()))
+					reqBase: required(string()),
+					optBase: optional(string())
 				});
 			}
 
 			function Derived() {
 				return resource(Base, {
-					reqOwn: property(required(integer())),
-					optOwn: property(optional(integer()))
+					reqOwn: required(integer()),
+					optOwn: optional(integer())
 				});
 			}
 
@@ -438,7 +438,7 @@ describe("State", () => {
 		test("direct shape", () => {
 
 			const DirectShape = resource({
-				name: property(required(string()))
+				name: required(string())
 			});
 
 			expectTypeOf<State<typeof DirectShape>>().toHaveProperty("name").toEqualTypeOf<string>();
@@ -449,7 +449,7 @@ describe("State", () => {
 
 			function LazyShape() {
 				return resource({
-					name: property(required(string()))
+					name: required(string())
 				});
 			}
 
@@ -463,8 +463,8 @@ describe("State", () => {
 
 		function TreeNode() {
 			return resource({
-				label: property(required(string())),
-				children: property(multiple(reference(TreeNode)))
+				label: required(string()),
+				children: multiple(reference(TreeNode))
 			});
 		}
 
@@ -517,10 +517,10 @@ describe("State", () => {
 	describe("type validation", () => {
 
 		const Shape = resource({
-			name: property(required(string())),
-			age: property(optional(integer())),
-			tags: property(multiple(string())),
-			roles: property(repeatable(string()))
+			name: required(string()),
+			age: optional(integer()),
+			tags: multiple(string()),
+			roles: nonempty(string())
 		});
 
 		describe("required property", () => {
@@ -585,7 +585,7 @@ describe("State", () => {
 
 		});
 
-		describe("repeatable property", () => {
+		describe("nonempty property", () => {
 
 			test("accepts non-empty array", () => {
 				assertType<State<typeof Shape>>({
@@ -628,7 +628,7 @@ describe("Bounds", () => {
 			expectTypeOf<Bounds<StringShape, undefined, 1>>().toEqualTypeOf<undefined | string>();
 		});
 
-		test("repeatable (L = 1, U = undefined) wraps in singleton tuple", () => {
+		test("nonempty (L = 1, U = undefined) wraps in singleton tuple", () => {
 			expectTypeOf<Bounds<StringShape, 1, undefined>>().toEqualTypeOf<readonly [string]>();
 		});
 
@@ -655,7 +655,7 @@ describe("Bounds", () => {
 				>();
 			});
 
-			test("repeatable → { [tag]: readonly [string] }", () => {
+			test("nonempty → { [tag]: readonly [string] }", () => {
 				expectTypeOf<Bounds<DictionaryShape, 1, undefined>>().toEqualTypeOf<
 					{ readonly [tag: string]: readonly [string] }
 				>();
@@ -675,31 +675,28 @@ describe("Bounds", () => {
 
 describe("model projection", () => {
 
-	test("tuple factory rejects a selection argument", () => {
-		const factory = cardinality(2, 5);
+	test("tuple property rejects a selection constraint", () => {
 		// @ts-expect-error - a selection is supplied per request in the template, never on the shape
-		factory(string(), { "#": 10 });
+		property(string(), { "#": 10 });
 	});
 
-	test("scalar factory rejects a selection argument", () => {
-		const factory = cardinality(1, 1);
+	test("scalar property rejects a selection constraint", () => {
 		// @ts-expect-error - a selection is supplied per request in the template, never on the shape
-		factory(string(), { "#": 10 });
+		required(string(), { "#": 10 });
 	});
 
-	test("Dictionary factory rejects a selection argument", () => {
-		const factory = cardinality(1, 1);
+	test("Dictionary property rejects a selection constraint", () => {
 		// @ts-expect-error - a selection is supplied per request in the template, never on the shape
-		factory(dictionary({ en: "", it: "" }), { "#": 10 });
+		required(dictionary({ en: "", it: "" }), { "#": 10 });
 	});
 
 	test("multi-valued model is a singleton tuple", () => {
-		const range = cardinality(2, 5)(string());
+		const { range } = property(string(), { minCount: 2, maxCount: 5 });
 		expectTypeOf(range.model).toEqualTypeOf<readonly [string]>();
 	});
 
 	test("Dictionary model is a per-tag map", () => {
-		const range = cardinality(1, 1)(dictionary({ en: "", it: "" }));
+		const { range } = property(dictionary({ en: "", it: "" }), { minCount: 1, maxCount: 1 });
 		expectTypeOf(range.model).toEqualTypeOf<{ readonly en: string; readonly it: string }>();
 	});
 

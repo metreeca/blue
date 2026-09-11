@@ -25,7 +25,8 @@ import { reference } from "./reference.js";
 import { id, resource, type ResourceShape, type } from "./resource.js";
 import { date, duration, instant, string, time, timestamp, year } from "./string.js";
 import { union } from "./union.js";
-import { effective, multiple, optional, type RangeShape, repeatable, required, type ValuesShape } from "./value.js";
+import { multiple, nonempty, optional, required } from "./resource.js";
+import { effective, type RangeShape, type ValuesShape } from "./value.js";
 
 
 describe("apply", () => {
@@ -348,9 +349,9 @@ describe("apply", () => {
 
 		});
 
-		it("preserves repeatable cardinality through identity", async () => {
+		it("preserves nonempty cardinality through identity", async () => {
 
-			const result = effective(resource({ name: repeatable(string()) }), probe(["name"]));
+			const result = effective(resource({ name: nonempty(string()) }), probe(["name"]));
 
 			expect(range(result).minCount).toBe(1);
 			expect(range(result).maxCount).toBeUndefined();
@@ -370,7 +371,7 @@ describe("apply", () => {
 
 		it("scalar transform preserves undefined maxCount", async () => {
 
-			const result = effective(resource({ value: repeatable(integer()) }), probe(["value"], ["abs"]));
+			const result = effective(resource({ value: nonempty(integer()) }), probe(["value"], ["abs"]));
 
 			expect(range(result).minCount).toBeUndefined();
 			expect(range(result).maxCount).toBeUndefined();
@@ -378,8 +379,8 @@ describe("apply", () => {
 		});
 
 		it.each([
-			["count", ["count"], repeatable(integer())],
-			["sum", ["sum"], repeatable(integer())]
+			["count", ["count"], nonempty(integer())],
+			["sum", ["sum"], nonempty(integer())]
 		] as const)("%s total aggregate sets maxCount and minCount to 1", async (_label, pipe, set) => {
 
 			const result = effective(resource({ value: set }), probe(["value"], [...pipe]));
@@ -392,10 +393,10 @@ describe("apply", () => {
 		});
 
 		it.each([
-			["avg", ["avg"], repeatable(integer())],
-			["min", ["min"], repeatable(string())],
-			["max", ["max"], repeatable(string())],
-			["avg+floor", ["avg", "floor"], repeatable(decimal())]
+			["avg", ["avg"], nonempty(integer())],
+			["min", ["min"], nonempty(string())],
+			["max", ["max"], nonempty(string())],
+			["avg+floor", ["avg", "floor"], nonempty(decimal())]
 		] as const)("%s aggregate sets maxCount to 1 and minCount to undefined", async (_label, pipe, set) => {
 
 			const result = effective(resource({ value: set }), probe(["value"], [...pipe]));
@@ -419,13 +420,13 @@ describe("apply", () => {
 		it.each([
 			["required×required", required, required, 1, 1],
 			["required×optional", required, optional, undefined, 1],
-			["required×repeatable", required, repeatable, 1, undefined],
+			["required×nonempty", required, nonempty, 1, undefined],
 			["optional×required", optional, required, undefined, 1],
 			["optional×optional", optional, optional, undefined, 1],
-			["optional×repeatable", optional, repeatable, undefined, undefined],
-			["repeatable×required", repeatable, required, 1, undefined],
-			["repeatable×optional", repeatable, optional, undefined, undefined],
-			["repeatable×repeatable", repeatable, repeatable, 1, undefined]
+			["optional×nonempty", optional, nonempty, undefined, undefined],
+			["nonempty×required", nonempty, required, 1, undefined],
+			["nonempty×optional", nonempty, optional, undefined, undefined],
+			["nonempty×nonempty", nonempty, nonempty, 1, undefined]
 		] as const)("accumulates %s", async (_label, outer, inner, expectedMin, expectedMax) => {
 
 			const s = resource({
@@ -442,7 +443,7 @@ describe("apply", () => {
 		it("accumulates across three-step path", async () => {
 
 			const s = resource({
-				a: repeatable(resource({
+				a: nonempty(resource({
 					b: optional(resource({
 						c: required(string())
 					}))
@@ -461,13 +462,13 @@ describe("apply", () => {
 		it("accumulates through union using outer range cardinality", async () => {
 
 			const s = resource({
-				value: repeatable(union(
+				value: nonempty(union(
 					resource({ name: required(string()) }),
 					resource({ name: required(integer()) })
 				))
 			});
 
-			// step 1 (value): minCount=1, maxCount=undef (repeatable)
+			// step 1 (value): minCount=1, maxCount=undef (nonempty)
 			// step 2 (name): minCount=1, maxCount=1 (required in both variants)
 			// accumulated: minCount=1×1=1, maxCount=undef×1=undef
 
@@ -1464,7 +1465,7 @@ describe("validation", () => {
 
 			it("returns trace for invalid structures nested inside arrays", async () => {
 
-				const arrShape = resource({ tags: repeatable(string()) });
+				const arrShape = resource({ tags: nonempty(string()) });
 
 				expect(validate({ tags: [null] }, { shape: arrShape })({ trace: t => t })).toBeDefined();
 				expect(validate({ tags: [undefined] }, { shape: arrShape })({ trace: t => t })).toBeDefined();
@@ -1489,7 +1490,7 @@ describe("validation", () => {
 					name: required(string()),
 					price: optional(integer()),
 					available: optional(boolean()),
-					tags: repeatable(string())
+					tags: nonempty(string())
 				});
 
 				const json = JSON.stringify({
@@ -1631,10 +1632,10 @@ describe("validation", () => {
 
 			});
 
-			it("rejects empty array for a projected repeatable field", async () => {
+			it("rejects empty array for a projected nonempty field", async () => {
 
 				const shape = resource({
-					tags: repeatable(string())
+					tags: nonempty(string())
 				});
 
 				const model = { tags: [""] };
@@ -1751,10 +1752,10 @@ describe("validation", () => {
 
 			});
 
-			it("accepts repeatable reference with mixed IRI and expanded resource", async () => {
+			it("accepts nonempty reference with mixed IRI and expanded resource", async () => {
 
 				const shape = resource({
-					items: repeatable(reference(Inner))
+					items: nonempty(reference(Inner))
 				});
 
 				const model = { items: [{ label: "" }] };
@@ -2713,7 +2714,7 @@ describe("validation", () => {
 
 			it("returns trace for invalid singleton-tuple structures", async () => {
 
-				const arrShape = resource({ tags: repeatable(string()) });
+				const arrShape = resource({ tags: nonempty(string()) });
 
 				expect(validate({ tags: [null] }, { model: true, shape: arrShape })({ trace: t => t })).toBeDefined();
 				expect(validate({ tags: [] }, { model: true, shape: arrShape })({ trace: t => t })).toBeDefined();
@@ -2798,7 +2799,7 @@ describe("validation", () => {
 					id: id(),
 					name: required(string()),
 					price: optional(integer()),
-					tags: repeatable(string()),
+					tags: nonempty(string()),
 					vendor: optional(reference(Vendor))
 				});
 

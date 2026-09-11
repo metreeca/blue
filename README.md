@@ -49,7 +49,7 @@ npm install @metreeca/blue
 > | Module                         | Description                                |
 > |--------------------------------|--------------------------------------------|
 > | [@metreeca/blue]               | Linked data validation API                 |
-> | [@metreeca/blue/value]         | Composite shapes and cardinality factories |
+> | [@metreeca/blue/value]         | Composite shapes and value projections     |
 > | [@metreeca/blue/boolean]       | Boolean shape and factories                |
 > | [@metreeca/blue/number]        | Numeric shape and factories                |
 > | [@metreeca/blue/string]        | Textual shape and factories                |
@@ -79,13 +79,13 @@ npm install @metreeca/blue
 Schemas describe the expected structure of a resource using shape factories:
 
 ```ts
-import { multiple, optional, required, union } from "@metreeca/blue/value";
+import { union } from "@metreeca/blue/union";
 import { boolean } from "@metreeca/blue/boolean";
 import { number } from "@metreeca/blue/number";
 import { string, url } from "@metreeca/blue/string";
 import { dictionary } from "@metreeca/blue/dictionary";
 import { reference } from "@metreeca/blue/reference";
-import { id, resource, type } from "@metreeca/blue/resource";
+import { id, multiple, optional, required, resource, type } from "@metreeca/blue/resource";
 
 function Thing() {
 	return resource({
@@ -127,15 +127,19 @@ function Vendor() {
 ```
 
 Shape factories like `string()`, `number()`, `boolean()`, `dictionary()`, and `reference()` define the expected value
-type and optional constraints for each property. Cardinality helpers wrap shape factories to control how many values are
-expected and to determine the inferred TypeScript type:
+type and optional constraints for each property. Cardinality factories wrap a shape into a property, controlling how
+many values are expected and determining the inferred TypeScript type:
 
-| Factory         | Cardinality | TypeScript Type             |
-|-----------------|-------------|-----------------------------|
-| `required(s)`   | 1..1        | `V`                         |
-| `optional(s)`   | 0..1        | `undefined \| V`            |
-| `repeatable(s)` | 1..*        | `readonly V[]`              |
-| `multiple(s)`   | 0..*        | `undefined \| readonly V[]` |
+| Factory                                     | Cardinality | TypeScript Type             |
+|---------------------------------------------|-------------|-----------------------------|
+| `required(s)`                               | 1..1        | `V`                         |
+| `optional(s)`                               | 0..1        | `undefined \| V`            |
+| `nonempty(s)`                               | 1..*        | `readonly V[]`              |
+| `multiple(s)`                               | 0..*        | `undefined \| readonly V[]` |
+| `property(s, { minCount: l, maxCount: u })` | l..u        | `readonly V[]`              |
+
+Each factory takes the constraints the property carries beyond its cardinality, such as IRI mappings, labels, or
+visibility flags, as a trailing argument: `required(string(), { forward: schema })`.
 
 Cardinalities admitting absence also relax their entry to an optional key, so a value literal spells out only the
 entries it actually carries; reading an omitted entry still yields `undefined`.

@@ -20,20 +20,20 @@ import { mergeReference, narrowsReference, validateReference } from "./reference
 import { getShapeTarget, reference, type ReferenceConstraints } from "./reference.js";
 import { id, resource, type ResourceShape } from "./resource.js";
 import { string } from "./string.js";
-import { multiple, optional, repeatable, required } from "./value.js";
+import { multiple, nonempty, optional, required } from "./resource.js";
 
 describe("factories", () => {
 
 	describe.each([
 		["multiple", multiple, undefined, undefined],
-		["repeatable", repeatable, 1, undefined],
+		["nonempty", nonempty, 1, undefined],
 		["optional", optional, undefined, 1],
 		["required", required, 1, 1]
 	])("%s", (_label, factory, expectedMin, expectedMax) => {
 
 		it("returns a range with expected cardinality", async () => {
 
-			const range = factory(string());
+			const { range } = factory(string());
 
 			expect(range.minCount).toBe(expectedMin);
 			expect(range.maxCount).toBe(expectedMax);
@@ -43,7 +43,7 @@ describe("factories", () => {
 
 		it("returns an immutable range", async () => {
 
-			const range = factory(string());
+			const { range } = factory(string());
 
 			expect(() => {
 				(range as any).minCount = 99;
@@ -53,9 +53,10 @@ describe("factories", () => {
 
 		it("includes only expected entries", async () => {
 
-			const range = factory(string());
+			const property = factory(string());
 
-			expect(Object.keys(range).sort()).toEqual(["kind", "maxCount", "minCount", "model", "shape"]);
+			expect(Object.keys(property).sort()).toEqual(["kind", "range"]);
+			expect(Object.keys(property.range).sort()).toEqual(["kind", "maxCount", "minCount", "model", "shape"]);
 
 		});
 

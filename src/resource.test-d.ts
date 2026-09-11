@@ -38,6 +38,9 @@ import {
 	type Inheritance,
 	type Intersected,
 	type Member,
+	multiple,
+	nonempty,
+	optional,
 	type Override,
 	type Parents,
 	property,
@@ -45,6 +48,7 @@ import {
 	type PropertyConstraints,
 	type Prototype,
 	type Range,
+	required,
 	resource,
 	type Slot,
 	type Type,
@@ -52,7 +56,7 @@ import {
 } from "./resource.js";
 import type { StringShape } from "./string.js";
 import { union } from "./union.js";
-import { multiple, optional, repeatable, required, type SetShape } from "./value.js";
+import { type SetShape } from "./value.js";
 
 
 // helper shapes for tests
@@ -74,7 +78,7 @@ describe("Overrides", () => {
 
 	function Base() {
 		return resource({
-			name: property(required(string()))
+			name: required(string())
 		});
 	}
 
@@ -155,12 +159,12 @@ describe("Content", () => {
 	});
 
 	test("Property with Range range → V", () => {
-		type E = { readonly kind: "property"; readonly range: ReturnType<typeof required<StringShape>> };
+		type E = { readonly kind: "property"; readonly range: SetShape<StringShape, 1, 1> };
 		expectTypeOf<Content<E>>().toEqualTypeOf<string>();
 	});
 
 	test("Property with optional Range range → undefined | V", () => {
-		type E = { readonly kind: "property"; readonly range: ReturnType<typeof optional<StringShape>> };
+		type E = { readonly kind: "property"; readonly range: SetShape<StringShape, undefined, 1> };
 		expectTypeOf<Content<E>>().toEqualTypeOf<undefined | string>();
 	});
 
@@ -288,14 +292,14 @@ describe("nested model inference", () => {
 
 		});
 
-		test("repeatable nested resource preserves inner structure", () => {
+		test("nonempty nested resource preserves inner structure", () => {
 
 			const Inner = resource({
 				label: required(string())
 			});
 
 			expectTypeOf(resource({
-				children: repeatable(Inner)
+				children: nonempty(Inner)
 			}).model).toHaveProperty("children").toEqualTypeOf<readonly [{ readonly label: string }]>();
 
 		});
@@ -450,7 +454,7 @@ describe("resource()", () => {
 	test("validate() accepts concrete shapes", () => {
 
 		const shape = resource({
-			name: property(required(string()))
+			name: required(string())
 		});
 
 		validate({}, { shape });
@@ -685,13 +689,8 @@ describe("markers", () => {
 describe("Range", () => {
 
 	test("extracts SetShape from a Property entry", () => {
-		type E = Property<ReturnType<typeof required<StringShape>>>;
-		expectTypeOf<Range<E>>().toEqualTypeOf<ReturnType<typeof required<StringShape>>>();
-	});
-
-	test("returns the entry itself for a naked SetShape", () => {
-		type E = ReturnType<typeof required<StringShape>>;
-		expectTypeOf<Range<E>>().toEqualTypeOf<E>();
+		type E = Property<SetShape<StringShape, 1, 1>>;
+		expectTypeOf<Range<E>>().toEqualTypeOf<SetShape<StringShape, 1, 1>>();
 	});
 
 	test("collapses to never for Id markers", () => {
@@ -716,8 +715,8 @@ describe("Slot", () => {
 	});
 
 	test("projects ranged entries to the range model", () => {
-		type E = ReturnType<typeof required<StringShape>>;
-		expectTypeOf<Slot<E>>().toEqualTypeOf<E["model"]>();
+		type E = Property<SetShape<StringShape, 1, 1>>;
+		expectTypeOf<Slot<E>>().toEqualTypeOf<SetShape<StringShape, 1, 1>["model"]>();
 	});
 
 });
@@ -733,8 +732,8 @@ describe("Content", () => {
 		expectTypeOf<Content<Type>>().toEqualTypeOf<Reference>();
 	});
 
-	test("repeatable scalar → readonly tuple of values", () => {
-		type E = ReturnType<typeof repeatable<StringShape>>;
+	test("nonempty scalar → readonly tuple of values", () => {
+		type E = ReturnType<typeof nonempty<StringShape>>;
 		expectTypeOf<Content<E>>().toEqualTypeOf<readonly string[]>();
 	});
 
@@ -875,34 +874,8 @@ describe("Property generics", () => {
 	});
 
 	test("Property<R> narrows range to R", () => {
-		type R = ReturnType<typeof required<StringShape>>;
+		type R = SetShape<StringShape, 1, 1>;
 		expectTypeOf<Property<R>["range"]>().toEqualTypeOf<R>();
-	});
-
-});
-
-
-describe("naked range vs property-wrapped equivalence", () => {
-
-	test("resource() produces identical model for naked and wrapped forms", () => {
-		const naked = resource({ name: required(string()) });
-		const wrapped = resource({ name: property(required(string())) });
-
-		expectTypeOf(naked.model).toEqualTypeOf<typeof wrapped.model>();
-	});
-
-	test("produces identical model for optional cardinality", () => {
-		const naked = resource({ name: optional(string()) });
-		const wrapped = resource({ name: property(optional(string())) });
-
-		expectTypeOf(naked.model).toEqualTypeOf<typeof wrapped.model>();
-	});
-
-	test("produces identical model for repeatable cardinality", () => {
-		const naked = resource({ tags: repeatable(string()) });
-		const wrapped = resource({ tags: property(repeatable(string())) });
-
-		expectTypeOf(naked.model).toEqualTypeOf<typeof wrapped.model>();
 	});
 
 });
