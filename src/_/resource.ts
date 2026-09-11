@@ -192,7 +192,6 @@ export type PropertyConstrains = {
 	 */
 	readonly hidden?: boolean;
 
-
 	/**
 	 * Marks the property as owned by the resources in its range.
 	 *
@@ -227,19 +226,6 @@ export type PropertyConstrains = {
 	 * @defaultValue `undefined` (`false`)
 	 */
 	readonly captive?: boolean;
-
-	/**
-	 * Marks the property as system-managed.
-	 *
-	 * > [!IMPORTANT]
-	 * > Computed properties are populated by the system and may be silently overwritten on mutation operations.
-	 * > Client-supplied values must still be present in mutation payloads but carry no guarantees of being preserved.
-	 *
-	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
-	 *
-	 * @defaultValue `undefined` (`false`)
-	 */
-	readonly computed?: boolean;
 
 
 	/**
@@ -430,11 +416,10 @@ export type Foreign = {
 }
 
 /**
- * A member a submission may leave out, as the system fills it in: an identifier or a computed property.
+ * A member a submission may leave out, as the system fills it in: the resource identifier.
  */
 export type Managed =
 	| Id
-	| { readonly computed: true }
 
 
 /**

@@ -146,14 +146,12 @@
                     <text transform="translate(180.56407 733.1739)" fill="black">
                         <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">hidden?: boolean</tspan>
                         <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="20.252"
-                                xml:space="preserve">computed?: boolean</tspan>
-                        <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="31.503998"
                                 xml:space="preserve">name?: Dictionary</tspan>
-                        <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="42.755997"
+                        <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="31.503998"
                                 xml:space="preserve">description?: Dictionary</tspan>
-                        <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="54.007996"
+                        <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="42.755997"
                                 xml:space="preserve">forward: Reference</tspan>
-                        <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="65.259995"
+                        <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="54.007996"
                                 xml:space="preserve">reverse: Reference</tspan>
                     </text>
                 </g>

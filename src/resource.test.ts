@@ -2099,8 +2099,7 @@ describe("utilities", () => {
 			});
 
 			describe.each([
-				"hidden" as const,
-				"computed" as const
+				"hidden" as const
 			])("%s", (field) => {
 
 				describe("linear", () => {
@@ -2410,8 +2409,7 @@ describe("utilities", () => {
 			});
 
 			it.each([
-				"hidden" as const,
-				"computed" as const
+				"hidden" as const
 			])("reports conflicting %s without child override", async (field) => {
 
 				const parentA = resource({ field: required(string(), { [field]: true }) });
@@ -2423,8 +2421,7 @@ describe("utilities", () => {
 			});
 
 			it.each([
-				"hidden" as const,
-				"computed" as const
+				"hidden" as const
 			])("keys a conflicting %s by bare entry name and braced constraint", async (field) => {
 
 				const parentA = resource({ field: required(string(), { [field]: true }) });
@@ -2437,8 +2434,7 @@ describe("utilities", () => {
 			});
 
 			it.each([
-				"hidden" as const,
-				"computed" as const
+				"hidden" as const
 			])("returns undefined when child overrides conflicting %s", async (field) => {
 
 				const parentA = resource({ field: required(string(), { [field]: true }) });
@@ -3849,8 +3845,7 @@ describe("operators", () => {
 		});
 
 		describe.each([
-			{ field: "hidden" as const },
-			{ field: "computed" as const }
+			{ field: "hidden" as const }
 		])("$field", ({ field }) => {
 
 			it("inherits source value when target has none", async () => {

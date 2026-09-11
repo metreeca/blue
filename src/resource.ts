@@ -812,7 +812,6 @@ export interface Type {
  * | `reverse`     | Cannot be overridden                                                                   |
  * | `range`       | Delegated to {@link SetShape} merge rules                                              |
  * | `hidden`      | Inherited; conflicting parents without child override are reported as an error        |
- * | `computed`    | Inherited; conflicting parents without child override are reported as an error        |
  *
  * @typeParam R The value range type, defaulting to an unconstrained {@link SetShape}
  *
@@ -938,20 +937,6 @@ export interface PropertyConstraints<R extends SetShape = SetShape> {
 	 * @defaultValue `undefined` (`false`)
 	 */
 	readonly hidden?: boolean;
-
-	/**
-	 * Marks the property as system-managed.
-	 *
-	 * > [!IMPORTANT]
-	 * > Computed properties are populated by the system and may be silently overwritten on mutation operations.
-	 * > Client-supplied values must still be present in mutation payloads but carry no guarantees of being preserved.
-	 *
-	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
-	 *
-	 * @defaultValue `undefined` (`false`)
-	 */
-	readonly computed?: boolean;
-
 
 	/**
 	 * Human-readable name for the property.

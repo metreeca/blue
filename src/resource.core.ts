@@ -130,9 +130,9 @@ export function checkResource(constraints: Partial<ResourceShape>): undefined | 
 /**
  * Checks for conflicting inherit-strategy fields across sibling parents.
  *
- * Inherit fields (`virtual`, `space` on resources; `hidden`, `computed` on members) require all sibling
- * parents to agree on the value. When any two flattened parents define different values (including `undefined` vs
- * defined) and the child shape does not provide an override, a trace entry is produced.
+ * Inherit fields (`virtual`, `space` on resources; `hidden` on members) require all sibling parents to agree on the
+ * value. When any two flattened parents define different values (including `undefined` vs defined) and the child
+ * shape does not provide an override, a trace entry is produced.
  *
  * Namespaces are compared by resolved IRI (function call result) rather than by reference, so two distinct
  * `createNamespace` calls producing the same IRI are considered equal.
@@ -177,11 +177,6 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 					(!inherited.every(p => p.hidden === inherited[0].hidden) && override?.hidden === undefined)
 					&& fail([`{hidden} conflicting parent values <${inherited[0].hidden}> vs <${
 						inherited.find(p => p.hidden !== inherited[0].hidden)?.hidden
-					}> for <${key}> without child override`]),
-
-					(!inherited.every(p => p.computed === inherited[0].computed) && override?.computed === undefined)
-					&& fail([`{computed} conflicting parent values <${inherited[0].computed}> vs <${
-						inherited.find(p => p.computed !== inherited[0].computed)?.computed
 					}> for <${key}> without child override`]),
 
 					...inherited[0].range.shape.kind === "dictionary" ? [
@@ -537,9 +532,9 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 /**
  * Merges an overriding property with an inherited base property.
  *
- * Delegates range merge to {@link mergeValues}. Inheritable fields (`hidden`, `computed`) fall back
- * to the source value when the target doesn't define them. Non-overridable fields (`name`, `description`,
- * `forward`, `reverse`) are inherited from the source; redefinition by the target is rejected.
+ * Keeps the range narrowed under {@link mergeValues} rules and the fields the override is allowed to set. `hidden`
+ * falls back to the base value when the override leaves it undefined; `name`, `description`, `forward` and `reverse`
+ * always come from the base, and an override redefining any of them is rejected.
  *
  * @param target The overriding child property
  * @param source The inherited parent property
@@ -562,10 +557,6 @@ export function mergeProperty(target: Property, source: Property): Property {
 
 		...target.hidden !== undefined ? { hidden: target.hidden }
 			: source.hidden !== undefined ? { hidden: source.hidden }
-				: {},
-
-		...target.computed !== undefined ? { computed: target.computed }
-			: source.computed !== undefined ? { computed: source.computed }
 				: {},
 
 		...source.name !== undefined && { name: source.name },

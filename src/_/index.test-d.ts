@@ -132,7 +132,6 @@ describe("Proposal", () => {
 		owned: required(reference(target), { captive: true }),
 		many: multiple(reference(target), { captive: true }),
 
-		derived: required(string(), { computed: true }),
 		borrowed: required(reference(target), { foreign: true })
 
 	});
@@ -165,10 +164,6 @@ describe("Proposal", () => {
 		expectTypeOf<undefined>().toExtend<Submitted["id"]>();
 	});
 
-	test("leaves a computed member optional", () => {
-		expectTypeOf<undefined>().toExtend<Submitted["derived"]>();
-	});
-
 	test("leaves a member optional where it may be left out", () => {
 		expectTypeOf<{}>().toExtend<Pick<Submitted, "many">>();
 		expectTypeOf<{}>().not.toExtend<Pick<Submitted, "plain">>();
@@ -176,7 +171,7 @@ describe("Proposal", () => {
 
 	test("omits a foreign member", () => {
 		expectTypeOf<keyof Submitted>().toEqualTypeOf<
-			"id" | "plain" | "linked" | "owned" | "many" | "derived"
+			"id" | "plain" | "linked" | "owned" | "many"
 		>();
 	});
 
