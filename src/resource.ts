@@ -817,7 +817,7 @@ export interface Type {
  *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
  */
-export interface Property<R extends SetShape = SetShape> extends PropertyConstraints<R> {
+export interface Property<R extends SetShape = SetShape> extends PropertyConstraints {
 
 	/**
 	 * Discriminator identifying this as a property shape.
@@ -825,6 +825,7 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
 	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "property";
+
 
 	/**
 	 * Human-readable name for the property.
@@ -908,24 +909,7 @@ export interface Property<R extends SetShape = SetShape> extends PropertyConstra
  *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
  */
-export interface PropertyConstraints<R extends SetShape = SetShape> {
-
-	/**
-	 * Discriminator identifying the value produced by the property factories.
-	 *
-	 * Absent from a bare constraints argument; set to `"property"` on the factory's result, so that a property member
-	 * is told apart from an {@link Id} or {@link Type} marker.
-	 */
-	readonly kind?: "property";
-
-	/**
-	 * Value range for this property.
-	 *
-	 * Absent from a bare constraints argument; carried on the factory's result to thread the range
-	 * type. Computed by the {@link resource} factory from the member definitions. **Inheritance** —
-	 * delegated to {@link SetShape} merge rules.
-	 */
-	readonly range?: R;
+export interface PropertyConstraints {
 
 	/**
 	 * Excludes the property from default serialisation.
@@ -1213,7 +1197,7 @@ export type Content<E extends Member> =
  * @typeParam E The member type
  */
 export type Range<E extends Member> =
-	E extends PropertyConstraints<infer R> ? R : never;
+	E extends Property<infer R> ? R : never;
 
 
 /**
@@ -1399,7 +1383,7 @@ export function resource<const P extends Parents, E extends Members>(
  */
 export function resource(...args: readonly Argument[]): ResourceShape {
 
-	type Sources = { readonly [entry: Identifier]: Id | Type | PropertyConstraints };
+	type Sources = { readonly [entry: Identifier]: Member };
 	type Properties = { readonly [member: Identifier]: Member };
 
 
