@@ -189,7 +189,7 @@ export type NumberRangeConstraints<V extends number = number> = {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.8.2 sh:hasValue}
 	 */
-	readonly hasValue?: readonly number[];
+	readonly hasValue?: readonly V[];
 
 }
 

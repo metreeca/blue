@@ -181,7 +181,7 @@ export type StringValueConstraints<V extends string = string> = {
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.8.2 sh:hasValue}
 	 */
-	readonly hasValue?: readonly string[];
+	readonly hasValue?: readonly V[];
 
 }
 
