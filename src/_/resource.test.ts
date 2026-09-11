@@ -17,13 +17,15 @@
 import { createNamespace } from "@metreeca/core/resource";
 import { TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
+import { boolean } from "./boolean.js";
 import { dictionary } from "./dictionary.js";
-import { number } from "./number.js";
+import { integer, number } from "./number.js";
 import { reference } from "./reference.js";
 import {
 	checkPredicates,
 	checkResource,
 	checkSingletons,
+	enforce,
 	mergeProperty,
 	mergeResource,
 	narrowsProperty,
@@ -32,7 +34,9 @@ import {
 	getShapeProperties,
 	getShapeType,
 	match,
-	validateResource
+	validateResource,
+	validateResult,
+	validateTemplate
 } from "./resource.core.js";
 import {
 	defaultNamespace,
@@ -1078,6 +1082,863 @@ describe("validators", () => {
 
 				expect(validateResource([{ rating: { name: "x" } }], shape))
 					.toContainEqual(expect.stringContaining("{id}"));
+
+			});
+
+		});
+
+	});
+
+	describe("validateResult", () => {
+
+		const Vendor = resource({ id: id(), name: required(string()) });
+
+		const Product = resource({
+			id: id(),
+			name: required(string()),
+			tags: multiple(string()),
+			vendor: optional(reference(Vendor))
+		});
+
+		it("returns undefined for a resource matching what was asked for", async () => {
+
+			expect(validateResult([{ id: "app:/products/1", name: "Widget" }], {
+				shape: Product,
+				model: { id: "", name: "" }
+			})).toBeUndefined();
+
+		});
+
+		it("returns undefined for empty values", async () => {
+
+			expect(validateResult([], { shape: Product, model: { name: "" } })).toBeUndefined();
+
+		});
+
+		it("reports a value that is not a resource", async () => {
+
+			expect(validateResult([42], { shape: Product, model: { name: "" } }))
+				.toContainEqual(expect.stringContaining("{kind}"));
+
+		});
+
+		describe("partial retrieval", () => {
+
+			it("leaves a member the template didn't ask for unchecked", async () => {
+
+				// name is required by the shape, but unrequested, so its absence is not a violation
+
+				expect(validateResult([{ id: "app:/products/1" }], {
+					shape: Product,
+					model: { id: "" }
+				})).toBeUndefined();
+
+			});
+
+			it("holds a member the template asked for to the shape", async () => {
+
+				expect(validateResult([{ name: 42 }], { shape: Product, model: { name: "" } })).toBeDefined();
+
+			});
+
+			it("reports a member the template named but the shape doesn't declare", async () => {
+
+				expect(validateResult([{}], { shape: Product, model: { nope: "" } })).toBeDefined();
+
+			});
+
+			it("reports a member the resource states but the template didn't ask for", async () => {
+
+				expect(validateResult([{ name: "Widget", tags: ["a"] }], {
+					shape: Product,
+					model: { name: "" }
+				})).toBeDefined();
+
+			});
+
+		});
+
+		describe("identifier", () => {
+
+			it("holds the identifier to the stated entry", async () => {
+
+				expect(validateResult([{ id: "app:/1" }], { shape: Product, model: { id: "" }, entry: "app:/1" }))
+					.toBeUndefined();
+
+				expect(validateResult([{ id: "app:/2" }], { shape: Product, model: { id: "" }, entry: "app:/1" }))
+					.toBeDefined();
+
+			});
+
+			it("keys a violation by the identifier the resource states", async () => {
+
+				expect(validateResult([{ id: "app:/products/1", name: 42 }], {
+					shape: Product,
+					model: { id: "", name: "" }
+				})).toEqual([{ "<app:/products/1>": expect.anything() }]);
+
+			});
+
+		});
+
+		describe("cardinality", () => {
+
+			it("reports a single value where an array was asked for", async () => {
+
+				expect(validateResult([{ tags: "a" }], { shape: Product, model: { tags: [""] } })).toBeDefined();
+
+			});
+
+			it("reports an array where a single value was asked for", async () => {
+
+				expect(validateResult([{ name: ["a"] }], { shape: Product, model: { name: "" } })).toBeDefined();
+
+			});
+
+			it("admits an array for a repeated member", async () => {
+
+				expect(validateResult([{ tags: ["a", "b"] }], { shape: Product, model: { tags: [""] } }))
+					.toBeUndefined();
+
+			});
+
+		});
+
+		describe("linked resources", () => {
+
+			it("admits a link stated as an identifier", async () => {
+
+				expect(validateResult([{ vendor: "app:/vendors/1" }], {
+					shape: Product,
+					model: { vendor: "" }
+				})).toBeUndefined();
+
+			});
+
+			it("rejects a link stated as a relative reference", async () => {
+
+				expect(validateResult([{ vendor: "/vendors/1" }], {
+					shape: Product,
+					model: { vendor: "" }
+				})).toBeDefined();
+
+			});
+
+			it("admits a link expanded to the resource it points at", async () => {
+
+				expect(validateResult([{ vendor: { id: "app:/vendors/1", name: "Acme" } }], {
+					shape: Product,
+					model: { vendor: { id: "", name: "" } }
+				})).toBeUndefined();
+
+			});
+
+			it("holds an expanded link to the nested template", async () => {
+
+				expect(validateResult([{ vendor: { id: "app:/vendors/1", name: 42 } }], {
+					shape: Product,
+					model: { vendor: { id: "", name: "" } }
+				})).toBeDefined();
+
+			});
+
+			it("reports a member the expansion states but the nested template didn't ask for", async () => {
+
+				expect(validateResult([{ vendor: { id: "app:/vendors/1", name: "Acme" } }], {
+					shape: Product,
+					model: { vendor: { id: "" } }
+				})).toBeDefined();
+
+			});
+
+		});
+
+		describe("embedded resources", () => {
+
+			const Rating = resource({ average: required(number()) });
+			const Rated = resource({ rating: optional(Rating) });
+
+			it("admits an embedded resource matching the nested template", async () => {
+
+				expect(validateResult([{ rating: { average: 4 } }], {
+					shape: Rated,
+					model: { rating: { average: 0 } }
+				})).toBeUndefined();
+
+			});
+
+			it("holds an embedded resource to the nested template", async () => {
+
+				expect(validateResult([{ rating: { average: "high" } }], {
+					shape: Rated,
+					model: { rating: { average: 0 } }
+				})).toBeDefined();
+
+			});
+
+		});
+
+		describe("vacuous slots", () => {
+
+			it("skips a slot the template leaves empty", async () => {
+
+				expect(validateResult([{ vendor: { id: "app:/vendors/1", name: "Acme" } }], {
+					shape: Product,
+					model: { vendor: {} }
+				})).toBeUndefined();
+
+			});
+
+		});
+
+	});
+
+	describe("validateTemplate", () => {
+
+		const Vendor = resource({ id: id(), name: required(string()) });
+
+		const Product = resource({
+			id: id(),
+			type: typed(),
+			name: required(string()),
+			size: optional(integer()),
+			listed: optional(boolean()),
+			tags: multiple(string()),
+			label: optional(dictionary({ uniqueLang: true })),
+			notes: optional(dictionary()),
+			vendor: optional(reference(Vendor)),
+			vendors: multiple(reference(Vendor))
+		});
+
+		it("returns undefined for a template asking for what the shape gives", async () => {
+
+			expect(validateTemplate([{ id: "", name: "", size: 0, listed: false }], Product)).toBeUndefined();
+
+		});
+
+		it("returns undefined for empty values", async () => {
+
+			expect(validateTemplate([], Product)).toBeUndefined();
+
+		});
+
+		it("returns undefined for an empty template", async () => {
+
+			expect(validateTemplate([{}], resource({}))).toBeUndefined();
+
+		});
+
+		it("reports a value that is not a template", async () => {
+
+			expect(validateTemplate([42], Product))
+				.toContainEqual(expect.stringContaining("{kind}"));
+
+		});
+
+		it("counts the values that are not templates", async () => {
+
+			expect(validateTemplate([42, "x"], Product))
+				.toContainEqual(expect.stringContaining("(2/2)"));
+
+		});
+
+
+		describe("members", () => {
+
+			it("leaves a slot asking for nothing unchecked", async () => {
+
+				expect(validateTemplate([{ name: undefined }], Product)).toBeUndefined();
+
+			});
+
+			it("reports a member the shape doesn't declare", async () => {
+
+				expect(validateTemplate([{ unknown: "" }], Product)).toBeDefined();
+
+			});
+
+			it("reports a key that is not a member name", async () => {
+
+				expect(validateTemplate([{ "not a name": "" }], Product)).toBeDefined();
+
+			});
+
+			it("accepts an IRI under the members naming and typing a resource", async () => {
+
+				expect(validateTemplate([{ id: "app:/products/1", type: "app:/Product" }], Product)).toBeUndefined();
+
+			});
+
+			it("reports a non-IRI under the member naming a resource", async () => {
+
+				expect(validateTemplate([{ id: 42 }], Product)).toBeDefined();
+
+			});
+
+			it("holds a placeholder to the kind of the member", async () => {
+
+				expect(validateTemplate([{ size: "" }], Product)).toBeDefined();
+
+			});
+
+			it("leaves the value domain alone, a placeholder standing for a value", async () => {
+
+				const shape = resource({ size: optional(integer({ minInclusive: 10 })) });
+
+				expect(validateTemplate([{ size: 0 }], shape)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("collections", () => {
+
+			it("accepts a collection stated as a lone element", async () => {
+
+				expect(validateTemplate([{ tags: [""] }], Product)).toBeUndefined();
+
+			});
+
+			it("accepts a collection stated with a selection", async () => {
+
+				expect(validateTemplate([{ tags: ["", { "#": 10 }] }], Product)).toBeUndefined();
+
+			});
+
+			it("reports a collection stated as a single value", async () => {
+
+				expect(validateTemplate([{ tags: "" }], Product)).toBeDefined();
+
+			});
+
+			it("reports a collection stated as an empty tuple", async () => {
+
+				expect(validateTemplate([{ tags: [] }], Product)).toBeDefined();
+
+			});
+
+			it("reports a collection stated with more than a selection", async () => {
+
+				expect(validateTemplate([{ tags: ["", {}, {}] }], Product)).toBeDefined();
+
+			});
+
+			it("reports an element of the wrong kind", async () => {
+
+				expect(validateTemplate([{ tags: [0] }], Product)).toBeDefined();
+
+			});
+
+		});
+
+		describe("linked resources", () => {
+
+			it("accepts an identifier standing for the link", async () => {
+
+				expect(validateTemplate([{ vendor: "app:/vendors/1" }], Product)).toBeUndefined();
+
+			});
+
+			it("accepts a template standing for the resource behind the link", async () => {
+
+				expect(validateTemplate([{ vendor: { name: "" } }], Product)).toBeUndefined();
+
+			});
+
+			it("holds the nested template to the shape of the target", async () => {
+
+				expect(validateTemplate([{ vendor: { unknown: "" } }], Product)).toBeDefined();
+
+			});
+
+			it("accepts a collection of templates", async () => {
+
+				expect(validateTemplate([{ vendors: [{ name: "" }] }], Product)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("localised members", () => {
+
+			it("accepts a map of the tags wanted", async () => {
+
+				expect(validateTemplate([{ label: { en: "", it: "" } }], Product)).toBeUndefined();
+
+			});
+
+			it("accepts the wildcard range", async () => {
+
+				expect(validateTemplate([{ label: { "*": "" } }], Product)).toBeUndefined();
+
+			});
+
+			it("reports a key that is not a language range", async () => {
+
+				expect(validateTemplate([{ label: { "<": "" } }], Product)).toBeDefined();
+
+			});
+
+			it("holds a unique-tagged member to a single placeholder per range", async () => {
+
+				expect(validateTemplate([{ label: { en: [""] } }], Product)).toBeDefined();
+
+			});
+
+			it("holds a multi-tagged member to a singleton placeholder per range", async () => {
+
+				expect(validateTemplate([{ notes: { en: [""] } }], Product)).toBeUndefined();
+				expect(validateTemplate([{ notes: { en: "" } }], Product)).toBeDefined();
+
+			});
+
+			it("refuses the negotiated placeholder outside a projection column", async () => {
+
+				expect(validateTemplate([{ label: "" }], Product)).toBeDefined();
+
+			});
+
+			it("is asked for as one value however many maps it admits", async () => {
+
+				const shape = resource({ labels: multiple(dictionary({ uniqueLang: true })) });
+
+				expect(validateTemplate([{ labels: { en: "" } }], shape)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("polymorphic members", () => {
+
+			const A = resource({ name: required(string()) });
+			const B = resource({ size: required(integer()) });
+
+			const shape = resource({
+				value: optional(union(A, B)),
+				values: multiple(union(A, B))
+			});
+
+			it("accepts a branch map", async () => {
+
+				expect(validateTemplate([{ value: { "0": { name: "" }, "1": { size: 0 } } }], shape)).toBeUndefined();
+
+			});
+
+			it("reports a placeholder stated outside a branch map", async () => {
+
+				expect(validateTemplate([{ value: { name: "" } }], shape)).toBeDefined();
+
+			});
+
+			it("reports a branch no alternative admits", async () => {
+
+				expect(validateTemplate([{ value: { "0": { unknown: "" } } }], shape)).toBeDefined();
+
+			});
+
+			it("accepts a branch map as the element of a collection", async () => {
+
+				expect(validateTemplate([{ values: [{ "0": { name: "" } }, { "#": 10 }] }], shape)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("projections", () => {
+
+			it("accepts a column bound to a path", async () => {
+
+				expect(validateTemplate([{ vendors: [{ "vendor=name": "" }] }], Product)).toBeUndefined();
+
+			});
+
+			it("reports a column bound to a path the shape cannot resolve", async () => {
+
+				expect(validateTemplate([{ vendors: [{ "x=unknown": "" }] }], Product)).toBeDefined();
+
+			});
+
+			it("reports two columns binding the same identifier", async () => {
+
+				const shape = resource({ items: multiple(reference(resource({ a: optional(string()), b: optional(string()) }))) });
+
+				expect(validateTemplate([{ items: [{ "x=a": "", "x=b": "" }] }], shape)).toBeDefined();
+
+			});
+
+			it("accepts the transforms combining values", async () => {
+
+				expect(validateTemplate([{ vendors: [{ "n=count:name": 0 }] }], Product)).toBeUndefined();
+
+			});
+
+			it("refuses the transforms combining values where asked to", async () => {
+
+				expect(validateTemplate([{ vendors: [{ "n=count:name": 0 }] }], Product, { plain: true })).toBeDefined();
+
+			});
+
+			it("reports a collection asked for under a column", async () => {
+
+				expect(validateTemplate([{ vendors: [{ "n=name": [""] }] }], Product)).toBeDefined();
+
+			});
+
+			it("accepts the negotiated placeholder under a localised column", async () => {
+
+				const shape = resource({ items: multiple(reference(resource({ notes: optional(dictionary()) }))) });
+
+				expect(validateTemplate([{ items: [{ "n=notes": [""] }] }], shape)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("selections", () => {
+
+			it("reports a key that is not a selection operator", async () => {
+
+				expect(validateTemplate([{ tags: ["", { name: "" }] }], Product)).toBeDefined();
+
+			});
+
+			it("accepts a bound of the kind the path resolves to", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { ">=size": 10 }] }], shape)).toBeUndefined();
+
+			});
+
+			it("reports a bound of another kind", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { ">=size": "10" }] }], shape)).toBeDefined();
+
+			});
+
+			it("reports a bound on a value nothing orders", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { ">=vendor": "app:/v/1" }] }], shape)).toBeDefined();
+
+			});
+
+			it("accepts a text search over a textual path", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { "~name": "wid" }] }], shape)).toBeUndefined();
+
+			});
+
+			it("reports a text search over a path carrying no text", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { "~size": "wid" }] }], shape)).toBeDefined();
+
+			});
+
+			it("accepts options stated singly or as a set", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { "?name": "Widget" }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{ name: "" }, { "!name": ["a", "b"] }] }], shape)).toBeUndefined();
+
+			});
+
+			it("accepts an option stated as nothing at all", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { "?name": null }] }], shape)).toBeUndefined();
+
+			});
+
+			it("reports an option of another kind", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { "?size": "big" }] }], shape)).toBeDefined();
+
+			});
+
+			it("accepts an ordering over a single-valued key", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { "^name": "asc" }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{ name: "" }, { "^name": 1 }] }], shape)).toBeUndefined();
+
+			});
+
+			it("reports an ordering stated as a fraction", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { "^name": 1.5 }] }], shape)).toBeDefined();
+
+			});
+
+			it("reports an ordering over a multi-valued key", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { "^tags": "asc" }] }], shape)).toBeDefined();
+
+			});
+
+			it("reports a focus over a multi-valued key", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ name: "" }, { "+tags": "a" }] }], shape)).toBeDefined();
+
+			});
+
+			it("accepts a page stated as a non-negative integer", async () => {
+
+				expect(validateTemplate([{ tags: ["", { "@": 0, "#": 10 }] }], Product)).toBeUndefined();
+
+			});
+
+			it("reports a page stated as a negative integer", async () => {
+
+				expect(validateTemplate([{ tags: ["", { "#": -1 }] }], Product)).toBeDefined();
+
+			});
+
+			it("reports a page larger than the one served", async () => {
+
+				expect(validateTemplate([{ tags: ["", { "#": 100 }] }], Product, { limit: 10 })).toBeDefined();
+				expect(validateTemplate([{ tags: ["", { "#": 0 }] }], Product, { limit: 10 })).toBeDefined();
+
+			});
+
+		});
+
+		describe("grouped ordering", () => {
+
+			const shape = resource({ items: multiple(reference(Product)) });
+
+			it("accepts an ordering naming a grouping key", async () => {
+
+				expect(validateTemplate([{
+					items: [{ "name=name": "", "n=count:size": 0 }, { "^name": "asc" }]
+				}], shape)).toBeUndefined();
+
+			});
+
+			it("accepts an ordering reducing to an aggregate", async () => {
+
+				expect(validateTemplate([{
+					items: [{ "name=name": "", "n=count:size": 0 }, { "^count:size": "desc" }]
+				}], shape)).toBeUndefined();
+
+			});
+
+			it("reports an ordering naming neither", async () => {
+
+				expect(validateTemplate([{
+					items: [{ "name=name": "", "n=count:size": 0 }, { "^size": "asc" }]
+				}], shape)).toBeDefined();
+
+			});
+
+			it("leaves an ungrouped collection alone", async () => {
+
+				expect(validateTemplate([{
+					items: [{ "name=name": "", "s=size": 0 }, { "^size": "asc" }]
+				}], shape)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("depth", () => {
+
+			it("admits the identifier naming a resource at the last step", async () => {
+
+				expect(validateTemplate([{ vendor: "app:/vendors/1" }], Product, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("refuses a nested template beyond the nesting allowed", async () => {
+
+				expect(validateTemplate([{ vendor: { name: "" } }], Product, { depth: 0 })).toBeDefined();
+
+			});
+
+			it("admits a nested template within the nesting allowed", async () => {
+
+				expect(validateTemplate([{ vendor: { name: "" } }], Product, { depth: 1 })).toBeUndefined();
+
+			});
+
+			it("refuses a path longer than the nesting allowed", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ "v=vendor.name": "" }] }], shape, { depth: 1 })).toBeDefined();
+
+			});
+
+		});
+
+	});
+
+});
+
+describe("policies", () => {
+
+	describe("enforce", () => {
+
+		const limit = 100;
+
+		const Vendor = resource({ id: id(), name: required(string()), tags: multiple(string()) });
+
+		const Product = resource({
+			name: required(string()),
+			size: optional(integer()),
+			tags: multiple(string()),
+			label: optional(dictionary({ uniqueLang: true })),
+			vendor: optional(reference(Vendor)),
+			vendors: multiple(reference(Vendor))
+		});
+
+		it("leaves the template alone where no page is served", async () => {
+
+			expect(enforce({ tags: [""] }, Product)).toEqual({ tags: [""] });
+			expect(enforce({ tags: [""] }, Product, { limit: 0 })).toEqual({ tags: [""] });
+
+		});
+
+		it("leaves a malformed template alone", async () => {
+
+			expect(enforce(42, Product, { limit })).toBe(42);
+			expect(enforce({ unknown: "" }, Product, { limit })).toEqual({ unknown: "" });
+
+		});
+
+		describe("single values", () => {
+
+			it("leaves a placeholder alone", async () => {
+
+				expect(enforce({ name: "", size: 0 }, Product, { limit })).toEqual({ name: "", size: 0 });
+
+			});
+
+			it("leaves an identifier standing for a link alone", async () => {
+
+				expect(enforce({ vendor: "app:/vendors/1" }, Product, { limit }))
+					.toEqual({ vendor: "app:/vendors/1" });
+
+			});
+
+			it("leaves a localised value alone", async () => {
+
+				expect(enforce({ label: { en: "" } }, Product, { limit })).toEqual({ label: { en: "" } });
+
+			});
+
+			it("descends into the template behind a link", async () => {
+
+				expect(enforce({ vendor: { tags: [""] } }, Product, { limit }))
+					.toEqual({ vendor: { tags: ["", { "#": limit }] } });
+
+			});
+
+		});
+
+		describe("collections", () => {
+
+			it("pages a collection of placeholders", async () => {
+
+				expect(enforce({ tags: [""] }, Product, { limit })).toEqual({ tags: ["", { "#": limit }] });
+
+			});
+
+			it("pages a collection of templates", async () => {
+
+				expect(enforce({ vendors: [{ name: "" }] }, Product, { limit }))
+					.toEqual({ vendors: [{ name: "" }, { "#": limit }] });
+
+			});
+
+			it("leaves a page the client stated alone", async () => {
+
+				expect(enforce({ tags: ["", { "#": 25 }] }, Product, { limit }))
+					.toEqual({ tags: ["", { "#": 25 }] });
+
+			});
+
+			it("keeps the rest of a selection the client stated", async () => {
+
+				expect(enforce({ tags: ["", { "~": "wid" }] }, Product, { limit }))
+					.toEqual({ tags: ["", { "~": "wid", "#": limit }] });
+
+			});
+
+			it("pages a collection nested within a paged one", async () => {
+
+				expect(enforce({ vendors: [{ tags: [""] }, { "#": 25 }] }, Product, { limit }))
+					.toEqual({ vendors: [{ tags: ["", { "#": limit }] }, { "#": 25 }] });
+
+			});
+
+			it("leaves a localised member alone however many maps it admits", async () => {
+
+				const shape = resource({ labels: multiple(dictionary({ uniqueLang: true })) });
+
+				expect(enforce({ labels: { en: "" } }, shape, { limit })).toEqual({ labels: { en: "" } });
+
+			});
+
+		});
+
+		describe("polymorphic members", () => {
+
+			const A = resource({ name: required(string()) });
+			const B = resource({ tags: multiple(string()) });
+
+			const shape = resource({
+				value: optional(union(A, B)),
+				values: multiple(union(A, B))
+			});
+
+			it("descends into each branch of a single value", async () => {
+
+				expect(enforce({ value: { "0": { name: "" }, "1": { tags: [""] } } }, shape, { limit }))
+					.toEqual({ value: { "0": { name: "" }, "1": { tags: ["", { "#": limit }] } } });
+
+			});
+
+			it("pages a collection stated as a branch map", async () => {
+
+				expect(enforce({ values: [{ "1": { tags: [""] } }] }, shape, { limit }))
+					.toEqual({ values: [{ "1": { tags: ["", { "#": limit }] } }, { "#": limit }] });
+
+			});
+
+			it("leaves a branch the union doesn't declare alone", async () => {
+
+				expect(enforce({ value: { "7": { name: "" } } }, shape, { limit }))
+					.toEqual({ value: { "7": { name: "" } } });
+
+			});
+
+		});
+
+		describe("projections", () => {
+
+			it("pages a collection asked for under a column", async () => {
+
+				expect(enforce({ vendors: [{ "t=tags": [""] }] }, Product, { limit }))
+					.toEqual({ vendors: [{ "t=tags": ["", { "#": limit }] }, { "#": limit }] });
 
 			});
 
