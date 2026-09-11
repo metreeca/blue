@@ -161,5 +161,7 @@ export type DictionaryConstraints = {
 export function dictionary<const C extends DictionaryConstraints = {}>(constraints?: C): DictionaryShape & {
 	readonly uniqueLang: C["uniqueLang"]
 } {
+
 	throw new Error(";( to be implemented");
+
 }

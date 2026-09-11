@@ -200,7 +200,9 @@ export type StringValueConstraints<V extends string = string> = {
  * @returns An immutable shape admitting the strings the constraints bound, narrowed to the values they enumerate
  */
 export function string<const C extends StringConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 
@@ -219,7 +221,9 @@ export function string<const C extends StringConstraints = {}>(constraints?: C):
  * @returns An immutable shape admitting single-line plain text
  */
 export function text(constraints?: StringLengthConstraints): StringShape {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -238,7 +242,9 @@ export function text(constraints?: StringLengthConstraints): StringShape {
  * @see {@link https://commonmark.org/ CommonMark Spec}
  */
 export function markdown(constraints?: StringLengthConstraints): StringShape {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -255,7 +261,9 @@ export function markdown(constraints?: StringLengthConstraints): StringShape {
  * @see {@link https://datatracker.ietf.org/doc/html/rfc5321 RFC 5321 - Simple Mail Transfer Protocol}
  */
 export function email<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -273,7 +281,9 @@ export function email<const C extends StringValueConstraints = {}>(constraints?:
  * @see {@link https://www.itu.int/rec/T-REC-E.164 ITU-T E.164 - International public telecommunication numbering plan}
  */
 export function phone<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -303,7 +313,9 @@ export function iri<const C extends StringValueConstraints & {
 	readonly variant?: Variant
 
 } = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -321,7 +333,9 @@ export function iri<const C extends StringValueConstraints & {
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
  */
 export function url<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -344,7 +358,9 @@ export function url<const C extends StringValueConstraints = {}>(constraints?: C
  * @see {@link https://www.rfc-editor.org/info/bcp47 BCP 47 - Tags for Identifying Languages}
  */
 export function tag<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 
@@ -368,7 +384,9 @@ export function tag<const C extends StringValueConstraints = {}>(constraints?: C
  * @see {@link https://www.w3.org/TR/xmlschema-2/#gYear XSD 1.0 Part 2: Datatypes § 3.2.11 gYear}
  */
 export function year<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -385,7 +403,9 @@ export function year<const C extends StringValueConstraints = {}>(constraints?: 
  * @see {@link https://www.w3.org/TR/xmlschema-2/#date XSD 1.0 Part 2: Datatypes § 3.2.9 date}
  */
 export function date<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -402,7 +422,9 @@ export function date<const C extends StringValueConstraints = {}>(constraints?: 
  * @see {@link https://www.w3.org/TR/xmlschema-2/#time XSD 1.0 Part 2: Datatypes § 3.2.8 time}
  */
 export function time<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -420,7 +442,9 @@ export function time<const C extends StringValueConstraints = {}>(constraints?: 
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
 export function instant<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -439,7 +463,9 @@ export function instant<const C extends StringValueConstraints = {}>(constraints
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
 export function timestamp<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 /**
@@ -456,5 +482,7 @@ export function timestamp<const C extends StringValueConstraints = {}>(constrain
  * @see {@link https://www.w3.org/TR/xmlschema-2/#duration XSD 1.0 Part 2: Datatypes § 3.2.6 duration}
  */
 export function duration<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+
 	throw new Error(";( to be implemented");
+
 }

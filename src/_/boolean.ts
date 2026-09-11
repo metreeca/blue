@@ -22,6 +22,10 @@ export type BooleanShape = {
 }
 
 
+//// Factories ///////////////////////////////////////////////////////////////////////////////////////////////////////
+
 export function boolean(): BooleanShape {
+
 	throw new Error(";( to be implemented");
+
 }

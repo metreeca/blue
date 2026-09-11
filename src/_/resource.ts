@@ -323,46 +323,62 @@ export function resource<I extends Parents, M extends Members>(
 ): ResourceShape<I, M>
 
 export function resource(...args: readonly unknown[]): ResourceShape {
+
 	throw new Error(";( to be implemented");
+
 }
 
 
 export function id(): Id {
+
 	throw new Error(";( to be implemented");
+
 }
 
 export function type(): Type {
+
 	throw new Error(";( to be implemented");
+
 }
 
 
 export function multiple<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
 	range: R, constraints?: C
 ): C & Property<R, undefined, undefined> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 export function nonempty<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
 	range: R, constraints?: C
 ): C & Property<R, 1, undefined> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 export function optional<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
 	range: R, constraints?: C
 ): C & Property<R, undefined, 1> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 export function required<R extends Lazy<Shape>, const C extends PropertyConstrains = {}>(
 	range: R, constraints?: C
 ): C & Property<R, 1, 1> {
+
 	throw new Error(";( to be implemented");
+
 }
 
 
 export function property<R extends Lazy<Shape>, const C extends PropertyBounds = {}>(
 	range: R, constraints?: C
 ): C & Property<R, Declared<C, "minCount">, Declared<C, "maxCount">> {
+
 	throw new Error(";( to be implemented");
+
 }

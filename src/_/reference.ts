@@ -33,5 +33,7 @@ export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export function reference<T extends Lazy<ResourceShape>>(shape: T): ReferenceShape<T> {
+
 	throw new Error(";( to be implemented"); // !!!
+
 }

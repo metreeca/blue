@@ -117,5 +117,7 @@ export type UnionBranches =
  * ```
  */
 export function union<B extends readonly [Lazy<Shape>, ...Lazy<Shape>[]]>(...branches: B): UnionShape<B> {
+
 	throw new Error(";( to be implemented");
+
 }
