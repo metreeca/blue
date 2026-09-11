@@ -328,7 +328,7 @@ export type StringValueConstraints<V extends string = string> = {
  */
 export function string<const C extends StringConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({ ...constraints });
+	return create<Legal<C, string>>({ ...constraints });
 
 }
 
@@ -351,7 +351,7 @@ export function string<const C extends StringConstraints = {}>(constraints?: C):
  */
 export function text(constraints?: StringLengthConstraints): StringShape {
 
-	return build({
+	return create({
 
 		datatype: xsd.string,
 		pattern: /^\S+(?: \S+)*$/,
@@ -381,7 +381,7 @@ export function text(constraints?: StringLengthConstraints): StringShape {
  */
 export function markdown(constraints?: StringLengthConstraints): StringShape {
 
-	return build({
+	return create({
 
 		datatype: xsd.string,
 
@@ -408,7 +408,7 @@ export function markdown(constraints?: StringLengthConstraints): StringShape {
  */
 export function email<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.string,
 		pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
@@ -437,7 +437,7 @@ export function email<const C extends StringValueConstraints = {}>(constraints?:
  */
 export function phone<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.string,
 		pattern: /^\+[1-9]\d{1,14}$/,
@@ -480,7 +480,7 @@ export function iri<const C extends StringValueConstraints & {
 
 	const { variant = "relative", ...values } = constraints ?? {};
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.string,
 		pattern: IRIPatterns[variant],
@@ -509,7 +509,7 @@ export function iri<const C extends StringValueConstraints & {
  */
 export function url<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.string,
 		pattern: IRIPatterns.hierarchical,
@@ -543,7 +543,7 @@ export function url<const C extends StringValueConstraints = {}>(constraints?: C
  */
 export function tag<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.string,
 		pattern: TagPattern,
@@ -578,7 +578,7 @@ export function tag<const C extends StringValueConstraints = {}>(constraints?: C
  */
 export function year<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.gYear,
 		pattern: /^\d{4}(?:Z|[+-]\d{2}:\d{2})?$/,
@@ -606,7 +606,7 @@ export function year<const C extends StringValueConstraints = {}>(constraints?: 
  */
 export function date<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.date,
 		pattern: /^\d{4}-\d{2}-\d{2}(?:Z|[+-]\d{2}:\d{2})?$/,
@@ -634,7 +634,7 @@ export function date<const C extends StringValueConstraints = {}>(constraints?: 
  */
 export function time<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.time,
 		pattern: /^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
@@ -663,7 +663,7 @@ export function time<const C extends StringValueConstraints = {}>(constraints?: 
  */
 export function instant<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.dateTime,
 		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
@@ -693,7 +693,7 @@ export function instant<const C extends StringValueConstraints = {}>(constraints
  */
 export function timestamp<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.dateTime,
 		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
@@ -721,7 +721,7 @@ export function timestamp<const C extends StringValueConstraints = {}>(constrain
  */
 export function duration<const C extends StringValueConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
-	return build<Legal<C, string>>({
+	return create<Legal<C, string>>({
 
 		datatype: xsd.duration,
 		pattern: /^-?P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/,
@@ -748,20 +748,21 @@ const IRIPatterns: Readonly<Record<Variant, RegExp>> = {
 };
 
 /**
- * Builds a textual shape from a stated set of constraints.
+ * Creates a textual shape.
  *
- * Normalises a stated `pattern` to its source, so that a built shape carries the lexical constraint in the single form
- * {@link StringShape} states, and rejects a contradictory set outright.
+ * Backs every factory this module exposes, fixing what they share: a stated `pattern` is normalised to its source, so
+ * that a built shape carries the lexical constraint in the single form {@link StringShape} states, and contradictory
+ * constraints are rejected as the shape is built, so that a shape that exists admits at least one value.
  *
- * @typeParam V The values the built shape admits
+ * @typeParam V The values the shape admits, as stated by the signature of the calling factory
  *
- * @param constraints The stated constraints
+ * @param constraints The stated shape {@link StringConstraints constraints}
  *
- * @returns An immutable shape admitting the strings `constraints` bound
+ * @returns An immutable shape admitting the strings the constraints bound
  *
- * @throws {TraceError} Where `constraints` contradict one another
+ * @throws {TraceError} Where the stated constraints contradict one another
  */
-function build<V extends string>(constraints: StringConstraints): StringShape<V> {
+function create<V extends string>(constraints: StringConstraints): StringShape<V> {
 
 	const shape = immutable({
 
