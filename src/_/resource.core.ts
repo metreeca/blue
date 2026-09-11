@@ -22,7 +22,6 @@
 
 import {
 	assert,
-	eager,
 	type Eager,
 	type Identifier,
 	isArray,
@@ -39,7 +38,7 @@ import { dedent, tidy } from "@metreeca/core/strings";
 import { equals, immutable, seal } from "@metreeca/core/structures";
 import { all, array, fail, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { isReference, type Dictionary, type Reference } from "@metreeca/qest/resource";
-import { mergeShape, narrowsShape, type Scope, validateShape } from "./index.core.js";
+import { eager, mergeShape, narrowsShape, type Scope, validateShape } from "./index.core.js";
 import type { Compound, Instance, Shape } from "./index.js";
 import { getShapeTarget } from "./reference.core.js";
 import type { ReferenceShape } from "./reference.js";

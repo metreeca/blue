@@ -20,10 +20,10 @@
  * @module
  */
 
-import { eager, type Eager, isFunction, type Lazy, type Optional } from "@metreeca/core";
+import { type Eager, isFunction, type Lazy, type Optional } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
 import { array, type Trace, TraceError } from "@metreeca/core/trace";
-import { mergeShape, narrowsShape, type Scope, validateShape } from "./index.core.js";
+import { eager, mergeShape, narrowsShape, type Scope, validateShape } from "./index.core.js";
 import type { Shape } from "./index.js";
 import type { UnionBranches, UnionShape } from "./union.js";
 

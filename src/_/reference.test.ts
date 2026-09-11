@@ -14,21 +14,19 @@
  * limitations under the License.
  */
 
-import { immutable } from "@metreeca/core/structures";
 import { TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
 import type { Scope } from "./index.core.js";
 import { getShapeTarget, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import { reference } from "./reference.js";
-import type { Parents, ResourceConstraints, ResourceShape } from "./resource.js";
+import { resource, type ResourceConstraints, type ResourceShape } from "./resource.js";
 import { string } from "./string.js";
 
 
-// build a resource shape without the resource() factory, keeping the suite to the reference module alone; the shape
-// is frozen as the factory freezes its own, so a reference carries it rather than a copy
+// build a bare target shape, carrying nothing but the constraints its identifiers are held to
 
-function target(constraints: ResourceConstraints = {}, ...parents: Parents): ResourceShape {
-	return immutable({ kind: "resource", parents, members: {}, ...constraints });
+function target(constraints: ResourceConstraints = {}, ...parents: readonly ResourceShape[]): ResourceShape {
+	return resource(...parents, {}, constraints);
 }
 
 
