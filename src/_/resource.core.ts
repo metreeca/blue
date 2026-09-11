@@ -369,6 +369,8 @@ export function assemble(args: readonly unknown[]): ResourceShape {
 		...name !== undefined && { name: localize(name, tidy) },
 		...description !== undefined && { description: localize(description, dedent) },
 
+		classes: [], // computed as the shape is flattened
+
 		parents,
 
 		members: resolve(inherit(members, parents), space)
@@ -553,6 +555,8 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 		kind: "resource",
 
+		classes: [],
+
 		parents: [],
 		members: {}
 
@@ -575,7 +579,7 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 	const classes = unique(parents.flatMap(parent => [
 		...parent.class === undefined ? [] : [parent.class],
-		...parent.classes ?? []
+		...parent.classes
 	]));
 
 	// the shapes a member reaches are merged in turn, so a caller walking a range holds a merged shape throughout
@@ -584,7 +588,7 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 		...merged,
 
-		...classes.length > 0 && { classes },
+		classes,
 
 		members: Object.fromEntries(Object.entries(merged.members).map(([name, member]) =>
 			member.kind === "property" ? [name, { ...member, shape: descend(member.shape) }] : [name, member]
@@ -898,7 +902,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 		space: target.space ?? source.space,
 
 		class: target.class,
-		...target.classes !== undefined && { classes: target.classes },
+		classes: target.classes,
 
 		parents: target.parents,
 

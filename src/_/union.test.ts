@@ -37,7 +37,7 @@ import { union } from "./union.js";
 // build a resource shape without the resource() factory, keeping the suite to the union module alone
 
 function target(constraints: ResourceConstraints = {}, ...parents: Parents): ResourceShape {
-	return immutable({ kind: "resource", parents, members: {}, ...constraints });
+	return immutable({ kind: "resource", classes: [], parents, members: {}, ...constraints });
 }
 
 

@@ -28,6 +28,7 @@ import { union, type UnionShape } from "./union.js";
 type LinkShape={
 
 	readonly kind: "resource",
+	readonly classes: readonly Reference[],
 	readonly parents: [],
 
 	readonly members: {

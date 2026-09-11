@@ -48,6 +48,7 @@ import { string, type StringShape } from "./string.js";
 type LabelShape={
 
 	readonly kind: "resource",
+	readonly classes: readonly Reference[],
 	readonly parents: [],
 
 	readonly members: {
@@ -296,6 +297,7 @@ describe("Carried", () => {
 	type NamedShape={
 
 		readonly kind: "resource",
+		readonly classes: readonly Reference[],
 		readonly parents: [LabelShape],
 
 		readonly members: {
@@ -623,12 +625,14 @@ describe("resource", () => {
 
 		type LeftShape={
 			readonly kind: "resource",
+			readonly classes: readonly Reference[],
 			readonly parents: [],
 			readonly members: { readonly right: Property<() => RightShape, 1, 1> }
 		}
 
 		type RightShape={
 			readonly kind: "resource",
+			readonly classes: readonly Reference[],
 			readonly parents: [],
 			readonly members: { readonly left: Property<() => LeftShape, 1, 1> }
 		}

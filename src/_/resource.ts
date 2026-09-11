@@ -224,13 +224,13 @@ export type ResourceShape<
 	 * Lists the {@link ResourceConstraints.class | class} every extended shape states, transitively and deduplicated,
 	 * so that a caller may test a resource against a supertype without walking the inheritance chain itself. Each
 	 * extended shape contributes the class it states, followed by the ones it inherits in turn, in the order the
-	 * shapes are extended. A shape extending nothing that states a class carries no entry at all.
+	 * shapes are extended. A shape extending nothing that states a class is empty.
 	 *
 	 * **Inheritance** — computed from the `class` of the shapes extended; never stated.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#ClassConstraintComponent SHACL § 4.1.1 sh:class}
 	 */
-	readonly classes?: readonly Reference[]
+	readonly classes: readonly Reference[]
 
 	/**
 	 * The shapes extended, each possibly deferred to break definition cycles.

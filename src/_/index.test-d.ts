@@ -28,6 +28,7 @@ import { string, type StringShape } from "./string.js";
 type LabelShape={
 
 	readonly kind: "resource",
+	readonly classes: readonly Reference[],
 	readonly parents: [],
 
 	readonly members: {

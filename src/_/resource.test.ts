@@ -834,7 +834,7 @@ describe("operators", () => {
 
 		it("states none where a shape extends nothing", async () => {
 
-			expect(resource({ id: id() }).classes).toBeUndefined();
+			expect(resource({ id: id() }).classes).toEqual([]);
 
 		});
 
@@ -842,7 +842,7 @@ describe("operators", () => {
 
 			const Base = resource({ name: required(string()) });
 
-			expect(resource(Base, {}).classes).toBeUndefined();
+			expect(resource(Base, {}).classes).toEqual([]);
 
 		});
 
