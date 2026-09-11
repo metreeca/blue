@@ -681,6 +681,27 @@ describe("operators", () => {
 
 		});
 
+		it("accepts a child adding required values", async () => {
+
+			expect(narrowsString(
+				string({ in: ["a", "b"] , hasValue: ["a", "b"] }),
+				string({ in: ["a", "b"], hasValue: ["a"] })
+			)).toBeUndefined();
+
+		});
+
+		it("rejects a child dropping a required value", async () => {
+
+			// hasValue floors the value set, so a value the child omits would be unioned back in, leaving the
+			// child stating a weaker requirement than it enforces
+
+			expect(narrowsString(
+				string({ in: ["a", "b"], hasValue: ["a"] }),
+				string({ in: ["a", "b"], hasValue: ["a", "b"] })
+			)).toBeDefined();
+
+		});
+
 		it("accepts equal datatypes", async () => {
 
 			expect(narrowsString(date(), date())).toBeUndefined();
@@ -950,15 +971,24 @@ describe("operators", () => {
 
 			});
 
-			it("unions target and source hasValue", async () => {
+			it("keeps a target hasValue extending source", async () => {
 
 				const merged = mergeString(
-					string({ hasValue: ["a", "b"] }),
+					string({ hasValue: ["a", "b", "c"] }),
 					string({ hasValue: ["b", "c"] })
 				);
 
 				expect(merged.hasValue).toEqual(expect.arrayContaining(["a", "b", "c"]));
 				expect(merged.hasValue).toHaveLength(3);
+
+			});
+
+			it("rejects a target hasValue dropping a source value", async () => {
+
+				expect(() => mergeString(
+					string({ hasValue: ["a", "b"] }),
+					string({ hasValue: ["b", "c"] })
+				)).toThrow(RangeError);
 
 			});
 

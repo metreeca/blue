@@ -119,6 +119,24 @@ describe("operators", () => {
 
 		});
 
+		it("accepts a child variant extending base required values", async () => {
+
+			expect(narrowsUnion(
+				union(string({ in: ["a", "b"], hasValue: ["a", "b"] })),
+				union(string({ in: ["a", "b"], hasValue: ["a"] }))
+			)).toBeUndefined();
+
+		});
+
+		it("rejects a child variant dropping a base required value", async () => {
+
+			expect(narrowsUnion(
+				union(string({ in: ["a", "b"], hasValue: ["a"] })),
+				union(string({ in: ["a", "b"], hasValue: ["a", "b"] }))
+			)).toBeDefined();
+
+		});
+
 	});
 
 	describe("mergeUnion", () => {

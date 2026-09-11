@@ -862,6 +862,39 @@ describe("factories", () => {
 
 			});
 
+			it("accepts a child property range extending inherited required values", async () => {
+
+				const Parent = resource({ code: required(string({ in: ["a", "b"], hasValue: ["a"] })) });
+
+				expect(() => resource(Parent, {
+					code: required(string({ in: ["a", "b"], hasValue: ["a", "b"] }))
+				})).not.toThrow();
+
+			});
+
+			it("throws on a child property range dropping an inherited required value", async () => {
+
+				const Parent = resource({ code: required(string({ in: ["a", "b"], hasValue: ["a", "b"] })) });
+
+				expect(() => resource(Parent, {
+					code: required(string({ in: ["a", "b"], hasValue: ["a"] }))
+				})).toThrow(TraceError);
+
+			});
+
+			it("throws on a nested resource range dropping an inherited required value", async () => {
+
+				const Inner = resource({}, { hasValue: ["app:/a", "app:/b"] });
+				const Wide = resource(Inner, {}, { hasValue: ["app:/a", "app:/b"] });
+
+				const Parent = resource({ nested: required(Inner) });
+
+				expect(() => resource(Parent, {
+					nested: required(resource(Wide, {}, { hasValue: ["app:/a"] }))
+				})).toThrow(TraceError);
+
+			});
+
 			it("throws on invalid property (entries only)", async () => {
 
 				expect(() => resource({
@@ -1846,7 +1879,10 @@ describe("utilities", () => {
 			it("unions hasValue from lineage", async () => {
 
 				const parent = resource({}, { hasValue: ["http://example.org/a"] });
-				const child = resource(parent, {}, { hasValue: ["http://example.org/b"] });
+
+				const child = resource(parent, {}, {
+					hasValue: ["http://example.org/a", "http://example.org/b"]
+				});
 
 				const flat = flatten(child);
 
@@ -3588,6 +3624,26 @@ describe("operators", () => {
 
 			});
 
+			it("accepts a target adding required values", async () => {
+
+				const merged = mergeResource(
+					resource({}, { hasValue: ["http://example.org/a", "http://example.org/b"] }),
+					resource({}, { hasValue: ["http://example.org/a"] })
+				);
+
+				expect(merged.hasValue).toEqual(["http://example.org/a", "http://example.org/b"]);
+
+			});
+
+			it("rejects a target dropping a required value", async () => {
+
+				expect(() => mergeResource(
+					resource({}, { hasValue: ["http://example.org/a"] }),
+					resource({}, { hasValue: ["http://example.org/a", "http://example.org/b"] })
+				)).toThrow(RangeError);
+
+			});
+
 		});
 
 		describe("hasValue", () => {
@@ -3606,7 +3662,7 @@ describe("operators", () => {
 			it("computes union of target and source", async () => {
 
 				const merged = mergeResource(
-					resource({}, { hasValue: ["http://example.org/a"] }),
+					resource({}, { hasValue: ["http://example.org/a", "http://example.org/b"] }),
 					resource({}, { hasValue: ["http://example.org/b"] })
 				);
 
@@ -4658,7 +4714,10 @@ describe("validators", () => {
 				it("enforces parent and child hasValue conjunctively", async () => {
 
 					const Parent = resource({ id: id() }, { hasValue: ["app:/users/admin"] });
-					const Child = resource(Parent, { name: required(string()) }, { hasValue: ["app:/users/root"] });
+
+					const Child = resource(Parent, { name: required(string()) }, {
+						hasValue: ["app:/users/admin", "app:/users/root"]
+					});
 
 					// a single identifier cannot equal both required values, so every id fails, the parent's
 					// own required value included
@@ -4675,6 +4734,27 @@ describe("validators", () => {
 					expect(inner).toHaveProperty("id");
 
 					expect(inner["id"]).toContainEqual(expect.stringContaining("{hasValue}"));
+
+				});
+
+				it("accepts a child extending the parent hasValue constraint", async () => {
+
+					const Parent = resource({ id: id() }, { hasValue: ["app:/users/admin"] });
+
+					expect(() => resource(Parent, {}, {
+						hasValue: ["app:/users/admin", "app:/users/root"]
+					})).not.toThrow();
+
+				});
+
+				it("rejects a child dropping a parent required value", async () => {
+
+					// the parent value would be unioned back in, leaving the child stating a weaker
+					// requirement than it enforces
+
+					const Parent = resource({ id: id() }, { hasValue: ["app:/users/admin"] });
+
+					expect(() => resource(Parent, {}, { hasValue: ["app:/users/root"] })).toThrow(TraceError);
 
 				});
 

@@ -103,7 +103,7 @@ import { checkDictionary, deriveDictionary } from "./dictionary.core.js";
  * | `model`      | Child overrides parent; conflicting parents without child override are reported as an error |
  * | `minLength`  | Child ≥ parent, narrowing the minimum length                                |
  * | `maxLength`  | Child ≤ parent, narrowing the maximum length                                |
- * | `languageIn` | Child subset of parent; anything else is reported as an error               |
+ * | `languageIn` | Child may only drop accepted tags                                           |
  *
  * **Cross-Field Validation**
  *
@@ -170,7 +170,7 @@ export interface DictionaryConstraints {
 	 * filtering. Each range is a basic language range (a sequence of subtags or the standalone `*` wildcard);
 	 * extended ranges such as `en-*` are not accepted. Empty arrays are ignored.
 	 *
-	 * **Inheritance** — child subset of parent; anything else is reported as an error.
+	 * **Inheritance** — child may only drop accepted tags.
 	 *
 	 * @defaultValue `undefined` (no language constraint)
 	 *

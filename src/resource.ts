@@ -391,8 +391,8 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | `space`       | Inherited; conflicting parents without child override are reported as an error          |
  * | `class`       | Shape-specific target class; outside inheritance scope                                  |
  * | `pattern`     | Child may replace trailing `/*` wildcard with more specific segments                    |
- * | `in`          | Child subset of parent; anything else is reported as an error                           |
- * | `hasValue`    | Union of parent and child required values; child must require all parent values         |
+ * | `in`          | Child may only drop allowed values                                                      |
+ * | `hasValue`    | Child may only add required values                                                      |
  *
  * **Refinement as a Nested Value**
  *
@@ -631,7 +631,7 @@ export interface ResourceConstraints {
 	 * When specified, resource identifiers must be members of this list. IRIs must be absolute. Empty arrays are
 	 * ignored.
 	 *
-	 * **Inheritance** — child subset of parent; anything else is reported as an error.
+	 * **Inheritance** — child may only drop allowed values.
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
@@ -646,7 +646,7 @@ export interface ResourceConstraints {
 	 *
 	 * A resource carries a single identifier, so a list of two or more values admits no resource at all.
 	 *
-	 * **Inheritance** — union of parent and child required values; child must require all parent values.
+	 * **Inheritance** — child may only add required values.
 	 *
 	 * @defaultValue `undefined` (no required values)
 	 *

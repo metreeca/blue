@@ -155,8 +155,8 @@ export function checkNumber(constraints: Partial<NumberShape>): undefined | Trac
  * Reports whether an overriding number shape narrows an inherited base shape.
  *
  * Tests the override relation without building the merged shape: returns `undefined` when `target` only tightens
- * `source` (matching `datatype`, not dropping `integral`, bounds not widened, `in` not widened, merged constraints
- * consistent), or a {@link Trace} describing the obstacles otherwise.
+ * `source` (matching `datatype`, not dropping `integral`, bounds not widened, no allowed value added to `in`, none
+ * dropped from `hasValue`, merged constraints consistent), or a {@link Trace} describing the obstacles otherwise.
  *
  * @param target The overriding child shape
  * @param source The inherited parent shape
@@ -226,8 +226,20 @@ export function narrowsNumber(target: NumberShape, source: NumberShape): undefin
 			// the shape admits, so a widened set is rejected outright as with the bounds
 
 			return values === undefined || source.in === undefined || values.every(v => source.in!.includes(v)) || [
-				`{in} widened set [${values}] beyond [${source.in}]`
+				`{in} unexpected values [${values.filter(v => !source.in!.includes(v))}]`
 			];
+
+		}),
+		test(({ hasValue }) => {
+
+			// hasValue floors the value set, so a required value the child omits would be unioned back in,
+			// leaving the child stating a weaker requirement than it enforces
+
+			return hasValue === undefined || source.hasValue === undefined
+				|| source.hasValue.every(v => hasValue.includes(v))
+				|| [
+					`{hasValue} missing required values [${source.hasValue.filter(v => !hasValue.includes(v))}]`
+				];
 
 		}),
 		() => checkNumber({ // post-merge constraint consistency

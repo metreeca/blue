@@ -1889,6 +1889,24 @@ describe("internals", () => {
 
 		});
 
+		it("accepts a resource child extending the base required values", async () => {
+
+			const Base = resource({}, { hasValue: ["http://example.org/a"] });
+			const Child = resource({}, { hasValue: ["http://example.org/a", "http://example.org/b"] });
+
+			expect(narrowsValue(Child, Base)).toBeUndefined();
+
+		});
+
+		it("rejects a resource child dropping a base required value", async () => {
+
+			const Base = resource({}, { hasValue: ["http://example.org/a", "http://example.org/b"] });
+			const Child = resource({}, { hasValue: ["http://example.org/a"] });
+
+			expect(narrowsValue(Child, Base)).toBeDefined();
+
+		});
+
 	});
 
 	describe("narrowsValues", () => {

@@ -512,6 +512,24 @@ describe("operators", () => {
 
 		});
 
+		it("accepts a child adding required values", async () => {
+
+			expect(narrowsNumber(
+				number({ in: [1, 2], hasValue: [1, 2] }),
+				number({ in: [1, 2], hasValue: [1] })
+			)).toBeUndefined();
+
+		});
+
+		it("rejects a child dropping a required value", async () => {
+
+			expect(narrowsNumber(
+				number({ in: [1, 2], hasValue: [1] }),
+				number({ in: [1, 2], hasValue: [1, 2] })
+			)).toBeDefined();
+
+		});
+
 		it("accepts equal datatypes", async () => {
 
 			expect(narrowsNumber(int(), int())).toBeUndefined();
@@ -710,15 +728,24 @@ describe("operators", () => {
 
 			});
 
-			it("unions target and source hasValue", async () => {
+			it("keeps a target hasValue extending source", async () => {
 
 				const merged = mergeNumber(
-					number({ hasValue: [1, 2] }),
+					number({ hasValue: [1, 2, 3] }),
 					number({ hasValue: [2, 3] })
 				);
 
 				expect(merged.hasValue).toEqual(expect.arrayContaining([1, 2, 3]));
 				expect(merged.hasValue).toHaveLength(3);
+
+			});
+
+			it("rejects a target hasValue dropping a source value", async () => {
+
+				expect(() => mergeNumber(
+					number({ hasValue: [1, 2] }),
+					number({ hasValue: [2, 3] })
+				)).toThrow(RangeError);
 
 			});
 
