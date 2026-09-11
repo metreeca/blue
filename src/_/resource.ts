@@ -158,6 +158,8 @@ import { assemble, type Declared, declare } from "./resource.core.js";
 export const defaultNamespace: Namespace = createNamespace("app:/#");
 
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /**
  * Describes a linked data resource.
  *
@@ -199,15 +201,45 @@ export type ResourceShape<
 	M extends Members = Members
 > = ResourceConstraints & {
 
+	/**
+	 * Discriminator identifying this as a resource shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
 	readonly kind: "resource"
 
 
+	/**
+	 * The shapes extended, each possibly deferred to break definition cycles.
+	 *
+	 * Their members and constraints reach every resource this shape describes, so an extending shape states what it
+	 * adds or tightens alone.
+	 *
+	 * **Inheritance** — states the shapes extended in the shape's own right, and is never itself inherited.
+	 */
 	readonly parents: P
 
+	/**
+	 * The members a resource carries.
+	 *
+	 * Stated merged: the members declared in the shape's own right over the ones the extended shapes contribute, so a
+	 * caller reads what a resource carries off the shape rather than by walking the inheritance chain. The shape is
+	 * closed, so a resource carrying anything else is rejected.
+	 *
+	 * **Inheritance** — declared members merged over inherited ones, each narrowing the one it overrides.
+	 */
 	readonly members: M
 
 }
 
+/**
+ * Constraints accepted by the {@link resource} shape factory.
+ *
+ * States what a resource is called, where its members resolve their predicates, what class it belongs to and which
+ * identifiers it may be named by; the members it carries are stated apart.
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
+ */
 export type ResourceConstraints = {
 
 	/**
@@ -323,44 +355,136 @@ export type ResourceConstraints = {
 }
 
 
+/**
+ * The shapes a resource shape extends.
+ *
+ * Retains the order the shapes were stated in, so that a member reaching the extending shape along several paths is
+ * resolved against a stable sequence; order carries no priority, as every extended shape contributes.
+ */
 export type Parents =
 	readonly Lazy<ResourceShape>[]
 
-
+/**
+ * The members a resource carries, keyed by the name each is stated under.
+ *
+ * The name doubles as the field a resource states the member under and as the term resolved against the shape's
+ * {@link ResourceConstraints.space | space} where the member maps to no predicate of its own.
+ */
 export type Members = {
 
 	readonly [field: Identifier]: Member
 
 }
 
+/**
+ * A member a resource carries.
+ *
+ * Either of the two members naming a resource, {@link Id} and {@link Type}, or a {@link Property} carrying values of
+ * its own.
+ */
 export type Member =
 	| Id
 	| Type
 	| Property
 
 
+/**
+ * The member naming a resource.
+ *
+ * Carries the absolute IRI a resource is identified by, mapped to the JSON-LD `@id` keyword. A shape states at most
+ * one, counted once inheritance has merged the members.
+ *
+ * @see {@link https://www.w3.org/TR/json-ld11/#node-identifiers JSON-LD 1.1 § 3.3 Node Identifiers}
+ */
 export type Id = {
 
+	/**
+	 * Discriminator identifying this as the member naming a resource.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
 	readonly kind: "id"
 
 }
 
+/**
+ * The member typing a resource.
+ *
+ * Carries the absolute IRI of the class a resource belongs to, mapped to the JSON-LD `@type` keyword. The value is
+ * derived from the {@link ResourceConstraints.class | class} the shape states, so a shape stating none admits no
+ * value for it. A shape states at most one, counted as {@link Id} is.
+ *
+ * @see {@link https://www.w3.org/TR/json-ld11/#specifying-the-type JSON-LD 1.1 § 3.5 Specifying the Type}
+ */
 export type Type = {
 
+	/**
+	 * Discriminator identifying this as the member typing a resource.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
 	readonly kind: "type"
 
 }
 
+
+/**
+ * A member carrying values of its own.
+ *
+ * States the shape its values are drawn from and how many of them a resource may carry, alongside the predicate the
+ * values are stored under and the labels the member is presented by.
+ *
+ * **Inheritance**
+ *
+ * Where a shape extends the ones it lists as {@link ResourceShape.parents | parents}, members stated on both sides are
+ * merged according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
+ *
+ * | Field         | Override Rule                                    |
+ * | ------------- | ------------------------------------------------ |
+ * | `kind`        | Cannot be overridden                             |
+ * | `hidden`      | Inherited where the child states none            |
+ * | `foreign`     | Cannot be overridden                             |
+ * | `captive`     | Cannot be overridden                             |
+ * | `name`        | Cannot be overridden                             |
+ * | `description` | Cannot be overridden                             |
+ * | `forward`     | Cannot be overridden                             |
+ * | `reverse`     | Cannot be overridden                             |
+ * | `minCount`    | Child ≥ parent, narrowing the lower bound        |
+ * | `maxCount`    | Child ≤ parent, narrowing the upper bound        |
+ * | `shape`       | Child narrows the range it overrides             |
+ *
+ * A bound left unstated leaves that end unbounded rather than unsaid, so a child stating none inherits the bound the
+ * parent states.
+ *
+ * @typeParam R The shape the values are drawn from, possibly deferred to break definition cycles
+ * @typeParam L The least number of values admitted
+ * @typeParam U The greatest number of values admitted
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
+ */
 export type Property<
 	R extends Lazy<Shape> = Lazy<Shape>,
 	L extends Optional<number> = Optional<number>,
 	U extends Optional<number> = Optional<number>
 > = PropertyConstrains & Range<R, L, U> & {
 
+	/**
+	 * Discriminator identifying this as a member carrying values.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
 	readonly kind: "property"
 
 }
 
+/**
+ * Constraints accepted by the member factories.
+ *
+ * States how a member is stored, presented and owned, leaving its cardinality to the factory naming it and its
+ * {@link PropertyBounds | bounds} to the general-purpose one.
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
+ */
 export type PropertyConstrains = {
 
 	/**
@@ -482,7 +606,30 @@ export type PropertyConstrains = {
  */
 export type PropertyBounds = PropertyConstrains & {
 
+	/**
+	 * Least number of values admitted.
+	 *
+	 * Left unstated, the member is unbounded below and a resource may leave it out.
+	 *
+	 * **Inheritance** — child value must be ≥ parent value, narrowing the lower bound.
+	 *
+	 * @defaultValue `undefined` (no lower bound)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
+	 */
 	readonly minCount?: Optional<number>
+
+	/**
+	 * Greatest number of values admitted.
+	 *
+	 * Left unstated, the member is unbounded above and a resource states its values as an array.
+	 *
+	 * **Inheritance** — child value must be ≤ parent value, narrowing the upper bound.
+	 *
+	 * @defaultValue `undefined` (no upper bound)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
+	 */
 	readonly maxCount?: Optional<number>
 
 }
