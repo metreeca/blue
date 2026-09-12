@@ -426,14 +426,9 @@ export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
  */
 export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | string {
 
-	type Branch = {
+	// a branch the walk carries is a range whose shape is resolved, the path having reached it already
 
-		readonly minCount: Optional<number>
-		readonly maxCount: Optional<number>
-
-		readonly shape: Shape
-
-	}
+	type Branch = Range<Shape>
 
 
 	// a hand-built probe may name an unknown transform or a malformed path, which would otherwise surface as a
