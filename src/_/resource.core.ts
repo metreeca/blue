@@ -73,7 +73,7 @@ import type {
 	ResourceShape,
 	Type
 } from "./resource.js";
-import { getShapeBranches } from "./union.core.js";
+import { create as createUnion, getShapeBranches } from "./union.core.js";
 
 
 /**
@@ -641,7 +641,9 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 			case "union":
 
-				return { ...range, branches: range.branches.map(branch => descend(branch)) };
+				// rebuilt through the factory, so the branches stay flat however descending reshapes them
+
+				return createUnion(range.branches.map(branch => descend(branch)));
 
 			default:
 
