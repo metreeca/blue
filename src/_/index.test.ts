@@ -19,11 +19,11 @@ import type { Relay } from "@metreeca/core/relay";
 import { type Issue, type Trace, TraceError } from "@metreeca/core/trace";
 import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
-import { boolean } from "./boolean.js";
+import { boolean } from "./boolean/index.js";
 import { dictionary } from "./dictionary.js";
 import { eager, effective, enforce, mergeShape, narrowsShape, sh, validateShape } from "./index.core.js";
 import { type Range, type Shape, validate } from "./index.js";
-import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
+import { byte, decimal, double, float, int, integer, long, number, short } from "./number/index.js";
 import { reference } from "./reference.js";
 import {
 	id,
@@ -36,7 +36,7 @@ import {
 	type ResourceShape,
 	type as typed
 } from "./resource/index.js";
-import { date, duration, instant, string, time, timestamp, year } from "./string.js";
+import { date, duration, instant, string, time, timestamp, year } from "./string/index.js";
 import { getShapeBranches } from "./union.core.js";
 import { union } from "./union.js";
 

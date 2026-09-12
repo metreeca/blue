@@ -15,8 +15,8 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Compound } from "./index.js";
-import { multiple, optional, required, resource } from "./resource/index.js";
+import { type Instance, type Compound } from "../index.js";
+import { multiple, optional, required, resource } from "../resource/index.js";
 import {
 	date,
 	duration,
@@ -33,7 +33,7 @@ import {
 	timestamp,
 	url,
 	year
-} from "./string.js";
+} from "./index.js";
 
 
 describe("string", () => {

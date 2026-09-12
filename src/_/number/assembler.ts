@@ -14,32 +14,22 @@
  * limitations under the License.
  */
 
+
 /**
- * Number shape operators.
+ * Numeric shape assembly.
+ *
+ * Builds the shape a factory states into the form its consumers read, and combines it with the one it overrides: a
+ * shape admitting no value at all is rejected as it is built rather than when a value is first matched against it, and
+ * an extension is held to the shape it refines before either is committed to.
  *
  * @module
  */
 
-import { isNumber, type Optional } from "@metreeca/core";
+import { type Optional } from "@metreeca/core";
 import { union } from "@metreeca/core/arrays";
 import { immutable } from "@metreeca/core/structures";
-import {
-	all,
-	array,
-	domain,
-	gt,
-	gte,
-	integer,
-	lt,
-	lte,
-	test,
-	type Trace,
-	TraceError,
-	type,
-	values as contains
-} from "@metreeca/core/trace";
-import type { Scope } from "./index.core.js";
-import { type NumberConstraints, type NumberShape } from "./number.js";
+import { all, test, type Trace, TraceError } from "@metreeca/core/trace";
+import { type NumberConstraints, type NumberShape } from "./index.js";
 
 
 /**
@@ -322,6 +312,8 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
 }
 
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /**
  * Combines the constraints of an overriding shape with the inherited ones.
  *
@@ -362,98 +354,5 @@ function merge(target: NumberShape, source: NumberShape): Omit<NumberShape, "kin
 			: target.hasValue ?? required
 
 	};
-
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates values against a numeric shape.
- *
- * Reports each value that is not a number as a `{type}` violation and each number that breaks a constraint under its
- * own facet, keying every element violation by its index, so that a caller may tell which value failed and why;
- * membership over the whole set (`hasValue`) is reported as a leading bare message.
- *
- * @param values The values to validate
- * @param shape The shape the values are matched against
- * @param opts Validation options
- * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A number carries
- *     no lexical discriminator, so `"bound"` matches by kind alone, exactly as `"model"` does
- *
- * @returns A trace of the violations found, or `undefined` where every value matches `shape`
- */
-export function validateNumber(values: readonly unknown[], shape: NumberShape, {
-
-	scope = "state"
-
-}: {
-
-	scope?: Scope
-
-} = {}): Optional<Trace> {
-
-	switch ( scope ) {
-
-		case "state":
-
-			return state(shape)(values);
-
-		case "bound":
-
-			return bound(shape)(values);
-
-		case "model":
-
-			return model(shape)(values);
-
-	}
-
-
-	function state({
-
-		minExclusive,
-		maxExclusive,
-		minInclusive,
-		maxInclusive,
-
-		integral,
-
-		in: allowed,
-		hasValue: required
-
-	}: NumberShape) {
-
-		return array(
-			type(isNumber,
-				all(
-					integral && integer(),
-					gt(minExclusive),
-					lt(maxExclusive),
-					gte(minInclusive),
-					lte(maxInclusive),
-					domain(allowed)
-				)
-			),
-			contains(required)
-		);
-
-	}
-
-	function bound({}: NumberShape) {
-
-		return array(
-			type(isNumber)
-		);
-
-	}
-
-	function model({}: NumberShape) {
-
-		return array(
-			type(isNumber)
-		);
-
-	}
 
 }

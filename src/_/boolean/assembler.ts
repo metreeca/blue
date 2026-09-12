@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
+
 /**
- * Boolean shape operators.
+ * Boolean shape assembly.
+ *
+ * Builds the shape the factory states into the form its consumers read, and combines it with the one it overrides. A
+ * boolean shape takes no constraints, so there is nothing to contradict and nothing an override may narrow.
  *
  * @module
  */
 
-import { isBoolean, type Optional } from "@metreeca/core";
+import { type Optional } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
-import { array, type Trace, type } from "@metreeca/core/trace";
-import type { BooleanShape } from "./boolean.js";
-import type { Scope } from "./index.core.js";
+import { type Trace } from "@metreeca/core/trace";
+import type { BooleanShape } from "./index.js";
 
 
 /**
@@ -74,30 +77,5 @@ export function narrowsBoolean(_target: BooleanShape, _source: BooleanShape): Op
 export function mergeBoolean(_target: BooleanShape, _source: BooleanShape): BooleanShape {
 
 	return create();
-
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates values against a boolean shape.
- *
- * Reports each value that is not a boolean as a `{type}` violation keyed by its index, so that a caller may tell which
- * value failed. A boolean shape closes its domain by kind alone, leaving nothing further to enforce at any
- * {@link Scope | strictness}.
- *
- * @param values The values to validate
- * @param _ The shape the values are matched against, stating nothing the kind check doesn't already enforce
- *
- * @returns A trace of the violations found, or `undefined` where every value is a boolean
- */
-export function validateBoolean(values: readonly unknown[], _: BooleanShape, {}: {
-
-	scope?: Scope
-
-} = {}): Optional<Trace> {
-
-	return array(type(isBoolean))(values);
 
 }

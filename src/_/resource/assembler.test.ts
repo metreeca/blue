@@ -18,10 +18,10 @@ import { createNamespace } from "@metreeca/core/resource";
 import { TraceError, type Validator } from "@metreeca/core/trace";
 import type { Resource } from "@metreeca/qest/resource";
 import { describe, expect, it } from "vitest";
-import { boolean } from "../boolean.js";
-import { number } from "../number.js";
+import { boolean } from "../boolean/index.js";
+import { number } from "../number/index.js";
 import { reference } from "../reference.js";
-import { string } from "../string.js";
+import { string } from "../string/index.js";
 import { union } from "../union.js";
 import { getShapeProperties } from "./accessors.js";
 import {

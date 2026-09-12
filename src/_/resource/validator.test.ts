@@ -18,11 +18,11 @@ import { isArray, isObject, type Optional } from "@metreeca/core";
 import { type Trace } from "@metreeca/core/trace";
 import type { Resource } from "@metreeca/qest/resource";
 import { describe, expect, it } from "vitest";
-import { boolean } from "../boolean.js";
+import { boolean } from "../boolean/index.js";
 import { dictionary } from "../dictionary.js";
-import { integer, number } from "../number.js";
+import { integer, number } from "../number/index.js";
 import { reference } from "../reference.js";
-import { date, string } from "../string.js";
+import { date, string } from "../string/index.js";
 import { union } from "../union.js";
 import {
 	id,

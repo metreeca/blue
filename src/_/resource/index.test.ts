@@ -17,7 +17,7 @@
 import { createNamespace } from "@metreeca/core/resource";
 import { TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
-import { string } from "../string.js";
+import { string } from "../string/index.js";
 import {
 	id,
 	multiple,

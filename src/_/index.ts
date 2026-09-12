@@ -98,15 +98,15 @@ import { equals, seal } from "@metreeca/core/structures";
 import { type Trace, TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Instance as Fetched, Template } from "@metreeca/qest/template";
-import type { BooleanShape } from "./boolean.js";
+import type { BooleanShape } from "./boolean/index.js";
 import type { DictionaryShape } from "./dictionary.js";
 import { eager, enforce, type Plain, validateShape } from "./index.core.js";
-import type { NumberShape } from "./number.js";
+import type { NumberShape } from "./number/index.js";
 import type { ReferenceShape } from "./reference.js";
 import type { ResourceShape } from "./resource/index.js";
 import type { Retrieved, Submitted } from "./resource/inference.js";
 import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
-import type { StringShape } from "./string.js";
+import type { StringShape } from "./string/index.js";
 import type { Branch } from "./union.core.js";
 import type { UnionShape } from "./union.js";
 

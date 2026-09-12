@@ -17,10 +17,10 @@
 import type { Reference } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import { type Instance, type Compound } from "./index.js";
-import { type NumberShape } from "./number.js";
+import { type NumberShape } from "./number/index.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import { id, type Id, multiple, type Property, required, resource } from "./resource/index.js";
-import { string, type StringShape } from "./string.js";
+import { string, type StringShape } from "./string/index.js";
 import { type Branch } from "./union.core.js";
 import { union, type UnionShape } from "./union.js";
 

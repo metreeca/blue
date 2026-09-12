@@ -16,7 +16,7 @@
 
 import { expect, it } from "vitest";
 import { reference } from "../reference.js";
-import { string } from "../string.js";
+import { string } from "../string/index.js";
 import {
 	getShapeClass,
 	getShapeClasses,

@@ -15,37 +15,28 @@
  */
 
 /**
- * String shape operators.
+ * Textual shape assembly.
+ *
+ * Builds the shape a factory states into the form its consumers read, and combines it with the one it overrides: a
+ * shape admitting no value at all is rejected as it is built rather than when a value is first matched against it, and
+ * an extension is held to the shape it refines before either is committed to.
  *
  * @module
  */
 
-import { isRegExp, isString, type Optional } from "@metreeca/core";
+import { isRegExp, type Optional } from "@metreeca/core";
 import { union } from "@metreeca/core/arrays";
 import { immutable } from "@metreeca/core/structures";
-import {
-	all,
-	array,
-	domain,
-	length,
-	pass,
-	test,
-	type Trace,
-	TraceError,
-	type,
-	type Validator,
-	values as contains
-} from "@metreeca/core/trace";
-import type { Scope } from "./index.core.js";
-import { type StringConstraints, type StringShape } from "./string.js";
+import { all, test, type Trace, TraceError } from "@metreeca/core/trace";
+import { type StringConstraints, type StringShape } from "./index.js";
 
 
 /**
  * Creates a textual shape.
  *
- * Backs every factory this module exposes, fixing what they share: a stated `pattern` is normalised to its source, so
- * that a built shape carries the lexical constraint in the single form {@link StringShape} states, and contradictory
- * constraints are rejected as the shape is built, so that a shape that exists admits at least one value.
+ * Backs every factory the {@link string!} module exposes, fixing what they share: a stated `pattern` is normalised to
+ * its source, so that a built shape carries the lexical constraint in the single form {@link StringShape} states, and
+ * contradictory constraints are rejected as the shape is built, so that a shape that exists admits at least one value.
  *
  * @typeParam V The values the shape admits, as stated by the signature of the calling factory
  *
@@ -111,6 +102,9 @@ export function checkString(constraints: Partial<StringShape>): Optional<Trace> 
 
 }
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /**
  * Reports whether a textual shape narrows an inherited one.
  *
@@ -175,6 +169,9 @@ export function narrowsString(target: StringShape, source: StringShape): Optiona
 	)(target);
 
 }
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Merges a textual shape with an inherited one.
@@ -244,115 +241,5 @@ function merge(target: StringShape, source: StringShape): Omit<StringShape, "kin
 			: target.hasValue ?? required
 
 	};
-
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Validates values against a textual shape.
- *
- * Reports each value that is not a string as a `{type}` violation and each string that breaks a constraint under its
- * own facet, keying every element violation by its index, so that a caller may tell which value failed and why;
- * membership over the whole set (`hasValue`) is reported as a leading bare message.
- *
- * @param values The values to validate
- * @param shape The shape the values are matched against
- * @param opts Validation options
- * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`
- *
- * @returns A trace of the violations found, or `undefined` where every value matches `shape`
- */
-export function validateString(values: readonly unknown[], shape: StringShape, {
-
-	scope = "state"
-
-}: {
-
-	scope?: Scope
-
-} = {}): Optional<Trace> {
-
-	switch ( scope ) {
-
-		case "state":
-
-			return state(shape)(values);
-
-		case "bound":
-
-			return bound(shape)(values);
-
-		case "model":
-
-			return model(shape)(values);
-
-	}
-
-
-	function state({
-
-		minLength,
-		maxLength,
-
-		pattern,
-
-		in: allowed,
-		hasValue: required
-
-	}: StringShape) {
-
-		return array(
-			type(isString,
-				all(
-					length(minLength, maxLength),
-					domain(allowed),
-					format(pattern)
-				)
-			),
-			contains(required)
-		);
-
-	}
-
-	function bound({
-
-		pattern
-
-	}: StringShape) {
-
-		return array(
-			type(isString,
-				format(pattern)
-			)
-		);
-
-	}
-
-	function model({}: StringShape) {
-
-		return array(
-			type(isString)
-		);
-
-	}
-
-	function format(pattern: undefined | string): Validator<string> {
-
-		if ( pattern === undefined ) {
-
-			return pass;
-
-		} else {
-
-			const regex = new RegExp(pattern);
-			const mismatched = [`{format} expected string matching </${pattern}/>`];
-
-			return test(value => regex.test(value) || mismatched);
-
-		}
-
-	}
 
 }

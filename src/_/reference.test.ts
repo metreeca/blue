@@ -20,7 +20,7 @@ import type { Scope } from "./index.core.js";
 import { getShapeTarget, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import { reference } from "./reference.js";
 import { resource, type ResourceConstraints, type ResourceShape } from "./resource/index.js";
-import { string } from "./string.js";
+import { string } from "./string/index.js";
 
 
 // build a bare target shape, carrying nothing but the constraints its identifiers are held to

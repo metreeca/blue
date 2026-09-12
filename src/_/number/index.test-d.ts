@@ -15,9 +15,9 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Compound } from "./index.js";
-import { byte, decimal, double, float, int, integer, long, type NumberShape, number, short } from "./number.js";
-import { multiple, optional, required, resource } from "./resource/index.js";
+import { type Instance, type Compound } from "../index.js";
+import { byte, decimal, double, float, int, integer, long, type NumberShape, number, short } from "./index.js";
+import { multiple, optional, required, resource } from "../resource/index.js";
 
 
 describe("number", () => {

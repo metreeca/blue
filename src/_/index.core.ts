@@ -49,20 +49,23 @@ import {
 	type Transform,
 	Transforms
 } from "@metreeca/qest/template";
-import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
-import type { BooleanShape } from "./boolean.js";
+import { mergeBoolean, narrowsBoolean } from "./boolean/assembler.js";
+import { validateBoolean } from "./boolean/validator.js";
+import type { BooleanShape } from "./boolean/index.js";
 import { mergeDictionary, narrowsDictionary, type Tagged, validateDictionary } from "./dictionary.core.js";
 import type { DictionaryShape } from "./dictionary.js";
 import type { Range, Shape } from "./index.js";
-import { mergeNumber, narrowsNumber, validateNumber } from "./number.core.js";
-import { decimal, integer, type NumberShape } from "./number.js";
+import { mergeNumber, narrowsNumber } from "./number/assembler.js";
+import { validateNumber } from "./number/validator.js";
+import { decimal, integer, type NumberShape } from "./number/index.js";
 import { getShapeTarget, mergeReference, narrowsReference, validateReference } from "./reference.core.js";
 import type { ReferenceShape } from "./reference.js";
 import { flatten, mergeResource, narrowsResource } from "./resource/assembler.js";
 import { validateResource } from "./resource/validator.js";
 import type { ResourceShape } from "./resource/index.js";
-import { mergeString, narrowsString, validateString } from "./string.core.js";
-import { string, type StringShape } from "./string.js";
+import { mergeString, narrowsString } from "./string/assembler.js";
+import { validateString } from "./string/validator.js";
+import { string, type StringShape } from "./string/index.js";
 import { getShapeBranches, mergeUnion, narrowsUnion, validateUnion } from "./union.core.js";
 import { union, type UnionShape } from "./union.js";
 

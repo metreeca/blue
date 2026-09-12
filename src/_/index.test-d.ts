@@ -17,12 +17,12 @@
 import type { Tag } from "@metreeca/core/language";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type BooleanShape } from "./boolean.js";
+import { type BooleanShape } from "./boolean/index.js";
 import { type DictionaryShape } from "./dictionary.js";
 import { type Compound, type Instance, type Range } from "./index.js";
 import { reference, type ReferenceShape } from "./reference.js";
 import { id, multiple, type Property, required, resource, type ResourceShape } from "./resource/index.js";
-import { string, type StringShape } from "./string.js";
+import { string, type StringShape } from "./string/index.js";
 
 
 type LabelShape={

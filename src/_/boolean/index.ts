@@ -64,7 +64,7 @@
  * @see {@link https://www.w3.org/TR/xmlschema-2/#boolean XSD 1.0 Part 2: Datatypes § 3.2.2 boolean}
  */
 
-import { create } from "./boolean.core.js";
+import { create } from "./assembler.js";
 
 
 /**

@@ -113,8 +113,8 @@
 import { xsd } from "@metreeca/core/datatype";
 import { TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
-import type { Legal } from "./index.core.js";
-import { create } from "./number.core.js";
+import type { Legal } from "../index.core.js";
+import { create } from "./assembler.js";
 
 
 const ByteLimit = 2**7-1;

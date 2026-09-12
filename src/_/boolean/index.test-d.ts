@@ -15,8 +15,8 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type BooleanShape, boolean } from "./boolean.js";
-import { type Instance } from "./index.js";
+import { type BooleanShape, boolean } from "./index.js";
+import { type Instance } from "../index.js";
 
 
 describe("boolean", () => {

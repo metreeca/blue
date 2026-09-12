@@ -138,8 +138,8 @@ import { TagPattern } from "@metreeca/core/language";
 import type { Variant } from "@metreeca/core/resource";
 import { TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
-import type { Legal } from "./index.core.js";
-import { create } from "./string.core.js";
+import type { Legal } from "../index.core.js";
+import { create } from "./assembler.js";
 
 
 /**
