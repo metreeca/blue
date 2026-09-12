@@ -416,7 +416,7 @@ export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
  *
  * @returns The range the probe reaches, or an {@link Issue} stating why it reaches nothing: `"unknown property path"`
  *     where the path names a member no alternative carries or steps past one that cannot be stepped past,
- *     `"duplicate aggregate transform"` where the pipe combines values more than once, or
+ *     `"multiple aggregate transforms"` where the pipe combines values more than once, or
  *     `"incompatible transform input"` where no alternative survives the transforms
  *
  * @throws {TraceError} Where a deferred definition reaches itself, leaving the shape it states undefined
@@ -454,7 +454,8 @@ export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | Iss
 
 		const resolved = eager(shape);
 
-		const branches = resolved.kind === "reference" ? [eager(resolved.target) as Shape]
+		const branches = resolved.kind === "reference"
+			? [eager(resolved.target)]
 			: getShapeBranches(resolved);
 
 		return branches.map(branch => ({ minCount: 1, maxCount: 1, shape: branch }));
@@ -519,7 +520,7 @@ export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | Iss
 		if ( isString(reached) ) { return reached; }
 
 		if ( pipe.filter(name => Transforms[name].aggregate !== false).length > 1 ) {
-			return "duplicate aggregate transform";
+			return "multiple aggregate transforms";
 		}
 
 		// a pipe reads a localised value through the content negotiation settles on, as ordinary text

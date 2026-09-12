@@ -682,13 +682,13 @@ describe("effective", () => {
 			["with a transform in between", ["sum", "abs", "count"]]
 		] as const)("reports a pipe combining values more than once, %s", async (_label, pipe) => {
 
-			expect(piped([...pipe], integer())).toBe("duplicate aggregate transform");
+			expect(piped([...pipe], integer())).toBe("multiple aggregate transforms");
 
 		});
 
 		it("reports a pipe combining values more than once ahead of anything else", async () => {
 
-			expect(piped(["count", "sum"], string())).toBe("duplicate aggregate transform");
+			expect(piped(["count", "sum"], string())).toBe("multiple aggregate transforms");
 
 		});
 
