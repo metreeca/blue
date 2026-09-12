@@ -87,8 +87,8 @@ describe("resource factories", () => {
 	});
 
 	test("the cardinality factories accept constraints", () => {
-		expectTypeOf(required(string(), { hidden: true }))
-			.toEqualTypeOf<{ readonly hidden: true } & Property<StringShape, 1, 1>>();
+		expectTypeOf(required(string(), { foreign: true }))
+			.toEqualTypeOf<{ readonly foreign: true } & Property<StringShape, 1, 1>>();
 	});
 
 	test("property → the bounds it was given", () => {
@@ -107,8 +107,8 @@ describe("resource factories", () => {
 	});
 
 	test("property → accepts constraints after the range", () => {
-		expectTypeOf(property(string(), { hidden: true, forward: "https://example.org/label" }))
-			.toEqualTypeOf<{ readonly hidden: true, readonly forward: "https://example.org/label" } & Property<StringShape, undefined, undefined>>();
+		expectTypeOf(property(string(), { foreign: true, forward: "https://example.org/label" }))
+			.toEqualTypeOf<{ readonly foreign: true, readonly forward: "https://example.org/label" } & Property<StringShape, undefined, undefined>>();
 	});
 
 	test("property → rejects an unknown constraint", () => {

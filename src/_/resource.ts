@@ -144,8 +144,8 @@
 
 import type { Identifier, Lazy, Optional } from "@metreeca/core";
 import { createNamespace, type Namespace } from "@metreeca/core/resource";
-import { TraceError } from "@metreeca/core/trace";
-import type { Dictionary, Reference } from "@metreeca/qest/resource";
+import { TraceError, type Validator } from "@metreeca/core/trace";
+import type { Dictionary, Reference, Resource } from "@metreeca/qest/resource";
 import type { Range, Shape } from "./index.js";
 import { assemble, type Declared, declare } from "./resource.core.js";
 
@@ -186,6 +186,7 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | `kind`        | Cannot be overridden                                                                |
  * | `name`        | Always from the child; not inherited                                                |
  * | `description` | Always from the child; not inherited                                                |
+ * | `virtual`     | Inherited; conflicting parents without a child override are reported as an error    |
  * | `space`       | Inherited; conflicting parents without a child override are reported as an error    |
  * | `class`       | Always from the child; outside inheritance scope                                    |
  * | `classes`     | Computed from the `class` of the shapes extended; never stated                      |
@@ -193,6 +194,7 @@ export const defaultNamespace: Namespace = createNamespace("app:/#");
  * | `in`          | Child may only drop allowed identifiers                                             |
  * | `hasValue`    | Child may only add required identifiers                                             |
  * | `members`     | Declared members merged over inherited ones, each narrowing the one it overrides     |
+ * | `validators`  | Union of the checks stated and the ones inherited; every check applies               |
  *
  * **Cross-Field Validation**
  *
@@ -301,6 +303,18 @@ export type ResourceConstraints = {
 
 
 	/**
+	 * Whether the resources a shape describes are computed rather than held.
+	 *
+	 * Tells a caller that a resource is at least partly derived on the way out, so that it is not expected to be found
+	 * as it stands in whatever holds the others.
+	 *
+	 * **Inheritance** — inherited; extended shapes disagreeing without an override are reported as an error.
+	 *
+	 * @defaultValue `undefined` (held as it stands)
+	 */
+	readonly virtual?: boolean;
+
+	/**
 	 * Default space for converting property names to IRIs.
 	 *
 	 * Property names without explicit IRI mappings are resolved relative to this space.
@@ -374,6 +388,25 @@ export type ResourceConstraints = {
 	 * @see {@link https://www.w3.org/TR/shacl/#HasValueConstraintComponent SHACL § 4.8.2 sh:hasValue}
 	 */
 	readonly hasValue?: readonly Reference[];
+
+
+	/**
+	 * Checks a resource must pass on top of the ones the shape states.
+	 *
+	 * Carries the constraints a shape cannot state declaratively: each is handed the whole resource and reports what
+	 * it finds as a {@link Trace}, or `undefined` where the resource passes. Every check runs, so a resource is told
+	 * everything that is wrong with it at once rather than one thing at a time, and each trace is keyed by the name of
+	 * the check reporting it.
+	 *
+	 * **Inheritance** — union of the checks stated and the ones inherited; every check applies.
+	 *
+	 * @remarks
+	 *
+	 * SHACL states custom constraints as SPARQL; they are stated here as functions.
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#constraints SHACL § 2.1.1 Constraint Components}
+	 */
+	readonly validators?: readonly Validator<Resource>[];
 
 }
 
@@ -465,7 +498,6 @@ export type Type = {
  * | Field         | Override Rule                                    |
  * | ------------- | ------------------------------------------------ |
  * | `kind`        | Cannot be overridden                             |
- * | `hidden`      | Inherited where the child states none            |
  * | `foreign`     | Cannot be overridden                             |
  * | `captive`     | Cannot be overridden                             |
  * | `name`        | Cannot be overridden                             |
@@ -509,15 +541,6 @@ export type Property<
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
  */
 export type PropertyConstraints = {
-
-	/**
-	 * Excludes the property from default serialisation.
-	 *
-	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
-	 *
-	 * @defaultValue `undefined` (`false`)
-	 */
-	readonly hidden?: boolean;
 
 	/**
 	 * Marks the property as owned by the resources in its range.

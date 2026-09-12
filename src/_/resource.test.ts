@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+import { isArray, isObject, type Optional } from "@metreeca/core";
 import { createNamespace } from "@metreeca/core/resource";
-import { TraceError } from "@metreeca/core/trace";
+import { type Trace, TraceError, type Validator } from "@metreeca/core/trace";
+import type { Resource } from "@metreeca/qest/resource";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { dictionary } from "./dictionary.js";
@@ -277,7 +279,7 @@ describe("factories", () => {
 
 			it("carries the constraints it is given", async () => {
 
-				expect(factory(string(), { hidden: true }).hidden).toBe(true);
+				expect(factory(string(), { foreign: true }).foreign).toBe(true);
 
 			});
 
@@ -749,6 +751,90 @@ describe("operators", () => {
 
 		});
 
+		describe("virtual", () => {
+
+			it("inherits what the extended shape states", async () => {
+
+				const Base = resource({}, { virtual: true });
+
+				expect(resource(Base, {}).virtual).toBe(true);
+
+			});
+
+			it("takes the value the extending shape states", async () => {
+
+				const Base = resource({}, { virtual: true });
+
+				expect(resource(Base, {}, { virtual: false }).virtual).toBe(false);
+
+			});
+
+			it("states none where nothing states one", async () => {
+
+				expect(resource({}).virtual).toBeUndefined();
+
+			});
+
+			it("rejects extended shapes disagreeing", async () => {
+
+				const One = resource({}, { virtual: true });
+				const Other = resource({}, { virtual: false });
+
+				expect(() => resource(One, Other, {})).toThrow(TraceError);
+
+			});
+
+			it("admits extended shapes disagreeing where the extending shape states a value", async () => {
+
+				const One = resource({}, { virtual: true });
+				const Other = resource({}, { virtual: false });
+
+				expect(() => resource(One, Other, {}, { virtual: true })).not.toThrow();
+
+			});
+
+		});
+
+		describe("validators", () => {
+
+			const check: Validator<Resource> = () => undefined;
+			const other: Validator<Resource> = () => undefined;
+
+			it("carries the checks the extended shape states", async () => {
+
+				const Base = resource({}, { validators: [check] });
+
+				expect(resource(Base, {}).validators).toEqual([check]);
+
+			});
+
+			it("accumulates the checks stated over the ones inherited", async () => {
+
+				const Base = resource({}, { validators: [check] });
+
+				expect(resource(Base, {}, { validators: [other] })).toMatchObject({
+					validators: expect.arrayContaining([check, other])
+				});
+
+			});
+
+			it("states a check reaching the shape along several paths once", async () => {
+
+				const One = resource({}, { validators: [check] });
+				const Other = resource({}, { validators: [check] });
+
+				expect(resource(One, Other, {}).validators).toEqual([check]);
+
+			});
+
+			it("states none where nothing states one", async () => {
+
+				expect(resource({}).validators).toBeUndefined();
+
+			});
+
+		});
+
 	});
 
 	describe("match", () => {
@@ -1186,6 +1272,58 @@ describe("validators", () => {
 
 		});
 
+		describe("custom checks", () => {
+
+			it("passes a resource every check admits", async () => {
+
+				const shape = resource({ name: required(string()) }, { validators: [() => undefined] });
+
+				expect(validateResource([{ name: "Widget" }], shape)).toBeUndefined();
+
+			});
+
+			it("reports what a check finds, keyed by the name of the check", async () => {
+
+				function rated(resource: Resource): Optional<Trace> {
+					return resource["name"] === "Widget" ? undefined : ["expected a widget"];
+				}
+
+				const shape = resource({ name: required(string()) }, { validators: [rated] });
+
+				expect(at(validateResource([{ name: "Gadget" }], shape), "0", "{rated}"))
+					.toEqual(["expected a widget"]);
+
+			});
+
+			it("runs every check rather than stopping at the first", async () => {
+
+				const shape = resource({ name: required(string()) }, {
+					validators: [
+						function first() { return ["first"]; },
+						function second() { return ["second"]; }
+					]
+				});
+
+				const trace = validateResource([{ name: "Widget" }], shape);
+
+				expect(at(trace, "0", "{first}")).toEqual(["first"]);
+				expect(at(trace, "0", "{second}")).toEqual(["second"]);
+
+			});
+
+			it("runs the checks a shape inherits", async () => {
+
+				const Base = resource({ name: required(string()) }, {
+					validators: [function inherited() { return ["inherited"]; }]
+				});
+
+				expect(at(validateResource([{ name: "Widget" }], resource(Base, {})), "0", "{inherited}"))
+					.toEqual(["inherited"]);
+
+			});
+
+		});
+
 	});
 
 	describe("validateResult", () => {
@@ -1385,6 +1523,44 @@ describe("validators", () => {
 					shape: Product,
 					model: { vendor: {} }
 				})).toBeUndefined();
+
+			});
+
+		});
+
+		describe("custom checks", () => {
+
+			it("passes a resource every check admits", async () => {
+
+				const shape = resource({ name: required(string()) }, { validators: [() => undefined] });
+
+				expect(validateResult([{ name: "Widget" }], { shape, model: { name: "" } })).toBeUndefined();
+
+			});
+
+			it("reports what a check finds, keyed by the name of the check", async () => {
+
+				function rated(resource: Resource): Optional<Trace> {
+					return resource["name"] === "Widget" ? undefined : ["expected a widget"];
+				}
+
+				const shape = resource({ name: required(string()) }, { validators: [rated] });
+
+				expect(at(validateResult([{ name: "Gadget" }], { shape, model: { name: "" } }), "0", "{rated}"))
+					.toEqual(["expected a widget"]);
+
+			});
+
+			it("runs the checks a shape inherits", async () => {
+
+				const Base = resource({ name: required(string()) }, {
+					validators: [function inherited() { return ["inherited"]; }]
+				});
+
+				const shape = resource(Base, {});
+
+				expect(at(validateResult([{ name: "Widget" }], { shape, model: { name: "" } }), "0", "{inherited}"))
+					.toEqual(["inherited"]);
 
 			});
 
@@ -2055,5 +2231,19 @@ function getProperty(shape: ResourceShape, name: string) {
 	const member = shape.members[name];
 
 	return member?.kind === "property" ? member : undefined;
+
+}
+
+// walk a trace down a key path, so a test reads the entry it expects rather than the whole shape of the report
+
+function at(trace: unknown, ...path: readonly string[]): unknown {
+
+	return path.reduce<unknown>((node, key) => {
+
+		const keyed = isArray(node) ? node.find(entry => isObject(entry)) : node;
+
+		return isObject(keyed) ? keyed[key] : undefined;
+
+	}, trace);
 
 }

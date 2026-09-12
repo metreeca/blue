@@ -41,7 +41,7 @@ import { isIRI, type Namespace } from "@metreeca/core/resource";
 import { dedent, tidy } from "@metreeca/core/strings";
 import { equals, immutable, seal } from "@metreeca/core/structures";
 import { all, array, fail, object, test, type Trace, TraceError } from "@metreeca/core/trace";
-import { isReference, type Dictionary, type Reference } from "@metreeca/qest/resource";
+import { isReference, type Dictionary, type Reference, type Resource } from "@metreeca/qest/resource";
 import {
 	type Binding,
 	decodeProbe,
@@ -674,28 +674,16 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 
 	return all(
 
+		(shape.virtual === undefined && !parents.every(p => p.virtual === parents[0].virtual))
+		&& fail([`{virtual} conflicting inherited values <${parents[0].virtual}> vs <${
+			parents.find(p => p.virtual !== parents[0].virtual)?.virtual
+		}> without an override`]),
+
 		(shape.space === undefined && !parents.every(p => p.space?.[""] === parents[0].space?.[""]))
 		&& fail([`{space} conflicting inherited values <${parents[0].space?.[""]}> vs <${
 			parents.find(p => p.space?.[""] !== parents[0].space?.[""])?.space?.[""]
-		}> without an override`]),
+		}> without an override`])
 
-		...unique(parents.flatMap(p => Object.keys(p.members)))
-
-			// a member stated by a single extended shape can't conflict
-
-			.filter(name => parents.filter(p => p.members[name]?.kind === "property").length > 1)
-
-			.map(name => {
-
-				const override = shape.members[name]?.kind === "property" ? shape.members[name] : undefined;
-				const inherited = parents.flatMap(p => p.members[name]?.kind === "property" ? [p.members[name]] : []);
-
-				return (!inherited.every(p => p.hidden === inherited[0].hidden) && override?.hidden === undefined)
-					&& fail([`{hidden} conflicting inherited values <${inherited[0].hidden}> vs <${
-						inherited.find(p => p.hidden !== inherited[0].hidden)?.hidden
-					}> for <${name}> without an override`]);
-
-			})
 	)(undefined);
 
 }
@@ -899,6 +887,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 		name: target.name,
 		description: target.description,
 
+		virtual: target.virtual ?? source.virtual,
 		space: target.space ?? source.space,
 
 		class: target.class,
@@ -922,7 +911,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
  * @returns The merged identifier constraints and members, as they stand before they are checked for consistency
  */
 function merge(target: ResourceShape, source: ResourceShape): Pick<ResourceShape,
-	"pattern" | "in" | "hasValue" | "members"
+	"pattern" | "in" | "hasValue" | "validators" | "members"
 > {
 
 	return {
@@ -932,6 +921,12 @@ function merge(target: ResourceShape, source: ResourceShape): Pick<ResourceShape
 		pattern: target.pattern ?? source.pattern,
 
 		...identifiers(target, source),
+
+		// conjunctive: validators — union, a check reaching the shape along several paths stated once
+
+		validators: target.validators !== undefined && source.validators !== undefined
+			? union([target.validators, source.validators])
+			: target.validators ?? source.validators,
 
 		// conjunctive: members — union, each member stated on both sides merged
 
@@ -1075,10 +1070,6 @@ export function mergeProperty(target: Property, source: Property): Property {
 
 		kind: target.kind,
 
-		...target.hidden !== undefined ? { hidden: target.hidden }
-			: source.hidden !== undefined ? { hidden: source.hidden }
-				: {},
-
 		...source.name !== undefined && { name: source.name },
 		...source.description !== undefined && { description: source.description },
 
@@ -1157,7 +1148,11 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 				...Object.keys(resource)
 					.filter(name => !Object.hasOwn(shape.members, name))
-					.map(name => () => [{ [name]: ["unexpected member"] }])
+					.map(name => () => [{ [name]: ["unexpected member"] }]),
+
+				// the checks the shape states on top of its members, each keyed by the name of the check
+
+				...checks(resource, shape)
 
 			)(undefined),
 
@@ -1304,6 +1299,27 @@ function key(value: Record<string, unknown>, shape: ResourceShape, index: number
 }
 
 /**
+ * Runs the checks a shape states on top of its members, each keyed by the name of the check.
+ *
+ * Every check runs, so a resource is told everything that is wrong with it at once; a check states its own name, and
+ * one stating none is keyed by the position it was declared at.
+ *
+ * Shared by the validators reading a stored resource and a retrieved one alike.
+ */
+function checks(value: Record<string, unknown>, shape: ResourceShape): readonly (() => Optional<Trace>)[] {
+
+	return (shape.validators ?? []).map((validator, index) => () => fold(
+
+		// the check owns whatever it reads, the members having been held to the shape already
+
+		validator(value as Resource), // ;(cast) a resource confirmed by isObject, checked field by field above
+
+		trace => [{ [`{${validator.name || `validator[${index}]`}}`]: trace }]
+	));
+
+}
+
+/**
  * Validates retrieved resources against a shape, narrowed by the template that requested them.
  *
  * Reports each member the template asked for and the resource states wrongly, keyed by the member it is stated under,
@@ -1364,7 +1380,11 @@ export function validateResult(values: readonly unknown[], {
 
 				...Object.keys(resource)
 					.filter(name => !Object.hasOwn(model, name))
-					.map(name => () => [{ [name]: ["unexpected member"] }])
+					.map(name => () => [{ [name]: ["unexpected member"] }]),
+
+				// the checks the shape states on top of its members, each keyed by the name of the check
+
+				...checks(resource, shape)
 
 			)(undefined),
 
@@ -2396,6 +2416,8 @@ export function getShapeProperties(shape: Lazy<Shape>): Members {
 }
 
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /**
  * Resolves the name a marker of the given kind is stated under.
  *
@@ -2410,9 +2432,6 @@ function member(shape: Lazy<Shape>, kind: "id" | "type"): undefined | Identifier
 		.find(([, declared]) => declared.kind === kind)?.[0];
 
 }
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Checks whether an identifier matches a pattern.
