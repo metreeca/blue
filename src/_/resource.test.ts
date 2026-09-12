@@ -58,7 +58,7 @@ import {
 	type ResourceShape,
 	type as typed
 } from "./resource.js";
-import { string } from "./string.js";
+import { date, string } from "./string.js";
 import { union } from "./union.js";
 
 
@@ -2243,6 +2243,217 @@ describe("validators", () => {
 				expect(validateTemplate([{
 					items: [{ "name=name": "", "s=size": 0 }, { "^size": "asc" }]
 				}], shape)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("embedded resources", () => {
+
+			const shape = resource({ rating: optional(resource({ score: required(integer()) })) });
+
+			it("is asked for as a template, having no identifier of its own", async () => {
+
+				expect(validateTemplate([{ rating: { score: 0 } }], shape)).toBeUndefined();
+
+			});
+
+			it("refuses an identifier in its place", async () => {
+
+				expect(validateTemplate([{ rating: "app:/ratings/1" }], shape)).toBeDefined();
+
+			});
+
+		});
+
+		describe("foreign members", () => {
+
+			const shape = resource({ children: multiple(reference(Vendor), { foreign: true }) });
+
+			it("is asked for as the resources it points at are", async () => {
+
+				expect(validateTemplate([{ children: ["app:/vendors/1"] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ children: [{ name: "" }] }], shape)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("paths", () => {
+
+			const Inner = resource({ name: required(string()), size: optional(integer()) });
+			const Middle = resource({ id: id(), inner: required(reference(Inner)) });
+			const shape = resource({ items: multiple(reference(Middle)) });
+
+			it("reaches a member across several steps", async () => {
+
+				expect(validateTemplate([{ items: [{ "n=inner.name": "" }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { "~inner.name": "wid" }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { "?inner.name": ["a", "b"] }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { ">=inner.size": 10 }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { "^inner.name": "asc" }] }], shape)).toBeUndefined();
+
+			});
+
+			it("reports a step no member carries", async () => {
+
+				expect(validateTemplate([{ items: [{ "n=inner.unknown": "" }] }], shape)).toBeDefined();
+				expect(validateTemplate([{ items: [{}, { "~inner.unknown": "wid" }] }], shape)).toBeDefined();
+
+			});
+
+			it("counts every step of a path against the nesting allowed", async () => {
+
+				expect(validateTemplate([{ items: [{}, { "~inner.name": "wid" }] }], shape, { depth: 2 })).toBeDefined();
+				expect(validateTemplate([{ items: [{}, { "~inner.name": "wid" }] }], shape, { depth: 3 }))
+					.toBeUndefined();
+
+			});
+
+			it("admits a path of any length where nothing caps it", async () => {
+
+				const deep = resource({ items: multiple(reference(resource({ mid: required(reference(Middle)) }))) });
+
+				expect(validateTemplate([{ items: [{}, { "^mid.inner.name": "asc" }] }], deep)).toBeUndefined();
+
+			});
+
+			it("reaches a member every alternative of a polymorphic step carries", async () => {
+
+				const A = resource({ name: required(string()) });
+				const B = resource({ name: required(string()) });
+
+				const branched = resource({ items: multiple(reference(resource({ of: required(union(A, B)) }))) });
+
+				expect(validateTemplate([{ items: [{}, { "~of.name": "wid" }] }], branched)).toBeUndefined();
+
+			});
+
+			it("reaches a member a single alternative carries", async () => {
+
+				const A = resource({ name: required(string()) });
+				const B = resource({ code: required(string()) });
+
+				const branched = resource({ items: multiple(reference(resource({ of: required(union(A, B)) }))) });
+
+				expect(validateTemplate([{ items: [{}, { "~of.name": "wid" }] }], branched)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { "~of.unknown": "wid" }] }], branched)).toBeDefined();
+
+			});
+
+		});
+
+		describe("transforms", () => {
+
+			const shape = resource({ items: multiple(reference(Product)) });
+
+			it("reads a component of a point in time", async () => {
+
+				const dated = resource({ items: multiple(reference(resource({ released: optional(date()) }))) });
+
+				expect(validateTemplate([{ items: [{ "y=year:released": 0 }] }], dated)).toBeUndefined();
+
+			});
+
+			it("reports a transform the values it reads cannot be read through", async () => {
+
+				expect(validateTemplate([{ items: [{ "y=year:name": 0 }] }], shape)).toBeDefined();
+				expect(validateTemplate([{ items: [{ "n=sum:name": 0 }] }], shape)).toBeDefined();
+
+			});
+
+			it("reports a pipe combining values more than once", async () => {
+
+				expect(validateTemplate([{ items: [{ "n=count:sum:size": 0 }] }], shape)).toBeDefined();
+
+			});
+
+			it("holds a column to the kind the transforms yield", async () => {
+
+				expect(validateTemplate([{ items: [{ "n=count:name": 0 }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{ "n=count:name": "" }] }], shape)).toBeDefined();
+
+			});
+
+			it("filters on what a transform yields", async () => {
+
+				expect(validateTemplate([{ items: [{}, { ">=count:tags": 2 }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { ">=count:tags": "2" }] }], shape)).toBeDefined();
+
+			});
+
+		});
+
+		describe("options", () => {
+
+			const shape = resource({ items: multiple(reference(Product)) });
+
+			it("admits an option of the kind the path reaches", async () => {
+
+				expect(validateTemplate([{ items: [{}, { "?size": [1, 2] }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { "!listed": [true] }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { "?vendor": ["app:/vendors/1"] }] }], shape)).toBeUndefined();
+
+			});
+
+			it("admits nothing at all among the options", async () => {
+
+				expect(validateTemplate([{ items: [{}, { "?name": [null, "Widget"] }] }], shape)).toBeUndefined();
+
+			});
+
+			it("reports an option of another kind within a set", async () => {
+
+				expect(validateTemplate([{ items: [{}, { "?size": [1, "2"] }] }], shape)).toBeDefined();
+
+			});
+
+			it("singles out one alternative per option over a polymorphic path", async () => {
+
+				const branched = resource({ items: multiple(reference(resource({ of: required(union(string(), integer())) }))) });
+
+				expect(validateTemplate([{ items: [{}, { "?of": ["a", 1] }] }], branched)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { "?of": [true] }] }], branched)).toBeDefined();
+
+			});
+
+			it("admits a localised path as the text it carries or as the tags wanted", async () => {
+
+				expect(validateTemplate([{ items: [{}, { "?label": "Widget" }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { "?label": ["a", "b"] }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { "?label": { en: "Widget" } }] }], shape)).toBeUndefined();
+
+			});
+
+			it("reports a localised path asked for as text and as tags at once", async () => {
+
+				expect(validateTemplate([{ items: [{}, { "?label": [{ en: "Widget" }, "Gadget"] }] }], shape))
+					.toBeDefined();
+
+			});
+
+		});
+
+		describe("paging", () => {
+
+			it("admits a page stated from where it starts", async () => {
+
+				expect(validateTemplate([{ tags: ["", { "@": 10, "#": 20 }] }], Product)).toBeUndefined();
+
+			});
+
+			it("reports a page starting nowhere countable", async () => {
+
+				expect(validateTemplate([{ tags: ["", { "@": 1.5 }] }], Product)).toBeDefined();
+				expect(validateTemplate([{ tags: ["", { "@": -1 }] }], Product)).toBeDefined();
+				expect(validateTemplate([{ tags: ["", { "@": "10" }] }], Product)).toBeDefined();
+
+			});
+
+			it("admits a page of any size where nothing caps it", async () => {
+
+				expect(validateTemplate([{ tags: ["", { "#": 0 }] }], Product)).toBeUndefined();
+				expect(validateTemplate([{ tags: ["", { "#": 1000 }] }], Product)).toBeUndefined();
 
 			});
 
