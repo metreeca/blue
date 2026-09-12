@@ -13,6 +13,14 @@
     "*"
   ],
   "useFirstParagraphOfCommentAsSummary": true,
+  "intentionallyNotExported": [
+    "src/value/inference.ts:Plain",
+    "src/value/inference.ts:Legal",
+    "src/union/inference.ts:Branch",
+    "src/resource/inference.ts:Retrieved",
+    "src/resource/inference.ts:Submitted",
+    "src/resource/inference.ts:Declared"
+  ],
   "favicon": "https://metreeca.com/assets/icon.ico",
   "sourceLinkExternal": true,
   "markdownLinkExternal": true,
@@ -31,6 +39,7 @@
     },
     "@metreeca/core": {
       "Trace": "https://metreeca.github.io/core/types/trace.Trace.html",
+      "Issue": "https://metreeca.github.io/core/types/trace.Issue.html",
       "Validator": "https://metreeca.github.io/core/types/trace.Validator.html",
       "TraceError": "https://metreeca.github.io/core/classes/trace.TraceError.html",
       "Relay": "https://metreeca.github.io/core/interfaces/relay.Relay.html",

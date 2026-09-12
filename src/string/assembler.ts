@@ -15,7 +15,7 @@
  */
 
 /**
- * Textual shape assembly.
+ * String shape assembly.
  *
  * Builds the shape a factory states into the form its consumers read, and combines it with the one it overrides: a
  * shape admitting no value at all is rejected as it is built rather than when a value is first matched against it, and
@@ -32,7 +32,7 @@ import { type StringConstraints, type StringShape } from "./index.js";
 
 
 /**
- * Assembles a textual shape.
+ * Assembles a string shape.
  *
  * Backs every factory the {@link string!} module exposes, fixing what they share: a stated `pattern` is normalised to
  * its source, so that a built shape carries the lexical constraint in the single form {@link StringShape} states, and
@@ -44,7 +44,7 @@ import { type StringConstraints, type StringShape } from "./index.js";
  *
  * @returns An immutable shape admitting the strings the constraints bound
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  */
 export function assemble<V extends string>(constraints: StringConstraints): StringShape<V> {
 
@@ -103,7 +103,7 @@ export function checkString(constraints: Partial<StringShape>): Optional<Trace> 
 }
 
 /**
- * Reports whether a textual shape narrows an inherited one.
+ * Reports whether a string shape narrows an inherited one.
  *
  * Tests the override relation without building the merged shape, so that an incompatible extension is told apart from
  * a legitimate refinement before either is committed to: a shape narrows the inherited one where it matches its
@@ -168,7 +168,7 @@ export function narrowsString(target: StringShape, source: StringShape): Optiona
 }
 
 /**
- * Merges a textual shape with an inherited one.
+ * Merges a string shape with an inherited one.
  *
  * Yields the single shape an extending member is validated against, combining the inherited constraints with the
  * overriding ones: length bounds and `hasValue` requirements accumulate, the admitted values intersect, and `datatype`
@@ -179,7 +179,7 @@ export function narrowsString(target: StringShape, source: StringShape): Optiona
  *
  * @returns An immutable shape admitting the values both `target` and `source` admit
  *
- * @throws {TraceError} Where `target` doesn't narrow `source`
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
  */
 export function mergeString(target: StringShape, source: StringShape): StringShape {
 

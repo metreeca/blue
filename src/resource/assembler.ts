@@ -77,7 +77,8 @@ const Flattened = Symbol("flattened");
  *
  * @returns An immutable shape admitting the resources the members and constraints bound
  *
- * @throws {TraceError} Where the stated declarations are inconsistent with the inherited ones
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated declarations are inconsistent with the
+ *     inherited ones
  * @throws {@link !TypeError TypeError} Where the arguments state neither members nor constraints
  */
 export function assemble(args: readonly unknown[]): ResourceShape {
@@ -319,7 +320,8 @@ export function declare<M>(member: unknown): M {
  *
  * @returns An immutable shape stating the inherited definitions alongside its own
  *
- * @throws {TraceError} Where the stated declarations are inconsistent with the inherited ones
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated declarations are inconsistent with the
+ *     inherited ones
  */
 export function flatten(shape: ResourceShape): ResourceShape {
 
@@ -747,7 +749,7 @@ export function narrowsProperty(target: Property, source: Property): Optional<Tr
  *
  * @returns An immutable shape admitting the resources both `target` and `source` admit
  *
- * @throws {TraceError} Where `target` doesn't narrow `source`
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
  */
 export function mergeResource(target: ResourceShape, source: ResourceShape): ResourceShape {
 
@@ -816,7 +818,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
  *
  * @returns An immutable member admitting the values both `target` and `source` admit
  *
- * @throws {TraceError} Where `target` doesn't narrow `source`
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
  */
 export function mergeProperty(target: Property, source: Property): Property {
 

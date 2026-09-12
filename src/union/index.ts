@@ -15,12 +15,14 @@
  */
 
 /**
- * Union shape and factories.
+ * Union shape types and operations.
  *
- * Defines {@link UnionShape} and the {@link union} factory, describing a value drawn from one of several alternatives,
- * so that a member whose vocabulary ranges over unrelated types is described by a single shape.
+ * Defines the shape describing a value drawn from one of several alternatives and its branch types, and provides the
+ * {@link union} factory stating them and the accessors reading the branches, so that a member whose vocabulary ranges
+ * over unrelated types is described by a single shape. Alternatives are stated positionally, and a value is stored as
+ * it stands under the one branch it belongs to.
  *
- * **Defining Polymorphic Members**
+ * **Defining polymorphic members**
  *
  * State the alternatives positionally; cardinality belongs to the enclosing member rather than to a branch:
  *
@@ -46,7 +48,16 @@
  * { "address": "https://data.example.com/addresses/456" }
  * ```
  *
+ * **Reading the alternatives off a shape**
+ *
+ * {@link getShapeBranches} lists the alternatives a shape admits values from, taking a shape that is not a union to
+ * the single branch it is, so that a caller routing a value needs not tell a polymorphic shape from a plain one.
+ * {@link getStateBranch} settles the one branch a stored value belongs to, {@link getBoundBranch} the one a relational
+ * bound filters against, and {@link getModelBranches} every branch a retrieval placeholder may draw from.
+ *
  * @module
+ *
+ * @document ./index.md
  *
  * @see [Unions — Design](./index.md)
  * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.6.4 sh:xone}
@@ -94,9 +105,8 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  *
  * **Inheritance**
  *
- * Where a {@link resource!ResourceShape} extends the shapes it lists as {@link resource!ResourceShape.parents |
- * parents}, union-valued members are merged according to the following rules. The *child* is the extending shape; the
- * *parent* is the inherited one.
+ * Where a {@link resource!ResourceShape} extends the shapes it lists as `parents`, union-valued members are merged
+ * according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
  * | Field      | Override Rule                                                                           |
  * | ---------- | --------------------------------------------------------------------------------------- |

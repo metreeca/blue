@@ -39,6 +39,7 @@ import type { BooleanShape } from "./index.js";
  *
  * @param values The values to validate
  * @param _ The shape the values are matched against, stating nothing the kind check doesn't already enforce
+ * @param opts Validation options, none of which changes what is enforced
  *
  * @returns A trace of the violations found, or `undefined` where every value is a boolean
  */

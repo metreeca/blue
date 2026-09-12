@@ -16,9 +16,9 @@
 
 
 /**
- * Localised value validation.
+ * Dictionary value validation.
  *
- * Holds a value to what a localised shape admits and reports everything wrong with it at once, keyed by the tag at
+ * Holds a value to what a dictionary shape admits and reports everything wrong with it at once, keyed by the tag at
  * fault, so that a caller may tell which language failed and why.
  *
  * @module
@@ -32,13 +32,13 @@ import { type DictionaryShape } from "./index.js";
 
 
 /**
- * Validates values against a localised shape.
+ * Validates values against a dictionary shape.
  *
  * Reports a value that is not a language map as a `{kind}` violation, and each entry that breaks a constraint under
  * its own facet, keyed by the tag it is stated under, so that a caller may tell which language failed and why. A tag
- * carries a single string where the shape states {@link DictionaryConstraints.uniqueLang | uniqueLang} and an array of
- * strings otherwise; a value stated at the other arity is rejected as a malformed map rather than as a broken
- * constraint.
+ * carries a single string where the shape states
+ * {@link dictionary!DictionaryConstraints.uniqueLang | uniqueLang} and an array of strings otherwise; a value stated at
+ * the other arity is rejected as a malformed map rather than as a broken constraint.
  *
  * @param values The values to validate
  * @param shape The shape the values are matched against

@@ -15,11 +15,12 @@
  */
 
 /**
- * Boolean shape and factories.
+ * Boolean shape types and operations.
  *
- * Defines shapes and factories for validating boolean values, mapping the
- * [JSON boolean](https://datatracker.ietf.org/doc/html/rfc8259#section-3) type to the
- * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) boolean datatype.
+ * Defines the shape describing the truth values a resource may carry and provides the {@link boolean} factory stating
+ * it, mapping the [JSON boolean](https://datatracker.ietf.org/doc/html/rfc8259#section-3) type to the
+ * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) boolean datatype. The shape takes no constraints:
+ * the kind alone closes the domain to two values.
  *
  * | XSD Datatype ¹ | Factory         | Description         | Range         |
  * | -------------- | --------------- | ------------------- | ------------- |
@@ -38,7 +39,7 @@
  *
  * ¹ Canonical form: `true`, `false`
  *
- * **Defining Boolean Shapes**
+ * **Defining boolean shapes**
  *
  * ```typescript
  * import { boolean } from '@metreeca/blue/boolean';
@@ -46,7 +47,7 @@
  * const flag = boolean();
  * ```
  *
- * **Using in Resource Shapes**
+ * **Using in resource shapes**
  *
  * ```typescript
  * import { optional, required, resource } from '@metreeca/blue/resource';
@@ -76,9 +77,8 @@ import { assemble } from "./assembler.js";
  *
  * **Inheritance**
  *
- * Where a {@link resource!ResourceShape} extends the shapes it lists as {@link resource!ResourceShape.parents |
- * parents}, boolean-valued members are merged according to the following rules. The *child* is the extending shape;
- * the *parent* is the inherited one.
+ * Where a {@link resource!ResourceShape} extends the shapes it lists as `parents`, boolean-valued members are merged
+ * according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
  * | Field  | Override Rule        |
  * | ------ | -------------------- |

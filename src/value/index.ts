@@ -15,11 +15,12 @@
  */
 
 /**
- * Shapes and the values they describe.
+ * Value shape types and operations.
  *
- * Gathers the shapes describing a plain value, a localised one, a link to a resource, a resource in its own right and
- * a value drawn from one of several alternatives into the one {@link Shape} a value is matched against, so that a
- * caller holding a shape needs not know which kind it holds.
+ * Defines the {@link Shape} a value of any kind is matched against and the types a validated value comes back as, and
+ * provides the accessors resolving what a shape reaches. A shape gathers the kinds the other modules state, so a
+ * caller holding one needs not know which kind it holds, and the type of a validated value is derived from the shape
+ * describing it, so the two cannot drift.
  *
  * **The shapes a value is drawn from**
  *
@@ -167,7 +168,7 @@ export type Range<
 /**
  * Resolves the value a shape describes.
  *
- * Yields the type an instance of the shape takes: the {@link Plain} value for a scalar, localised or reference shape,
+ * Yields the type an instance of the shape takes: the plain value for a scalar, localised or reference shape,
  * for a resource shape a record of the members it declares merged over the ones it inherits, and for a union shape the
  * value of every branch at once, as the value alone tells the reader which branch it belongs to. A reference shape
  * contributes a {@link @metreeca/qest!Reference | Reference} to the target alone, keeping a linked resource out of the
@@ -191,8 +192,7 @@ export type Instance<S extends Lazy<Shape>> =
  * compound, so that a resource and the ones it holds captive travel as a single value; the identifier is left
  * optional, as a resource yet to be created has none to state; and a
  * {@link resource!PropertyConstraints.foreign | foreign} member is left out altogether, as the resources it points at
- * carry the link rather than the compound. A {@link Plain} value, holding nothing captive, reads exactly as an
- * instance does.
+ * carry the link rather than the compound. A plain value, holding nothing captive, reads exactly as an instance does.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */

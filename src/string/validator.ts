@@ -15,9 +15,9 @@
  */
 
 /**
- * Textual value validation.
+ * String value validation.
  *
- * Holds a value to what a textual shape admits and reports everything wrong with it at once, keyed by the facet at
+ * Holds a value to what a string shape admits and reports everything wrong with it at once, keyed by the facet at
  * fault, at the strictness the caller asks for: a stored value, a relational bound, or a retrieval placeholder.
  *
  * @module
@@ -31,7 +31,7 @@ import { type StringShape } from "./index.js";
 
 
 /**
- * Validates values against a textual shape.
+ * Validates values against a string shape.
  *
  * Reports each value that is not a string as a `{type}` violation and each string that breaks a constraint under its
  * own facet, keying every element violation by its index, so that a caller may tell which value failed and why;

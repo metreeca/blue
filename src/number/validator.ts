@@ -16,9 +16,9 @@
 
 
 /**
- * Numeric value validation.
+ * Number value validation.
  *
- * Holds a value to what a numeric shape admits and reports everything wrong with it at once, keyed by the facet at
+ * Holds a value to what a number shape admits and reports everything wrong with it at once, keyed by the facet at
  * fault, at the strictness the caller asks for: a stored value, a relational bound, or a retrieval placeholder.
  *
  * @module
@@ -31,7 +31,7 @@ import { type NumberShape } from "./index.js";
 
 
 /**
- * Validates values against a numeric shape.
+ * Validates values against a number shape.
  *
  * Reports each value that is not a number as a `{type}` violation and each number that breaks a constraint under its
  * own facet, keying every element violation by its index, so that a caller may tell which value failed and why;

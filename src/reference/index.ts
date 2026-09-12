@@ -15,13 +15,15 @@
  */
 
 /**
- * Reference shape and factories.
+ * Reference shape types and operations.
  *
- * Defines {@link ReferenceShape} and the {@link reference} factory, linking a resource to another **standalone
- * resource** named by an absolute IRI. A reference pairs an IRI value with the {@link resource!ResourceShape | shape}
- * describing the resource it points at, deferred where a definition cycle requires it.
+ * Defines the shape linking a resource to another **standalone resource**, named by an absolute IRI, and provides the
+ * {@link reference} factory stating it and the accessor reading its target. The factory pairs the IRI with the
+ * {@link resource!ResourceShape | shape} describing the resource it points at, deferred where a definition cycle
+ * requires it, so a member pointing at a resource carries the identifier alone and leaves the resource to be retrieved
+ * in its own right.
  *
- * **Defining Reference Members**
+ * **Defining reference members**
  *
  * Wrap a target resource shape with {@link reference} and give it a cardinality:
  *
@@ -40,7 +42,7 @@
  * });
  * ```
  *
- * **Standalone and Embedded Resources**
+ * **Standalone and embedded resources**
  *
  * A reference links to a **standalone resource**, identified and managed in its own right. A resource shape included
  * directly, without the wrapper, describes an **embedded resource**: a nested value with no identity of its own,
@@ -48,6 +50,11 @@
  *
  * Ownership and lifecycle are stated on the member rather than on the reference: see
  * {@link resource!PropertyConstraints.foreign | foreign} and {@link resource!PropertyConstraints.captive | captive}.
+ *
+ * **Reading a target off a shape**
+ *
+ * {@link getShapeTarget} resolves the resource shape a shape points at, crossing a link and taking a resource carried
+ * inline to itself, so that a caller reaching for what lies behind a shape needs not tell the two apart.
  *
  * @module
  *
@@ -70,9 +77,8 @@ export { getShapeTarget } from "./accessors.js";
  *
  * **Inheritance**
  *
- * Where a {@link resource!ResourceShape} extends the shapes it lists as {@link resource!ResourceShape.parents |
- * parents}, reference-valued members are merged according to the following rules. The *child* is the extending shape;
- * the *parent* is the inherited one.
+ * Where a {@link resource!ResourceShape} extends the shapes it lists as `parents`, reference-valued members are merged
+ * according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
  * | Field    | Override Rule                                                |
  * | -------- | ------------------------------------------------------------ |
@@ -90,10 +96,10 @@ export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> 
 	/**
 	 * Shape describing the resource the reference points at, possibly deferred to break definition cycles.
 	 *
-	 * **Inheritance** — may be re-pointed at a shape that lists the inherited target among its
-	 * {@link resource!ResourceShape.parents | parents}, directly or transitively, so an extending shape refines what a
-	 * link admits by naming the narrower target alone; the inherited definition reaches the refined target through its
-	 * own inheritance chain and is never restated. Any other target is rejected.
+	 * **Inheritance** — may be re-pointed at a shape that lists the inherited target among its `parents`, directly or
+	 * transitively, so an extending shape refines what a link admits by naming the narrower target alone; the inherited
+	 * definition reaches the refined target through its own inheritance chain and is never restated. Any other target
+	 * is rejected.
 	 */
 	readonly target: T
 

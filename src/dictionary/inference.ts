@@ -16,10 +16,10 @@
 
 
 /**
- * Localised value inference.
+ * Dictionary value inference.
  *
- * Resolves the value a localised shape describes: {@link Tagged} maps a shape to the tag-keyed record its content is
- * read as, typed at the per-tag arity the shape admits.
+ * Resolves the value a dictionary shape describes: `Tagged` maps a shape to the tag-keyed record its content is read
+ * as, typed at the per-tag arity the shape admits.
  *
  * @module
  */
@@ -29,7 +29,7 @@ import type { Tag } from "@metreeca/core/language";
 import type { DictionaryConstraints, DictionaryShape } from "./index.js";
 
 /**
- * Resolves the tag-keyed map a localised shape describes.
+ * Resolves the tag-keyed map a dictionary shape describes.
  *
  * Yields a map keyed by language tag, carrying a single string under each tag where the shape states
  * {@link DictionaryConstraints.uniqueLang | uniqueLang} and an array of strings under each tag otherwise, so that the

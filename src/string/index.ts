@@ -15,14 +15,17 @@
  */
 
 /**
- * Textual shape and factories.
+ * String shape types and operations.
  *
- * Defines shapes and factories for validating textual values, mapping the
- * [JSON string](https://datatracker.ietf.org/doc/html/rfc8259#section-7) type to
- * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) string datatypes.
+ * Defines the shape describing the textual values a resource may carry and its constraint types, and provides the
+ * factories stating them, mapping the [JSON string](https://datatracker.ietf.org/doc/html/rfc8259#section-7) type to
+ * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) string and temporal datatypes. The
+ * {@link string} factory bounds a shape by length, lexical and enumeration constraints; the format factories fix the
+ * datatype and lexical pattern of a particular format.
  *
- * > Factories validate constraint consistency at construction time:
- * > contradictory constraints like `minLength > maxLength` throw a `TraceError`.
+ * > [!IMPORTANT]
+ * > Contradictory constraints are rejected as the shape is built, so a shape that exists admits at least one value:
+ * > stating `minLength` above `maxLength` throws a {@link @metreeca/core!TraceError | TraceError}.
  *
  * | XSD Datatype ¹    | Factory             | Description                        | Format                        |
  * | ----------------- | ------------------- | ---------------------------------- | ----------------------------- |
@@ -38,7 +41,7 @@
  * | [date][]          | {@link date}        | [ISO 8601][iso-date] date          | YYYY-MM-DD[Z/±hh:mm]          |
  * | [time][]          | {@link time}        | [ISO 8601][iso-time] time          | hh:mm:ss[.sss][Z/±hh:mm]      |
  * | [dateTime][]      | {@link instant}     | [ISO 8601][iso-datetime] date+time | YYYY-MM-DDThh:mm:ss[.sss][TZ] |
- * | [dateTime][]      | {@link timestamp} ³ | [ISO 8601][iso-datetime] UTC timestamp | YYYY-MM-DDThh:mm:ss.sssZ |
+ * | [dateTime][]      | {@link timestamp} ³ | [ISO 8601][iso-datetime] UTC timestamp | YYYY-MM-DDThh:mm:ss.sssZ  |
  * | [duration][]      | {@link duration}    | [ISO 8601][iso-duration] duration  | [-]PnYnMnDTnHnMnS             |
  *
  * [string]: https://www.w3.org/TR/xmlschema-2/#string
@@ -77,7 +80,7 @@
  * | ------------- | --------------------------- | ----------------------------- |
  * | UTF-8 encoded | Unicode (XML 1.0 Char)      | UTF-16 encoded (compatible)   |
  *
- * **Defining String Shapes**
+ * **Defining string shapes**
  *
  * ```typescript
  * import { string } from '@metreeca/blue/string';
@@ -88,21 +91,23 @@
  * const status = string({ in: ["active", "inactive"] });      // enumeration-constrained
  * ```
  *
- * > An enumeration also narrows the state the shape describes: `status` admits `"active" | "inactive"`, not the whole
+ * > [!NOTE]
+ * > An enumeration also narrows the value the shape describes: `status` admits `"active" | "inactive"`, not the whole
  * > textual domain.
  *
- * **Specialised String Factories**
+ * **Specialised string factories**
  *
  * Predefined factories for common string formats:
  *
  * ```typescript
  * import {
- *   text, markdown, email, iri, url, tag, date, time, instant, timestamp, duration
+ *   text, markdown, email, phone, iri, url, tag, date, time, instant, timestamp, duration
  * } from '@metreeca/blue/string';
  *
  * const label = text();         // single-line plain text
  * const body = markdown();      // Markdown formatted text
  * const contact = email();      // RFC 5321 email address
+ * const mobile = phone();       // ITU-T E.164 telephone number
  * const identifier = iri();     // RFC 3987 IRI reference
  * const link = url();           // RFC 3986 hierarchical URL
  * const language = tag();       // BCP 47 language tag
@@ -113,7 +118,7 @@
  * const validity = duration();  // ISO 8601 duration
  * ```
  *
- * **Using in Resource Shapes**
+ * **Using in resource shapes**
  *
  * ```typescript
  * import { multiple, optional, required, resource } from '@metreeca/blue/resource';
@@ -167,9 +172,8 @@ const IRIPatterns: Readonly<Record<Variant, RegExp>> = {
  *
  * **Inheritance**
  *
- * Where a {@link resource!ResourceShape} extends the shapes it lists as {@link resource!ResourceShape.parents |
- * parents}, string-valued members are merged according to the following rules. The *child* is the extending shape; the
- * *parent* is the inherited one.
+ * Where a {@link resource!ResourceShape} extends the shapes it lists as `parents`, string-valued members are merged
+ * according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
  * | Field       | Override Rule                                                                      |
  * | ----------- | ---------------------------------------------------------------------------------- |
@@ -181,7 +185,7 @@ const IRIPatterns: Readonly<Record<Variant, RegExp>> = {
  * | `in`        | Child may only drop allowed values                                                 |
  * | `hasValue`  | Child may only add required values                                                 |
  *
- * **Cross-Field Validation**
+ * **Cross-field validation**
  *
  * - merged `minLength` must be ≤ merged `maxLength`
  * - all merged `hasValue` entries must be members of the merged `in` set (if defined)
@@ -246,7 +250,7 @@ export type StringConstraints<
 }
 
 /**
- * Length bounds accepted by the textual shape factories.
+ * Length bounds accepted by the string shape factories.
  *
  * Bounds the number of characters admitted by a shape, independently of its lexical format. Accepted on its own by the
  * free-form {@link text} and {@link markdown} factories, whose content has no fixed length, and included in the full
@@ -281,7 +285,7 @@ export type StringLengthConstraints = {
 }
 
 /**
- * Value constraints accepted by the textual shape factories.
+ * Value constraints accepted by the string shape factories.
  *
  * Restricts the admissible values of a shape to a closed enumeration or pins values that must be present. Accepted on
  * its own by the format-specific factories, whose lexical space is already fixed, and included in the full
@@ -297,8 +301,8 @@ export type StringValueConstraints<V extends string = string> = {
 	 * Allowed values (closed enumeration).
 	 *
 	 * When specified, values must be members of this list. Empty arrays are ignored. Closing the domain also narrows
-	 * the state the shape describes to the listed values, wherever they are stated precisely enough to be told apart;
-	 * a list whose values are only known to be strings leaves the state as the whole textual domain.
+	 * the value the shape describes to the listed values, wherever they are stated precisely enough to be told apart;
+	 * a list whose values are only known to be strings leaves it as the whole textual domain.
 	 *
 	 * **Inheritance** — child may only drop allowed values.
 	 *
@@ -327,7 +331,7 @@ export type StringValueConstraints<V extends string = string> = {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Assembles a textual shape.
+ * Assembles a string shape.
  *
  * Contradictory constraints are rejected as the shape is built, so a shape that exists admits at least one value.
  *
@@ -337,7 +341,7 @@ export type StringValueConstraints<V extends string = string> = {
  *
  * @returns An immutable shape admitting the strings the constraints bound, narrowed to the values they enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  */
 export function string<const C extends StringConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
 
@@ -360,7 +364,7 @@ export function string<const C extends StringConstraints = {}>(constraints?: C):
  *
  * @returns An immutable shape admitting single-line plain text
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  */
 export function text(constraints?: StringLengthConstraints): StringShape {
 
@@ -388,7 +392,7 @@ export function text(constraints?: StringLengthConstraints): StringShape {
  *
  * @returns An immutable shape admitting Markdown text
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://commonmark.org/ CommonMark Spec}
  */
@@ -415,7 +419,7 @@ export function markdown(constraints?: StringLengthConstraints): StringShape {
  *
  * @returns An immutable shape admitting email addresses, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc5321 RFC 5321 - Simple Mail Transfer Protocol}
  */
@@ -444,7 +448,7 @@ export function email<const C extends StringValueConstraints = {}>(constraints?:
  *
  * @returns An immutable shape admitting E.164 telephone numbers, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.itu.int/rec/T-REC-E.164 ITU-T E.164 - International public telecommunication numbering plan}
  */
@@ -475,7 +479,7 @@ export function phone<const C extends StringValueConstraints = {}>(constraints?:
  *
  * @returns An immutable shape admitting IRIs of the stated variant, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3987 RFC 3987 - Internationalized Resource Identifiers}
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
@@ -516,7 +520,7 @@ export function iri<const C extends StringValueConstraints & {
  *
  * @returns An immutable shape admitting hierarchical URLs, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc3986 RFC 3986 - URI Generic Syntax}
  */
@@ -550,7 +554,7 @@ export function url<const C extends StringValueConstraints = {}>(constraints?: C
  *
  * @returns An immutable shape admitting language tags, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.rfc-editor.org/info/bcp47 BCP 47 - Tags for Identifying Languages}
  */
@@ -581,7 +585,7 @@ export function tag<const C extends StringValueConstraints = {}>(constraints?: C
  *
  * @returns An immutable shape admitting ISO 8601 years, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @remarks
  *
@@ -613,7 +617,7 @@ export function year<const C extends StringValueConstraints = {}>(constraints?: 
  *
  * @returns An immutable shape admitting ISO 8601 dates, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#date XSD 1.0 Part 2: Datatypes § 3.2.9 date}
  */
@@ -641,7 +645,7 @@ export function date<const C extends StringValueConstraints = {}>(constraints?: 
  *
  * @returns An immutable shape admitting ISO 8601 times, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#time XSD 1.0 Part 2: Datatypes § 3.2.8 time}
  */
@@ -670,7 +674,7 @@ export function time<const C extends StringValueConstraints = {}>(constraints?: 
  * @returns An immutable shape admitting ISO 8601 date and time values, narrowed to the values the constraints
  *     enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
@@ -700,7 +704,7 @@ export function instant<const C extends StringValueConstraints = {}>(constraints
  *
  * @returns An immutable shape admitting UTC timestamps, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#dateTime XSD 1.0 Part 2: Datatypes § 3.2.7 dateTime}
  */
@@ -728,7 +732,7 @@ export function timestamp<const C extends StringValueConstraints = {}>(constrain
  *
  * @returns An immutable shape admitting ISO 8601 durations, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#duration XSD 1.0 Part 2: Datatypes § 3.2.6 duration}
  */

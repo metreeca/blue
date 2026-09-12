@@ -55,7 +55,8 @@ import type { Range, Shape } from "./value/index.js";
  *
  * @returns A template structurally equivalent to `value`, rewritten where a policy requires it
  *
- * @throws {TraceError} If `shape` transitively references itself through a cycle no deferred shape breaks
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `shape` reaches itself through a cycle no deferred
+ *     shape breaks
  */
 export function enforce(value: unknown, shape: ResourceShape, {
 

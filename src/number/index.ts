@@ -15,14 +15,17 @@
  */
 
 /**
- * Numeric shape and factories.
+ * Number shape types and operations.
  *
- * Defines shapes and factories for validating numeric values, mapping the
- * [JSON number](https://datatracker.ietf.org/doc/html/rfc8259#section-6) type to
- * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) numeric datatypes.
+ * Defines the shape describing the numeric values a resource may carry and its constraint types, and provides the
+ * factories stating them, mapping the [JSON number](https://datatracker.ietf.org/doc/html/rfc8259#section-6) type to
+ * [XSD 1.0](https://www.w3.org/TR/xmlschema-2/#built-in-datatypes) numeric datatypes. The {@link number} factory
+ * bounds a shape by range and enumeration constraints; the typed factories fix the datatype and precision of a
+ * particular XSD type.
  *
- * > Factories validate constraint consistency at construction time:
- * > contradictory constraints like `minInclusive > maxInclusive` throw a `TraceError`.
+ * > [!IMPORTANT]
+ * > Contradictory constraints are rejected as the shape is built, so a shape that exists admits at least one value:
+ * > stating `minInclusive` above `maxInclusive` throws a {@link @metreeca/core!TraceError | TraceError}.
  *
  * | XSD Datatype ¹  | Factory           | Description                  | Range                      |
  * | --------------- | ----------------- | ---------------------------- | -------------------------- |
@@ -52,15 +55,15 @@
  *
  * **Compatibility**
  *
- * | JSON               | XSD                                 | JavaScript                        |
- * | ------------------ | ----------------------------------- | --------------------------------- |
- * | Integer/decimal    | byte, short, int: fully supported   | Safe integers within ±2⁵³-1      |
- * |                    | long: may exceed ±2⁶³-1             | Cannot represent beyond ±2⁵³-1   |
- * | No NaN/INF values  | float, double: has NaN, ±INF        | IEEE 754 with NaN, ±Infinity      |
- * | Safe integer range | integer: arbitrary-precision        | Requires BigInt beyond ±2⁵³-1    |
- * | Double precision   | decimal: arbitrary-precision        | No native arbitrary decimal       |
+ * | XSD datatype      | JSON                        | JavaScript                                |
+ * | ----------------- | --------------------------- | ----------------------------------------- |
+ * | byte, short, int  | integer                     | represented exactly                       |
+ * | long              | integer                     | exact only within ±2⁵³‑1                  |
+ * | float, double     | number; no NaN, no ±INF     | IEEE 754, NaN and ±Infinity included      |
+ * | integer           | integer                     | needs BigInt beyond ±2⁵³‑1                |
+ * | decimal           | number                      | no native arbitrary-precision decimal     |
  *
- * **Defining Numeric Shapes**
+ * **Defining number shapes**
  *
  * ```typescript
  * import { decimal, integer, number } from '@metreeca/blue/number';
@@ -72,10 +75,11 @@
  * const die = number({ in: [1, 2, 3, 4, 5, 6] });               // enumeration-constrained
  * ```
  *
- * > An enumeration also narrows the state the shape describes: `die` admits `1 | 2 | 3 | 4 | 5 | 6`, not the whole
+ * > [!NOTE]
+ * > An enumeration also narrows the value the shape describes: `die` admits `1 | 2 | 3 | 4 | 5 | 6`, not the whole
  * > numeric domain.
  *
- * **Typed Numeric Factories**
+ * **Typed numeric factories**
  *
  * Specialised factories map to XSD numeric datatypes with predefined precision:
  *
@@ -90,7 +94,7 @@
  * const measurement = double();  // IEEE 754 double-precision
  * ```
  *
- * **Using in Resource Shapes**
+ * **Using in resource shapes**
  *
  * ```typescript
  * import { optional, required, resource } from '@metreeca/blue/resource';
@@ -136,9 +140,8 @@ const FloatLimit = (2-2** -23)*2**127;
  *
  * **Inheritance**
  *
- * Where a {@link resource!ResourceShape} extends the shapes it lists as {@link resource!ResourceShape.parents |
- * parents}, numeric-valued members are merged according to the following rules. The *child* is the extending shape;
- * the *parent* is the inherited one.
+ * Where a {@link resource!ResourceShape} extends the shapes it lists as `parents`, numeric-valued members are merged
+ * according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
  * | Field          | Override Rule                                                                               |
  * | -------------- | ------------------------------------------------------------------------------------------- |
@@ -155,7 +158,7 @@ const FloatLimit = (2-2** -23)*2**127;
  * Inclusive/exclusive pairs are independently merged: a child may define an exclusive bound alongside a parent's
  * inclusive bound (or vice versa), narrowing the range without removing the original constraint.
  *
- * **Cross-Field Validation**
+ * **Cross-field validation**
  *
  * - merged `minExclusive` must be < merged `maxExclusive`
  * - merged `minInclusive` must be ≤ merged `maxInclusive`
@@ -201,8 +204,8 @@ export type NumberConstraints<V extends number = number> = NumberRangeConstraint
 	 * Restricts values to integers.
 	 *
 	 * When `true`, validated values must be integers (no fractional part); fractional values are rejected. Decouples
-	 * integrality from {@link datatype}, so custom or non-XSD integral types are declarable without relying on a
-	 * recognised datatype IRI. The integer-family factories ({@link byte}, {@link short}, {@link int}, {@link long},
+	 * integrality from `datatype`, so custom or non-XSD integral types are declarable without relying on a recognised
+	 * datatype IRI. The integer-family factories ({@link byte}, {@link short}, {@link int}, {@link long},
 	 * {@link integer}) set it; {@link float}, {@link double}, and {@link decimal} leave it unset.
 	 *
 	 * **Inheritance** — a child may add the constraint but not drop it: overriding an integral parent with a
@@ -215,7 +218,7 @@ export type NumberConstraints<V extends number = number> = NumberRangeConstraint
 }
 
 /**
- * Value range bounds accepted by the numeric shape factories.
+ * Value range bounds accepted by the number shape factories.
  *
  * Bounds the magnitudes admitted by a shape, independently of its datatype. Accepted on its own by the specialised
  * factories, whose datatype and integrality are already fixed, and included in the full {@link NumberConstraints} set.
@@ -275,8 +278,8 @@ export type NumberRangeConstraints<V extends number = number> = {
 	 * Allowed values (closed enumeration).
 	 *
 	 * When specified, values must be members of this list. Empty arrays are ignored. Closing the domain also narrows
-	 * the state the shape describes to the listed values, wherever they are stated precisely enough to be told apart;
-	 * a list whose values are only known to be numbers leaves the state as the whole numeric domain.
+	 * the value the shape describes to the listed values, wherever they are stated precisely enough to be told apart;
+	 * a list whose values are only known to be numbers leaves it as the whole numeric domain.
 	 *
 	 * **Inheritance** — child may only drop allowed values.
 	 *
@@ -305,7 +308,7 @@ export type NumberRangeConstraints<V extends number = number> = {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Assembles a numeric shape.
+ * Assembles a number shape.
  *
  * Contradictory constraints are rejected as the shape is built, so a shape that exists admits at least one value.
  *
@@ -315,7 +318,7 @@ export type NumberRangeConstraints<V extends number = number> = {
  *
  * @returns An immutable shape admitting the numbers the constraints bound, narrowed to the values they enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  */
 export function number<const C extends NumberConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
@@ -329,8 +332,8 @@ export function number<const C extends NumberConstraints = {}>(constraints?: C):
 /**
  * Assembles a shape for 8-bit signed integer values.
  *
- * Fixes the datatype to `xsd:byte`, marks the shape {@link NumberConstraints.integral | integral} and defaults the
- * range to `[-128, 127]`; supplied bounds override the defaults.
+ * Fixes the datatype to `xsd:byte`, marks the shape `integral` and defaults the range to `[-128, 127]`; supplied
+ * bounds override the defaults.
  *
  * @typeParam C The stated constraints
  *
@@ -338,7 +341,7 @@ export function number<const C extends NumberConstraints = {}>(constraints?: C):
  *
  * @returns An immutable shape admitting 8-bit signed integers, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#byte XSD 1.0 Part 2: Datatypes § 3.3.19 byte}
  */
@@ -361,8 +364,8 @@ export function byte<const C extends NumberRangeConstraints = {}>(constraints?: 
 /**
  * Assembles a shape for 16-bit signed integer values.
  *
- * Fixes the datatype to `xsd:short`, marks the shape {@link NumberConstraints.integral | integral} and defaults the
- * range to `[-32768, 32767]`; supplied bounds override the defaults.
+ * Fixes the datatype to `xsd:short`, marks the shape `integral` and defaults the range to `[-32768, 32767]`; supplied
+ * bounds override the defaults.
  *
  * @typeParam C The stated constraints
  *
@@ -370,7 +373,7 @@ export function byte<const C extends NumberRangeConstraints = {}>(constraints?: 
  *
  * @returns An immutable shape admitting 16-bit signed integers, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#short XSD 1.0 Part 2: Datatypes § 3.3.18 short}
  */
@@ -393,8 +396,8 @@ export function short<const C extends NumberRangeConstraints = {}>(constraints?:
 /**
  * Assembles a shape for 32-bit signed integer values.
  *
- * Fixes the datatype to `xsd:int`, marks the shape {@link NumberConstraints.integral | integral} and defaults the
- * range to `[-2147483648, 2147483647]`; supplied bounds override the defaults.
+ * Fixes the datatype to `xsd:int`, marks the shape `integral` and defaults the range to
+ * `[-2147483648, 2147483647]`; supplied bounds override the defaults.
  *
  * @typeParam C The stated constraints
  *
@@ -402,7 +405,7 @@ export function short<const C extends NumberRangeConstraints = {}>(constraints?:
  *
  * @returns An immutable shape admitting 32-bit signed integers, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#int XSD 1.0 Part 2: Datatypes § 3.3.17 int}
  */
@@ -425,8 +428,8 @@ export function int<const C extends NumberRangeConstraints = {}>(constraints?: C
 /**
  * Assembles a shape for 64-bit signed integer values.
  *
- * Fixes the datatype to `xsd:long`, marks the shape {@link NumberConstraints.integral | integral} and defaults the
- * range to {@link Number.MIN_SAFE_INTEGER}…{@link Number.MAX_SAFE_INTEGER} (±2⁵³−1), narrower than the datatype's
+ * Fixes the datatype to `xsd:long`, marks the shape `integral` and defaults the range to
+ * {@link Number.MIN_SAFE_INTEGER}…{@link Number.MAX_SAFE_INTEGER} (±2⁵³−1), narrower than the datatype's
  * nominal ±2⁶³−1, since values beyond the safe-integer range cannot be represented faithfully as `number`; supplied
  * bounds override the defaults.
  *
@@ -436,7 +439,7 @@ export function int<const C extends NumberRangeConstraints = {}>(constraints?: C
  *
  * @returns An immutable shape admitting 64-bit signed integers, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#long XSD 1.0 Part 2: Datatypes § 3.3.16 long}
  */
@@ -468,7 +471,7 @@ export function long<const C extends NumberRangeConstraints = {}>(constraints?: 
  *
  * @returns An immutable shape admitting single-precision floats, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#float XSD 1.0 Part 2: Datatypes § 3.2.4 float}
  */
@@ -498,7 +501,7 @@ export function float<const C extends NumberRangeConstraints = {}>(constraints?:
  *
  * @returns An immutable shape admitting double-precision floats, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#double XSD 1.0 Part 2: Datatypes § 3.2.5 double}
  */
@@ -511,7 +514,7 @@ export function double<const C extends NumberRangeConstraints = {}>(constraints?
 /**
  * Assembles a shape for arbitrary-precision integer values.
  *
- * Fixes the datatype to `xsd:integer` and marks the shape {@link NumberConstraints.integral | integral}.
+ * Fixes the datatype to `xsd:integer` and marks the shape `integral`.
  *
  * @typeParam C The stated constraints
  *
@@ -519,7 +522,7 @@ export function double<const C extends NumberRangeConstraints = {}>(constraints?
  *
  * @returns An immutable shape admitting arbitrary-precision integers, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#integer XSD 1.0 Part 2: Datatypes § 3.3.13 integer}
  */
@@ -540,7 +543,7 @@ export function integer<const C extends NumberRangeConstraints = {}>(constraints
  *
  * @returns An immutable shape admitting arbitrary-precision decimals, narrowed to the values the constraints enumerate
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#decimal XSD 1.0 Part 2: Datatypes § 3.2.3 decimal}
  */

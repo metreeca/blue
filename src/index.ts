@@ -17,13 +17,12 @@
 /**
  * Linked data validation.
  *
- * Checks a value against a shape and says what is wrong with it. A service describes what it accepts once, as a
- * shape, instead of repeating the checks at every boundary.
+ * Provides shape-based validation for the values, retrieval templates and retrieved data crossing a service boundary.
+ * The {@link validate} function returns either the value, typed as the shape describes it, or a trace of every
+ * violation found. A shape states once what a service accepts, so the checks stay in one place instead of scattered
+ * across the entry points that receive data.
  *
- * The shapes live elsewhere: each kind has its own module, and {@link value! | value} collects them into
- * {@link value!Shape | Shape} and names the types a validated value comes back as.
- *
- * The examples below hold values to a shape stated with the {@link resource! | resource} module:
+ * Shapes are stated with the per-kind modules {@link value! | value} gathers:
  *
  * ```typescript
  * import { boolean } from '@metreeca/blue/boolean';
@@ -41,10 +40,9 @@
  * });
  * ```
  *
- * **Holding a value to a shape**
+ * **Matching a value against a shape**
  *
- * {@link validate} answers with the value or with a trace of what is wrong with it, and the `model` option settles
- * which of three questions is being asked:
+ * The same shape answers three questions; the `model` option settles which is being asked:
  *
  * ```typescript
  * import { validate } from '@metreeca/blue';
@@ -58,13 +56,14 @@
  * validate(request, { shape: Product, model: true });           // a retrieval template, before it is issued
  * ```
  *
- * - omitted, or `false`, holds `value` to the shape as a resource in its own right
- * - a template holds `value` to the members that template asked for, and types what comes back accordingly
- * - `true` holds `value` to the shape as a template, asking whether the shape can serve what it requests
+ * - omitted, or `false`, matches `value` against the shape as a resource in its own right
+ * - a template matches `value` against the members that template asked for, and types what comes back accordingly
+ * - `true` matches `value` against the shape as a template, asking whether the shape can serve what it requests
  *
  * > [!CAUTION]
- * > A template may ask for the whole of the query language, transforms and nesting included. Where the caller is not
- * > trusted, hold it to what the service will serve: `plain`, `depth` and `limit` cap what a request may ask for.
+ * > A template may draw on the full query language, including aggregate transforms and nested expansion. Hold an
+ * > untrusted caller to what the service will serve: `plain` refuses the aggregate transforms, `depth` caps the
+ * > nesting, and `limit` caps the page.
  *
  * @module
  *
@@ -74,15 +73,15 @@
 import { type Lazy, map, type Optional } from "@metreeca/core";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { equals, seal } from "@metreeca/core/structures";
-import { type Trace, TraceError } from "@metreeca/core/trace";
+import { type Trace } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Instance as Fetched, Template } from "@metreeca/qest/template";
 import { enforce } from "./index.core.js";
-import { eager } from "./value/accessors.js";
-import { validateShape } from "./value/validator.js";
 import type { ResourceShape } from "./resource/index.js";
 import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
 import type { Instance, Shape } from "./value/index.js";
+import { eager } from "./value/index.js";
+import { validateShape } from "./value/validator.js";
 
 
 /**
@@ -124,7 +123,7 @@ const Validated: unique symbol = Symbol("validated");
  *
  * @returns A {@link Relay} carrying the resource where it passes and a trace of the violations where it doesn't
  *
- * @throws {TraceError} Where `shape` is malformed
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `shape` is malformed
  */
 export function validate<S extends Lazy<ResourceShape>>(value: unknown, opts: {
 
@@ -164,7 +163,7 @@ export function validate<S extends Lazy<ResourceShape>>(value: unknown, opts: {
  *
  * @returns A {@link Relay} carrying the resource where it passes and a trace of the violations where it doesn't
  *
- * @throws {TraceError} Where `shape` is malformed
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `shape` is malformed
  */
 export function validate<T extends Template>(value: unknown, opts: {
 
@@ -189,9 +188,9 @@ export function validate<T extends Template>(value: unknown, opts: {
  * left alone and a slot the template omits is simply not asked for.
  *
  * > [!CAUTION]
- * > A template may ask for the whole of the query language, transforms and nesting included. Where the caller is not
- * > trusted, hold it to what the service will serve: `plain` to refuse the transforms combining values, `depth` to cap
- * > the nesting, `limit` to cap the page.
+ * > A template may draw on the full query language, including aggregate transforms and nested expansion. Hold an
+ * > untrusted caller to what the service will serve: `plain` refuses the aggregate transforms, `depth` caps the
+ * > nesting, and `limit` caps the page.
  *
  * > [!TIP]
  * > A member reaching a standalone resource may be asked for as the identifier naming it or as a template standing for
@@ -216,7 +215,7 @@ export function validate<T extends Template>(value: unknown, opts: {
  *
  * @returns A {@link Relay} carrying the template where it passes and a trace of the violations where it doesn't
  *
- * @throws {TraceError} Where `shape` is malformed
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `shape` is malformed
  */
 export function validate<T extends Template>(value: unknown, opts: {
 

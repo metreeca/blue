@@ -95,7 +95,7 @@ export function narrowsShape(target: Shape, source: Shape): Optional<Trace> {
  *
  * @returns An immutable shape admitting the values both `target` and `source` admit
  *
- * @throws {TraceError} Where `target` doesn't narrow `source`
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
  */
 export function mergeShape(target: Shape, source: Shape): Shape {
 

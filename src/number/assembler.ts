@@ -16,7 +16,7 @@
 
 
 /**
- * Numeric shape assembly.
+ * Number shape assembly.
  *
  * Builds the shape a factory states into the form its consumers read, and combines it with the one it overrides: a
  * shape admitting no value at all is rejected as it is built rather than when a value is first matched against it, and
@@ -33,7 +33,7 @@ import { type NumberConstraints, type NumberShape } from "./index.js";
 
 
 /**
- * Assembles a numeric shape.
+ * Assembles a number shape.
  *
  * Backs every factory the {@link number!} module exposes, fixing what they share: contradictory constraints are
  * rejected as the shape is built, so that a shape that exists admits at least one value.
@@ -44,7 +44,7 @@ import { type NumberConstraints, type NumberShape } from "./index.js";
  *
  * @returns An immutable shape admitting the numbers the constraints bound
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  */
 export function assemble<V extends number>(constraints: NumberConstraints): NumberShape<V> {
 
@@ -182,7 +182,7 @@ export function checkNumber(constraints: Partial<NumberShape>): Optional<Trace> 
 }
 
 /**
- * Reports whether a numeric shape narrows an inherited one.
+ * Reports whether a number shape narrows an inherited one.
  *
  * Tests the override relation without building the merged shape, so that an incompatible extension is told apart from
  * a legitimate refinement before either is committed to: a shape narrows the inherited one where it matches its
@@ -279,7 +279,7 @@ export function narrowsNumber(target: NumberShape, source: NumberShape): Optiona
 }
 
 /**
- * Merges a numeric shape with an inherited one.
+ * Merges a number shape with an inherited one.
  *
  * Yields the single shape an extending member is validated against, combining the inherited constraints with the
  * overriding ones: bounds and `hasValue` requirements accumulate, the admitted values intersect, and `datatype` and
@@ -291,7 +291,7 @@ export function narrowsNumber(target: NumberShape, source: NumberShape): Optiona
  *
  * @returns An immutable shape admitting the values both `target` and `source` admit
  *
- * @throws {TraceError} Where `target` doesn't narrow `source`
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
  */
 export function mergeNumber(target: NumberShape, source: NumberShape): NumberShape {
 

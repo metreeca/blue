@@ -99,9 +99,7 @@ export function narrowsUnion(target: UnionShape, source: UnionShape): Optional<T
  *
  * @returns An immutable shape admitting the values both `target` and `source` admit
  *
- * @throws {TraceError} Where `target` doesn't narrow `source`
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
  */
 export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
 

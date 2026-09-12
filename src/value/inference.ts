@@ -17,8 +17,8 @@
 /**
  * Value inference.
  *
- * Resolves what a shape admits at the type level: {@link Plain} maps a shape to the scalar, localised or reference
- * value it describes, and {@link Legal} narrows a domain to the values a set of constraints enumerates.
+ * Resolves what a shape admits at the type level: `Plain` maps a shape to the scalar, localised or reference value it
+ * describes, and `Legal` narrows a domain to the values a set of constraints enumerates.
  *
  * @module
  */
@@ -38,8 +38,8 @@ import type { Shape } from "./index.js";
  * Resolves the plain value a shape describes.
  *
  * Yields a boolean, a number or a string, narrowed to the values the shape enumerates where it does, a
- * {@link Tagged | tag-keyed map} for a localised shape, carrying its content at the arity the shape states as unique,
- * and a {@link Reference} to the target for a reference shape. A plain value carries no members, so it reads the same
+ * tag-keyed map for a dictionary shape, carrying its content at the arity the shape states as unique, and a
+ * {@link Reference} to the target for a reference shape. A plain value carries no members, so it reads the same
  * whether or not captive resources are inlined; neither a resource shape nor a union shape describes a plain value.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles

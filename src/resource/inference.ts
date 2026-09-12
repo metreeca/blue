@@ -17,9 +17,9 @@
 /**
  * Resource type inference.
  *
- * Resolves the value a resource shape describes: {@link Retrieved} for the state a stored resource carries and
- * {@link Submitted} for the one a writer may state, each mapping the members the shape declares and the ones it
- * inherits to the form their range and cardinality admit.
+ * Resolves the value a resource shape describes: `Retrieved` for the state a stored resource carries and `Submitted`
+ * for the one a writer may state, each mapping the members the shape declares and the ones it inherits to the form
+ * their range and cardinality admit.
  *
  * @module
  */
@@ -48,8 +48,8 @@ export type Carried<S extends Lazy<Shape>> =
 /**
  * Resolves the members a list of extended shapes contributes.
  *
- * Yields the members every extended shape {@link Carried | carries}, so that a constraint stated anywhere up the
- * chain reaches every extending resource and shapes agreeing on a member pass it on as it stands.
+ * Yields the members every extended shape carries, so that a constraint stated anywhere up the chain reaches every
+ * extending resource and shapes agreeing on a member pass it on as it stands.
  *
  * @typeParam P The extended shapes, possibly deferred to break definition cycles
  */
@@ -61,8 +61,8 @@ export type Inherited<P extends Parents> =
 /**
  * Merges declared members over inherited ones.
  *
- * Retains a declared member whose {@link Outline | outline} restricts the one it overrides and voids any other;
- * inherited members left undeclared pass through untouched.
+ * Retains a declared member whose outline restricts the one it overrides and voids any other; inherited members left
+ * undeclared pass through untouched.
  *
  * @typeParam I The inherited members
  * @typeParam M The members the extending resource declares in its own right
@@ -94,8 +94,7 @@ export type Outline<M> =
 /**
  * Resolves the value an instance of a resource carries.
  *
- * Maps every member the shape carries to its content, leaving optional the ones a resource may {@link Omitted | leave
- * out}.
+ * Maps every member the shape carries to its content, leaving optional the ones a resource may leave out.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
@@ -105,8 +104,8 @@ export type Retrieved<S extends Lazy<Shape>> =
 /**
  * Resolves the value a resource carries with the ones it holds captive inlined.
  *
- * Maps the members the resource {@link Owned | owns} to their input, leaving optional the ones a writer may
- * {@link Omitted | leave out}: the identifier, as the system fills it in, and the ones the resource may do without.
+ * Maps the members the resource owns to their input, leaving optional the ones a writer may leave out: the
+ * identifier, as the system fills it in, and the ones the resource may do without.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
@@ -114,7 +113,7 @@ export type Submitted<S extends Lazy<Shape>> =
 	Loose<Owned<S>, Id> extends infer M ? { readonly [field in keyof M]: Input<M[field]> } : never
 
 /**
- * Resolves the members a resource owns: every member the shape carries but a {@link Foreign | foreign} one.
+ * Resolves the members a resource owns: every member the shape carries but a foreign one.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
@@ -137,8 +136,8 @@ export type Foreign = {
 /**
  * Marks optional the members a resource may leave out.
  *
- * Yields the members as they stand, optional where a resource may {@link Omitted | leave them out}, so that a value
- * mapped over them requires exactly the members the resource is bound to carry.
+ * Yields the members as they stand, optional where a resource may leave them out, so that a value mapped over them
+ * requires exactly the members the resource is bound to carry.
  *
  * @typeParam M The members to mark
  * @typeParam X The members left out on top of the ones any resource may leave out
@@ -166,8 +165,8 @@ export type Joined<T> = {
  * Checks whether a member may be left out of a resource.
  *
  * Yields `true` for a type, for a member of the kinds a transfer names and for a property whose lower bound is
- * {@link Skippable | skippable}, so that a resource states only the members it is bound to carry. A voided member is
- * never left out, so that a conflict surfaces where the state is resolved.
+ * skippable, so that a resource states only the members it is bound to carry. A voided member is never left out, so
+ * that a conflict surfaces where the state is resolved.
  *
  * @typeParam M The member to check
  * @typeParam X The members a transfer lets out on top of the ones any resource may leave out
@@ -195,8 +194,8 @@ export type Content<M> =
 /**
  * Resolves the value a member carries in a compound.
  *
- * Admits a captive target inline alongside its IRI and otherwise carries what the member carries in an
- * {@link Content | instance}, as a scalar has nothing to hold captive.
+ * Admits a captive target inline alongside its IRI and otherwise carries what the member carries in an instance, as
+ * a scalar has nothing to hold captive.
  *
  * @typeParam M The member to resolve
  */
@@ -212,8 +211,8 @@ export type Input<M> =
  * Resolves the form a value takes at the arity its bounds admit.
  *
  * Yields a bare value where the range admits at most one, an array otherwise, marking the form optional unless at
- * least one value is {@link Skippable | known to be required}. Bounds beyond the four the cardinality factories name
- * are honoured all the same, so a lower bound of two admits the same non-empty form as one.
+ * least one value is known to be required. Bounds beyond the four the cardinality factories name are honoured all
+ * the same, so a lower bound of two admits the same non-empty form as one.
  *
  * @typeParam V The value the range describes
  * @typeParam L The least number of values admitted

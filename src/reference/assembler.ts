@@ -109,7 +109,7 @@ export function narrowsReference(target: ReferenceShape, source: ReferenceShape)
  *
  * @returns An immutable shape pointing at the narrower of the two targets
  *
- * @throws {TraceError} Where `target` doesn't narrow `source`
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
  */
 export function mergeReference(target: ReferenceShape, source: ReferenceShape): ReferenceShape {
 

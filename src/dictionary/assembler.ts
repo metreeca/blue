@@ -16,7 +16,7 @@
 
 
 /**
- * Localised shape assembly.
+ * Dictionary shape assembly.
  *
  * Builds the shape the factory states into the form its consumers read, and combines it with the one it overrides: a
  * shape admitting no value at all is rejected as it is built rather than when a value is first matched against it, and
@@ -32,7 +32,7 @@ import { type DictionaryConstraints, type DictionaryShape } from "./index.js";
 
 
 /**
- * Assembles a localised textual shape.
+ * Assembles a dictionary shape.
  *
  * Backs the factory the {@link dictionary!} module exposes: contradictory constraints are rejected as the shape is
  * built, so that a shape that exists admits at least one value.
@@ -43,7 +43,7 @@ import { type DictionaryConstraints, type DictionaryShape } from "./index.js";
  *
  * @returns An immutable shape admitting the language maps the constraints bound
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  */
 export function assemble<U extends undefined | boolean>(constraints: DictionaryConstraints): DictionaryShape & {
 	readonly uniqueLang: U
@@ -93,7 +93,7 @@ export function checkDictionary(constraints: Partial<DictionaryShape>): Optional
 }
 
 /**
- * Reports whether a localised shape narrows an inherited one.
+ * Reports whether a dictionary shape narrows an inherited one.
  *
  * Tests the override relation without building the merged shape, so that an incompatible extension is told apart from
  * a legitimate refinement before either is committed to: a shape narrows the inherited one where it leaves neither
@@ -149,7 +149,7 @@ export function narrowsDictionary(target: DictionaryShape, source: DictionarySha
 }
 
 /**
- * Merges a localised shape with an inherited one.
+ * Merges a dictionary shape with an inherited one.
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
  *
@@ -162,7 +162,7 @@ export function narrowsDictionary(target: DictionaryShape, source: DictionarySha
  *
  * @returns An immutable shape admitting the language maps both `target` and `source` admit
  *
- * @throws {TraceError} Where `target` doesn't narrow `source`
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
  */
 export function mergeDictionary(target: DictionaryShape, source: DictionaryShape): DictionaryShape {
 

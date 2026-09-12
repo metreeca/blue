@@ -15,12 +15,12 @@
  */
 
 /**
- * Resource shape and factories.
+ * Resource shape types and operations.
  *
- * Defines {@link ResourceShape} and the factories declaring the structure a linked data resource is expected to
- * carry: {@link resource} for the shape itself, {@link id} and {@link type} for the members naming a resource,
- * {@link required}, {@link optional}, {@link nonempty} and {@link multiple} for the members carrying its values, and
- * {@link property} for the cardinalities those four do not name.
+ * Defines the shapes describing linked data resources and the members they carry, and provides the factories stating
+ * them and the accessors reading them. The {@link resource} factory states a shape, extending the shapes it is given
+ * and closed over the members declared for it; the member factories give each member the shape its values are drawn
+ * from and how many of them a resource may carry.
  *
  * > [!IMPORTANT]
  * > Resource shapes are **closed**: a validated resource carries only the members the shape declares, and any other
@@ -30,7 +30,7 @@
  * > Every IRI a validated resource carries is absolute. Relative references are resolved against a base as client
  * > input is decoded, before validation sees them.
  *
- * **Defining Resource Shapes**
+ * **Defining resource shapes**
  *
  * Give each member a range and a cardinality:
  *
@@ -74,7 +74,7 @@
  * });
  * ```
  *
- * **Linked and Embedded Resources**
+ * **Linked and embedded resources**
  *
  * A member reaches another resource in one of two ways. A {@link reference!reference | reference} links a
  * **standalone** resource, identified and managed in its own right; a resource shape included directly describes an
@@ -136,6 +136,13 @@
  * {@link union!union | union}-valued member is refined by dropping alternatives and tightening the ones it keeps,
  * never by adding new ones.
  *
+ * **Reading a resource off a shape**
+ *
+ * {@link getShapeClass} and {@link getShapeClasses} resolve the classes the resources a shape describes belong to,
+ * {@link getShapeId} and {@link getShapeType} the names their identifier and class are stated under, and
+ * {@link getShapeProperties} the members they carry. Each resolves a deferred shape and crosses a link through to the
+ * resource behind it, answering with nothing where the shape reaches no resource at all.
+ *
  * @module
  *
  * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
@@ -154,8 +161,8 @@ export {
 	getShapeClass,
 	getShapeClasses,
 	getShapeId,
-	getShapeProperties,
-	getShapeType
+	getShapeType,
+	getShapeProperties
 } from "./accessors.js";
 
 
@@ -164,13 +171,13 @@ export {
  *
  * Admits the [resources](https://www.w3.org/TR/rdf11-concepts/) a store holds: a record carrying the members the
  * shape declares, and nothing else, so that what a resource may state is fixed by the shape rather than left to
- * whoever writes it. A shape extends the shapes it lists as {@link parents}, carrying their members and constraints
- * on top of its own.
+ * whoever writes it. A shape extends the shapes it lists as `parents`, carrying their members and constraints on top
+ * of its own.
  *
  * **Inheritance**
  *
- * Where a shape extends the ones it lists as {@link parents}, they are merged according to the following rules. The
- * *child* is the extending shape; the *parent* is the inherited one.
+ * Where a shape extends the ones it lists as `parents`, they are merged according to the following rules. The *child*
+ * is the extending shape; the *parent* is the inherited one.
  *
  * | Field         | Override Rule                                                                       |
  * | ------------- | ------------------------------------------------------------------------------------ |
@@ -187,7 +194,7 @@ export {
  * | `members`     | Declared members merged over inherited ones, each narrowing the one it overrides     |
  * | `validators`  | Union of the checks stated and the ones inherited; every check applies               |
  *
- * **Cross-Field Validation**
+ * **Cross-field validation**
  *
  * - all merged `hasValue` entries must be members of the merged `in` set (if defined)
  * - at most one `id` member and one `type` member, counted after inheritance
@@ -310,7 +317,7 @@ export type ResourceConstraints = {
 	 *
 	 * Property names without explicit IRI mappings are resolved relative to this space.
 	 *
-	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
+	 * **Inheritance** — inherited; extended shapes disagreeing without an override are reported as an error.
 	 *
 	 * @defaultValue the {@link @metreeca/core!app | app} namespace (`app:/#`)
 	 */
@@ -319,10 +326,11 @@ export type ResourceConstraints = {
 	/**
 	 * Target class for resource instances.
 	 *
-	 * The absolute IRI identifying the primary class that resource instances must belong to. Shape-specific and not
-	 * inherited. If defined, this value is exposed through the property mapped to `@type` using {@link type}.
+	 * The absolute IRI naming the primary class a resource belongs to, stated by each shape in its own right. Where the
+	 * shape declares a {@link type} member, the class is the value that member carries; the classes inherited on top of
+	 * it are read off `classes`.
 	 *
-	 * **Inheritance** — shape-specific target class; outside inheritance scope.
+	 * **Inheritance** — always from the child; outside inheritance scope.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#targetClass SHACL § 2.1.3.2 sh:targetClass}
 	 */
@@ -359,7 +367,7 @@ export type ResourceConstraints = {
 	 * When specified, resource identifiers must be members of this list. IRIs must be absolute. Empty arrays are
 	 * ignored.
 	 *
-	 * **Inheritance** — intersection of parent and child sets; empty result is reported as an error.
+	 * **Inheritance** — child may only drop allowed identifiers.
 	 *
 	 * @defaultValue `undefined` (no enumeration constraint)
 	 *
@@ -372,7 +380,7 @@ export type ResourceConstraints = {
 	 *
 	 * When specified, all listed resource identifiers must appear. IRIs must be absolute. Empty arrays are ignored.
 	 *
-	 * **Inheritance** — union of parent and child required values; child must require all parent values.
+	 * **Inheritance** — child may only add required identifiers.
 	 *
 	 * @defaultValue `undefined` (no required values)
 	 *
@@ -385,9 +393,9 @@ export type ResourceConstraints = {
 	 * Checks a resource must pass on top of the ones the shape states.
 	 *
 	 * Carries the constraints a shape cannot state declaratively: each is handed the whole resource and reports what
-	 * it finds as a {@link Trace}, or `undefined` where the resource passes. Every check runs, so a resource is told
-	 * everything that is wrong with it at once rather than one thing at a time, and each trace is keyed by the name of
-	 * the check reporting it.
+	 * it finds as a {@link @metreeca/core!Trace | Trace}, or `undefined` where the resource passes. Every check runs, so
+	 * a resource is told everything that is wrong with it at once rather than one thing at a time, and each trace is
+	 * keyed by the name of the check reporting it.
 	 *
 	 * **Inheritance** — union of the checks stated and the ones inherited; every check applies.
 	 *
@@ -483,8 +491,8 @@ export type Type = {
  *
  * **Inheritance**
  *
- * Where a shape extends the ones it lists as {@link ResourceShape.parents | parents}, members stated on both sides are
- * merged according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
+ * Where a shape extends the ones it lists as `parents`, members stated on both sides are merged according to the
+ * following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
  * | Field         | Override Rule                                    |
  * | ------------- | ------------------------------------------------ |
@@ -505,7 +513,7 @@ export type Type = {
  * A child overriding a {@link union!UnionShape | polymorphic} range narrows it to the single alternative it restricts,
  * restating no wrapper of its own; one restricting none, or several, is rejected as ambiguous.
  *
- * **Cross-Field Validation**
+ * **Cross-field validation**
  *
  * - the merged `minCount` must not exceed the merged `maxCount`, which each may narrow on its own and still cross
  *
@@ -543,9 +551,9 @@ export type PropertyConstraints = {
 	/**
 	 * Marks the property as owned by the resources in its range.
 	 *
-	 * A foreign property is read-only for the resource declaring it: retrieval templates may select it, but state
-	 * validation rejects it when submitted, because the link is written by the resources it points at rather than by
-	 * the one exposing it.
+	 * A foreign property is read-only for the resource declaring it: a retrieval template may ask for it, but a
+	 * submitted value stating it is rejected, as the link is written by the resources it points at rather than by the
+	 * one exposing it.
 	 *
 	 * > [!IMPORTANT]
 	 * > A foreign property is independent from a {@link reverse} mapping. A `reverse` mapping writes an actual inverse
@@ -566,7 +574,7 @@ export type PropertyConstraints = {
 	 *
 	 * > [!IMPORTANT]
 	 * > Captivity is independent from embedding. An embedded resource has no identity or lifecycle of its own (an `id`
-	 * > is rejected during state validation) and is always managed as part of the resource containing it; a captive
+	 * > is rejected as a value is validated) and is always managed as part of the resource containing it; a captive
 	 * > resource has both and may be managed on its own, but does not survive the resource declaring the property.
 	 *
 	 * **Inheritance** — cannot be overridden.
@@ -691,23 +699,44 @@ export type PropertyBounds = PropertyConstraints & {
  * @typeParam I The shapes extended, possibly deferred to break definition cycles
  * @typeParam M The members declared in the shape's own right
  *
- * @param args The shapes extended, the members declared, and optionally the shape
- *     {@link ResourceConstraints constraints}
+ * @param args The shapes extended, followed by the members declared
  *
- * @returns An immutable shape admitting the resources the members and constraints bound
+ * @returns An immutable shape admitting the resources the members bound
  *
- * @throws {TraceError} Where a member fails to narrow the one it overrides, the extended shapes disagree on an
- *     inherited constraint, or the merged shape states two identifiers, two types, or two members mapping to the same
- *     predicate
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a member fails to narrow the one it overrides, the
+ *     extended shapes disagree on an inherited constraint, or the merged shape states two identifiers, two types, or
+ *     two members mapping to the same predicate
  */
 export function resource<I extends Parents, M extends Members>(
 	...args: [...inheritance: I, members: M]
 ): ResourceShape<I, M>
 
+/**
+ * Creates a resource shape stating shape-level constraints.
+ *
+ * Extends the shapes given ahead of the members, as {@link resource | the members-only form} does, and holds every
+ * resource to the {@link ResourceConstraints constraints} stated last: what it is called, the class it belongs to, the
+ * space its members resolve their predicates against, and the identifiers it may be named by.
+ *
+ * @typeParam I The shapes extended, possibly deferred to break definition cycles
+ * @typeParam M The members declared in the shape's own right
+ *
+ * @param args The shapes extended, followed by the members declared and the shape
+ *     {@link ResourceConstraints constraints}
+ *
+ * @returns An immutable shape admitting the resources the members and constraints bound
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a member fails to narrow the one it overrides, the
+ *     extended shapes disagree on an inherited constraint, or the merged shape states two identifiers, two types, or
+ *     two members mapping to the same predicate
+ */
 export function resource<I extends Parents, M extends Members>(
 	...args: [...inheritance: I, members: M, constraints: ResourceConstraints]
 ): ResourceShape<I, M>
 
+/**
+ * Creates resource shapes.
+ */
 export function resource(...args: readonly unknown[]): ResourceShape {
 
 	return assemble(args);
@@ -845,9 +874,8 @@ export function required<
 /**
  * Creates a member carrying a stated number of values.
  *
- * Reads the cardinality off the {@link PropertyBounds.minCount | minCount} and
- * {@link PropertyBounds.maxCount | maxCount} the constraints state, for the bounds the four named factories leave
- * uncovered; a bound left unstated leaves that end unbounded.
+ * Reads the cardinality off the `minCount` and `maxCount` the {@link PropertyBounds | constraints} state, for the
+ * bounds the four named factories leave uncovered; a bound left unstated leaves that end unbounded.
  *
  * @typeParam R The shape the values are drawn from
  * @typeParam C The stated constraints and cardinality bounds

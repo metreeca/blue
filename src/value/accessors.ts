@@ -103,7 +103,8 @@ const shapes = new WeakMap<() => Shape, null | Shape>();
  *
  * @returns The shape `shape` states, merged where it describes a resource
  *
- * @throws {TraceError} Where a deferred definition reaches itself, leaving the shape it states undefined
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, leaving the
+ *     shape it states undefined
  */
 export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
 
@@ -193,7 +194,8 @@ export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
  *     `"multiple aggregate transforms"` where the pipe combines values more than once, or
  *     `"incompatible transform input"` where no alternative survives the transforms
  *
- * @throws {TraceError} Where a deferred definition reaches itself, leaving the shape it states undefined
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, leaving the
+ *     shape it states undefined
  * @throws {@link !TypeError TypeError} Where `probe` is not a well-formed probe
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}

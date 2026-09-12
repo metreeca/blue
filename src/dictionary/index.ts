@@ -15,14 +15,17 @@
  */
 
 /**
- * Dictionary shape and factories.
+ * Dictionary shape types and operations.
  *
- * Defines shapes and factories for validating language-tagged string values, mapping
+ * Defines the shape describing localised text, stated once per language, together with its constraint types, and
+ * provides the {@link dictionary} factory stating them, mapping
  * [JSON-LD language maps](https://www.w3.org/TR/json-ld11/#language-maps) to
- * [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string) language-tagged strings.
+ * [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string) language-tagged strings. A property
+ * whose value varies by language takes one member rather than one per language.
  *
- * > Factories validate constraint consistency at construction time:
- * > contradictory constraints like `minLength > maxLength` throw a `TraceError`.
+ * > [!IMPORTANT]
+ * > Contradictory constraints are rejected as the shape is built, so a shape that exists admits at least one value:
+ * > stating `minLength` above `maxLength` throws a {@link @metreeca/core!TraceError | TraceError}.
  *
  * How many strings a tag carries is fixed by {@link DictionaryConstraints.uniqueLang | uniqueLang}: a unique-tagged
  * shape gives every tag a single string, and any other gives every tag an array.
@@ -38,7 +41,7 @@
  * | -------------------- | ---------------------------------- | ------------------------------- |
  * | tag-keyed string map | `@language`-container language map | language-tagged string literals |
  *
- * **Defining Language-Tagged Shapes**
+ * **Defining language-tagged shapes**
  *
  * Values are tag-keyed maps; the [`und`](https://iso639-3.sil.org/code/und) tag carries content of undetermined
  * language (a proper name, say), and the [`zxx`](https://iso639-3.sil.org/code/zxx) tag content with no language at
@@ -53,7 +56,7 @@
  * const abstract = dictionary({ languageIn: ["en", "it"] });// language-restricted
  * ```
  *
- * **Using in Resource Shapes**
+ * **Using in resource shapes**
  *
  * ```typescript
  * import { multiple, optional, required, resource } from '@metreeca/blue/resource';
@@ -90,8 +93,8 @@ import { assemble } from "./assembler.js";
  *
  * How many strings a tag carries is fixed by {@link DictionaryConstraints.uniqueLang | uniqueLang}: a unique-tagged
  * shape gives every tag a single string, and any other gives every tag an array. The map is a structured value in its
- * own right, as a resource is, so the bounds of the enclosing {@link _!Range} count the maps a member carries rather
- * than the strings a tag holds.
+ * own right, as a resource is, so the bounds of the enclosing {@link value!Range} count the maps a member carries
+ * rather than the strings a tag holds.
  *
  * **Negotiation**
  *
@@ -103,9 +106,8 @@ import { assemble } from "./assembler.js";
  *
  * **Inheritance**
  *
- * Where a {@link resource!ResourceShape} extends the shapes it lists as {@link resource!ResourceShape.parents |
- * parents}, localised members are merged according to the following rules. The *child* is the extending shape; the
- * *parent* is the inherited one.
+ * Where a {@link resource!ResourceShape} extends the shapes it lists as `parents`, localised members are merged
+ * according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
  * | Field        | Override Rule                                                               |
  * | ------------ | --------------------------------------------------------------------------- |
@@ -115,7 +117,7 @@ import { assemble } from "./assembler.js";
  * | `languageIn` | Child may only drop accepted ranges                                          |
  * | `uniqueLang` | Child may add but not drop; an inherited constraint always carries through  |
  *
- * **Cross-Field Validation**
+ * **Cross-field validation**
  *
  * - merged `minLength` must be ≤ merged `maxLength`
  *
@@ -142,8 +144,8 @@ export type DictionaryConstraints = {
 	 * Restricts every tag to a single string.
 	 *
 	 * When `true`, a tag carries a single string, so that a member stating several values spreads them across languages
-	 * rather than stacking them under one. Fixes the arity the content is resolved at, as {@link Tagged} reads it: a
-	 * bare string under every tag where the constraint is stated, an array of strings under every tag otherwise.
+	 * rather than stacking them under one. Fixes the arity the content is resolved at: a bare string under every tag
+	 * where the constraint is stated, an array of strings under every tag otherwise.
 	 *
 	 * **Inheritance** — a child may add the constraint but not drop it: overriding a unique-tagged parent with a
 	 * non-unique-tagged child is rejected.
@@ -199,7 +201,7 @@ export type DictionaryConstraints = {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Assembles a localised textual shape.
+ * Assembles a dictionary shape.
  *
  * Contradictory constraints are rejected as the shape is built, so a shape that exists admits at least one value.
  *
@@ -210,7 +212,7 @@ export type DictionaryConstraints = {
  * @returns An immutable shape admitting the language maps the constraints bound, carrying a single string per tag where
  *     they state {@link DictionaryConstraints.uniqueLang | uniqueLang}
  *
- * @throws {TraceError} Where the stated constraints contradict one another
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  *
  * @example
  *

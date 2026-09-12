@@ -1,27 +1,34 @@
 ---
 title: Unions — Design
 summary: Driving CRUD from union shapes, matched as sh:xone on write and sh:or on read
+description: How Blue matches a value, a relational bound and a retrieval placeholder against the branches of a union.
 ---
 
 # Abstract
 
 Blue models a union as a set of branches and drives full CRUD from it, not validation alone.
 
-Matching a union runs in two regimes, distinguished by which SHACL logical constraint governs: **`sh:xone`** (exactly
-one) for **state** on persistence, **`sh:or`** (at least one) for **model** on retrieval. Both regimes require at least
-one match; they differ only in whether more than one is allowed, and in the constraints the match is tested against.
+Matching a union runs in three regimes, named by the `state | bound | model` strictness a caller selects and
+distinguished by which SHACL logical constraint governs: **`sh:xone`** (exactly one) for a **state** value and for a
+**bound**, **`sh:or`** (at least one) for a **model** placeholder. Every regime requires at least one match; they
+differ in whether more than one is allowed, and in the constraints the match is tested against.
 
 A **state** value carries content and MUST match **exactly one** branch (`sh:xone`), tested against **all** shape
 constraints: it is a legal value, and the single branch it singles out fixes the predicates and class that drive the
 storage operation.
 
+A **bound** is a relational operand (`<`, `>`, `<=`, `>=`) and MUST likewise match **exactly one** branch, but it is
+not a legal element value: it skips the value-domain constraints and keys on the syntactic discriminators (`kind`, and
+`pattern` where literal branches share a kind) alone, so it requires the union's literal branches to be literally
+disjoint.
+
 A **model** placeholder carries no content and MUST match **at least one** branch (`sh:or`), tested **by kind alone**
 and ignoring every other constraint: its value is immaterial and need not be legal, and it MAY match several branches,
 retrieving each while discriminating nothing on its own.
 
-Both regimes reject a value matching **no** branch as **unsatisfiable**; only a state value matching several is
-rejected, as **ambiguous**. Deletion stands outside the rule, carrying no value to match and clearing every branch at
-once.
+Every regime rejects a value matching **no** branch as **unsatisfiable**; only a regime required to single out a branch
+rejects one matching several, as **ambiguous**. Deletion stands outside the rule, carrying no value to match and
+clearing every branch at once.
 
 The same rule carries through path traversal: when a query path crosses several union-valued members, their branches
 collapse into a single combined set, and the caller's input is matched against that set under the regime that applies.
@@ -61,10 +68,10 @@ traversal.
 
 # Solution
 
-A union declares a set of branches, matched as `sh:xone` for state and `sh:or` for retrieval. Matching is data-driven
-and always runs against caller-supplied input, but the rule depends on whether that input carries content. Matching only
-fixes which branch drives the operation; coercing the matched value and carrying out the operation itself belong to the
-downstream processor.
+A union declares a set of branches, matched as `sh:xone` where the input must commit to one branch and as `sh:or` where
+it need not. Matching is data-driven and always runs against caller-supplied input, but the rule depends on whether that
+input carries content and on whether that content is a legal element value. Matching only fixes which branch drives the
+operation; coercing the matched value and carrying out the operation itself belong to the downstream processor.
 
 ## State — exactly one branch, by value (`sh:xone`)
 
