@@ -54,13 +54,13 @@ import {
 	type Template
 } from "@metreeca/qest/template";
 import type { DictionaryShape } from "../dictionary/index.js";
-import { eager, effective } from "../value/accessors.js";
+import { eager, effective } from "../value/index.js";
 import type { Scope } from "../value/validator.js";
 import { validateShape } from "../value/validator.js";
 import type { Range, Shape } from "../value/index.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { Property, ResourceShape } from "./index.js";
-import { getShapeBranches } from "../union/accessors.js";
+import { getShapeBranches } from "../union/index.js";
 import { checkId } from "./assembler.js";
 import { getShapeId } from "./accessors.js";
 import { match } from "../value/validator.js";
@@ -282,7 +282,10 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  * standing for a link, or a nested template standing for the resource behind it. A member admitting several is asked
  * for as a collection: the template for one of them, optionally followed by the selection filtering, ordering and
  * paging the set. A polymorphic member is asked for one branch at a time, under the index of the branch. A localised
- * member is asked for as a map of the tags wanted, or as the single value content negotiation settles on.
+ * member is asked for as a map of the tags wanted, each paired with the placeholder a matched tag comes back as, or as
+ * a plain placeholder standing for the text content negotiation settles on, at the arity a tag carries: a string where
+ * a tag carries one, a singleton tuple where it stacks several. Where a localised branch is one alternative among
+ * others, the map is taken within a projection column alone.
  *
  * **What a projection may ask for**
  *
@@ -407,8 +410,9 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	/**
 	 * Validates what a single-valued slot asks for.
 	 *
-	 * A localised branch is asked for as a tag map, which a projection column alone may reduce to the single value
-	 * content negotiation settles on.
+	 * A localised branch is asked for either as the tags wanted or as the text content negotiation settles on. Standing
+	 * as one alternative among others, it takes the tags within a projection column alone, where each branch is asked
+	 * for under a column of its own and a map has nowhere to sit among the values the other branches carry.
 	 */
 	function model(value: unknown, range: Range, depth: Optional<number>, local: boolean = false): Optional<Trace> {
 
@@ -416,7 +420,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		const [branch] = branches;
 
 		return branches.length > 1 ? indexed(value, branches, depth, local)
-			: branch.kind === "dictionary" ? locale(value, branch, local)
+			: branch.kind === "dictionary" ? locale(value, branch, true)
 				: placeholder(value, branch, depth);
 
 	}
@@ -436,7 +440,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		return all(...Object.entries(value).map(([index, asked]) => () => fold(
 
 			branches.some(branch => branch.kind === "dictionary"
-				? local && locale(asked, branch, local) === undefined
+				? locale(asked, branch, local) === undefined
 				: placeholder(asked, branch, depth) === undefined
 			) ? undefined : ["{branches} no branch admits the placeholder"],
 
@@ -450,23 +454,45 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	 * Validates what a localised slot asks for.
 	 *
 	 * The tags wanted are stated as the keys of a map, as language ranges rather than as the tags they match, each
-	 * paired with the placeholder fixing how many strings a matched tag carries. A projection column reduces the map
-	 * to that placeholder alone, standing for the single value content negotiation settles on.
+	 * paired with the placeholder fixing how many strings a matched tag carries. Stated as that placeholder alone,
+	 * without the map, the slot asks instead for the text content negotiation settles on, at the same arity: a string
+	 * where a tag carries one, a singleton tuple where it stacks several, a mismatch being refused either way.
+	 *
+	 * @param value The placeholder the slot states
+	 * @param shape The localised shape the slot reaches
+	 * @param structural Whether the tags may be wanted here, which they may not where the shape is one alternative
+	 *     among others outside a projection column
 	 */
-	function locale(value: unknown, shape: DictionaryShape, local: boolean): Optional<Trace> {
+	function locale(value: unknown, shape: DictionaryShape, structural: boolean): Optional<Trace> {
 
-		const stacked = shape.uniqueLang !== true;
+		return isObject(value) && !isArray(value)
 
-		if ( local && (stacked ? isArray(value, [isString]) : isString(value)) ) { return undefined; }
+			? structural ? tagged(value, shape) : ["expected <string> placeholder"]
 
-		if ( !isObject(value) ) { return ["expected <dictionary> value"]; }
+			: coalesced(value, shape);
+
+	}
+
+	/**
+	 * Validates the tags a localised slot wants, each paired with the placeholder a matched tag comes back as.
+	 */
+	function tagged(value: Record<string, unknown>, shape: DictionaryShape): Optional<Trace> {
 
 		return object(([range, asked]: readonly [string, unknown]) =>
 			!isTagRange(range) ? [{ [range]: ["invalid tag range"] }]
-				: stacked
-					? isArray(asked, [isString]) ? undefined : [{ [range]: ["expected singleton string tuple"] }]
-					: isString(asked) ? undefined : [{ [range]: ["expected string value"] }]
+				: fold(coalesced(asked, shape), trace => [{ [range]: trace }])
 		)(value);
+
+	}
+
+	/**
+	 * Validates the placeholder standing for the text content negotiation settles on, at the arity a tag carries.
+	 */
+	function coalesced(value: unknown, { uniqueLang }: DictionaryShape): Optional<Trace> {
+
+		return uniqueLang === true
+			? isString(value) ? undefined : ["expected string value"]
+			: isArray(value, [isString]) ? undefined : ["expected singleton string tuple"];
 
 	}
 
@@ -925,8 +951,10 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
  * rejected, as the caller has no place to put it.
  *
  * A member reaching a resource comes back either as the identifier naming it or as the resource itself, and is held
- * to whatever the nested template asked for; a localised member comes back in the form its template requested, as the
- * content negotiation settled on, as the tags it named, or as the whole map.
+ * to whatever the nested template asked for. A localised member comes back in the form its template asked for: the map
+ * it named tags under, whole and never in an array, or, where it asked with a plain placeholder, the text content
+ * negotiation settled on, at the arity a tag carries and held to the lengths the shape states rather than to the
+ * bounds counting the values of the other alternatives.
  *
  * @param values The retrieved resources to validate
  * @param opts Validation options
@@ -1022,6 +1050,17 @@ export function validateResult(values: readonly unknown[], {
 
 		}
 
+		// a localised member asked for by a plain placeholder comes back as the text negotiation settled on rather
+		// than as the map, at the arity a tag carries
+
+		const negotiated = branches
+			.flatMap(branch => branch.kind === "dictionary" ? [branch] : [])
+			.find(branch => plain(requested, branch));
+
+		if ( negotiated !== undefined ) {
+			return text(present, negotiated);
+		}
+
 		// a localised member comes back as it is carried: one map, whole and never in an array, whatever bounds it
 		// states of the other values, and the bounds count those other values alone
 
@@ -1042,6 +1081,47 @@ export function validateResult(values: readonly unknown[], {
 		return arity
 			?? (whole ? validateShape(carried, eager(range)) : elements(carried, branches, requested))
 			?? (whole ? undefined : counts(carried.length, member));
+
+	}
+
+	/**
+	 * Reports whether a placeholder asked a localised shape for the text negotiation settles on.
+	 *
+	 * A plain placeholder stands for that text at the arity a tag carries, which is how a localised member is asked for
+	 * where the tags are not wanted; the tags are stated as a map instead.
+	 */
+	function plain(requested: unknown, { uniqueLang }: DictionaryShape): boolean {
+
+		return uniqueLang === true ? isString(requested) : isArray(requested, [isString]);
+
+	}
+
+	/**
+	 * Validates the text a localised member came back with, where a plain placeholder asked for it.
+	 *
+	 * Holds the text to the lengths the shape bounds; the language constraint is keyed on the tags it was negotiated
+	 * from, which it comes back without. Where a tag stacks several strings the text comes back as the array of them,
+	 * whose length is what that tag carried rather than what the member's bounds count, the map it stands for being
+	 * held apart from those values too.
+	 */
+	function text(value: unknown, shape: DictionaryShape): Optional<Trace> {
+
+		const { minLength, maxLength } = shape;
+
+		const bounded = (content: string) => all(
+			(minLength !== undefined && content.length < minLength)
+			&& fail([`{minLength} expected string length >= <${minLength}>`]),
+
+			(maxLength !== undefined && content.length > maxLength)
+			&& fail([`{maxLength} expected string length <= <${maxLength}>`])
+		)(undefined);
+
+		return shape.uniqueLang === true
+
+			? isString(value) ? bounded(value) : ["{kind} expected the negotiated text"]
+
+			: !isArray<string>(value, isString) ? ["{kind} expected an array of the negotiated text"]
+				: array(bounded)(value);
 
 	}
 

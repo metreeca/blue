@@ -1058,9 +1058,25 @@ describe("validateTemplate", () => {
 
 		});
 
-		it("refuses the negotiated placeholder outside a projection column", async () => {
+		it("asks for the text negotiation settles on, stated without the tags", async () => {
 
-			expect(validateTemplate([{ label: "" }], Product)).toBeDefined();
+			expect(validateTemplate([{ label: "" }], Product)).toBeUndefined();
+			expect(validateTemplate([{ notes: [""] }], Product)).toBeUndefined();
+
+		});
+
+		it("holds the text asked for to the arity a tag carries", async () => {
+
+			expect(validateTemplate([{ label: [""] }], Product)).toBeDefined();
+			expect(validateTemplate([{ notes: "" }], Product)).toBeDefined();
+
+		});
+
+		it("asks for the text of a member admitting several maps", async () => {
+
+			const shape = resource({ labels: multiple(dictionary({ uniqueLang: true })) });
+
+			expect(validateTemplate([{ labels: "" }], shape)).toBeUndefined();
 
 		});
 
@@ -1774,6 +1790,41 @@ describe("validateTemplate", () => {
 
 		});
 
+		describe("a localised alternative", () => {
+
+			// a localised alternative is reached as the text negotiation settles on, which sits among the values the
+			// other alternatives carry; the tags wanted, being a map, sit nowhere but in a column of their own
+
+			// the sibling alternative carries no text, so only the localised one admits a plain string placeholder
+
+			const branched = resource({
+				id: id(),
+				of: optional(union(integer(), dictionary({ uniqueLang: true }))),
+				items: multiple(reference(resource({
+					of: optional(union(integer(), dictionary({ uniqueLang: true })))
+				})))
+			});
+
+			it("is reached as the text negotiation settles on", async () => {
+
+				expect(validateTemplate([{ of: { "1": "" } }], branched)).toBeUndefined();
+
+			});
+
+			it("refuses the tags wanted outside a projection column", async () => {
+
+				expect(validateTemplate([{ of: { "1": { en: "" } } }], branched)).toBeDefined();
+
+			});
+
+			it("admits the tags wanted within a projection column", async () => {
+
+				expect(validateTemplate([{ items: [{ "of=of": { "1": { en: "" } } }] }], branched)).toBeUndefined();
+
+			});
+
+		});
+
 		it("refuses a collection stated as a branch map alone", async () => {
 
 			expect(validateTemplate([{ values: { "0": { name: "" } } }], shape)).toBeDefined();
@@ -2448,22 +2499,52 @@ describe("validateResult", () => {
 
 		});
 
-		it("admits the map whatever the placeholder asked for", async () => {
+		describe("asked for as the text negotiation settles on", async () => {
 
-			// the negotiated placeholder belongs to a projection column, so a slot brings the map back whether it
-			// was asked for by tag or as plain text
+			// a plain placeholder asks for the text a tag carries rather than the map, so the member comes back at
+			// that arity: a string where a tag carries one, an array where it stacks several
 
-			const shape = resource({ label: required(dictionary({ uniqueLang: true })) });
+			const unique = resource({ label: required(dictionary({ uniqueLang: true })) });
+			const stacked = resource({ labels: required(dictionary()) });
 
-			expect(validateResult([{ label: { en: "Widget" } }], { shape, model: { label: "" } })).toBeUndefined();
+			it("admits the text where a tag carries one", async () => {
 
-		});
+				expect(validateResult([{ label: "Widget" }], { shape: unique, model: { label: "" } }))
+					.toBeUndefined();
 
-		it("reports the negotiated text where the map was asked for", async () => {
+			});
 
-			const shape = resource({ label: required(dictionary({ uniqueLang: true })) });
+			it("admits the text where a tag stacks several", async () => {
 
-			expect(validateResult([{ label: "Widget" }], { shape, model: { label: "" } })).toBeDefined();
+				expect(validateResult([{ labels: ["Widget", "Gadget"] }], { shape: stacked, model: { labels: [""] } }))
+					.toBeUndefined();
+
+			});
+
+			it("reports the map where the text was asked for", async () => {
+
+				expect(validateResult([{ label: { en: "Widget" } }], { shape: unique, model: { label: "" } }))
+					.toBeDefined();
+
+			});
+
+			it("reports the text where the tags were asked for", async () => {
+
+				expect(validateResult([{ label: "Widget" }], { shape: unique, model: { label: { en: "" } } }))
+					.toBeDefined();
+
+			});
+
+			it("holds the text to the length the shape bounds", async () => {
+
+				const bounded = resource({ label: required(dictionary({ uniqueLang: true, minLength: 3 })) });
+
+				expect(validateResult([{ label: "Widget" }], { shape: bounded, model: { label: "" } }))
+					.toBeUndefined();
+
+				expect(validateResult([{ label: "W" }], { shape: bounded, model: { label: "" } })).toBeDefined();
+
+			});
 
 		});
 
