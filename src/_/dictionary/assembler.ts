@@ -32,7 +32,7 @@ import { type DictionaryConstraints, type DictionaryShape } from "./index.js";
 
 
 /**
- * Creates a localised textual shape.
+ * Assembles a localised textual shape.
  *
  * Backs the factory the {@link dictionary!} module exposes: contradictory constraints are rejected as the shape is
  * built, so that a shape that exists admits at least one value.
@@ -45,7 +45,7 @@ import { type DictionaryConstraints, type DictionaryShape } from "./index.js";
  *
  * @throws {TraceError} Where the stated constraints contradict one another
  */
-export function create<U extends undefined | boolean>(constraints: DictionaryConstraints): DictionaryShape & {
+export function assemble<U extends undefined | boolean>(constraints: DictionaryConstraints): DictionaryShape & {
 	readonly uniqueLang: U
 } {
 

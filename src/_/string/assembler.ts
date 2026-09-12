@@ -32,7 +32,7 @@ import { type StringConstraints, type StringShape } from "./index.js";
 
 
 /**
- * Creates a textual shape.
+ * Assembles a textual shape.
  *
  * Backs every factory the {@link string!} module exposes, fixing what they share: a stated `pattern` is normalised to
  * its source, so that a built shape carries the lexical constraint in the single form {@link StringShape} states, and
@@ -46,7 +46,7 @@ import { type StringConstraints, type StringShape } from "./index.js";
  *
  * @throws {TraceError} Where the stated constraints contradict one another
  */
-export function create<V extends string>(constraints: StringConstraints): StringShape<V> {
+export function assemble<V extends string>(constraints: StringConstraints): StringShape<V> {
 
 	const shape = immutable({
 
@@ -101,9 +101,6 @@ export function checkString(constraints: Partial<StringShape>): Optional<Trace> 
 	)(constraints);
 
 }
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Reports whether a textual shape narrows an inherited one.
@@ -170,9 +167,6 @@ export function narrowsString(target: StringShape, source: StringShape): Optiona
 
 }
 
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /**
  * Merges a textual shape with an inherited one.
  *
@@ -205,6 +199,8 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
 
 }
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Combines the constraints of an overriding shape with the inherited ones.

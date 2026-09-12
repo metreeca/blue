@@ -55,7 +55,7 @@
 
 import type { Lazy } from "@metreeca/core";
 import type { Shape } from "../value/index.js";
-import { create } from "./assembler.js";
+import { assemble } from "./assembler.js";
 
 export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } from "./accessors.js";
 
@@ -139,10 +139,10 @@ export type UnionBranches =
 	readonly Lazy<Shape>[]
 
 
-//// Factories ///////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Creates a union shape.
+ * Assembles a union shape.
  *
  * Alternatives are accepted as they are stated: a union that exists proves nothing about the distinguishability of its
  * branches, which is a {@link UnionShape | modelling contract} settled when a value is matched. An alternative that is
@@ -166,6 +166,6 @@ export type UnionBranches =
  */
 export function union<B extends readonly [Lazy<Shape>, ...Lazy<Shape>[]]>(...branches: B): UnionShape<B> {
 
-	return create<B>(branches);
+	return assemble<B>(branches);
 
 }

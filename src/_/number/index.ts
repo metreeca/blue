@@ -114,7 +114,7 @@ import { xsd } from "@metreeca/core/datatype";
 import { TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Legal } from "../value/inference.js";
-import { create } from "./assembler.js";
+import { assemble } from "./assembler.js";
 
 
 const ByteLimit = 2**7-1;
@@ -302,10 +302,10 @@ export type NumberRangeConstraints<V extends number = number> = {
 }
 
 
-//// Factories ///////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Creates a numeric shape.
+ * Assembles a numeric shape.
  *
  * Contradictory constraints are rejected as the shape is built, so a shape that exists admits at least one value.
  *
@@ -319,7 +319,7 @@ export type NumberRangeConstraints<V extends number = number> = {
  */
 export function number<const C extends NumberConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	return create<Legal<C, number>>({ ...constraints });
+	return assemble<Legal<C, number>>({ ...constraints });
 
 }
 
@@ -327,7 +327,7 @@ export function number<const C extends NumberConstraints = {}>(constraints?: C):
 //// Shorthands //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Creates a shape for 8-bit signed integer values.
+ * Assembles a shape for 8-bit signed integer values.
  *
  * Fixes the datatype to `xsd:byte`, marks the shape {@link NumberConstraints.integral | integral} and defaults the
  * range to `[-128, 127]`; supplied bounds override the defaults.
@@ -344,7 +344,7 @@ export function number<const C extends NumberConstraints = {}>(constraints?: C):
  */
 export function byte<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	return create<Legal<C, number>>({
+	return assemble<Legal<C, number>>({
 
 		datatype: xsd.byte,
 		integral: true,
@@ -359,7 +359,7 @@ export function byte<const C extends NumberRangeConstraints = {}>(constraints?: 
 }
 
 /**
- * Creates a shape for 16-bit signed integer values.
+ * Assembles a shape for 16-bit signed integer values.
  *
  * Fixes the datatype to `xsd:short`, marks the shape {@link NumberConstraints.integral | integral} and defaults the
  * range to `[-32768, 32767]`; supplied bounds override the defaults.
@@ -376,7 +376,7 @@ export function byte<const C extends NumberRangeConstraints = {}>(constraints?: 
  */
 export function short<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	return create<Legal<C, number>>({
+	return assemble<Legal<C, number>>({
 
 		datatype: xsd.short,
 		integral: true,
@@ -391,7 +391,7 @@ export function short<const C extends NumberRangeConstraints = {}>(constraints?:
 }
 
 /**
- * Creates a shape for 32-bit signed integer values.
+ * Assembles a shape for 32-bit signed integer values.
  *
  * Fixes the datatype to `xsd:int`, marks the shape {@link NumberConstraints.integral | integral} and defaults the
  * range to `[-2147483648, 2147483647]`; supplied bounds override the defaults.
@@ -408,7 +408,7 @@ export function short<const C extends NumberRangeConstraints = {}>(constraints?:
  */
 export function int<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	return create<Legal<C, number>>({
+	return assemble<Legal<C, number>>({
 
 		datatype: xsd.int,
 		integral: true,
@@ -423,7 +423,7 @@ export function int<const C extends NumberRangeConstraints = {}>(constraints?: C
 }
 
 /**
- * Creates a shape for 64-bit signed integer values.
+ * Assembles a shape for 64-bit signed integer values.
  *
  * Fixes the datatype to `xsd:long`, marks the shape {@link NumberConstraints.integral | integral} and defaults the
  * range to {@link Number.MIN_SAFE_INTEGER}…{@link Number.MAX_SAFE_INTEGER} (±2⁵³−1), narrower than the datatype's
@@ -442,7 +442,7 @@ export function int<const C extends NumberRangeConstraints = {}>(constraints?: C
  */
 export function long<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	return create<Legal<C, number>>({
+	return assemble<Legal<C, number>>({
 
 		datatype: xsd.long,
 		integral: true,
@@ -457,7 +457,7 @@ export function long<const C extends NumberRangeConstraints = {}>(constraints?: 
 }
 
 /**
- * Creates a shape for IEEE 754 single-precision floating-point values.
+ * Assembles a shape for IEEE 754 single-precision floating-point values.
  *
  * Fixes the datatype to `xsd:float` and defaults the range to the finite single-precision interval
  * `±(2 − 2⁻²³) × 2¹²⁷`; supplied bounds override the defaults.
@@ -474,7 +474,7 @@ export function long<const C extends NumberRangeConstraints = {}>(constraints?: 
  */
 export function float<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	return create<Legal<C, number>>({
+	return assemble<Legal<C, number>>({
 
 		datatype: xsd.float,
 
@@ -488,7 +488,7 @@ export function float<const C extends NumberRangeConstraints = {}>(constraints?:
 }
 
 /**
- * Creates a shape for IEEE 754 double-precision floating-point values.
+ * Assembles a shape for IEEE 754 double-precision floating-point values.
  *
  * Fixes the datatype to `xsd:double`.
  *
@@ -504,12 +504,12 @@ export function float<const C extends NumberRangeConstraints = {}>(constraints?:
  */
 export function double<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	return create<Legal<C, number>>({ datatype: xsd.double, ...constraints });
+	return assemble<Legal<C, number>>({ datatype: xsd.double, ...constraints });
 
 }
 
 /**
- * Creates a shape for arbitrary-precision integer values.
+ * Assembles a shape for arbitrary-precision integer values.
  *
  * Fixes the datatype to `xsd:integer` and marks the shape {@link NumberConstraints.integral | integral}.
  *
@@ -525,12 +525,12 @@ export function double<const C extends NumberRangeConstraints = {}>(constraints?
  */
 export function integer<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	return create<Legal<C, number>>({ datatype: xsd.integer, integral: true, ...constraints });
+	return assemble<Legal<C, number>>({ datatype: xsd.integer, integral: true, ...constraints });
 
 }
 
 /**
- * Creates a shape for arbitrary-precision decimal values.
+ * Assembles a shape for arbitrary-precision decimal values.
  *
  * Fixes the datatype to `xsd:decimal`.
  *
@@ -546,6 +546,6 @@ export function integer<const C extends NumberRangeConstraints = {}>(constraints
  */
 export function decimal<const C extends NumberRangeConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
 
-	return create<Legal<C, number>>({ datatype: xsd.decimal, ...constraints });
+	return assemble<Legal<C, number>>({ datatype: xsd.decimal, ...constraints });
 
 }

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 /**
  * Union shape assembly.
  *
@@ -32,8 +31,9 @@ import { mergeShape, narrowsShape } from "../value/assembler.js";
 import { getShapeBranches } from "./accessors.js";
 import type { UnionBranches, UnionShape } from "./index.js";
 
+
 /**
- * Creates a union shape.
+ * Assembles a union shape.
  *
  * Backs the factory the {@link union!} module exposes. A branch that is itself a union is replaced by the alternatives
  * it holds, so that a union states a flat list of alternatives however it was assembled; any other branch is kept as
@@ -46,7 +46,7 @@ import type { UnionBranches, UnionShape } from "./index.js";
  *
  * @returns An immutable shape admitting the values any of the branches admits
  */
-export function create<B extends UnionBranches>(branches: B): UnionShape<B> {
+export function assemble<B extends UnionBranches>(branches: B): UnionShape<B> {
 
 	// a nested union is itself built here, so it is already flat and splicing one level keeps the branches flat
 
@@ -113,7 +113,7 @@ export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
 
 	// merged branches keep the inherited order; unclaimed inherited branches are dropped
 
-	return create(getShapeBranches(source).flatMap((inherited, index) => {
+	return assemble(getShapeBranches(source).flatMap((inherited, index) => {
 
 		const claimant = claimed.get(index);
 

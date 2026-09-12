@@ -64,7 +64,7 @@
  * @see {@link https://www.w3.org/TR/xmlschema-2/#boolean XSD 1.0 Part 2: Datatypes § 3.2.2 boolean}
  */
 
-import { create } from "./assembler.js";
+import { assemble } from "./assembler.js";
 
 
 /**
@@ -96,10 +96,10 @@ export type BooleanShape = {
 }
 
 
-//// Factories ///////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Creates a boolean shape.
+ * Assembles a boolean shape.
  *
  * Admits `true` and `false` and nothing else; the domain is closed by the kind alone, so the shape takes no
  * constraints and cannot be contradictory.
@@ -108,6 +108,6 @@ export type BooleanShape = {
  */
 export function boolean(): BooleanShape {
 
-	return create();
+	return assemble();
 
 }

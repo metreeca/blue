@@ -32,7 +32,7 @@ import type { ResourceShape } from "../resource/index.js";
 
 
 /**
- * Creates a reference shape.
+ * Assembles a reference shape.
  *
  * Backs the factory the {@link reference!} module exposes. The target is kept as it was stated, deferred or not, so
  * that a cycle among definitions is broken by whichever end defers.
@@ -43,7 +43,7 @@ import type { ResourceShape } from "../resource/index.js";
  *
  * @returns An immutable shape admitting the IRIs naming resources of the stated target shape
  */
-export function create<T extends Lazy<ResourceShape>>(target: T): ReferenceShape<T> {
+export function assemble<T extends Lazy<ResourceShape>>(target: T): ReferenceShape<T> {
 
 	return immutable({
 
@@ -119,6 +119,6 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 		throw new TraceError("incompatible reference shape override", trace);
 	}
 
-	return create(target.target);
+	return assemble(target.target);
 
 }

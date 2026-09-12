@@ -55,7 +55,7 @@
  */
 
 import type { Lazy } from "@metreeca/core";
-import { create } from "./assembler.js";
+import { assemble } from "./assembler.js";
 import type { ResourceShape } from "../resource/index.js";
 
 export { getShapeTarget } from "./accessors.js";
@@ -100,10 +100,10 @@ export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> 
 }
 
 
-//// Factories ///////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Creates a reference shape.
+ * Assembles a reference shape.
  *
  * @typeParam T The shape the reference points at
  *
@@ -122,6 +122,6 @@ export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> 
  */
 export function reference<T extends Lazy<ResourceShape>>(target: T): ReferenceShape<T> {
 
-	return create<T>(target);
+	return assemble<T>(target);
 
 }

@@ -74,7 +74,7 @@
 
 import type { TagRange } from "@metreeca/core/language";
 import { TraceError } from "@metreeca/core/trace";
-import { create } from "./assembler.js";
+import { assemble } from "./assembler.js";
 
 
 /**
@@ -196,10 +196,10 @@ export type DictionaryConstraints = {
 }
 
 
-//// Factories ///////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Creates a localised textual shape.
+ * Assembles a localised textual shape.
  *
  * Contradictory constraints are rejected as the shape is built, so a shape that exists admits at least one value.
  *
@@ -224,6 +224,6 @@ export function dictionary<const C extends DictionaryConstraints = {}>(constrain
 	readonly uniqueLang: C["uniqueLang"]
 } {
 
-	return create<C["uniqueLang"]>(constraints ?? {});
+	return assemble<C["uniqueLang"]>(constraints ?? {});
 
 }

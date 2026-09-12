@@ -31,14 +31,14 @@ import type { BooleanShape } from "./index.js";
 
 
 /**
- * Creates a boolean shape.
+ * Assembles a boolean shape.
  *
  * Backs the factory the {@link boolean!} module exposes. The shape takes no constraints, so there is nothing to check
  * and nothing that could make it contradictory.
  *
  * @returns An immutable shape admitting truth values
  */
-export function create(): BooleanShape {
+export function assemble(): BooleanShape {
 
 	return immutable({
 
@@ -76,6 +76,6 @@ export function narrowsBoolean(_target: BooleanShape, _source: BooleanShape): Op
  */
 export function mergeBoolean(_target: BooleanShape, _source: BooleanShape): BooleanShape {
 
-	return create();
+	return assemble();
 
 }

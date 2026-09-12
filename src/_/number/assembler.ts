@@ -33,7 +33,7 @@ import { type NumberConstraints, type NumberShape } from "./index.js";
 
 
 /**
- * Creates a numeric shape.
+ * Assembles a numeric shape.
  *
  * Backs every factory the {@link number!} module exposes, fixing what they share: contradictory constraints are
  * rejected as the shape is built, so that a shape that exists admits at least one value.
@@ -46,7 +46,7 @@ import { type NumberConstraints, type NumberShape } from "./index.js";
  *
  * @throws {TraceError} Where the stated constraints contradict one another
  */
-export function create<V extends number>(constraints: NumberConstraints): NumberShape<V> {
+export function assemble<V extends number>(constraints: NumberConstraints): NumberShape<V> {
 
 	const shape = immutable({
 

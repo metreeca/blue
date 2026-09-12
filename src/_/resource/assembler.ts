@@ -54,7 +54,7 @@ import type {
 	ResourceShape
 } from "./index.js";
 import { getShapeBranches } from "../union/accessors.js";
-import { create as createUnion } from "../union/assembler.js";
+import { assemble as assembleUnion } from "../union/assembler.js";
 import { getShapeId } from "./accessors.js";
 
 
@@ -65,45 +65,6 @@ const Flattened = Symbol("flattened");
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Declares a resource member.
- *
- * Backs the member factories the {@link resource!} module exposes, fixing what they share: the cardinality bounds are
- * checked as they are stated, and the member is frozen as it is declared, so that a shape carrying it states the same
- * member however many shapes it reaches.
- *
- * @typeParam M The member the calling factory states
- *
- * @param member The member to declare
- *
- * @returns An immutable member as stated
- *
- * @throws {@link !TypeError TypeError} Where the member states a negative bound, or bounds admitting no value at all
- */
-export function declare<M>(member: unknown): M {
-
-	if ( isObject(member) ) {
-
-		const { minCount, maxCount } = member;
-
-		if ( isNumber(minCount) && minCount < 0 ) {
-			throw new TypeError(`negative minCount <${minCount}>`);
-		}
-
-		if ( isNumber(maxCount) && maxCount < 0 ) {
-			throw new TypeError(`negative maxCount <${maxCount}>`);
-		}
-
-		if ( isNumber(minCount) && isNumber(maxCount) && minCount > maxCount ) {
-			throw new TypeError(`inconsistent bounds <${minCount}> > <${maxCount}>`);
-		}
-
-	}
-
-	return immutable(member) as M; // ;(cast) the factory signatures fix the member each one states
-
-}
 
 /**
  * Assembles a resource shape.
@@ -309,6 +270,45 @@ export function assemble(args: readonly unknown[]): ResourceShape {
 }
 
 /**
+ * Declares a resource member.
+ *
+ * Backs the member factories the {@link resource!} module exposes, fixing what they share: the cardinality bounds are
+ * checked as they are stated, and the member is frozen as it is declared, so that a shape carrying it states the same
+ * member however many shapes it reaches.
+ *
+ * @typeParam M The member the calling factory states
+ *
+ * @param member The member to declare
+ *
+ * @returns An immutable member as stated
+ *
+ * @throws {@link !TypeError TypeError} Where the member states a negative bound, or bounds admitting no value at all
+ */
+export function declare<M>(member: unknown): M {
+
+	if ( isObject(member) ) {
+
+		const { minCount, maxCount } = member;
+
+		if ( isNumber(minCount) && minCount < 0 ) {
+			throw new TypeError(`negative minCount <${minCount}>`);
+		}
+
+		if ( isNumber(maxCount) && maxCount < 0 ) {
+			throw new TypeError(`negative maxCount <${maxCount}>`);
+		}
+
+		if ( isNumber(minCount) && isNumber(maxCount) && minCount > maxCount ) {
+			throw new TypeError(`inconsistent bounds <${minCount}> > <${maxCount}>`);
+		}
+
+	}
+
+	return immutable(member) as M; // ;(cast) the factory signatures fix the member each one states
+
+}
+
+/**
  * Merges the inheritance chain of a resource shape into a single shape.
  *
  * Walks the shapes extended and merges each into the result, so that the shape a caller holds states every member and
@@ -398,7 +398,7 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 				// rebuilt through the factory, so the branches stay flat however descending reshapes them
 
-				return createUnion(range.branches.map(branch => descend(branch)));
+				return assembleUnion(range.branches.map(branch => descend(branch)));
 
 			default:
 
@@ -595,8 +595,6 @@ export function checkId(shape: ResourceShape): Optional<Trace> {
 }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /**
  * Reports whether a resource shape narrows an inherited one.
  *
@@ -736,8 +734,6 @@ export function narrowsProperty(target: Property, source: Property): Optional<Tr
 
 }
 
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Merges a resource shape with an inherited one.
