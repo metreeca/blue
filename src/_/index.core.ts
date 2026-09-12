@@ -174,6 +174,19 @@ export type Legal<C, D> =
  */
 export function narrowsShape(target: Shape, source: Shape): Optional<Trace> {
 
+	// a polymorphic inherited shape is narrowed to the single alternative the overriding one restricts, which thus
+	// restates no wrapper of its own
+
+	if ( source.kind === "union" && target.kind !== "union" ) {
+
+		const claimed = claims(target, source);
+
+		return claimed.length === 1 ? undefined
+			: claimed.length === 0 ? ["{branches} restricts no inherited branch"]
+				: ["{branches} restricts several inherited branches"];
+
+	}
+
 	// the kind guard is what makes each branch well-typed: it is reached only where both shapes share target.kind
 
 	return target.kind !== source.kind ? [`{kind} mismatched kinds <${target.kind}> vs <${source.kind}>`]
@@ -208,6 +221,12 @@ export function mergeShape(target: Shape, source: Shape): Shape {
 		throw new TraceError("incompatible shape override", trace);
 	}
 
+	// the single alternative an overriding shape restricts is the one it is merged with, the rest being dropped
+
+	if ( source.kind === "union" && target.kind !== "union" ) {
+		return mergeShape(target, claims(target, source)[0]);
+	}
+
 	// the kind guard above is what makes each branch well-typed: the kinds are known to match by here
 
 	return target.kind === "boolean" ? mergeBoolean(target, source as BooleanShape)
@@ -217,6 +236,20 @@ export function mergeShape(target: Shape, source: Shape): Shape {
 					: target.kind === "reference" ? mergeReference(target, source as ReferenceShape)
 						: target.kind === "union" ? mergeUnion(target, source as UnionShape)
 							: mergeResource(target, source as ResourceShape);
+
+}
+
+/**
+ * Resolves the alternatives of an inherited polymorphic shape an overriding shape restricts.
+ *
+ * @param target The overriding shape
+ * @param source The inherited polymorphic shape
+ *
+ * @returns The alternatives `target` narrows, in the order they were stated
+ */
+function claims(target: Shape, source: UnionShape): readonly Shape[] {
+
+	return getShapeBranches(source).filter(branch => narrowsShape(target, branch) === undefined);
 
 }
 

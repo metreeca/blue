@@ -511,6 +511,9 @@ export type Type = {
  * A bound left unstated leaves that end unbounded rather than unsaid, so a child stating none inherits the bound the
  * parent states.
  *
+ * A child overriding a {@link union!UnionShape | polymorphic} range narrows it to the single alternative it restricts,
+ * restating no wrapper of its own; one restricting none, or several, is rejected as ambiguous.
+ *
  * **Cross-Field Validation**
  *
  * - the merged `minCount` must not exceed the merged `maxCount`, which each may narrow on its own and still cross
@@ -862,6 +865,9 @@ export function required<
  * @param constraints Optional member {@link PropertyBounds constraints and bounds}
  *
  * @returns An immutable member admitting the stated number of values of `range`
+ *
+ * @throws {@link !TypeError TypeError} Where a bound is stated as a negative number, or the bounds cross, admitting no
+ *     value at all
  *
  * @example
  *

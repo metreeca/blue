@@ -50,6 +50,7 @@ import {
 	nonempty,
 	optional,
 	property,
+	type Property,
 	required,
 	resource,
 	type ResourceShape,
@@ -314,6 +315,25 @@ describe("factories", () => {
 
 			});
 
+			it("admits bounds admitting no value at all where they are equal", async () => {
+
+				expect(() => property(string(), { minCount: 0, maxCount: 0 })).not.toThrow();
+
+			});
+
+			it("rejects a bound stated as a negative number", async () => {
+
+				expect(() => property(string(), { minCount: -1 })).toThrow(TypeError);
+				expect(() => property(string(), { maxCount: -1 })).toThrow(TypeError);
+
+			});
+
+			it("rejects bounds admitting nothing at all", async () => {
+
+				expect(() => property(string(), { minCount: 3, maxCount: 2 })).toThrow(TypeError);
+
+			});
+
 		});
 
 		describe("id", () => {
@@ -562,10 +582,12 @@ describe("operators", () => {
 
 		});
 
-		it("rejects a child whose bounds leave the merged member admitting nothing", async () => {
+		it("rejects a member whose bounds leave the merged one admitting nothing", async () => {
 
-			const inherited = property(string(), { maxCount: 2 });
-			const declared = property(string(), { minCount: 3, maxCount: 2 });
+			// the factories refuse crossed bounds outright, so the check guards a member stated by other means
+
+			const inherited: Property = { kind: "property", minCount: undefined, maxCount: 2, shape: string() };
+			const declared: Property = { kind: "property", minCount: 3, maxCount: 2, shape: string() };
 
 			expect(narrowsProperty(declared, inherited))
 				.toContainEqual(expect.stringContaining("{minCount/maxCount}"));
@@ -795,6 +817,32 @@ describe("operators", () => {
 			const shape = resource(Base, { code: required(union(number())) });
 
 			expect(getProperty(shape, "code")?.shape).toMatchObject({ kind: "union" });
+
+		});
+
+		it("narrows an inherited union member to the single alternative it restricts", async () => {
+
+			const Base = resource({ code: required(union(string(), number())) });
+			const shape = resource(Base, { code: required(number({ minInclusive: 0 })) });
+
+			expect(getProperty(shape, "code")?.shape).toMatchObject({ kind: "number", minInclusive: 0 });
+
+		});
+
+		it("rejects a member restricting no alternative of an inherited union", async () => {
+
+			const Base = resource({ code: required(union(string(), number())) });
+
+			expect(() => resource(Base, { code: required(boolean()) })).toThrow(TraceError);
+
+		});
+
+		it("rejects a member restricting several alternatives of an inherited union", async () => {
+
+			const Base = resource({ code: required(union(string({ minLength: 1 }), string({ maxLength: 5 }))) });
+
+			expect(() => resource(Base, { code: required(string({ minLength: 2, maxLength: 4 })) }))
+				.toThrow(TraceError);
 
 		});
 
