@@ -1267,6 +1267,115 @@ describe("validators", () => {
 
 		});
 
+		describe("polymorphic members", () => {
+
+			const Target = resource({ id: id(), name: required(string()) });
+
+			const shape = resource({
+				value: optional(union(string(), integer())),
+				values: multiple(union(string(), integer())),
+				link: optional(union(integer(), reference(Target)))
+			});
+
+			it("admits a value one alternative admits", async () => {
+
+				expect(validateResource([{ value: "Widget" }], shape)).toBeUndefined();
+				expect(validateResource([{ value: 42 }], shape)).toBeUndefined();
+
+			});
+
+			it("reports a value no alternative admits", async () => {
+
+				expect(validateResource([{ value: true }], shape)).toBeDefined();
+
+			});
+
+			it("admits values drawn from different alternatives within one set", async () => {
+
+				expect(validateResource([{ values: ["Widget", 42] }], shape)).toBeUndefined();
+
+			});
+
+			it("admits a link among the alternatives", async () => {
+
+				expect(validateResource([{ link: "app:/vendors/1" }], shape)).toBeUndefined();
+
+			});
+
+			it("reports a value several alternatives admit, which settles on no branch", async () => {
+
+				const ambiguous = resource({ link: optional(union(string(), reference(Target))) });
+
+				expect(validateResource([{ link: "app:/vendors/1" }], ambiguous))
+					.toBeDefined();
+
+			});
+
+		});
+
+		describe("identifiers", () => {
+
+			it("holds an identifier to the pattern the shape states", async () => {
+
+				const shape = resource({ id: id() }, { pattern: "/products/{code}" });
+
+				expect(validateResource([{ id: "app:/products/1" }], shape)).toBeUndefined();
+				expect(validateResource([{ id: "app:/vendors/1" }], shape)).toBeDefined();
+
+			});
+
+			it("holds an identifier to the ones the shape enumerates", async () => {
+
+				const shape = resource({ id: id() }, { in: ["app:/products/1", "app:/products/2"] });
+
+				expect(validateResource([{ id: "app:/products/1" }], shape)).toBeUndefined();
+				expect(validateResource([{ id: "app:/products/3" }], shape)).toBeDefined();
+
+			});
+
+			it("reports an identifier stated as a set", async () => {
+
+				expect(validateResource([{ id: ["app:/products/1"] }], resource({ id: id() }))).toBeDefined();
+
+			});
+
+			it("reports an identifier that is no IRI", async () => {
+
+				expect(validateResource([{ id: "products/1" }], resource({ id: id() }))).toBeDefined();
+				expect(validateResource([{ id: 42 }], resource({ id: id() }))).toBeDefined();
+
+			});
+
+			it("admits a resource naming itself with nothing at all", async () => {
+
+				expect(validateResource([{}], resource({ id: id() }))).toBeUndefined();
+
+			});
+
+		});
+
+		describe("classes", () => {
+
+			it("holds a class to the one the shape declares", async () => {
+
+				const shape = resource({ kind: typed() }, { class: "app:/Product" });
+
+				expect(validateResource([{ kind: "app:/Product" }], shape)).toBeUndefined();
+				expect(validateResource([{ kind: "app:/Vendor" }], shape)).toBeDefined();
+
+			});
+
+			it("admits no class at all where the shape declares none", async () => {
+
+				const shape = resource({ kind: typed() });
+
+				expect(validateResource([{}], shape)).toBeUndefined();
+				expect(validateResource([{ kind: "app:/Product" }], shape)).toBeDefined();
+
+			});
+
+		});
+
 		describe("cardinality", () => {
 
 			it("reports a required member left out", async () => {
@@ -2950,6 +3059,244 @@ describe("validators", () => {
 
 				expect(validateTemplate([{ tags: ["", { "#": 0 }] }], Product)).toBeUndefined();
 				expect(validateTemplate([{ tags: ["", { "#": 1000 }] }], Product)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("polymorphic forms", () => {
+
+			const A = resource({ name: required(string()) });
+			const B = resource({ size: required(integer()) });
+
+			const shape = resource({
+				value: optional(union(A, B)),
+				values: multiple(union(A, B)),
+				literal: optional(union(string(), integer()))
+			});
+
+			it("refuses a placeholder stated plainly over alternatives", async () => {
+
+				expect(validateTemplate([{ literal: "" }], shape)).toBeDefined();
+				expect(validateTemplate([{ value: { name: "" } }], shape)).toBeDefined();
+
+			});
+
+			it("refuses a branch map keyed by anything but a branch index", async () => {
+
+				expect(validateTemplate([{ value: { a: { name: "" } } }], shape)).toBeDefined();
+				expect(validateTemplate([{ value: { "-1": { name: "" } } }], shape)).toBeDefined();
+
+			});
+
+			it("admits a branch map naming some alternatives alone", async () => {
+
+				expect(validateTemplate([{ value: { "0": { name: "" } } }], shape)).toBeUndefined();
+				expect(validateTemplate([{ value: { "1": { size: 0 } } }], shape)).toBeUndefined();
+
+			});
+
+			it("admits a branch map over plain alternatives", async () => {
+
+				expect(validateTemplate([{ literal: { "0": "", "1": 0 } }], shape)).toBeUndefined();
+
+			});
+
+			it("refuses a branch no alternative admits", async () => {
+
+				expect(validateTemplate([{ literal: { "0": true } }], shape)).toBeDefined();
+
+			});
+
+			it("refuses a collection stated as a branch map alone", async () => {
+
+				expect(validateTemplate([{ values: { "0": { name: "" } } }], shape)).toBeDefined();
+
+			});
+
+			it("refuses a single value stated as a collection", async () => {
+
+				expect(validateTemplate([{ value: [{ "0": { name: "" } }] }], shape)).toBeDefined();
+
+			});
+
+			it("searches every textual alternative at once", async () => {
+
+				const collection = resource({
+					items: multiple(reference(resource({ of: required(union(string(), integer())) })))
+				});
+
+				expect(validateTemplate([{ items: [{}, { "~of": "wid" }] }], collection)).toBeUndefined();
+
+			});
+
+			it("refuses a search where no alternative carries text", async () => {
+
+				const collection = resource({
+					items: multiple(reference(resource({ of: required(union(integer(), boolean())) })))
+				});
+
+				expect(validateTemplate([{ items: [{}, { "~of": "wid" }] }], collection)).toBeDefined();
+
+			});
+
+			it("singles out one alternative per bound", async () => {
+
+				const collection = resource({
+					items: multiple(reference(resource({ of: required(union(string(), integer())) })))
+				});
+
+				expect(validateTemplate([{ items: [{}, { ">=of": 1 }] }], collection)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { ">=of": true }] }], collection)).toBeDefined();
+
+			});
+
+			it("admits a link among the alternatives, asked for either way", async () => {
+
+				const collection = resource({
+					items: multiple(reference(resource({ of: required(union(string(), reference(Vendor))) })))
+				});
+
+				expect(validateTemplate([{ items: [{ of: { "0": "", "1": "app:/vendors/1" } }] }], collection))
+					.toBeUndefined();
+
+				expect(validateTemplate([{ items: [{ of: { "1": { name: "" } } }] }], collection)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("localised members", () => {
+
+			it("refuses a localised member asked for as a collection", async () => {
+
+				const shape = resource({ labels: multiple(dictionary({ uniqueLang: true })) });
+
+				expect(validateTemplate([{ labels: [{ en: "" }] }], shape)).toBeDefined();
+
+			});
+
+			it("refuses a selection operator among the tags wanted", async () => {
+
+				expect(validateTemplate([{ label: { en: "", "~": "wid" } }], Product)).toBeDefined();
+				expect(validateTemplate([{ label: { en: "", "#": 10 } }], Product)).toBeDefined();
+				expect(validateTemplate([{ label: { "^": "asc" } }], Product)).toBeDefined();
+
+			});
+
+			it("refuses a localised member asked for under a deep tag", async () => {
+
+				expect(validateTemplate([{ label: { "en-US-x-private": "" } }], Product)).toBeUndefined();
+				expect(validateTemplate([{ label: { "en_US": "" } }], Product)).toBeDefined();
+
+			});
+
+			it("reads the text of a localised member reached by a selection", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{}, { "~label": "wid" }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { ">=label": "wid" }] }], shape)).toBeUndefined();
+				expect(validateTemplate([{ items: [{}, { ">=label": 42 }] }], shape)).toBeDefined();
+
+			});
+
+			it("reads the text of a localised member reached across several steps", async () => {
+
+				const Inner = resource({ label: optional(dictionary({ uniqueLang: true })) });
+				const shape = resource({ items: multiple(reference(resource({ inner: required(reference(Inner)) }))) });
+
+				expect(validateTemplate([{ items: [{}, { "~inner.label": "wid" }] }], shape)).toBeUndefined();
+
+			});
+
+			it("refuses a transform text cannot be read through", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(validateTemplate([{ items: [{ "y=year:label": 0 }] }], shape)).toBeDefined();
+				expect(validateTemplate([{ items: [{ "n=length:label": 0 }] }], shape)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("what a slot may be stated as", () => {
+
+			it("refuses a collection stated as a tuple of more than two", async () => {
+
+				expect(validateTemplate([{ tags: ["", {}, {}] }], Product)).toBeDefined();
+
+			});
+
+			it("refuses a collection whose element is a collection in turn", async () => {
+
+				expect(validateTemplate([{ tags: [[""]] }], Product)).toBeDefined();
+
+			});
+
+			it("admits a slot asked for as nothing at all", async () => {
+
+				expect(validateTemplate([{ name: undefined, tags: undefined }], Product)).toBeUndefined();
+
+			});
+
+			it("admits a template asking for nothing at all", async () => {
+
+				expect(validateTemplate([{}], Product)).toBeUndefined();
+
+			});
+
+			it("keys a violation by the member it is asked under", async () => {
+
+				expect(at(validateTemplate([{ size: "" }], Product), "0", "size")).toBeDefined();
+
+			});
+
+			it("keys a violation within a collection by the position it is stated at", async () => {
+
+				expect(at(validateTemplate([{ tags: [0] }], Product), "0", "tags", "0")).toBeDefined();
+
+			});
+
+			it("keys a violation within a selection by the operator stating it", async () => {
+
+				const shape = resource({ items: multiple(reference(Product)) });
+
+				expect(at(validateTemplate([{ items: [{}, { "#": -1 }] }], shape), "0", "items", "#"))
+					.toBeDefined();
+
+			});
+
+			it("keys a violation by the identifier the template asked for", async () => {
+
+				const trace = validateTemplate([{ id: "app:/products/1", size: "" }], Product);
+
+				expect(at(trace, "<app:/products/1>", "size")).toBeDefined();
+
+			});
+
+		});
+
+		describe("inherited members", () => {
+
+			it("holds a template to what an extending shape carries", async () => {
+
+				const Base = resource({ name: required(string()) });
+				const shape = resource(Base, { size: optional(integer()) });
+
+				expect(validateTemplate([{ name: "", size: 0 }], shape)).toBeUndefined();
+				expect(validateTemplate([{ name: 0 }], shape)).toBeDefined();
+
+			});
+
+			it("holds a template to a member an extending shape tightened", async () => {
+
+				const Base = resource({ code: required(union(string(), integer())) });
+				const shape = resource(Base, { code: required(integer()) });
+
+				expect(validateTemplate([{ code: 0 }], shape)).toBeUndefined();
+				expect(validateTemplate([{ code: "" }], shape)).toBeDefined();
 
 			});
 

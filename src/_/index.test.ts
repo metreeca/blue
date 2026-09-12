@@ -1531,6 +1531,63 @@ describe("validate", () => {
 
 	});
 
+	describe("the page a retrieval template is held to", () => {
+
+		it("holds every collection a template asks for to the page served", async () => {
+
+			const Inner = resource({ id: id(), tags: multiple(string()) });
+			const shape = resource({ items: multiple(reference(Inner)) });
+
+			expect(value(validate({ items: [{ tags: [""] }] }, { shape, model: true, limit: 10 })))
+				.toEqual({ items: [{ tags: ["", { "#": 10 }] }, { "#": 10 }] });
+
+		});
+
+		it("holds a collection stated as a branch map to the page served", async () => {
+
+			const A = resource({ id: id(), name: required(string()) });
+			const B = resource({ id: id(), tags: multiple(string()) });
+			const shape = resource({ items: multiple(union(A, B)) });
+
+			expect(value(validate({ items: [{ "1": { tags: [""] } }] }, { shape, model: true, limit: 10 })))
+				.toEqual({ items: [{ "1": { tags: ["", { "#": 10 }] } }, { "#": 10 }] });
+
+		});
+
+		it("holds a collection asked for as a table to the page served", async () => {
+
+			const shape = resource({ items: multiple(reference(Product)) });
+
+			expect(value(validate({ items: [{ "n=name": "" }] }, { shape, model: true, limit: 10 })))
+				.toEqual({ items: [{ "n=name": "" }, { "#": 10 }] });
+
+		});
+
+		it("leaves a single value alone, which nothing pages", async () => {
+
+			expect(value(validate({ name: "", vendor: { name: "" } }, { shape: Product, model: true, limit: 10 })))
+				.toEqual({ name: "", vendor: { name: "" } });
+
+		});
+
+		it("leaves a localised value alone, which nothing pages", async () => {
+
+			const shape = resource({ label: optional(dictionary({ uniqueLang: true })) });
+
+			expect(value(validate({ label: { en: "" } }, { shape, model: true, limit: 10 })))
+				.toEqual({ label: { en: "" } });
+
+		});
+
+		it("leaves the template alone where the page is left to the caller", async () => {
+
+			expect(value(validate({ tags: [""] }, { shape: Product, model: true, limit: 0 })))
+				.toEqual({ tags: [""] });
+
+		});
+
+	});
+
 	describe("a retrieval template", () => {
 
 		it("hands back the template the shape can serve", async () => {
