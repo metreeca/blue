@@ -82,7 +82,6 @@ describe("union values", () => {
 
 });
 
-
 describe("union ranges", () => {
 
 	function target() {

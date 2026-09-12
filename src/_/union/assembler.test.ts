@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 import { TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
@@ -22,6 +21,7 @@ import { number } from "../number/index.js";
 import { string } from "../string/index.js";
 import { mergeUnion, narrowsUnion } from "./assembler.js";
 import { union } from "./index.js";
+
 
 describe("narrowsUnion", () => {
 

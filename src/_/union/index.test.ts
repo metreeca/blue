@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
 import { number } from "../number/index.js";

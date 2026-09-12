@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
 import { number } from "../number/index.js";
@@ -25,13 +24,13 @@ import { getBoundBranch, getModelBranches, getShapeBranches, getStateBranch } fr
 import { union } from "./index.js";
 
 
-
 /**
  * Builds a resource shape without the resource() factory, keeping the suite to the union module alone.
  */
 function target(constraints: ResourceConstraints = {}, ...parents: Parents): ResourceShape {
 	return resource(...parents, {}, constraints);
 }
+
 
 describe("getShapeBranches", () => {
 

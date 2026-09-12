@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 /**
  * Union alternative inference.
  *
@@ -27,6 +26,7 @@
 import type { Eager, Lazy } from "@metreeca/core";
 import type { Shape } from "../index.js";
 import type { UnionShape } from "./index.js";
+
 
 /**
  * Resolves the alternatives a union describes.

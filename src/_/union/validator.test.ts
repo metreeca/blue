@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 import { describe, expect, it } from "vitest";
 import { number } from "../number/index.js";
 import { string } from "../string/index.js";
