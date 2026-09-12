@@ -2892,6 +2892,35 @@ describe("validators", () => {
 
 			});
 
+			it("counts the resources a collection holds, naming no member", async () => {
+
+				expect(validateTemplate([{ items: [{ "n=count:": 0 }] }], shape)).toBeUndefined();
+
+			});
+
+			it("holds a column naming no member to the kind counting yields", async () => {
+
+				expect(validateTemplate([{ items: [{ "n=count:": "" }] }], shape)).toBeDefined();
+
+			});
+
+			it("refuses a column naming no member and combining nothing", async () => {
+
+				// the column reaches the resource itself, which a placeholder never stands for
+
+				expect(validateTemplate([{ items: [{ "value=": "" }] }], shape)).toBeDefined();
+
+			});
+
+			it("projects a collection of values as the values themselves, never as a table", async () => {
+
+				const literals = resource({ items: multiple(string()) });
+
+				expect(validateTemplate([{ items: [""] }], literals)).toBeUndefined();
+				expect(validateTemplate([{ items: [{ "value=": "" }] }], literals)).toBeDefined();
+
+			});
+
 			it("admits a template and a table under the same collection separately", async () => {
 
 				expect(validateTemplate([{ items: [{ name: "" }] }], shape)).toBeUndefined();
