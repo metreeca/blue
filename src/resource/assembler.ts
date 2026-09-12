@@ -628,6 +628,10 @@ export function checkId(shape: ResourceShape): Optional<Trace> {
  * `pattern` stays compatible, it adds no identifier the inherited shape omits, requires every identifier it requires,
  * and every member it redeclares keeps its kind and narrows the one it overrides.
  *
+ * The class a resource belongs to is settled apart, where a {@link value!Shape | shape} narrows another: a shape
+ * extending another is free to state a class of its own, while a shape standing in for another as a member range must
+ * belong to every class that one declares.
+ *
  * @param target The overriding shape
  * @param source The inherited shape
  *

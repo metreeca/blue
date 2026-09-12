@@ -20,6 +20,7 @@ import { boolean } from "../boolean/index.js";
 import { dictionary } from "../dictionary/index.js";
 import { eager } from "./accessors.js";
 import { integer } from "../number/index.js";
+import { required, resource } from "../resource/index.js";
 import { string } from "../string/index.js";
 import { union } from "../union/index.js";
 import { mergeShape, narrowsShape } from "./assembler.js";
@@ -85,6 +86,56 @@ describe("narrowsShape", () => {
 		it("reports a polymorphic shape over a plain inherited one", async () => {
 
 			expect(narrowsShape(union(string()), string())).toBeDefined();
+
+		});
+
+	});
+
+	describe("over an inherited resource", () => {
+
+		// a resource states the class it belongs to as a value, so a class the inherited shape declares binds every
+		// value the overriding shape admits; an inherited shape declaring none binds nothing
+
+		const Person = resource({ name: required(string()) }, { class: "https://schema.org/Person" });
+		const Place = resource({ name: required(string()) }, { class: "https://schema.org/Place" });
+
+		it("accepts a shape declaring the inherited class", async () => {
+
+			expect(narrowsShape(Person, Person)).toBeUndefined();
+
+		});
+
+		it("accepts a shape inheriting the class from one it extends", async () => {
+
+			const Employee = resource(Person, {}, { class: "https://schema.org/Employee" });
+
+			expect(narrowsShape(Employee, Person)).toBeUndefined();
+
+		});
+
+		it("reports a shape belonging to an unrelated class", async () => {
+
+			expect(narrowsShape(Place, Person)).toContainEqual(expect.stringContaining("{class}"));
+
+		});
+
+		it("reports a shape declaring no class at all", async () => {
+
+			expect(narrowsShape(resource({ name: required(string()) }), Person))
+				.toContainEqual(expect.stringContaining("{class}"));
+
+		});
+
+		it("accepts any shape where the inherited one declares no class", async () => {
+
+			expect(narrowsShape(Place, resource({ name: required(string()) }))).toBeUndefined();
+
+		});
+
+		it("reports a shape narrowing no alternative on its class alone", async () => {
+
+			expect(narrowsShape(Place, union(Person, integer())))
+				.toContainEqual(expect.stringContaining("{branches}"));
 
 		});
 

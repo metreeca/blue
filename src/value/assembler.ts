@@ -41,6 +41,7 @@ import type { StringShape } from "../string/index.js";
 import { getShapeBranches } from "../union/index.js";
 import { mergeUnion, narrowsUnion } from "../union/assembler.js";
 import type { UnionShape } from "../union/index.js";
+import type { Reference } from "@metreeca/qest/resource";
 import type { Shape } from "./index.js";
 
 
@@ -50,6 +51,11 @@ import type { Shape } from "./index.js";
  * Routes the pair to the operators of the kind they share, so that a caller holding two shapes tests the override
  * relation without knowing which kind it holds. Two shapes of different kinds never narrow one another, as an override
  * refines what a member admits and never retypes it.
+ *
+ * A resource carries the class it belongs to as part of its value, so every class the inherited shape declares binds
+ * the resources the overriding shape admits: the override belongs to each of them, whether it states the class in its
+ * own right or inherits it from a shape it extends. An inherited shape declaring no class states no such obligation
+ * and holds the override to its members alone.
  *
  * @param target The overriding shape
  * @param source The inherited shape
@@ -80,7 +86,39 @@ export function narrowsShape(target: Shape, source: Shape): Optional<Trace> {
 					: target.kind === "dictionary" ? narrowsDictionary(target, source as DictionaryShape)
 						: target.kind === "reference" ? narrowsReference(target, source as ReferenceShape)
 							: target.kind === "union" ? narrowsUnion(target, source as UnionShape)
-								: narrowsResource(target, source as ResourceShape);
+								: narrowsResourceValue(target, source as ResourceShape);
+
+}
+
+/**
+ * Reports whether a resource shape standing in for an inherited one narrows it.
+ *
+ * Holds the overriding shape to the classes the inherited one declares, on top of the member relation resource
+ * narrowing tests: a shape missing one from its lineage admits resources the inherited shape rejects, whatever its
+ * members state. The obligation is stated here rather than in resource narrowing, which serves an extending shape too,
+ * where a class of its own is exactly what a shape is expected to state.
+ *
+ * @param target The overriding shape
+ * @param source The inherited shape
+ *
+ * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
+ */
+function narrowsResourceValue(target: ResourceShape, source: ResourceShape): Optional<Trace> {
+
+	const missing = lineage(source).filter(iri => !lineage(target).includes(iri));
+
+	return missing.length > 0
+		? [`{class} missing inherited classes [${missing}]`]
+		: narrowsResource(target, source);
+
+
+	/**
+	 * Resolves the classes a resource shape belongs to: the one it states in its own right, where it states one,
+	 * followed by the ones it inherits.
+	 */
+	function lineage({ class: declared, classes }: ResourceShape): readonly Reference[] {
+		return [...declared === undefined ? [] : [declared], ...classes];
+	}
 
 }
 

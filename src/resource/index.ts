@@ -135,9 +135,10 @@
  * > inherits. An override tightens what it inherits and never relaxes it.
  *
  * A member reaching a resource is refined by re-pointing it at a shape extending the inherited target: the refinement
- * states what it adds alone, as the narrower target carries the inherited definition through its own parents. A
- * {@link union!union | union}-valued member is refined by dropping alternatives and tightening the ones it keeps,
- * never by adding new ones.
+ * states what it adds alone, as the narrower target carries the inherited definition through its own parents, the
+ * {@link ResourceConstraints.class | classes} it belongs to included, which every value the refined member admits is
+ * held to. A {@link union!union | union}-valued member is refined by dropping alternatives and tightening the ones it
+ * keeps, never by adding new ones.
  *
  * **Reading a resource off a shape**
  *
@@ -228,6 +229,9 @@ export type ResourceShape<
 	 * so that a caller may test a resource against a supertype without walking the inheritance chain itself. Each
 	 * extended shape contributes the class it states, followed by the ones it inherits in turn, in the order the
 	 * shapes are extended. A shape extending nothing that states a class is empty.
+	 *
+	 * Together with the class the shape states in its own right, this is the lineage a shape is held to where it stands
+	 * in for another as a member range.
 	 *
 	 * **Inheritance** — computed from the `class` of the shapes extended; never stated.
 	 *
@@ -333,6 +337,10 @@ export type ResourceConstraints = {
 	 * The absolute IRI naming the primary class a resource belongs to, stated by each shape in its own right. Where the
 	 * shape declares a {@link type} member, that member carries this class as its value; the classes inherited on top
 	 * of it are read off `classes`.
+	 *
+	 * A class is an obligation on the resources a shape describes, so a shape standing in for another as a member range
+	 * must belong to every class that one declares, whether stated in its own right or inherited: a shape merely
+	 * repeating the members of the one it stands in for is rejected.
 	 *
 	 * **Inheritance** — always from the child; not inherited.
 	 *
@@ -538,6 +546,10 @@ export type Type = {
  *
  * A bound left unstated leaves that end unbounded rather than unsaid, so a child stating none inherits the bound the
  * parent states.
+ *
+ * A child narrowing a {@link ResourceShape | resource} range states a shape belonging to every
+ * {@link ResourceConstraints.class | class} the inherited range declares, whether stated in its own right or
+ * inherited, so that a value of the narrowed member is a value of the inherited one, class included.
  *
  * A child overriding a {@link union!UnionShape | polymorphic} range narrows it to the single alternative it restricts,
  * restating no wrapper of its own; one restricting none, or several, is rejected as ambiguous.

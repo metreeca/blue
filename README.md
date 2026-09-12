@@ -208,8 +208,8 @@ const Vendor = resource(NamedThing, {
 
 A member holding a nested resource or a `reference(...)` is refined by re-pointing it at a shape that extends the
 inherited target. The refining shape declares only what it adds or narrows: it reaches the inherited definition through
-its own parents, so the parent definition is never restated. A target that doesn't extend the inherited one, the
-inherited target's own parent included, is rejected at the call site.
+its own parents, so the parent definition is never restated. A `reference(...)` target that doesn't extend the
+inherited one, the inherited target's own parent included, is rejected at the call site.
 
 ```ts
 const Organization = resource({
@@ -236,7 +236,8 @@ const ResearchUnit = resource(Unit, {
 ```
 
 Extending the inherited target is what makes the refinement legal for an embedded member: a nested resource value must
-carry every `class` the inherited target declares, so a standalone shape that merely repeats its members is rejected.
+belong to every `class` the inherited target declares, whether the refining shape states it in its own right or
+inherits it, so a standalone shape that merely repeats the inherited members is rejected.
 
 ### Narrowing Union Members
 
