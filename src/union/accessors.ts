@@ -23,8 +23,8 @@
  * @module
  */
 
-import { type Lazy } from "@metreeca/core";
-import { eager } from "../value/accessors.js";
+import { isObject, type Lazy } from "@metreeca/core";
+import { eager } from "../value/index.js";
 import { validateShape } from "../value/validator.js";
 import type { Shape } from "../value/index.js";
 
@@ -108,6 +108,9 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
  * not know which branch a value was stored on. A placeholder is matched by JSON type alone, its value immaterial, so
  * it may span several branches and retrieve each; only one fitting no branch at all is unsatisfiable.
  *
+ * A branch naming a resource is reached either way it may be asked for: by the identifier naming it, or by a nested
+ * template, which is matched against the resource the link points at rather than against the link itself.
+ *
  * @typeParam B The branch type, carried through from the branches supplied
  *
  * @param model The placeholder to route
@@ -119,7 +122,11 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
  */
 export function getModelBranches<B extends Shape>(model: unknown, branches: readonly B[]): undefined | readonly B[] {
 
-	const matched = branches.filter(branch => validateShape([model], branch, { scope: "model" }) === undefined);
+	const matched = branches.filter(branch => validateShape(
+		[model],
+		isObject(model) && branch.kind === "reference" ? eager(branch.target) : branch,
+		{ scope: "model" }
+	) === undefined);
 
 	return matched.length > 0 ? matched : undefined;
 

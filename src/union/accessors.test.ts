@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
 import { number } from "../number/index.js";
 import { reference } from "../reference/index.js";
-import { type Parents, resource, type ResourceConstraints, type ResourceShape } from "../resource/index.js";
+import { optional, type Parents, resource, type ResourceConstraints, type ResourceShape } from "../resource/index.js";
 import { string } from "../string/index.js";
 import { getBoundBranch, getModelBranches, getShapeBranches, getStateBranch } from "./accessors.js";
 import { union } from "./index.js";
@@ -171,6 +171,51 @@ describe("getModelBranches", () => {
 		const branches = [reference(target()), string()];
 
 		expect(getModelBranches("app:/vendors/1", branches)).toEqual(branches);
+
+	});
+
+	describe("a nested template", () => {
+
+		// a branch naming a resource is asked for either by the identifier naming it or by a template stating what
+		// to bring back, so a placeholder crossing the link is matched against the resource it points at
+
+		const Vendor = resource({ name: optional(string()) });
+
+		it("fits a reference branch through its target", async () => {
+
+			const link = reference(Vendor);
+
+			expect(getModelBranches({ name: "" }, [number(), link])).toEqual([link]);
+
+		});
+
+		it("fits an embedded resource branch", async () => {
+
+			expect(getModelBranches({ name: "" }, [number(), Vendor])).toEqual([Vendor]);
+
+		});
+
+		it("fits both a reference and an embedded resource branch", async () => {
+
+			const link = reference(Vendor);
+
+			expect(getModelBranches({ name: "" }, [link, Vendor])).toEqual([link, Vendor]);
+
+		});
+
+		it("fits nothing where no branch names a resource", async () => {
+
+			expect(getModelBranches({ name: "" }, [string(), number()])).toBeUndefined();
+
+		});
+
+		it("holds the template to the target shape", async () => {
+
+			const link = reference(Vendor);
+
+			expect(getModelBranches({ nope: "" }, [number(), link])).toBeUndefined();
+
+		});
 
 	});
 
