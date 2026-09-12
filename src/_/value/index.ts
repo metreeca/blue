@@ -18,12 +18,29 @@
  * Shapes and the values they describe.
  *
  * Gathers the shapes describing a plain value, a localised one, a link to a resource, a resource in its own right and
- * a value drawn from one of several alternatives into the one {@link Shape} a value is matched against, and derives
- * from a shape the type of the value it describes: {@link Instance} for a value as it is held and retrieved,
- * {@link Compound} for one as it is submitted, with the resources it holds captive inlined. {@link Range} states how
- * many values a set admits and the shape they are drawn from.
+ * a value drawn from one of several alternatives into the one {@link Shape} a value is matched against, so that a
+ * caller holding a shape needs not know which kind it holds.
+ *
+ * **How many values a set admits**
+ *
+ * {@link Range} states the shape a set draws its values from and how many of them it admits, describing the set a
+ * member declares and the set a path resolves to alike, so that either is read the same way. A range is not itself a
+ * shape: a shape says what a value may be, a range how many of them there are.
+ *
+ * **The value a shape describes**
+ *
+ * The type of a value is derived from the shape describing it, so that the two cannot drift: {@link Instance} for a
+ * value as it is held and retrieved, {@link Compound} for one as it is submitted, with the resources it holds captive
+ * inlined alongside their identifiers.
+ *
+ * ```typescript
+ * type Item = Instance<typeof Product>;   // { readonly id: Reference, readonly name: string, … }
+ * type Draft = Compound<typeof Product>;  // the same, with the identifier optional and captives inlined
+ * ```
  *
  * @module
+ *
+ * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  */
 
 import type { Eager, Lazy, Optional } from "@metreeca/core";

@@ -259,6 +259,19 @@ export type ResourceShape<
 export type ResourceConstraints = {
 
 	/**
+	 * Whether the resources a shape describes are computed rather than held.
+	 *
+	 * Tells a caller that a resource is at least partly derived on the way out, so that it is not expected to be found
+	 * as it stands in whatever holds the others.
+	 *
+	 * **Inheritance** — inherited; extended shapes disagreeing without an override are reported as an error.
+	 *
+	 * @defaultValue `undefined` (held as it stands)
+	 */
+	readonly virtual?: boolean;
+
+
+	/**
 	 * Human-readable name for the shape.
 	 *
 	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a plain
@@ -291,19 +304,6 @@ export type ResourceConstraints = {
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
 	 */
 	readonly description?: string | Dictionary;
-
-
-	/**
-	 * Whether the resources a shape describes are computed rather than held.
-	 *
-	 * Tells a caller that a resource is at least partly derived on the way out, so that it is not expected to be found
-	 * as it stands in whatever holds the others.
-	 *
-	 * **Inheritance** — inherited; extended shapes disagreeing without an override are reported as an error.
-	 *
-	 * @defaultValue `undefined` (held as it stands)
-	 */
-	readonly virtual?: boolean;
 
 	/**
 	 * Default space for converting property names to IRIs.

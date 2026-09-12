@@ -15,7 +15,10 @@
  */
 
 /**
- * Shared validation vocabulary.
+ * Retrieval policy enforcement.
+ *
+ * Holds a validated template to what the service will actually serve: {@link enforce} rewrites the template where a
+ * policy requires it and leaves it as it stands everywhere else.
  *
  * @module
  */
