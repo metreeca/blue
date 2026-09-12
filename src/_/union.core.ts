@@ -208,8 +208,8 @@ export function getShapeVariants(shape: Lazy<Shape>): readonly ValuesShape[] {
  *
  * @returns The sole variant the value fits, or `undefined` when it fits none (unsatisfiable) or several (ambiguous)
  *
- * @see [Unions — Design § State](./union.md#state-exactly-one-branch-by-value-)
- * @see [Unions — Design § Selection operands](./union.md#selection-operands-and-text-search)
+ * @see [Unions — Design § State](../union/index.md#state-exactly-one-branch-by-value-)
+ * @see [Unions — Design § Selection operands](../union/index.md#selection-operands-and-text-search)
  * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.6.4 sh:xone}
  */
 export function getStateVariant<V extends ValuesShape>(
@@ -247,7 +247,7 @@ export function getStateVariant<V extends ValuesShape>(
  *
  * @returns The sole variant the bound fits, or `undefined` when it fits none (unsatisfiable) or several (ambiguous)
  *
- * @see [Unions — Design § Selection operands](./union.md#selection-operands-and-text-search)
+ * @see [Unions — Design § Selection operands](../union/index.md#selection-operands-and-text-search)
  * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.6.4 sh:xone}
  */
 export function getBoundVariant<V extends ValuesShape>(
@@ -279,7 +279,7 @@ export function getBoundVariant<V extends ValuesShape>(
  *
  * @returns Every variant the model fits, or `undefined` when it fits none (unsatisfiable)
  *
- * @see [Unions — Design § Model](./union.md#model-at-least-one-branch-by-kind-)
+ * @see [Unions — Design § Model](../union/index.md#model-at-least-one-branch-by-kind-)
  * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.6.3 sh:or}
  */
 export function getModelVariants<V extends ValuesShape>(

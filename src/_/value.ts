@@ -34,7 +34,7 @@
  * - {@link SetShape} — a cardinality-constrained value set
  * - {@link RangeShape} — value range a {@link Probe} resolves to via {@link effective}: bounds and variants
  *
- * <img src="_/index.svg" alt="Shape hierarchy" style="width: 100%" />
+ * <img src="../index.svg" alt="Shape hierarchy" style="width: 100%" />
  *
  * **Type Inference**
  *

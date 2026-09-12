@@ -15,101 +15,87 @@
  */
 
 /**
- * Linked data shapes and validation.
+ * Linked data validation API.
  *
- * Describes what a linked data resource may state and holds values to that description, so that a service settles what
- * it accepts once, as a shape, rather than at each boundary it is crossed at. A shape describes a plain value, a
- * localised one, a link to a resource, a resource in its own right, or a value drawn from one of several alternatives;
- * the companion modules state each kind in its own terms, and this module gathers them into the one {@link Shape} a
- * value is matched against.
+ * Provides validation for linked data {@link @metreeca/qest!Resource | resources}, retrieval
+ * {@link Template | templates}, and individual values against {@link https://www.w3.org/TR/shacl/ SHACL}-derived
+ * {@link Shape | shapes}.
  *
- * **The shapes a value is drawn from**
+ * **Defining Shapes**
  *
- * Each kind is stated in a module of its own:
- *
- * - {@link boolean!BooleanShape | BooleanShape} — truth values
- * - {@link number!NumberShape | NumberShape} — numeric values
- * - {@link string!StringShape | StringShape} — textual values
- * - {@link dictionary!DictionaryShape | DictionaryShape} — language-tagged maps
- * - {@link reference!ReferenceShape | ReferenceShape} — links to standalone resources
- * - {@link resource!ResourceShape | ResourceShape} — linked data resources
- * - {@link union!UnionShape | UnionShape} — a value drawn from one of several alternatives
- *
- * {@link Range} states, apart from the shapes, how many values a set admits and the shape they are drawn from.
- *
- * <img src="index.svg" alt="Shape hierarchy" style="width: 100%" />
- *
- * **Describing what a resource states**
- *
- * A resource shape names the members its resources carry and the shape each member draws its values from, bounded by
- * how many of them it admits:
+ * Define resource shapes with property constraints and cardinality ranges from the {@link resource} module:
  *
  * ```typescript
+ * import { required, optional, nonempty } from '@metreeca/blue/resource';
  * import { boolean } from '@metreeca/blue/boolean';
  * import { integer } from '@metreeca/blue/number';
- * import { id, multiple, optional, required, resource } from '@metreeca/blue/resource';
- * import { date, string } from '@metreeca/blue/string';
+ * import { string, date } from '@metreeca/blue/string';
+ * import { resource, id } from '@metreeca/blue/resource';
  *
  * const Product = resource({
  *   id: id(),
- *   name: required(string({ minLength: 1, maxLength: 100 })),
+ *   name: required(string({ model: "name", minLength: 1, maxLength: 100 })),
  *   price: required(integer({ minInclusive: 0 })),
  *   available: optional(boolean()),
- *   tags: multiple(string()),
- *   released: optional(date())
+ *   tags: nonempty(string()),
+ *   releaseDate: optional(date())
  * });
  * ```
  *
- * **Reading the value a shape describes**
+ * **Validating Resources**
  *
- * The type of a value is derived from the shape describing it, so the two cannot drift: {@link Instance} for a resource
- * as it is held and retrieved, {@link Compound} for one as it is submitted, with the resources it holds captive inlined
- * alongside their identifiers.
- *
- * ```typescript
- * type Item = Instance<typeof Product>;   // { readonly id: Reference, readonly name: string, … }
- * type Draft = Compound<typeof Product>;  // the same, with the identifier optional and captives inlined
- * ```
- *
- * **Holding a value to a shape**
- *
- * {@link validate} answers with the value or with a trace of what is wrong with it, and the `model` option settles
- * which of three questions is being asked:
+ * Validate resources using {@link validate}, pattern matching on the {@link Relay} result:
  *
  * ```typescript
  * import { validate } from '@metreeca/blue';
  *
- * validate(product, { shape: Product })({                    // a resource in its own right
+ * validate(data, { shape: Product })({
  *   value: product => console.log(product.name),
  *   trace: trace => console.error(trace)
  * });
- *
- * validate(response, { shape: Product, model: { name: "" } });  // a retrieval, narrowed by what was asked for
- * validate(request, { shape: Product, model: true });           // a retrieval template, before it is issued
  * ```
  *
- * - omitted, or `false`, holds `value` to the shape as a resource in its own right
- * - a template holds `value` to the members that template asked for, and types what comes back accordingly
- * - `true` holds `value` to the shape as a template, asking whether the shape can serve what it requests
+ * **Validating Projections**
+ *
+ * When the projection {@link Template} is not bonded to the shape (typically at API boundaries where `shape` defines
+ * the admissible surface and the projection arrives per request), pass `model` as a separate argument. The return
+ * value is narrowed to `Instance<T>` where `T` is inferred from `model`:
+ *
+ * ```typescript
+ * const model = { id: "", name: "" };       // projection requested by the caller
+ *
+ * validate(response, { shape: Product, model })({
+ *   value: product => console.log(product.name),   // typed as { readonly id: Reference; readonly name: string }
+ *   trace: trace => console.error(trace)
+ * });
+ * ```
+ *
+ * **Validating Templates**
+ *
+ * Validate a retrieval {@link Template | template} using {@link validate} with `model: true`:
+ *
+ * ```typescript
+ * validate(data, { shape: Product, model: true });
+ * validate(data, { shape: Product, model: true, plain: true });
+ * validate(data, { shape: Product, model: true, depth: 0 });
+ * validate(data, { shape: Product, model: true, limit: 100 });
+ * ```
+ *
+ * The `model` option answers "are we validating a model, or validating against one?" and selects between the three
+ * modes shown above:
+ *
+ * - omitted or `false` — validate `value` as an instance against the shape's bonded model
+ * - a projection {@link Template} value — validate `value` as an instance against that explicit projection; narrows
+ * the
+ *     return to `Instance<T>` where `T` is inferred from `model`
+ * - `true` — validate `value` as a retrieval template (the model itself, not an instance of it)
  *
  * > [!CAUTION]
- * > A template may ask for the whole of the query language, transforms and nesting included. Where the caller is not
- * > trusted, hold it to what the service will serve: `plain`, `depth` and `limit` cap what a request may ask for.
+ * > By default, templates support the full query language, including aggregate transforms and nested expansion.
+ * > When exposing endpoints to untrusted clients, restrict query complexity as required by setting `plain`
+ * > to `true`, `depth` to `0` or a positive value, and/or `limit` to a maximum result set size.
  *
- * **Resolving what a shape reaches**
- *
- * {@link eager} resolves a shape deferred to break a definition cycle, yielding a resource shape with its inheritance
- * merged and handing back the same shape on every later reach.
- *
- * {@link effective} resolves the {@link Range} a path and transform pipe reach through a shape, so that a caller may
- * type a projection column or a selection operand without walking the shape itself: it steps across the members of
- * the resources it reaches, crossing a link to the resource it points at and entering each alternative of a union in
- * turn, and answers with an issue where the path names a member no alternative carries or the pipe cannot act on what
- * the path reached.
- *
- * {@link sh} names the SHACL terms the shapes are drawn from.
- *
- * @module
+ * @module index
  *
  * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  */
@@ -118,27 +104,26 @@ import { type Lazy, map, type Optional } from "@metreeca/core";
 import { createRelay, type Relay } from "@metreeca/core/relay";
 import { equals, seal } from "@metreeca/core/structures";
 import { type Trace, TraceError } from "@metreeca/core/trace";
-import type { Reference } from "@metreeca/qest/resource";
-import type { Instance as Fetched, Template } from "@metreeca/qest/template";
-import { enforce } from "./index.core.js";
-import { eager } from "./value/accessors.js";
-import { validateShape } from "./value/validator.js";
-import type { ResourceShape } from "./resource/index.js";
-import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
-import type { Compound, Instance, Shape } from "./value/index.js";
+import { type Reference } from "@metreeca/qest/resource";
+import type { Instance, Template } from "@metreeca/qest/template";
+import { sh } from "./index.core.js";
+import type { ReferenceShape } from "./reference.js";
+import { enforce, validateResource, validateResult, validateTemplate } from "./resource.core.js";
+import type { ResourceShape } from "./resource.js";
+import { validateUnion } from "./union.core.js";
+import { eager, validateValue } from "./value.core.js";
+import type { Shape } from "./value.js";
 
-export { eager, effective } from "./value/accessors.js";
-export { sh } from "./value/index.js";
-export type { Compound, Instance, Range, Shape } from "./value/index.js";
+export { sh };
 
 
 /**
- * The seal marking a value as already validated.
+ * Seal tag for idempotent validation.
  *
- * Carries what it was validated against, so that validating it again on the same terms is settled by the seal rather
- * than by walking the value a second time.
+ * Marks a value as already validated by {@link validate}, enabling the function to skip re-validation
+ * when the same shape and options are presented again.
  */
-const Validated: unique symbol = Symbol("validated");
+const Validated: unique symbol = Symbol("Validated");
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -146,36 +131,49 @@ const Validated: unique symbol = Symbol("validated");
 /**
  * Validates a resource against a shape.
  *
- * Reports what a resource states wrongly, so that a caller may refuse it before it reaches whatever holds it, and
- * hands back the resource itself where it passes, typed as the shape describes it. Every member the shape declares is
- * held to it and one it doesn't declare is rejected, the shape being closed; a member the shape admits no value for
- * may be left out.
+ * Enforces all shape constraints including type, cardinality, closed-shape checks, and custom validators.
+ * Unknown and missing members are both rejected; all declared members are required unless marked optional
+ * by the shape. The return value is narrowed to `Instance<T>` where `T` is the projection {@link Template} bonded
+ * to the shape's `model` slot.
  *
  * > [!CAUTION]
- * > A captive member is expanded to whatever depth it reaches. Where a caller must be held to bare links, state
- * > `depth` as `0` to refuse every expansion, or as the nesting it may ask for.
+ * > By default, a `captive` property expands to unbounded depth. To enforce a strict update process that admits only
+ * > bare references, set `depth` to `0` to reject all expansion; set it to a positive value to cap the nesting depth
+ * > admitted.
  *
  * > [!TIP]
- * > Validating a value twice on the same terms costs nothing: the second call reads the first one's verdict off the
- * > value, so a caller may validate defensively wherever it is unsure.
+ * > When the projection template is not bonded to the shape (for example, at API boundaries where `shape` and the
+ * > requested projection arrive as independent inputs) use the projection-form overload that takes `model` as a
+ * > separate argument.
  *
- * @typeParam S The shape the resource is matched against
+ * > [!TIP]
+ * > The function is idempotent on a specific shape: on re-validation against the same shape, the previous
+ * > association is trusted without repeating the validation process, so that you can safely re-validate defensively.
+ *
+ * @typeParam T The projection {@link Template} inferred from the shape's bonded `model` slot
  *
  * @param value The value to validate as a resource
  * @param opts Validation options
- * @param opts.shape The shape the resource is matched against, possibly deferred to break definition cycles
- * @param opts.model Omitted, or `false`, to validate `value` as a resource in its own right
- * @param opts.entry The identifier the resource is expected to be named by, where it states one at all
- * @param opts.depth The nesting a captive member may be expanded to, counting each resource it descends into; `0`
- *     refuses every expansion while still admitting the identifier naming the resource
+ * @param opts.shape The {@link Lazy} {@link ResourceShape} defining validation constraints
+ * @param opts.model Omit (or pass `false`) to validate `value` as a full resource instance against the shape
+ * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} member; if provided and
+ *     the resource contains an `id` property, the `id` value must match this reference exactly; ignored if the
+ *     resource has no `id` member
+ * @param opts.depth Maximum nesting depth for expanding the values of a
+ *     {@link resource!PropertyConstraints.captive | captive} property as inline target resource states; each
+ *     expansion level counts against the budget; `0` rejects all expansion, accepting bare IRI references only; if
+ *     omitted, no depth limit is enforced
  *
- * @returns A {@link Relay} carrying the resource where it passes and a trace of the violations where it doesn't
+ * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the
+ *     value is an immutable copy validated against a verified and flattened copy of the shape
+ *     (see {@link resource!resource | resource}); on failure, the trace describes
+ *     constraint violations
  *
- * @throws {TraceError} Where `shape` is malformed
+ * @throws {TraceError} If the shape is malformed (see {@link resource!resource | resource})
  */
-export function validate<S extends Lazy<ResourceShape>>(value: unknown, opts: {
+export function validate<T extends Template>(value: unknown, opts: {
 
-	readonly shape: S
+	readonly shape: Lazy<ResourceShape & { model: T }>
 	readonly model?: false
 
 	readonly entry?: Reference
@@ -183,35 +181,50 @@ export function validate<S extends Lazy<ResourceShape>>(value: unknown, opts: {
 
 }): Relay<{
 
-	readonly value: Instance<S>,
+	readonly value: Instance<T>,
 	readonly trace: Optional<Trace>
 
 }>;
 
 /**
- * Validates a retrieved resource against a shape, narrowed by the template that requested it.
+ * Validates a retrieval result against a shape under an explicit projection template.
  *
- * Reports what a retrieval brought back wrongly, so that a caller may refuse a malformed response before reading it,
- * and hands back the resource typed as the template asked for it. Only the members the template names are held to the
- * shape, so a partial retrieval passes on its own terms, and a member the template didn't ask for is rejected, the
- * caller having nowhere to put it. Reach for this where the shape fixes what may be asked for and the template varies
- * from one request to the next.
+ * Narrows the admissibility check to the surface projected by `model`: constraints declared in `shape` are enforced
+ * only for keys named in `model`, recursing into nested shapes for nested templates and dropping any shape leaf
+ * without a counterpart in `model`. Intended for call sites that receive `shape` and the requested projection as
+ * independent inputs, such as response-validating adapters or API boundary validators where the admissible surface
+ * is fixed and the projection varies per request.
+ *
+ * Differs from the bonded-shape resource overload in three ways:
+ *
+ * - **Partial resources** — constraints on keys absent from `model` are not enforced; unrequested required fields do
+ *     not trigger `minCount` violations.
+ * - **Expanded nested references** — slots of {@link ReferenceShape} kind accept an expanded nested resource in
+ *     addition to a bare {@link Reference}, validated against the linked resource's target shape narrowed by the
+ *     nested projection in `model`.
+ * - **Projection results** — the return value is narrowed to `Instance<T>` where `T` is inferred from `model`.
  *
  * > [!TIP]
- * > Validating a value twice on the same shape and template costs nothing, as {@link validate | validating a resource}
- * > explains.
+ * > The function is idempotent on a specific `(shape, model)` combination: on re-validation against the same shape
+ * > and model the previous association is trusted without repeating the validation process, so that you can safely
+ * > re-validate defensively.
  *
- * @typeParam T The template the resource was requested by
+ * @typeParam T The projection {@link Template} inferred from `model`
  *
- * @param value The value to validate as a retrieved resource
+ * @param value The value to validate as a retrieval result
  * @param opts Validation options
- * @param opts.shape The shape the resource is matched against, possibly deferred to break definition cycles
- * @param opts.model The template that requested it, narrowing both what is checked and what comes back
- * @param opts.entry The identifier the resource is expected to be named by, where it states one at all
+ * @param opts.shape The {@link Lazy} {@link ResourceShape} defining the admissible surface
+ * @param opts.model Projection {@link Template} narrowing the admissibility check to the projected surface and the
+ *     return value to `Instance<T>`
+ * @param opts.entry Expected {@link Reference} for the resource's {@link resource!Id | id} member; if provided and
+ *     the resource contains an `id` property, the `id` value must match this reference exactly; ignored if the
+ *     resource has no `id` member
  *
- * @returns A {@link Relay} carrying the resource where it passes and a trace of the violations where it doesn't
+ * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the
+ *     value is an immutable copy validated against a verified and flattened copy of the shape narrowed by `model`
+ *     (see {@link resource!resource | resource}); on failure, the trace describes constraint violations
  *
- * @throws {TraceError} Where `shape` is malformed
+ * @throws {TraceError} If the shape is malformed (see {@link resource!resource | resource})
  */
 export function validate<T extends Template>(value: unknown, opts: {
 
@@ -222,48 +235,63 @@ export function validate<T extends Template>(value: unknown, opts: {
 
 }): Relay<{
 
-	readonly value: Fetched<T>,
+	readonly value: Instance<T>,
 	readonly trace: Optional<Trace>
 
 }>;
 
 /**
- * Validates a retrieval template against a shape.
+ * Validates a template against a shape.
  *
- * Reports each slot of a template that asks for something the shape cannot give, so that a caller may refuse a
- * request before issuing it, and hands back the template itself where it passes, held to whatever the service
- * guarantees. A template describes what to retrieve rather than what is held, so the value-domain constraints are
- * left alone and a slot the template omits is simply not asked for.
+ * Enforces type and structural constraints; value constraints are skipped as query values are placeholders.
+ * Cardinality is checked for shape consistency (scalar if `maxCount` is 1, singleton tuple otherwise);
+ * missing members are accepted as not requested. Bindings whose probe — `path` and `pipe` — fails to resolve
+ * against the shape are rejected with an atomic trace under the binding key.
  *
  * > [!CAUTION]
- * > A template may ask for the whole of the query language, transforms and nesting included. Where the caller is not
- * > trusted, hold it to what the service will serve: `plain` to refuse the transforms combining values, `depth` to cap
- * > the nesting, `limit` to cap the page.
+ * > By default, templates support the full query language, including aggregate transforms and nested expansion.
+ * > When exposing endpoints to untrusted clients, restrict query complexity as required by setting `plain`
+ * > to `true`, `depth` to `0` or a positive value, and/or `limit` to a maximum result set size.
  *
  * > [!TIP]
- * > A member reaching a standalone resource may be asked for as the identifier naming it or as a template standing for
- * > the resource behind it; an embedded one, having no identifier of its own, only as a template. Stating `depth` as
- * > `0` thus leaves a link retrievable while refusing the resource behind it.
+ * > Retrieval forms for linked resources differ by shape kind:
+ * >
+ * > | Shape kind                                           | IRI reference | Nested template |
+ * > |------------------------------------------------------|:-------------:|:---------------:|
+ * > | Embedded resource — direct {@link ResourceShape}     |       —       |        ✓        |
+ * > | Standalone resource — {@link ReferenceShape} wrapper |       ✓       |        ✓        |
+ * >
+ * > An **IRI reference** is a bare IRI reference placeholder retrieving only the identifier; as a placeholder it is
+ * > never resolved on decoding, so it admits any IRI reference (the empty string, a root-relative or relative
+ * > reference, or an absolute IRI). A **nested template** is a {@link Template} retrieving the requested subset of the
+ * > linked resource, validated against its target shape and subject to the `depth` budget (if any). Setting `depth`
+ * > to `0` disables the nested-template form for references while still accepting IRI references.
  *
  * > [!TIP]
- * > Validating a value twice on the same terms costs nothing, as {@link validate | validating a resource} explains.
+ * > The function is idempotent on a specific shape: on re-validation against the same shape, the previous
+ * > association is trusted without repeating the validation process, so that you can safely re-validate defensively.
  *
- * @typeParam T The template the shape admits
+ * @typeParam T The {@link Template} type inferred from `shape`
  *
- * @param value The value to validate as a retrieval template
+ * @param value The value to validate as a template
  * @param opts Validation options
- * @param opts.shape The shape the template is matched against, possibly deferred to break definition cycles
- * @param opts.model Must be `true` to validate `value` as a template rather than as a resource
- * @param opts.plain Whether to refuse the transforms combining several values into one, leaving a template that
- *     retrieves rather than computes
- * @param opts.depth The nesting a template may ask for, counting each resource it descends into; `0` refuses every
- *     nested template while still admitting the identifier naming the resource
- * @param opts.limit The largest page a template may ask for; a collection asking for none is held to it, and one
- *     asking for more is refused. `0`, like omitting it, leaves the page to the caller
+ * @param opts.shape The {@link Lazy} {@link ResourceShape} defining the expected structure
+ * @param opts.model Must be `true` to validate `value` as a retrieval template rather than as an instance
+ * @param opts.plain Whether to reject aggregate transforms (`count`, `sum`, `min`, `max`, `avg`); `true` rejects
+ *     any binding containing aggregate transforms; defaults to `false`
+ * @param opts.depth Maximum depth for nested {@link Template} expansion and property paths in query probes,
+ *     where each nesting level or path segment counts against the budget; `0` rejects any nested {@link Template}
+ *     while still accepting IRI references; if omitted, no depth constraint is enforced
+ * @param opts.limit Maximum value for the {@link @metreeca/qest!Selection | `#`} pagination constraint in queries;
+ *     a positive value caps the result set: a query whose `#` exceeds it, or is `0` (unbounded), is rejected, and a
+ *     query omitting `#` has the limit injected as a default; a value of `0`, like omitting the option, is itself
+ *     unbounded, enforcing no limit and injecting no `#`
  *
- * @returns A {@link Relay} carrying the template where it passes and a trace of the violations where it doesn't
+ * @returns A {@link Relay} resolving to either `{ value }` on success or `{ trace }` on failure; on success, the
+ *     value is an immutable copy validated against a verified and flattened copy of the shape
+ *     (see {@link resource!resource | resource}); on failure, the trace describes constraint violations
  *
- * @throws {TraceError} Where `shape` is malformed
+ * @throws {TraceError} If the shape is malformed (see {@link resource!resource | resource})
  */
 export function validate<T extends Template>(value: unknown, opts: {
 
@@ -315,11 +343,20 @@ export function validate(value: unknown, {
 
 	return map(eager(shape), shape => {
 
-		if ( shape.kind !== "resource" ) {
+		if ( shape.kind === "union" ) {
 
-			// a value outside a resource carries nothing to seal, so it is matched as it stands
+			const trace = validateUnion(value, shape.variants, {
+				model: model === true,
+				match: (value, variant, model) => validateValue([value], variant, {
+					scope: model ? "model" : "state"
+				}) === undefined
+			});
 
-			const trace = validateShape([value], shape, { scope: model === true ? "model" : "state" });
+			return trace !== undefined ? createRelay({ trace }) : createRelay({ value });
+
+		} else if ( shape.kind !== "resource" ) {
+
+			const trace = validateValue([value], shape, { scope: model === true ? "model" : "state" });
 
 			return trace !== undefined ? createRelay({ trace }) : createRelay({ value });
 
@@ -340,21 +377,21 @@ export function validate(value: unknown, {
 				&& shape === sealed.shape
 				&& (!plain || sealed.plain)
 				&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
-				&& (!limit || sealed.limit && sealed.limit <= limit) // a limit of 0 leaves the page unbounded
+				&& (!limit || sealed.limit && sealed.limit <= limit) // limit === 0 effectively undefined
 			) {
 
 				return createRelay({ value });
 
 			} else {
 
-				const trace = validateTemplate([value], shape, { plain, depth, limit });
+				const trace = validateTemplate([value], shape, { depth, plain, limit });
 
 				return trace !== undefined ? createRelay({ trace }) : createRelay({
 
 					value: seal(enforce(value, shape, { limit }), Validated, {
 
 						model: true,
-						shape,
+						shape: shape,
 
 						plain,
 						depth,
@@ -387,14 +424,14 @@ export function validate(value: unknown, {
 
 			} else {
 
-				const trace = validateResult([value], { shape, model, entry });
+				const trace = validateResult([value], { shape: shape, model, entry });
 
 				return trace !== undefined ? createRelay({ trace }) : createRelay({
 
 					value: seal(value, Validated, {
 
 						model,
-						shape,
+						shape: shape,
 
 						entry
 
@@ -433,7 +470,7 @@ export function validate(value: unknown, {
 					value: seal(value, Validated, {
 
 						model: false,
-						shape,
+						shape: shape,
 
 						entry,
 						depth

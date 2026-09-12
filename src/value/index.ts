@@ -21,6 +21,22 @@
  * a value drawn from one of several alternatives into the one {@link Shape} a value is matched against, so that a
  * caller holding a shape needs not know which kind it holds.
  *
+ * **The shapes a value is drawn from**
+ *
+ * Each kind is stated in a module of its own:
+ *
+ * - {@link boolean!BooleanShape | BooleanShape} — truth values
+ * - {@link number!NumberShape | NumberShape} — numeric values
+ * - {@link string!StringShape | StringShape} — textual values
+ * - {@link dictionary!DictionaryShape | DictionaryShape} — language-tagged maps
+ * - {@link reference!ReferenceShape | ReferenceShape} — links to standalone resources
+ * - {@link resource!ResourceShape | ResourceShape} — linked data resources
+ * - {@link union!UnionShape | UnionShape} — a value drawn from one of several alternatives
+ *
+ * <img src="../index.svg" alt="Shape hierarchy" style="width: 100%" />
+ *
+ * {@link sh} names the SHACL terms the shapes are drawn from.
+ *
  * **How many values a set admits**
  *
  * {@link Range} states the shape a set draws its values from and how many of them it admits, describing the set a
@@ -37,6 +53,17 @@
  * type Item = Instance<typeof Product>;   // { readonly id: Reference, readonly name: string, … }
  * type Draft = Compound<typeof Product>;  // the same, with the identifier optional and captives inlined
  * ```
+ *
+ * **Resolving what a shape reaches**
+ *
+ * {@link eager} resolves a shape deferred to break a definition cycle, yielding a resource shape with its inheritance
+ * merged and handing back the same shape on every later reach.
+ *
+ * {@link effective} resolves the {@link Range} a path and transform pipe reach through a shape, so that a caller may
+ * type a projection column or a selection operand without walking the shape itself: it steps across the members of
+ * the resources it reaches, crossing a link to the resource it points at and entering each alternative of a union in
+ * turn, and answers with an issue where the path names a member no alternative carries or the pipe cannot act on what
+ * the path reached.
  *
  * @module
  *
@@ -55,6 +82,8 @@ import type { StringShape } from "../string/index.js";
 import type { UnionShape } from "../union/index.js";
 import type { Branch } from "../union/inference.js";
 import type { Plain } from "./inference.js";
+
+export { eager, effective } from "./accessors.js";
 
 
 /**

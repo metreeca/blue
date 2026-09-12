@@ -14,574 +14,942 @@
  * limitations under the License.
  */
 
-import { type Optional } from "@metreeca/core";
-import type { Relay } from "@metreeca/core/relay";
-import { type Trace, TraceError } from "@metreeca/core/trace";
+import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
-import { dictionary } from "./dictionary/index.js";
-import { enforce } from "./index.core.js";
+import { boolean } from "./boolean.js";
+import { dictionary } from "./dictionary.js";
+import { sh } from "./index.core.js";
 import { validate } from "./index.js";
-import { integer } from "./number/index.js";
-import { reference } from "./reference/index.js";
-import { id, multiple, optional, required, resource } from "./resource/index.js";
-import { string } from "./string/index.js";
-import { union } from "./union/index.js";
+import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
+import { reference } from "./reference.js";
+import { id, resource, type ResourceShape, type } from "./resource.js";
+import { date, duration, instant, string, time, timestamp, year } from "./string.js";
+import { union } from "./union.js";
+import { multiple, nonempty, optional, required } from "./resource.js";
+import { effective, type RangeShape, type ValuesShape } from "./value.js";
 
 
-describe("validate", () => {
+describe("apply", () => {
 
-	// the value where it passed, or undefined where it didn't
-
-	function value(relay: Relay<{ readonly value: unknown, readonly trace: Optional<Trace> }>): unknown {
-		return relay({ value: value => value, trace: () => undefined });
+	function probe(path: readonly string[], pipe: readonly Transform[] = []): Probe {
+		return { target: path[path.length-1] ?? "_", pipe, path };
 	}
 
-	// the trace where it didn't pass, or undefined where it did
+	function range(r: RangeShape | string): RangeShape {
+		if ( typeof r === "string" ) { throw new Error(`expected RangeShape, got trace <${r}>`); }
+		return r;
+	}
 
-	function trace(relay: Relay<{ readonly value: unknown, readonly trace: Optional<Trace> }>): Optional<Trace> {
-		return relay({ value: () => undefined, trace: trace => trace });
+	// transform-focused helpers: wrap leaf shape in a resource property
+
+	function transformRange(pipe: readonly Transform[], s: ValuesShape): RangeShape | string {
+		return effective(resource({ _: required(s) }), probe(["_"], pipe));
 	}
 
 
-	const Vendor = resource({ id: id(), name: required(string()) });
+	describe("empty pipe", () => {
 
-	const Product = resource({
-		id: id(),
-		name: required(string()),
-		size: optional(integer()),
-		tags: multiple(string()),
-		vendor: optional(reference(Vendor))
-	});
+		it("returns range with input shape unchanged", async () => {
 
+			const input = integer();
 
-	describe("a resource in its own right", () => {
-
-		it("hands back the resource it admits", async () => {
-
-			expect(value(validate({ id: "app:/products/1", name: "Widget" }, { shape: Product })))
-				.toEqual({ id: "app:/products/1", name: "Widget" });
+			expect(range(transformRange([], input)).variants[0]).toBe(input);
 
 		});
 
-		it("reports what a resource states wrongly", async () => {
+		it("preserves required cardinality", async () => {
 
-			expect(trace(validate({ name: 42 }, { shape: Product }))).toBeDefined();
+			const result = transformRange([], integer());
 
-		});
-
-		it("reports a member the shape doesn't declare", async () => {
-
-			expect(trace(validate({ name: "Widget", unknown: "x" }, { shape: Product }))).toBeDefined();
-
-		});
-
-		it("reports a member the shape requires and the resource leaves out", async () => {
-
-			expect(trace(validate({ id: "app:/products/1" }, { shape: Product }))).toBeDefined();
-
-		});
-
-		it("reports a value that is not a resource at all", async () => {
-
-			expect(trace(validate("Widget", { shape: Product }))).toBeDefined();
-			expect(trace(validate([{ name: "Widget" }], { shape: Product }))).toBeDefined();
-
-		});
-
-		it("holds the resource to the identifier it is expected to be named by", async () => {
-
-			const stated = { id: "app:/products/1", name: "Widget" };
-
-			expect(value(validate(stated, { shape: Product, entry: "app:/products/1" }))).toEqual(stated);
-			expect(trace(validate(stated, { shape: Product, entry: "app:/products/2" }))).toBeDefined();
-
-		});
-
-		it("hands back a resource that cannot be written through", async () => {
-
-			// ;(cast) the relay hands back an unknown, which this test writes through on purpose
-
-			const validated = value(validate({ name: "Widget" }, { shape: Product })) as Record<string, unknown>;
-
-			expect(() => { validated["name"] = "Gadget"; }).toThrow();
-
-		});
-
-		it("resolves a shape deferred to break a definition cycle", async () => {
-
-			expect(value(validate({ name: "Widget" }, { shape: () => Product }))).toEqual({ name: "Widget" });
-
-		});
-
-		it("settles a second validation on the same terms off the first", async () => {
-
-			const validated = value(validate({ name: "Widget" }, { shape: Product }));
-
-			expect(value(validate(validated, { shape: Product }))).toBe(validated);
-
-		});
-
-		it("validates again where the terms tightened", async () => {
-
-			const validated = value(validate({ vendor: "app:/vendors/1", name: "Widget" }, { shape: Product }));
-
-			expect(value(validate(validated, { shape: Product, entry: "app:/products/1" }))).not.toBe(validated);
+			expect(range(result).minCount).toBe(1);
+			expect(range(result).maxCount).toBe(1);
 
 		});
 
 	});
 
-	describe("arbitrary input", () => {
+	describe("single transform", () => {
 
-		const shape = resource({ name: optional(string()), size: optional(integer()), tags: multiple(string()) });
+		describe("count (any value)", () => {
 
-		it.each<[string, unknown]>([
-			["a date", new Date()],
-			["a pattern", /pattern/],
-			["a map", new Map()],
-			["a set", new Set()],
-			["an error", new Error("boom")],
-			["an object of no prototype", Object.create(null)],
-			["an instance of a class", new (class { name = "Widget"; })()]
-		])("refuses %s in place of a resource", async (_label, stated) => {
+			it("accepts number shape", async () => {
 
-			expect(trace(validate(stated, { shape }))).toBeDefined();
-			expect(trace(validate(stated, { shape, model: true }))).toBeDefined();
+				expect(range(transformRange(["count"], integer())).variants[0]).toEqual(integer());
 
-		});
+			});
 
-		it.each<[string, unknown]>([
-			["nothing at all", null],
-			["nothing stated", undefined],
-			["a string", "Widget"],
-			["a number", 42],
-			["a boolean", true],
-			["a set of resources", [{ name: "Widget" }]],
-			["a function", () => undefined],
-			["a symbol", Symbol("Widget")],
-			["a big integer", BigInt(1)]
-		])("refuses %s in place of a resource", async (_label, stated) => {
+			it("accepts string shape", async () => {
 
-			expect(trace(validate(stated, { shape }))).toBeDefined();
-			expect(trace(validate(stated, { shape, model: true }))).toBeDefined();
+				expect(range(transformRange(["count"], string())).variants[0]).toEqual(integer());
+
+			});
+
+			it("accepts reference shape", async () => {
+
+				expect(range(transformRange(["count"], reference(resource({ id: id() })))).variants[0]).toEqual(integer());
+
+			});
+
+			it("accepts localised dictionary shape", async () => {
+
+				expect(range(transformRange(["count"], dictionary())).variants[0]).toEqual(integer());
+
+			});
 
 		});
 
-		it.each<[string, string]>([
-			["a hyphen", "foo-bar"],
-			["a dot", "foo.bar"],
-			["a keyword", "@id"],
-			["a prefix", "ns:prop"],
-			["digits alone", "123"]
-		])("refuses a member name carrying %s", async (_label, name) => {
+		describe("comparable input (min, max)", () => {
 
-			expect(trace(validate({ [name]: "Widget" }, { shape }))).toBeDefined();
-			expect(trace(validate({ [name]: "" }, { shape, model: true }))).toBeDefined();
+			it("returns input shape for output-preserving transform", async () => {
 
-		});
+				const input = decimal();
 
-		it.each<[string, unknown]>([
-			["a function", () => undefined],
-			["a symbol", Symbol("Widget")],
-			["a big integer", BigInt(1)],
-			["a date", new Date()],
-			["a pattern", /pattern/],
-			["a map", new Map()]
-		])("refuses %s stated under a member", async (_label, stated) => {
+				expect(range(transformRange(["min"], input)).variants[0]).toBe(input);
 
-			expect(trace(validate({ name: stated }, { shape }))).toBeDefined();
-			expect(trace(validate({ name: stated }, { shape, model: true }))).toBeDefined();
+			});
 
-		});
+			it("accepts boolean shape and preserves it", async () => {
 
-		it.each<[string, number]>([
-			["not a number at all", Number.NaN],
-			["beyond counting", Number.POSITIVE_INFINITY],
-			["below counting", Number.NEGATIVE_INFINITY]
-		])("refuses a number %s", async (_label, stated) => {
+				const input = boolean();
 
-			expect(trace(validate({ size: stated }, { shape }))).toBeDefined();
-			expect(trace(validate({ size: stated }, { shape, model: true }))).toBeDefined();
+				expect(range(transformRange(["max"], input)).variants[0]).toBe(input);
+
+			});
+
+			it("reports incompatible transform input for reference shape (out of processing space)", async () => {
+
+				expect(transformRange(["min"], reference(resource({ id: id() })))).toEqual("incompatible transform input");
+
+			});
+
+			it("coalesces single-string-per-tag localised dictionary shape to string", async () => {
+
+				expect(range(transformRange(["max"], dictionary())).variants[0]).toEqual(string());
+
+			});
 
 		});
 
-		it.each<[string, unknown]>([
-			["nothing at all", null],
-			["nothing stated", undefined],
-			["a date", new Date()],
-			["not a number at all", Number.NaN]
-		])("refuses %s within a set", async (_label, stated) => {
+		describe("numeric input", () => {
 
-			expect(trace(validate({ tags: [stated] }, { shape }))).toBeDefined();
+			it.each([
+				["byte", byte()],
+				["short", short()],
+				["int", int()],
+				["long", long()],
+				["integer", integer()]
+			])("widens integral %s shape to bare integer for sum", async (_label, s) => {
+
+				// a sum combines values and escapes the element domain and datatype range,
+				// so its result carries only the bare integer type, no value-domain facets
+
+				expect(range(transformRange(["sum"], s)).variants[0]).toEqual(integer());
+
+			});
+
+			it.each([
+				["number", number()],
+				["float", float()],
+				["double", double()],
+				["decimal", decimal()]
+			])("widens fractional %s shape to bare decimal for sum", async (_label, s) => {
+
+				// a fractional or unconstrained numeric sum widens to the bare decimal type
+
+				expect(range(transformRange(["sum"], s)).variants[0]).toEqual(decimal());
+
+			});
+
+			it("reports incompatible transform input for plain string shape with sum", async () => {
+
+				expect(transformRange(["sum"], string())).toEqual("incompatible transform input");
+
+			});
+
+			it("reports incompatible transform input for temporal string shape with sum", async () => {
+
+				expect(transformRange(["sum"], date())).toEqual("incompatible transform input");
+
+			});
 
 		});
 
-		it("refuses what a nested slot states wrongly", async () => {
+		describe("string input", () => {
+
+			it("accepts plain string shape for lower and preserves it", async () => {
+
+				const input = string();
+
+				expect(range(transformRange(["lower"], input)).variants[0]).toBe(input);
+
+			});
+
+			it("reports incompatible transform input for temporal shape with lower", async () => {
+
+				expect(transformRange(["lower"], date())).toEqual("incompatible transform input");
+
+			});
+
+			it("reports incompatible transform input for number shape with lower", async () => {
+
+				expect(transformRange(["lower"], integer())).toEqual("incompatible transform input");
+
+			});
+
+		});
+
+		describe("temporal input", () => {
+
+			it.each([
+				["date", date()],
+				["time", time()],
+				["instant", instant()],
+				["timestamp", timestamp()]
+			])("accepts %s shape for year", async (_label, s) => {
+
+				expect(range(transformRange(["year"], s)).variants[0]).toEqual(integer());
+
+			});
+
+			it("reports incompatible transform input for plain string shape with year", async () => {
+
+				expect(transformRange(["year"], string())).toEqual("incompatible transform input");
+
+			});
+
+			it("reports incompatible transform input for number shape with year", async () => {
+
+				expect(transformRange(["year"], integer())).toEqual("incompatible transform input");
+
+			});
+
+		});
+
+		describe("opaque temporal string input (gYear, duration)", () => {
+
+			// gYear and duration are not processing-type temporals; they are opaque
+			// xsd:string, so temporal transforms are out-of-domain and string transforms apply
+
+			it.each([
+				["year", year()],
+				["duration", duration()]
+			])("reports incompatible transform input for %s shape with a temporal transform", async (_label, s) => {
+
+				expect(transformRange(["year"], s)).toEqual("incompatible transform input");
+
+			});
+
+			it.each([
+				["year", year()],
+				["duration", duration()]
+			])("accepts %s shape for length as a plain string", async (_label, s) => {
+
+				expect(range(transformRange(["length"], s)).variants[0]).toEqual(integer());
+
+			});
+
+		});
+
+	});
+
+	describe("localised input", () => {
+
+		// a non-empty pipe is coalesced access: a single-string-per-tag localised leaf contributes its
+		// coalesced string, an ordinary xsd:string thereafter; out-of-domain transforms still drop it
+
+		it("coalesces single-string-per-tag localised dictionary to string for string transforms", async () => {
+
+			const s = dictionary();
+
+			expect(range(transformRange(["lower"], s)).variants[0]).toEqual(string());
+			expect(range(transformRange(["upper"], s)).variants[0]).toEqual(string());
+			expect(range(transformRange(["length"], s)).variants[0]).toEqual(integer());
+
+		});
+
+		it("reports incompatible transform input for out-of-domain transforms on coalesced dictionary", async () => {
+
+			const s = dictionary();
+
+			expect(transformRange(["year"], s)).toEqual("incompatible transform input");    // temporal
+			expect(transformRange(["sum"], s)).toEqual("incompatible transform input");     // numeric total
+
+		});
+
+		it.each([
+			["dictionary", dictionary()]
+		] as const)("accepts count (any value) on %s yielding integer", async (_label, s) => {
+
+			expect(range(transformRange(["count"], s)).variants[0]).toEqual(integer());
+
+		});
+
+	});
+
+	describe("transform pipe", () => {
+
+		it("resolves through numeric chain (avg then floor)", async () => {
+
+			expect(range(transformRange(["avg", "floor"], decimal())).variants[0]).toEqual(decimal());
+
+		});
+
+		it("resolves through temporal-to-numeric chain (abs:year:date)", async () => {
+
+			// pipe is in source-textual order (matching decodeProbe), so the rightmost
+			// transform applies first: year(date) → integer, abs(integer) → integer
+
+			expect(range(transformRange(["abs", "year"], date())).variants[0]).toEqual(integer());
+
+		});
+
+		it("resolves through output-preserving transform (min then floor)", async () => {
+
+			expect(range(transformRange(["min", "floor"], decimal())).variants[0]).toEqual(decimal());
+
+		});
+
+		it("reports incompatible transform input for incompatible first-stage input", async () => {
+
+			expect(transformRange(["floor"], string())).toEqual("incompatible transform input");
+
+		});
+
+		it("reports incompatible transform input for incompatible inter-stage types (year then lower)", async () => {
+
+			expect(transformRange(["year", "lower"], date())).toEqual("incompatible transform input");
+
+		});
+
+		it("reports multiple aggregate transforms for aggregate after aggregate", async () => {
+
+			expect(transformRange(["count", "sum"], integer())).toEqual("multiple aggregate transforms");
+
+		});
+
+	});
+
+	describe("cardinality preservation", () => {
+
+		it("preserves required cardinality through identity", async () => {
+
+			const result = effective(resource({ name: required(string()) }), probe(["name"]));
+
+			expect(range(result).minCount).toBe(1);
+			expect(range(result).maxCount).toBe(1);
+
+		});
+
+		it("preserves optional cardinality through identity", async () => {
+
+			const result = effective(resource({ name: optional(string()) }), probe(["name"]));
+
+			expect(range(result).minCount).toBeUndefined();
+			expect(range(result).maxCount).toBe(1);
+
+		});
+
+		it("preserves nonempty cardinality through identity", async () => {
+
+			const result = effective(resource({ name: nonempty(string()) }), probe(["name"]));
+
+			expect(range(result).minCount).toBe(1);
+			expect(range(result).maxCount).toBeUndefined();
+
+		});
+
+		it("scalar transform preserves maxCount and sets minCount to undefined", async () => {
+
+			const result = effective(resource({ count: required(integer()) }), probe(["count"], ["abs"]));
+
+			// scalar preserves maxCount; minCount becomes undefined (domain violations → undefined)
+
+			expect(range(result).minCount).toBeUndefined();
+			expect(range(result).maxCount).toBe(1);
+
+		});
+
+		it("scalar transform preserves undefined maxCount", async () => {
+
+			const result = effective(resource({ value: nonempty(integer()) }), probe(["value"], ["abs"]));
+
+			expect(range(result).minCount).toBeUndefined();
+			expect(range(result).maxCount).toBeUndefined();
+
+		});
+
+		it.each([
+			["count", ["count"], nonempty(integer())],
+			["sum", ["sum"], nonempty(integer())]
+		] as const)("%s total aggregate sets maxCount and minCount to 1", async (_label, pipe, set) => {
+
+			const result = effective(resource({ value: set }), probe(["value"], [...pipe]));
+
+			// total aggregates always yield a value (0 on the empty set), so minCount is 1
+
+			expect(range(result).minCount).toBe(1);
+			expect(range(result).maxCount).toBe(1);
+
+		});
+
+		it.each([
+			["avg", ["avg"], nonempty(integer())],
+			["min", ["min"], nonempty(string())],
+			["max", ["max"], nonempty(string())],
+			["avg+floor", ["avg", "floor"], nonempty(decimal())]
+		] as const)("%s aggregate sets maxCount to 1 and minCount to undefined", async (_label, pipe, set) => {
+
+			const result = effective(resource({ value: set }), probe(["value"], [...pipe]));
+
+			// non-total aggregates yield undefined on the empty set, so minCount is undefined
+
+			expect(range(result).minCount).toBeUndefined();
+			expect(range(result).maxCount).toBe(1);
+
+		});
+
+	});
+
+	describe("path cardinality accumulation", () => {
+
+		function pathRange(p: Probe, s: ResourceShape): RangeShape | string {
+			return effective(s, p);
+		}
+
+
+		it.each([
+			["required×required", required, required, 1, 1],
+			["required×optional", required, optional, undefined, 1],
+			["required×nonempty", required, nonempty, 1, undefined],
+			["optional×required", optional, required, undefined, 1],
+			["optional×optional", optional, optional, undefined, 1],
+			["optional×nonempty", optional, nonempty, undefined, undefined],
+			["nonempty×required", nonempty, required, 1, undefined],
+			["nonempty×optional", nonempty, optional, undefined, undefined],
+			["nonempty×nonempty", nonempty, nonempty, 1, undefined]
+		] as const)("accumulates %s", async (_label, outer, inner, expectedMin, expectedMax) => {
+
+			const s = resource({
+				child: outer(resource({ name: inner(string()) }))
+			});
+
+			const result = pathRange(probe(["child", "name"]), s);
+
+			expect(range(result).minCount).toBe(expectedMin);
+			expect(range(result).maxCount).toBe(expectedMax);
+
+		});
+
+		it("accumulates across three-step path", async () => {
+
+			const s = resource({
+				a: nonempty(resource({
+					b: optional(resource({
+						c: required(string())
+					}))
+				}))
+			});
+
+			// minCount: 1×undef×1 = undef; maxCount: undef×1×1 = undef
+
+			const result = pathRange(probe(["a", "b", "c"]), s);
+
+			expect(range(result).minCount).toBeUndefined();
+			expect(range(result).maxCount).toBeUndefined();
+
+		});
+
+		it("accumulates through union using outer range cardinality", async () => {
+
+			const s = resource({
+				value: nonempty(union(
+					resource({ name: required(string()) }),
+					resource({ name: required(integer()) })
+				))
+			});
+
+			// step 1 (value): minCount=1, maxCount=undef (nonempty)
+			// step 2 (name): minCount=1, maxCount=1 (required in both variants)
+			// accumulated: minCount=1×1=1, maxCount=undef×1=undef
+
+			const result = pathRange(probe(["value", "name"]), s);
+
+			expect(range(result).minCount).toBe(1);
+			expect(range(result).maxCount).toBeUndefined();
+
+		});
+
+	});
+
+	describe("path traversal", () => {
+
+		function probeRange(p: Probe, s: ResourceShape): RangeShape | string {
+			return effective(s, p);
+		}
+
+
+		it("returns range wrapping resource for empty path and empty pipe", async () => {
+
+			const s = resource({
+				name: required(string())
+			});
+
+			const result = probeRange(probe([]), s);
+
+			expect(range(result).variants[0]).toBe(s);
+
+		});
+
+		it("resolves single path segment to leaf property range", async () => {
+
+			const s = resource({
+				name: required(string())
+			});
+
+			const result = probeRange(probe(["name"]), s);
+
+			expect(range(result).variants[0]).toEqual(string());
+			expect(range(result).minCount).toBe(1);
+			expect(range(result).maxCount).toBe(1);
+
+		});
+
+		it("resolves multi-segment path through nested resources", async () => {
+
+			const Inner = resource({
+				label: required(string())
+			});
+
+			const s = resource({
+				child: required(Inner)
+			});
+
+			expect(range(probeRange(probe(["child", "label"]), s)).variants[0]).toEqual(string());
+
+		});
+
+		it("resolves path through reference shapes", async () => {
+
+			const Inner = resource({
+				label: required(string())
+			});
+
+			const s = resource({
+				child: optional(reference(Inner))
+			});
+
+			expect(range(probeRange(probe(["child", "label"]), s)).variants[0]).toEqual(string());
+
+		});
+
+		it("returns undefined range for undefined property", async () => {
+
+			const s = resource({
+				name: required(string())
+			});
+
+			expect(effective(s, probe(["missing"]))).toEqual("undefined property path");
+
+		});
+
+		it("returns undefined range for undefined nested property", async () => {
+
+			const Inner = resource({
+				label: required(string())
+			});
+
+			const s = resource({
+				child: required(Inner)
+			});
+
+			expect(effective(s, probe(["child", "missing"]))).toEqual("undefined property path");
+
+		});
+
+		it("resolves path through union preserving per-variant shapes in range", async () => {
+
+			const s = resource({
+				value: required(union(
+					resource({ name: required(string()) }),
+					resource({ name: required(integer()) })
+				))
+			});
+
+			// both variants define "name" — result is a range with union of per-variant resolved shapes
+
+			const result = probeRange(probe(["value", "name"]), s);
+
+			expect(range(result).variants).toContainEqual(string());
+			expect(range(result).variants).toContainEqual(integer());
+
+		});
+
+		it("resolves path through union skipping variants that lack the property", async () => {
+
+			const s = resource({
+				value: required(union(
+					resource({ name: required(string()) }),
+					resource({ age: required(integer()) })
+				))
+			});
+
+			// variant "b" lacks "name" — skipped; result includes only variant "a"'s shape
+
+			const result = probeRange(probe(["value", "name"]), s);
+
+			expect(range(result).variants[0]).toEqual(string());
+
+		});
+
+		it("returns undefined range for path through union when no variant has the property", async () => {
+
+			const s = resource({
+				value: required(union(
+					resource({ name: required(string()) }),
+					resource({ age: required(integer()) })
+				))
+			});
+
+			// neither variant defines "missing" — returns undefined range
+
+			expect(effective(s, probe(["value", "missing"]))).toEqual("undefined property path");
+
+		});
+
+		it("collapses an aggregate-piped union to a single variant", async () => {
+
+			const s = resource({
+				value: required(union(string(), integer()))
+			});
+
+			// "count" maps every branch to integer, so the union collapses to one distinct variant
+
+			const result = probeRange(probe(["value"], ["count"]), s);
+
+			expect(range(result).variants).toEqual([integer()]);
+
+		});
+
+		it("skips incompatible union variants in pipe and returns compatible ones", async () => {
+
+			const s = resource({
+				value: required(union(string(), integer()))
+			});
+
+			// "length" accepts only strings — integer variant is skipped, string variant passes through
+
+			expect(range(probeRange(probe(["value"], ["length"]), s)).variants[0]).toEqual(integer());
+
+		});
+
+		it("reports incompatible transform input for union when no variant is compatible with pipe", async () => {
+
+			const s = resource({
+				value: required(union(string(), integer()))
+			});
+
+			// "year" requires temporal strings — neither dictionary nor num qualifies
+
+			expect(effective(s, probe(["value"], ["year"]))).toEqual("incompatible transform input");
+
+		});
+
+		it("resolves combined path and pipe", async () => {
+
+			const s = resource({
+				price: required(decimal())
+			});
+
+			expect(range(probeRange(probe(["price"], ["floor"]), s)).variants[0]).toEqual(decimal());
+
+		});
+
+		it("reports incompatible transform input for incompatible pipe on resolved path", async () => {
+
+			const s = resource({
+				name: required(string())
+			});
+
+			expect(effective(s, probe(["name"], ["floor"]))).toEqual("incompatible transform input");
+
+		});
+
+		it("resolves path through inherited entries", async () => {
+
+			const Base = resource({
+				label: required(string())
+			});
+
+			const Derived = resource(Base, {
+				extra: required(integer())
+			});
+
+			expect(range(probeRange(probe(["label"]), Derived)).variants[0]).toEqual(string());
+
+		});
+
+	});
+
+	describe("id/type path resolution", () => {
+
+		function probeRange(p: Probe, s: ResourceShape): RangeShape | string {
+			return effective(s, p);
+		}
+
+
+		describe("id field", () => {
+
+			it("resolves single-segment path to id field", async () => {
+
+				const s = resource({
+					rid: id(),
+					name: required(string())
+				});
+
+				expect(range(probeRange(probe(["rid"]), s)).variants[0]).toHaveProperty("datatype", sh.IRI);
+
+			});
+
+			it("resolves id field with optional cardinality", async () => {
+
+				const s = resource({
+					rid: id(),
+					name: required(string())
+				});
+
+				const result = probeRange(probe(["rid"]), s);
+
+				expect(range(result).minCount).toBeUndefined();
+				expect(range(result).maxCount).toBe(1);
+
+			});
+
+			it("resolves trailing path segment to id through reference", async () => {
+
+				const Inner = resource({
+					rid: id(),
+					label: required(string())
+				});
+
+				const s = resource({
+					child: optional(reference(Inner))
+				});
+
+				expect(range(probeRange(probe(["child", "rid"]), s)).variants[0]).toHaveProperty("datatype", sh.IRI);
+
+			});
+
+			it("rejects leading id with trailing segments", async () => {
+
+				const s = resource({
+					rid: id(),
+					name: required(string())
+				});
+
+				expect(effective(s, probe(["rid", "something"]))).toEqual("undefined property path");
+
+			});
+
+			it("rejects inner id in multi-segment path", async () => {
+
+				const Inner = resource({
+					rid: id(),
+					nested: required(resource({
+						value: required(string())
+					}))
+				});
+
+				const s = resource({
+					child: required(reference(Inner))
+				});
+
+				expect(effective(s, probe(["child", "rid", "value"]))).toEqual("undefined property path");
+
+			});
+
+		});
+
+		describe("type field", () => {
+
+			it("resolves single-segment path to type field", async () => {
+
+				const s = resource({
+					kind: type(),
+					name: required(string())
+				}, { class: "app:/types/T" });
+
+				expect(range(probeRange(probe(["kind"]), s)).variants[0]).toHaveProperty("datatype", sh.IRI);
+
+			});
+
+			it("resolves type field with optional cardinality", async () => {
+
+				const s = resource({
+					kind: type(),
+					name: required(string())
+				}, { class: "app:/types/T" });
+
+				const result = probeRange(probe(["kind"]), s);
+
+				expect(range(result).minCount).toBeUndefined();
+				expect(range(result).maxCount).toBe(1);
+
+			});
+
+			it("resolves trailing path segment to type through reference", async () => {
+
+				const Inner = resource({
+					kind: type(),
+					label: required(string())
+				}, { class: "app:/types/T" });
+
+				const s = resource({
+					child: optional(reference(Inner))
+				});
+
+				expect(range(probeRange(probe(["child", "kind"]), s)).variants[0]).toHaveProperty("datatype", sh.IRI);
+
+			});
+
+			it("rejects leading type with trailing segments", async () => {
+
+				const s = resource({
+					kind: type(),
+					name: required(string())
+				}, { class: "app:/types/T" });
+
+				expect(effective(s, probe(["kind", "something"]))).toEqual("undefined property path");
+
+			});
+
+			it("rejects inner type in multi-segment path", async () => {
+
+				const Inner = resource({
+					kind: type(),
+					nested: required(resource({
+						value: required(string())
+					}))
+				}, { class: "app:/types/T" });
+
+				const s = resource({
+					child: required(reference(Inner))
+				});
+
+				expect(effective(s, probe(["child", "kind", "value"]))).toEqual("undefined property path");
+
+			});
+
+		});
+
+	});
+
+	describe("reference shape input", () => {
+
+		it("resolves empty path to resolved resource shape", async () => {
+
+			const Inner = resource({ label: required(string()) });
+
+			const result = effective(reference(Inner), probe([]));
+
+			expect(range(result).variants[0]).toBe(Inner);
+
+		});
+
+		it("resolves path through resolved resource entries", async () => {
+
+			const Inner = resource({ label: required(string()) });
+
+			const result = effective(reference(Inner), probe(["label"]));
+
+			expect(range(result).variants[0]).toEqual(string());
+
+		});
+
+		it("preserves cardinality through resolved resource", async () => {
 
 			const Inner = resource({ label: optional(string()) });
-			const nested = resource({ child: optional(reference(Inner)) });
 
-			expect(trace(validate({ child: { "bad-key": "x" } }, { shape: nested, model: true }))).toBeDefined();
-			expect(trace(validate({ child: new Date() }, { shape: nested }))).toBeDefined();
+			const result = effective(reference(Inner), probe(["label"]));
 
-		});
-
-		it("admits a resource parsed straight out of JSON", async () => {
-
-			const stated = JSON.stringify({ name: "Widget", size: 30, tags: ["a", "b"] });
-
-			expect(value(validate(JSON.parse(stated), { shape })))
-				.toEqual({ name: "Widget", size: 30, tags: ["a", "b"] });
+			expect(range(result).minCount).toBeUndefined();
+			expect(range(result).maxCount).toBe(1);
 
 		});
 
-		describe("prototype pollution", () => {
+		it("applies transform pipe after eager resolution", async () => {
 
-			it("refuses a member the shape doesn't declare, however it was stated", async () => {
+			const Inner = resource({ value: required(integer()) });
 
-				// JSON.parse states __proto__ as a member of its own rather than as the prototype, so it is read
-				// like any other member and refused by the closed shape
+			const result = effective(reference(Inner), probe(["value"], ["abs"]));
 
-				expect(trace(validate(JSON.parse("{\"__proto__\": \"value\"}"), { shape }))).toBeDefined();
+			expect(range(result).variants[0]).toEqual(integer());
 
-			});
+		});
 
-			it("refuses a resource stating through a prototype rather than in its own right", async () => {
+		it("returns undefined range for undefined property", async () => {
 
-				const inherited: Record<string, unknown> = Object.create({ name: "inherited" });
+			const Inner = resource({ label: required(string()) });
 
-				inherited["name"] = "own";
-
-				expect(trace(validate(inherited, { shape }))).toBeDefined();
-
-			});
+			expect(effective(reference(Inner), probe(["missing"]))).toEqual("undefined property path");
 
 		});
 
 	});
 
-	describe("a retrieval", () => {
+	describe("leaf shape input", () => {
 
-		it("hands back the resource the template asked for", async () => {
+		it.each([
+			["boolean", boolean()],
+			["number", integer()],
+			["string", string()],
+			["dictionary", dictionary()]
+		])("resolves empty path for %s shape", async (_label, s) => {
 
-			const retrieved = { id: "app:/products/1", name: "Widget" };
+			const result = effective(s, probe([]));
 
-			expect(value(validate(retrieved, { shape: Product, model: { id: "", name: "" } })))
-				.toEqual(retrieved);
-
-		});
-
-		it("leaves a member the template didn't ask for unchecked", async () => {
-
-			expect(value(validate({ id: "app:/products/1" }, { shape: Product, model: { id: "" } })))
-				.toEqual({ id: "app:/products/1" });
+			expect(range(result).variants[0]).toBe(s);
 
 		});
 
-		it("reports a member the template didn't ask for", async () => {
+		it("applies compatible transform pipe on empty path", async () => {
 
-			expect(trace(validate({ id: "app:/products/1", name: "Widget" }, {
-				shape: Product,
-				model: { id: "" }
-			}))).toBeDefined();
+			const result = effective(decimal(), probe([], ["floor"]));
 
-		});
-
-		it("holds a member the template asked for to the shape", async () => {
-
-			expect(trace(validate({ name: 42 }, { shape: Product, model: { name: "" } }))).toBeDefined();
+			expect(range(result).variants[0]).toEqual(decimal());
 
 		});
 
-		it("holds the resource to the identifier it is expected to be named by", async () => {
+		it("applies aggregate transform on empty path", async () => {
 
-			const retrieved = { id: "app:/products/1" };
+			const result = effective(integer(), probe([], ["count"]));
 
-			expect(trace(validate(retrieved, {
-				shape: Product,
-				model: { id: "" },
-				entry: "app:/products/2"
-			}))).toBeDefined();
+			expect(range(result).variants[0]).toEqual(integer());
+			expect(range(result).minCount).toBe(1);
+			expect(range(result).maxCount).toBe(1);
 
 		});
 
-		it("leaves a member the shape requires and the template didn't ask for unchecked", async () => {
+		it.each([
+			["number", integer()],
+			["string", string()],
+			["boolean", boolean()]
+		])("returns undefined range for non-empty path on %s shape", async (_label, s) => {
 
-			const shape = resource({ name: required(string()), size: required(integer()) });
-
-			expect(value(validate({ size: 42 }, { shape, model: { size: 0 } })))
-				.toEqual({ size: 42 });
-
-		});
-
-		it("leaves several such members unchecked at once", async () => {
-
-			const shape = resource({
-				a: required(string()),
-				b: required(string()),
-				c: required(integer())
-			});
-
-			expect(value(validate({ c: 42 }, { shape, model: { c: 0 } })))
-				.toEqual({ c: 42 });
+			expect(effective(s, probe(["missing"]))).toEqual("undefined property path");
 
 		});
 
-		it("admits a link brought back as the identifier naming it", async () => {
+		it("reports incompatible transform input for incompatible pipe on leaf shape", async () => {
 
-			const retrieved = { vendor: "app:/vendors/1" };
-
-			expect(value(validate(retrieved, { shape: Product, model: { vendor: "" } })))
-				.toEqual(retrieved);
+			expect(effective(string(), probe([], ["floor"]))).toEqual("incompatible transform input");
 
 		});
 
-		it("admits a link brought back as the resource behind it", async () => {
+		it("chains transforms on leaf shape", async () => {
 
-			const retrieved = { vendor: { id: "app:/vendors/1", name: "Acme" } };
+			const result = effective(decimal(), probe([], ["avg", "floor"]));
 
-			expect(value(validate(retrieved, { shape: Product, model: { vendor: { id: "", name: "" } } })))
-				.toEqual(retrieved);
-
-		});
-
-		it("holds the resource behind a link to what the nested template asked for", async () => {
-
-			expect(trace(validate({ vendor: { id: "app:/vendors/1", name: "Acme" } }, {
-				shape: Product,
-				model: { vendor: { id: "" } }
-			}))).toBeDefined();
-
-		});
-
-		it("holds the resource behind a link to the shape of its target", async () => {
-
-			expect(trace(validate({ vendor: { name: 42 } }, {
-				shape: Product,
-				model: { vendor: { name: "" } }
-			}))).toBeDefined();
-
-		});
-
-		it("hands back a resource that cannot be written through", async () => {
-
-			// ;(cast) the relay hands back an unknown, which this test writes through on purpose
-
-			const validated = value(validate({ name: "Widget" }, {
-				shape: Product,
-				model: { name: "" }
-			})) as Record<string, unknown>;
-
-			expect(() => { validated["name"] = "Gadget"; }).toThrow();
-
-		});
-
-		it("settles a second validation on the same template off the first", async () => {
-
-			const validated = value(validate({ name: "Widget" }, { shape: Product, model: { name: "" } }));
-
-			expect(value(validate(validated, { shape: Product, model: { name: "" } }))).toBe(validated);
-
-		});
-
-		it("validates again where another template is asked about", async () => {
-
-			const validated = value(validate({ name: "Widget" }, { shape: Product, model: { name: "" } }));
-
-			expect(trace(validate(validated, { shape: Product, model: { size: 0 } }))).toBeDefined();
-
-		});
-
-	});
-
-	describe("the page a retrieval template is held to", () => {
-
-		it("holds every collection a template asks for to the page served", async () => {
-
-			const Inner = resource({ id: id(), tags: multiple(string()) });
-			const shape = resource({ items: multiple(reference(Inner)) });
-
-			expect(value(validate({ items: [{ tags: [""] }] }, { shape, model: true, limit: 10 })))
-				.toEqual({ items: [{ tags: ["", { "#": 10 }] }, { "#": 10 }] });
-
-		});
-
-		it("holds a collection stated as a branch map to the page served", async () => {
-
-			const A = resource({ id: id(), name: required(string()) });
-			const B = resource({ id: id(), tags: multiple(string()) });
-			const shape = resource({ items: multiple(union(A, B)) });
-
-			expect(value(validate({ items: [{ "1": { tags: [""] } }] }, { shape, model: true, limit: 10 })))
-				.toEqual({ items: [{ "1": { tags: ["", { "#": 10 }] } }, { "#": 10 }] });
-
-		});
-
-		it("holds a collection asked for as a table to the page served", async () => {
-
-			const shape = resource({ items: multiple(reference(Product)) });
-
-			expect(value(validate({ items: [{ "n=name": "" }] }, { shape, model: true, limit: 10 })))
-				.toEqual({ items: [{ "n=name": "" }, { "#": 10 }] });
-
-		});
-
-		it("leaves a single value alone, which nothing pages", async () => {
-
-			expect(value(validate({ name: "", vendor: { name: "" } }, { shape: Product, model: true, limit: 10 })))
-				.toEqual({ name: "", vendor: { name: "" } });
-
-		});
-
-		it("leaves a localised value alone, which nothing pages", async () => {
-
-			const shape = resource({ label: optional(dictionary({ uniqueLang: true })) });
-
-			expect(value(validate({ label: { en: "" } }, { shape, model: true, limit: 10 })))
-				.toEqual({ label: { en: "" } });
-
-		});
-
-		it("leaves the template alone where the page is left to the caller", async () => {
-
-			expect(value(validate({ tags: [""] }, { shape: Product, model: true, limit: 0 })))
-				.toEqual({ tags: [""] });
-
-		});
-
-	});
-
-	describe("a retrieval template", () => {
-
-		it("hands back the template the shape can serve", async () => {
-
-			expect(value(validate({ id: "", name: "" }, { shape: Product, model: true })))
-				.toEqual({ id: "", name: "" });
-
-		});
-
-		it("reports a slot naming a member the shape doesn't declare", async () => {
-
-			expect(trace(validate({ unknown: "" }, { shape: Product, model: true }))).toBeDefined();
-
-		});
-
-		it("leaves the value domain alone, a placeholder standing for a value", async () => {
-
-			const shape = resource({ size: optional(integer({ minInclusive: 10 })) });
-
-			expect(value(validate({ size: 0 }, { shape, model: true }))).toEqual({ size: 0 });
-
-		});
-
-		it("refuses the transforms combining values where asked to", async () => {
-
-			const shape = resource({ items: multiple(reference(Product)) });
-			const template = { items: [{ "n=count:name": 0 }] };
-
-			expect(value(validate(template, { shape, model: true }))).toBeDefined();
-			expect(trace(validate(template, { shape, model: true, plain: true }))).toBeDefined();
-
-		});
-
-		it("caps the nesting a template may ask for", async () => {
-
-			expect(value(validate({ vendor: "app:/vendors/1" }, { shape: Product, model: true, depth: 0 })))
-				.toEqual({ vendor: "app:/vendors/1" });
-
-			expect(trace(validate({ vendor: { name: "" } }, { shape: Product, model: true, depth: 0 })))
-				.toBeDefined();
-
-		});
-
-		it("refuses a page larger than the one served", async () => {
-
-			expect(trace(validate({ tags: ["", { "#": 100 }] }, { shape: Product, model: true, limit: 10 })))
-				.toBeDefined();
-
-		});
-
-		it("holds a collection asking for no page to the one served", async () => {
-
-			expect(value(validate({ tags: [""] }, { shape: Product, model: true, limit: 10 })))
-				.toEqual({ tags: ["", { "#": 10 }] });
-
-		});
-
-		it("leaves a page the template asked for alone", async () => {
-
-			expect(value(validate({ tags: ["", { "#": 5 }] }, { shape: Product, model: true, limit: 10 })))
-				.toEqual({ tags: ["", { "#": 5 }] });
-
-		});
-
-		it("hands back a template that cannot be written through", async () => {
-
-			// ;(cast) the relay hands back an unknown, which this test writes through on purpose
-
-			const validated = value(validate({ name: "" }, { shape: Product, model: true })) as Record<string, unknown>;
-
-			expect(() => { validated["name"] = [true]; }).toThrow();
-
-		});
-
-		it("hands back a template stated apart from the one it was given", async () => {
-
-			const stated = { name: "" };
-
-			expect(value(validate(stated, { shape: Product, model: true }))).not.toBe(stated);
-			expect(value(validate(stated, { shape: Product, model: true }))).toEqual(stated);
-
-		});
-
-		it("settles a second validation on the same terms off the first", async () => {
-
-			const validated = value(validate({ name: "" }, { shape: Product, model: true }));
-
-			expect(value(validate(validated, { shape: Product, model: true }))).toBe(validated);
-
-		});
-
-		it("settles a second validation where the page served loosened", async () => {
-
-			const validated = value(validate({ tags: [""] }, { shape: Product, model: true, limit: 10 }));
-
-			expect(value(validate(validated, { shape: Product, model: true, limit: 100 }))).toBe(validated);
-
-		});
-
-		it("validates again where the page served tightened", async () => {
-
-			const validated = value(validate({ tags: [""] }, { shape: Product, model: true, limit: 100 }));
-
-			expect(trace(validate(validated, { shape: Product, model: true, limit: 10 }))).toBeDefined();
-
-		});
-
-		it("validates again where the nesting allowed tightened", async () => {
-
-			const validated = value(validate({ vendor: { name: "" } }, { shape: Product, model: true, depth: 1 }));
-
-			expect(trace(validate(validated, { shape: Product, model: true, depth: 0 }))).toBeDefined();
-
-		});
-
-		it("validates again where the terms tightened", async () => {
-
-			const validated = value(validate({ name: "" }, { shape: Product, model: true }));
-
-			expect(value(validate(validated, { shape: Product, model: true, plain: true }))).not.toBe(validated);
-
-		});
-
-		it("tells a template apart from a resource on the same shape", async () => {
-
-			// a nested template stands for the resource behind a link, which the link itself never admits
-
-			const validated = value(validate({ vendor: { name: "" } }, { shape: Product, model: true }));
-
-			expect(validated).toEqual({ vendor: { name: "" } });
-			expect(trace(validate(validated, { shape: Product }))).toBeDefined();
+			expect(range(result).variants[0]).toEqual(decimal());
 
 		});
 
@@ -589,150 +957,1888 @@ describe("validate", () => {
 
 });
 
-describe("enforce", () => {
+describe("validation", () => {
 
-	const limit = 100;
+	describe("validate (resource)", () => {
 
-	const Vendor = resource({ id: id(), name: required(string()), tags: multiple(string()) });
+		describe("structural validation", () => {
 
-	const Product = resource({
-		name: required(string()),
-		size: optional(integer()),
-		tags: multiple(string()),
-		label: optional(dictionary({ uniqueLang: true })),
-		vendor: optional(reference(Vendor)),
-		vendors: multiple(reference(Vendor))
+			it("returns value for valid empty resource", async () => {
+
+				const shape = resource({});
+				const result = validate({}, { shape });
+
+				expect(result({ value: v => v })).toEqual({});
+
+			});
+
+			it("returns value for resource with entries", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const result = validate({ name: "Alice" }, { shape });
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+			});
+
+			it("returns value for resource with id", async () => {
+
+				const shape = resource({ id: id() });
+
+				const result = validate({ id: "app:/users/123" }, { shape });
+				expect(result({ value: v => v })).toEqual({ id: "app:/users/123" });
+
+			});
+
+			it("returns value for resource with type", async () => {
+
+				const shape = resource({ type: type() }, { class: "app:/types/Person" });
+
+				const result = validate({ type: "app:/types/Person" }, { shape });
+				expect(result({ value: v => v })).toEqual({ type: "app:/types/Person" });
+
+			});
+
+			it.each([
+				["null", null],
+				["undefined", undefined],
+				["string", "not a resource"],
+				["array", [{ name: "Alice" }]]
+			])("returns trace for %s", async (_label, value) => {
+
+				const shape = resource({});
+				const result = validate(value, { shape });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+		});
+
+		describe("entry", () => {
+
+			it("accepts resource when id matches entry", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const result = validate({ id: "app:/users/1", name: "Alice" }, { shape, entry: "app:/users/1" });
+
+				expect(result({ value: v => v })).toEqual({ id: "app:/users/1", name: "Alice" });
+
+			});
+
+			it("rejects resource when id does not match entry", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const result = validate({ id: "app:/users/2", name: "Alice" }, { shape, entry: "app:/users/1" });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("ignores entry when resource has no id property", async () => {
+
+				const shape = resource({ name: required(string()) });
+				const result = validate({ name: "Alice" }, { shape, entry: "app:/users/1" });
+
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+			});
+
+			it("ignores entry when resource id is undefined", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const result = validate({ name: "Alice" }, { shape, entry: "app:/users/1" });
+
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+			});
+
+			it("accepts resource when entry is not provided", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const result = validate({ id: "app:/users/1", name: "Alice" }, { shape });
+
+				expect(result({ value: v => v })).toEqual({ id: "app:/users/1", name: "Alice" });
+
+			});
+
+		});
+
+		describe("return behaviour", () => {
+
+			it("returns a new reference on success", async () => {
+
+				const shape = resource({ name: required(string()) });
+				const value = { name: "Alice" };
+
+				const result = validate(value, { shape })({ value: v => v });
+
+				expect(result).not.toBe(value);
+				expect(result).toEqual(value);
+
+			});
+
+			it("returns an immutable value on success", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const result = validate({ name: "Alice" }, { shape })({ value: v => v });
+
+				expect(() => {
+					(result as any).name = "Bob";
+				}).toThrow();
+
+			});
+
+		});
+
+		describe("branding", () => {
+
+			it("skips validation for resource already validated with same scope", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				// first validation should succeed and brand the resource
+
+				const value = { name: "Alice" };
+				const first = validate(value, { shape });
+				const branded = first({ value: v => v });
+
+				// second validation with same scope should return the same branded resource
+
+				const second = validate(branded, { shape });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("revalidates when shape changes", async () => {
+
+				const shapeA = resource({
+					name: required(string())
+				});
+
+				const shapeB = resource({
+					name: required(string({ model: "x", minLength: 1 }))
+				});
+
+				const value = { name: "Alice" };
+				const first = validate(value, { shape: shapeA });
+				const branded = first({ value: v => v });
+
+				// same scope but different shape should revalidate
+
+				const second = validate(branded, { shape: shapeB });
+				const revalidated = second({ value: v => v });
+
+				expect(revalidated).not.toBe(branded);
+
+			});
+
+			it("revalidates when scope changes from template to resource", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { shape });
+				const revalidated = second({ value: v => v });
+
+				expect(revalidated).not.toBe(branded);
+
+			});
+
+			it("does not brand on validation failure", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				// invalid resource should not be branded
+
+				const invalid = validate({}, { shape });
+				expect(invalid({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("revalidates when entry changes", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+
+				const value = { id: "app:/users/1", name: "Alice" };
+				const first = validate(value, { shape, entry: "app:/users/1" });
+				const branded = first({ value: v => v });
+
+				// different entry should revalidate
+
+				const second = validate(branded, { shape, entry: "app:/users/2" });
+				expect(second({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("revalidates when entry is added", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+
+				const value = { id: "app:/users/1", name: "Alice" };
+				const first = validate(value, { shape });
+				const branded = first({ value: v => v });
+
+				// adding entry should revalidate
+
+				const second = validate(branded, { shape, entry: "app:/users/2" });
+				expect(second({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("skips validation when entry matches previous", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+
+				const value = { id: "app:/users/1", name: "Alice" };
+				const first = validate(value, { shape, entry: "app:/users/1" });
+				const branded = first({ value: v => v });
+
+				// same entry should skip revalidation
+
+				const second = validate(branded, { shape, entry: "app:/users/1" });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+		});
+
+		describe("rejects missing required property", () => {
+
+			it("rejects missing required property", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const result = validate({}, { shape });
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+		});
+
+		describe("union values", () => {
+
+			const PostalAddress = resource({
+				id: id(),
+				street: required(string()),
+				city: required(string())
+			});
+
+			const Contact = resource({
+				address: optional(union(
+					string(),
+					reference(PostalAddress)
+				), { captive: true })
+			});
+
+
+			it("accepts a string variant value", async () => {
+
+				const result = validate({ address: "123 Main St" }, { shape: Contact });
+				expect(result({ value: v => v })).toEqual({ address: "123 Main St" });
+
+			});
+
+			it("accepts a reference variant value", async () => {
+
+				const result = validate({
+					address: { street: "12 Harbour St", city: "Copenhagen" }
+				}, { shape: Contact });
+
+				expect(result({ value: v => v })).toEqual({
+					address: { street: "12 Harbour St", city: "Copenhagen" }
+				});
+
+			});
+
+			it("rejects a value matching no variant", async () => {
+
+				const result = validate({ address: 42 }, { shape: Contact });
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("rejects a reference variant value with an invalid embedded resource", async () => {
+
+				const result = validate({ address: { street: "12 Harbour St" } }, { shape: Contact });
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("accepts absent optional union property", async () => {
+
+				const result = validate({}, { shape: Contact });
+				expect(result({ value: v => v })).toEqual({});
+
+			});
+
+			it("accepts a keyed union placeholder matching several branches", async () => {
+
+				const Coded = resource({ code: required(union(string(), string())) });
+
+				const result = validate({ code: { "0": "" } }, { model: true, shape: Coded });
+
+				expect(result({ value: () => "ok", trace: () => "err" })).toBe("ok");
+
+			});
+
+		});
+
+		describe("depth idempotency", () => {
+
+			const Inner = resource({ id: id(), label: required(string()) });
+
+			const shape = resource({
+				child: optional(reference(Inner), { captive: true })
+			});
+
+			const value = { child: { id: "app:/inner/1", label: "x" } };
+
+			it("skips validation when depth was stricter and is now relaxed", async () => {
+
+				const branded = validate(value, { shape, depth: 1 })({ value: v => v });
+
+				expect(validate(branded, { shape, depth: 3 })({ value: v => v })).toBe(branded);
+
+			});
+
+			it("skips validation when depth was limited and is now omitted", async () => {
+
+				const branded = validate(value, { shape, depth: 1 })({ value: v => v });
+
+				expect(validate(branded, { shape })({ value: v => v })).toBe(branded);
+
+			});
+
+			it("revalidates when depth was relaxed and is now stricter", async () => {
+
+				const branded = validate(value, { shape, depth: 3 })({ value: v => v });
+
+				expect(validate(branded, { shape, depth: 1 })({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("revalidates and rejects when depth was omitted and is now zero", async () => {
+
+				const branded = validate(value, { shape })({ value: v => v });
+
+				expect(validate(branded, { shape, depth: 0 })({ trace: t => t })).toBeDefined();
+
+			});
+
+		});
+
+
+		describe("lazy shapes", () => {
+
+			it("resolves factory function before validation", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const result = validate({ name: "Alice" }, { shape: () => shape });
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+			});
+
+			it("caches resolved factory result", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const factory = () => shape;
+
+				const first = validate({ name: "Alice" }, { shape: factory });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { shape: factory });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+		});
+
+		describe("local shorthand on scalar cardinality", () => {
+
+			it("accepts local object shorthand on optional property", async () => {
+
+				const shape = resource({ label: optional(dictionary()) });
+				const result = validate({ label: { en: "hello" } }, { shape });
+
+				expect(result({ value: v => v })).toEqual({ label: { en: "hello" } });
+
+			});
+
+		});
+
+		describe("localised tag map on multi cardinality", () => {
+
+			it("accepts tag map with array-valued tag on multi property", async () => {
+
+				const shape = resource({ labels: multiple(dictionary()) });
+				const result = validate({ labels: { en: ["hello"] } }, { shape });
+
+				expect(result({ value: v => v })).toEqual({ labels: { en: ["hello"] } });
+
+			});
+
+		});
+
+		describe("arbitrary JSON hardening", () => {
+
+			const shape = resource({ name: optional(string()) });
+
+			it("returns trace for non-plain objects", async () => {
+
+				expect(validate(new Date(), { shape })({ trace: t => t })).toBeDefined();
+				expect(validate(/regex/, { shape })({ trace: t => t })).toBeDefined();
+				expect(validate(new Map(), { shape })({ trace: t => t })).toBeDefined();
+				expect(validate(new Set(), { shape })({ trace: t => t })).toBeDefined();
+				expect(validate(new Error("boom"), { shape })({ trace: t => t })).toBeDefined();
+				expect(validate(Object.create(null), { shape })({ trace: t => t })).toBeDefined();
+
+				class Custom {name = "Alice";}
+
+				expect(validate(new Custom(), { shape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for functions, symbols, bigints as input", async () => {
+
+				expect(validate(() => {}, { shape })({ trace: t => t })).toBeDefined();
+				expect(validate(Symbol("x"), { shape })({ trace: t => t })).toBeDefined();
+				expect(validate(BigInt(1), { shape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for non-identifier top-level keys", async () => {
+
+				expect(validate({ "foo-bar": "x" }, { shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ "foo.bar": "x" }, { shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ "@id": "x" }, { shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ "ns:prop": "x" }, { shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ "123": "x" }, { shape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for function, symbol, bigint property values", async () => {
+
+				expect(validate({ name: () => {} }, { shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ name: Symbol("s") }, { shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ name: BigInt(1) }, { shape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for non-finite numbers as property values", async () => {
+
+				const numShape = resource({ price: optional(integer()) });
+
+				expect(validate({ price: Number.NaN }, { shape: numShape })({ trace: t => t })).toBeDefined();
+				expect(validate({ price: Number.POSITIVE_INFINITY }, { shape: numShape })({ trace: t => t })).toBeDefined();
+				expect(validate({ price: Number.NEGATIVE_INFINITY }, { shape: numShape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for non-plain objects nested as property values", async () => {
+
+				expect(validate({ name: new Date() }, { shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ name: /regex/ }, { shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ name: new Map() }, { shape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for invalid structures nested inside arrays", async () => {
+
+				const arrShape = resource({ tags: nonempty(string()) });
+
+				expect(validate({ tags: [null] }, { shape: arrShape })({ trace: t => t })).toBeDefined();
+				expect(validate({ tags: [undefined] }, { shape: arrShape })({ trace: t => t })).toBeDefined();
+				expect(validate({ tags: [new Date()] }, { shape: arrShape })({ trace: t => t })).toBeDefined();
+				expect(validate({ tags: [Number.NaN] }, { shape: arrShape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for invalid structures nested inside sub-resources", async () => {
+
+				const Inner = resource({ label: optional(string()) });
+				const nested = resource({ child: optional(reference(Inner)) });
+
+				expect(validate({ child: { "bad-key": "x" } }, { shape: nested })({ trace: t => t })).toBeDefined();
+				expect(validate({ child: new Date() }, { shape: nested })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("accepts JSON.parse output of a valid resource", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					price: optional(integer()),
+					available: optional(boolean()),
+					tags: nonempty(string())
+				});
+
+				const json = JSON.stringify({
+					name: "Widget",
+					price: 30,
+					available: true,
+					tags: ["a", "b"]
+				});
+
+				expect(validate(JSON.parse(json), { shape })({ value: v => v }))
+					.toEqual({ name: "Widget", price: 30, available: true, tags: ["a", "b"] });
+
+			});
+
+			describe("prototype pollution resilience", () => {
+
+				it("returns trace for JSON-parsed __proto__ own property when not declared by shape", async () => {
+
+					// JSON.parse creates __proto__ as an own property, not the prototype. It is a valid
+					// identifier, so it iterates like any other key and gets caught by closed-shape checks.
+					const parsed = JSON.parse("{\"__proto__\": \"value\"}");
+
+					expect(validate(parsed, { shape })({ trace: t => t })).toBeDefined();
+
+				});
+
+				it("returns trace for objects with non-plain prototype even if keys look valid", async () => {
+
+					const weird: Record<string, unknown> = Object.create({ name: "inherited" });
+					weird.name = "own";
+
+					expect(validate(weird, { shape })({ trace: t => t })).toBeDefined();
+
+				});
+
+			});
+
+		});
+
 	});
 
-	it("leaves the template alone where no page is served", async () => {
+	describe("validate (projection)", () => {
 
-		expect(enforce({ tags: [""] }, Product)).toEqual({ tags: [""] });
-		expect(enforce({ tags: [""] }, Product, { limit: 0 })).toEqual({ tags: [""] });
+		describe("partial resources", () => {
+
+			it("accepts response omitting shape-required field absent from model", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					price: required(integer())
+				});
+
+				const model = { price: 0 };
+				const result = validate({ price: 42 }, { shape, model });
+
+				expect(result({ value: v => v })).toEqual({ price: 42 });
+
+			});
+
+			it("accepts response omitting multiple shape-required fields absent from model", async () => {
+
+				const shape = resource({
+					a: required(string()),
+					b: required(string()),
+					c: required(integer())
+				});
+
+				const model = { c: 0 };
+				const result = validate({ c: 1 }, { shape, model });
+
+				expect(result({ value: v => v })).toEqual({ c: 1 });
+
+			});
+
+			it("rejects response missing a projected required field", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					price: required(integer())
+				});
+
+				const model = { name: "", price: 0 };
+				const result = validate({ name: "Widget" }, { shape, model });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("rejects wrong type for a projected field", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					price: required(integer())
+				});
+
+				const model = { name: "", price: 0 };
+				const result = validate({ name: "Widget", price: "NaN" }, { shape, model });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("rejects projected field violating a value constraint", async () => {
+
+				const shape = resource({
+					name: required(string({ model: "ab", minLength: 2 }))
+				});
+
+				const model = { name: "" };
+				const result = validate({ name: "x" }, { shape, model });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("accepts projected field satisfying a value constraint", async () => {
+
+				const shape = resource({
+					name: required(string({ model: "ab", minLength: 2 }))
+				});
+
+				const model = { name: "" };
+				const result = validate({ name: "abc" }, { shape, model });
+
+				expect(result({ value: v => v })).toEqual({ name: "abc" });
+
+			});
+
+			it("rejects array value for a projected scalar field", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const model = { name: "" };
+				const result = validate({ name: ["one", "two"] }, { shape, model });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("rejects empty array for a projected nonempty field", async () => {
+
+				const shape = resource({
+					tags: nonempty(string())
+				});
+
+				const model = { tags: [""] };
+				const result = validate({ tags: [] }, { shape, model });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("accepts projected optional field absent from value", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					note: optional(string())
+				});
+
+				const model = { name: "", note: "" };
+				const result = validate({ name: "Alice" }, { shape, model });
+
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+			});
+
+			it("rejects property not declared in shape", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const model = { name: "" };
+				const result = validate({ name: "Alice", stray: "x" }, { shape, model });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+		});
+
+		describe("expanded nested references", () => {
+
+			const Inner = resource({
+				id: id(),
+				label: required(string()),
+				hidden: required(string())
+			});
+
+			it("accepts bare IRI for reference slot", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				const model = { child: "" };
+				const result = validate({ child: "app:/inner/1" }, { shape, model });
+
+				expect(result({ value: v => v })).toEqual({ child: "app:/inner/1" });
+
+			});
+
+			it("accepts expanded nested resource for reference slot", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				const model = { child: { id: "", label: "" } };
+				const result = validate(
+					{ child: { id: "app:/inner/1", label: "x" } },
+					{ shape, model }
+				);
+
+				expect(result({ value: v => v })).toEqual({
+					child: { id: "app:/inner/1", label: "x" }
+				});
+
+			});
+
+			it("narrows nested validation to the nested projection in model", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				const model = { child: { label: "" } };
+				const result = validate({ child: { label: "x" } }, { shape, model });
+
+				expect(result({ value: v => v })).toEqual({ child: { label: "x" } });
+
+			});
+
+			it("rejects expanded nested resource violating a projected nested field", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				const model = { child: { label: "" } };
+				const result = validate({ child: { label: 42 } }, { shape, model });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("rejects expanded nested resource missing a projected required field", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				const model = { child: { label: "" } };
+				const result = validate({ child: {} }, { shape, model });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("accepts nonempty reference with mixed IRI and expanded resource", async () => {
+
+				const shape = resource({
+					items: nonempty(reference(Inner))
+				});
+
+				const model = { items: [{ label: "" }] };
+				const result = validate({
+					items: [
+						"app:/inner/1",
+						{ label: "x" }
+					]
+				}, { shape, model });
+
+				expect(result({ value: v => v })).toEqual({
+					items: ["app:/inner/1", { label: "x" }]
+				});
+
+			});
+
+			it("rejects expanded nested resource with property not declared in target shape", async () => {
+
+				const shape = resource({
+					child: required(reference(Inner))
+				});
+
+				const model = { child: { label: "" } };
+				const result = validate(
+					{ child: { label: "x", stray: true } },
+					{ shape, model }
+				);
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+		});
+
+		describe("entry", () => {
+
+			it("accepts resource when id matches entry", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const model = { id: "", name: "" };
+
+				const result = validate(
+					{ id: "app:/users/1", name: "Alice" },
+					{ shape, model, entry: "app:/users/1" }
+				);
+
+				expect(result({ value: v => v })).toEqual({ id: "app:/users/1", name: "Alice" });
+
+			});
+
+			it("rejects resource when id does not match entry", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const model = { id: "", name: "" };
+
+				const result = validate(
+					{ id: "app:/users/2", name: "Alice" },
+					{ shape, model, entry: "app:/users/1" }
+				);
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("ignores entry when resource has no id property", async () => {
+
+				const shape = resource({ id: id(), name: required(string()) });
+				const model = { name: "" };
+
+				const result = validate(
+					{ name: "Alice" },
+					{ shape, model, entry: "app:/users/1" }
+				);
+
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+			});
+
+		});
+
+		describe("return behaviour", () => {
+
+			it("returns a new reference on success", async () => {
+
+				const shape = resource({ name: required(string()) });
+				const model = { name: "" };
+				const value = { name: "Alice" };
+
+				const result = validate(value, { shape, model })({ value: v => v });
+
+				expect(result).not.toBe(value);
+				expect(result).toEqual(value);
+
+			});
+
+			it("returns an immutable value on success", async () => {
+
+				const shape = resource({ name: required(string()) });
+				const model = { name: "" };
+
+				const result = validate({ name: "Alice" }, { shape, model })({ value: v => v });
+
+				expect(() => {
+					(result as any).name = "Bob";
+				}).toThrow();
+
+			});
+
+			it("returns trace on failure", async () => {
+
+				const shape = resource({ name: required(string()) });
+				const model = { name: "" };
+
+				const result = validate({ name: 42 }, { shape, model });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it.each([
+				["null", null],
+				["undefined", undefined],
+				["string", "not a resource"],
+				["array", [{ name: "Alice" }]]
+			])("returns trace for %s", async (_label, value) => {
+
+				const shape = resource({ name: required(string()) });
+				const model = { name: "" };
+
+				const result = validate(value, { shape, model });
+
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+		});
+
+		describe("branding", () => {
+
+			it("skips validation for resource already validated with same (shape, model)", async () => {
+
+				const shape = resource({ name: required(string()) });
+				const model = { name: "" };
+
+				const value = { name: "Alice" };
+				const first = validate(value, { shape, model });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { shape, model });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("revalidates when model changes", async () => {
+
+				const shape = resource({
+					name: required(string()),
+					age: optional(integer())
+				});
+
+				const modelA = { name: "" };
+				const modelB = { name: "", age: 0 };
+
+				const first = validate({ name: "Alice" }, { shape, model: modelA });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { shape, model: modelB });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("revalidates when shape changes", async () => {
+
+				const shapeA = resource({ name: required(string()) });
+				const shapeB = resource({ name: required(string({ model: "x", minLength: 1 })) });
+				const model = { name: "" };
+
+				const first = validate({ name: "Alice" }, { shape: shapeA, model });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { shape: shapeB, model });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("rejects projection-branded value re-validated under the bonded-shape overload", async () => {
+
+				// a projection-validated value is a partial resource; re-validating under the
+				// bonded-shape overload must not trust the projection brand, since unrequested
+				// required fields may be missing
+
+				const shape = resource({
+					name: required(string()),
+					hidden: required(string())
+				});
+
+				const model = { name: "" };
+
+				const first = validate({ name: "Alice" }, { shape, model });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { shape });
+				expect(second({ trace: t => t })).toBeDefined();
+
+			});
+
+		});
+
+		describe("lazy shapes", () => {
+
+			it("resolves factory function before validation", async () => {
+
+				const shape = resource({ name: required(string()) });
+				const model = { name: "" };
+
+				const result = validate({ name: "Alice" }, { shape: () => shape, model });
+
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+			});
+
+			it("caches resolved factory result", async () => {
+
+				const shape = resource({ name: required(string()) });
+				const model = { name: "" };
+				const factory = () => shape;
+
+				const first = validate({ name: "Alice" }, { shape: factory, model });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { shape: factory, model });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+		});
 
 	});
 
-	it("leaves a malformed template alone", async () => {
+	describe("validate (template)", () => {
 
-		expect(enforce(42, Product, { limit })).toBe(42);
-		expect(enforce({ unknown: "" }, Product, { limit })).toEqual({ unknown: "" });
+		describe("return behaviour", () => {
 
-	});
+			it("returns a new reference on success", async () => {
 
-	describe("single values", () => {
+				const shape = resource({ name: required(string()) });
+				const model = { name: "Alice" };
 
-		it("leaves a placeholder alone", async () => {
+				const result = validate(model, { model: true, shape })({ value: v => v });
 
-			expect(enforce({ name: "", size: 0 }, Product, { limit })).toEqual({ name: "", size: 0 });
+				expect(result).not.toBe(model);
+				expect(result).toEqual(model);
 
-		});
+			});
 
-		it("leaves an identifier standing for a link alone", async () => {
+			it("returns an immutable model on success", async () => {
 
-			expect(enforce({ vendor: "app:/vendors/1" }, Product, { limit }))
-				.toEqual({ vendor: "app:/vendors/1" });
+				const shape = resource({ name: required(string()) });
 
-		});
+				const result = validate({}, { model: true, shape })({ value: v => v });
 
-		it("leaves a localised value alone", async () => {
+				expect(() => {
+					(result as any).name = [true];
+				}).toThrow();
 
-			expect(enforce({ label: { en: "" } }, Product, { limit })).toEqual({ label: { en: "" } });
-
-		});
-
-		it("descends into the template behind a link", async () => {
-
-			expect(enforce({ vendor: { tags: [""] } }, Product, { limit }))
-				.toEqual({ vendor: { tags: ["", { "#": limit }] } });
+			});
 
 		});
 
-	});
+		describe("branding", () => {
 
-	describe("collections", () => {
+			it("revalidates when scope changes from resource to template", async () => {
 
-		it("pages a collection of placeholders", async () => {
+				const shape = resource({
+					name: required(string())
+				});
 
-			expect(enforce({ tags: [""] }, Product, { limit })).toEqual({ tags: ["", { "#": limit }] });
+				// first validation with sealResource
+
+				const value = { name: "Alice" };
+				const first = validate(value, { shape });
+				const branded = first({ value: v => v });
+
+				// second validation with sealTemplate should revalidate
+
+				const second = validate(branded, { model: true, shape });
+				const revalidated = second({ value: v => v });
+
+				expect(revalidated).not.toBe(branded);
+
+			});
+
+			it("skips validation for template already validated with same shape", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const value = { name: [true] };
+				const first = validate(value, { model: true, shape });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("skips validation when plain was true and is now false", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape, plain: true });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, plain: false });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("skips validation when plain was true and is now omitted", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape, plain: true });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("revalidates when plain was false and is now true", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape, plain: false });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, plain: true });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("revalidates when plain was omitted and is now true", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, plain: true });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("skips validation when depth was stricter and is now relaxed", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const shape = resource({
+					child: optional(reference(Inner))
+				});
+
+				const value = { child: { label: "x" } };
+				const first = validate(value, { model: true, shape, depth: 1 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, depth: 3 });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("skips validation when depth was limited and is now omitted", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const shape = resource({
+					child: optional(reference(Inner))
+				});
+
+				const value = { child: { label: "x" } };
+				const first = validate(value, { model: true, shape, depth: 2 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("revalidates when depth was relaxed and is now stricter", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const shape = resource({
+					child: optional(reference(Inner))
+				});
+
+				const value = { child: { label: "x" } };
+				const first = validate(value, { model: true, shape, depth: 5 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, depth: 2 });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("revalidates when depth was omitted and is now limited", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const shape = resource({
+					child: optional(reference(Inner))
+				});
+
+				const value = { child: { label: "x" } };
+				const first = validate(value, { model: true, shape });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, depth: 1 });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("revalidates when shape changes", async () => {
+
+				const shapeA = resource({
+					name: required(string())
+				});
+
+				const shapeB = resource({
+					name: required(string({ model: "x", minLength: 1 }))
+				});
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape: shapeA });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape: shapeB });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("skips validation when limit was stricter and is now relaxed", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape, limit: 50 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, limit: 100 });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("skips validation when limit was set and is now omitted", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape, limit: 50 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("revalidates when limit was relaxed and is now stricter", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape, limit: 100 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, limit: 50 });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
+			it("revalidates when limit was omitted and is now set", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, limit: 50 });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
+
+			// a `limit` of 0 means unbounded: it ranks above any finite cap, so it is the
+			// most permissive limit for the short-circuit monotonicity check
+
+			it("skips validation when limit was finite and is now unbounded via zero", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape, limit: 50 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, limit: 0 });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("skips validation when limit was unbounded via zero and is now omitted", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape, limit: 0 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("skips validation when both limits are unbounded via zero", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape, limit: 0 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, limit: 0 });
+				expect(second({ value: v => v })).toBe(branded);
+
+			});
+
+			it("revalidates when limit was unbounded via zero and is now finite", async () => {
+
+				const shape = resource({ name: required(string()) });
+
+				const value = { name: "Alice" };
+				const first = validate(value, { model: true, shape, limit: 0 });
+				const branded = first({ value: v => v });
+
+				const second = validate(branded, { model: true, shape, limit: 50 });
+				expect(second({ value: v => v })).not.toBe(branded);
+
+			});
 
 		});
 
-		it("pages a collection of templates", async () => {
+		describe("accepts missing required property", () => {
 
-			expect(enforce({ vendors: [{ name: "" }] }, Product, { limit }))
-				.toEqual({ vendors: [{ name: "" }, { "#": limit }] });
+			it("accepts missing required property", async () => {
 
-		});
+				const shape = resource({
+					name: required(string())
+				});
 
-		it("leaves a page the client stated alone", async () => {
+				const result = validate({}, { model: true, shape });
+				expect(result({ value: v => v })).toEqual({});
 
-			expect(enforce({ tags: ["", { "#": 25 }] }, Product, { limit }))
-				.toEqual({ tags: ["", { "#": 25 }] });
-
-		});
-
-		it("keeps the rest of a selection the client stated", async () => {
-
-			expect(enforce({ tags: ["", { "~": "wid" }] }, Product, { limit }))
-				.toEqual({ tags: ["", { "~": "wid", "#": limit }] });
+			});
 
 		});
 
-		it("pages a collection nested within a paged one", async () => {
 
-			expect(enforce({ vendors: [{ tags: [""] }, { "#": 25 }] }, Product, { limit }))
-				.toEqual({ vendors: [{ tags: ["", { "#": limit }] }, { "#": 25 }] });
+		describe("limit post-processing", () => {
+
+			it("injects # into nested query when limit is set and # is absent", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{ name: "" }] }, { model: true, shape, limit: 50 });
+				expect(result({ value: v => v })).toEqual({ items: [{ name: "" }, { "#": 50 }] });
+
+			});
+
+			it("preserves existing # when within limit", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{}, { "#": 25 }] }, { model: true, shape, limit: 50 });
+				expect(result({ value: v => v })).toEqual({ items: [{}, { "#": 25 }] });
+
+			});
+
+			it("does not inject # when limit is not set", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{ name: "" }] }, { model: true, shape });
+				expect(result({ value: v => v })).toEqual({ items: [{ name: "" }] });
+
+			});
+
+			it("rejects a client # exceeding the limit", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{}, { "#": 101 }] }, { model: true, shape, limit: 100 });
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("rejects a client # of zero as unbounded under a limit", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{}, { "#": 0 }] }, { model: true, shape, limit: 100 });
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("accepts a client # within the limit", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{}, { "#": 100 }] }, { model: true, shape, limit: 100 });
+				expect(result({ value: v => v })).toEqual({ items: [{}, { "#": 100 }] });
+
+			});
+
+			it("injects # recursively into nested queries", async () => {
+
+				const Inner = resource({ label: required(string()) });
+				const Outer = resource({ children: multiple(reference(Inner)) });
+				const shape = resource({ items: multiple(reference(Outer)) });
+
+				const result = validate({ items: [{ children: [{ label: "" }] }] }, {
+					model: true,
+					shape,
+					limit: 30,
+					depth: 3
+				});
+				expect(result({ value: v => v })).toEqual({ items: [{ children: [{ label: "" }, { "#": 30 }] }, { "#": 30 }] });
+
+			});
+
+			it("does not inject # into non-query values", async () => {
+
+				const shape = resource({ name: required(string()), age: optional(integer()) });
+
+				const result = validate({ name: "Alice", age: 30 }, { model: true, shape, limit: 50 });
+				expect(result({ value: v => v })).toEqual({ name: "Alice", age: 30 });
+
+			});
+
+			it("injects # on bare-scalar collection", async () => {
+
+				const shape = resource({ tags: multiple(string()) });
+
+				const result = validate({ tags: [""] }, { model: true, shape, limit: 50 });
+				expect(result({ value: v => v })).toEqual({ tags: ["", { "#": 50 }] });
+
+			});
+
+			it("preserves localised tag map collection", async () => {
+
+				const shape = resource({ labels: multiple(dictionary()) });
+
+				const result = validate({ labels: { en: ["hello"] } }, { model: true, shape, limit: 50 });
+				expect(result({ value: v => v })).toEqual({ labels: { en: ["hello"] } });
+
+			});
+
+			it("injects # on indexed-union collection wrapper", async () => {
+
+				const A = resource({ name: required(string()) });
+				const B = resource({ title: required(string()) });
+				const shape = resource({ items: multiple(union(A, B)) });
+
+				const result = validate(
+					{ items: [{ "0": { name: "" }, "1": { title: "" } }] },
+					{ model: true, shape, limit: 50 }
+				);
+				expect(result({ value: v => v })).toEqual({
+					items: [{ "0": { name: "" }, "1": { title: "" } }, { "#": 50 }]
+				});
+
+			});
+
+			it("injects # into nested collection when wrapper already specifies #", async () => {
+
+				const Inner = resource({ label: required(string()) });
+				const Outer = resource({ children: multiple(reference(Inner)) });
+				const shape = resource({ items: multiple(reference(Outer)) });
+
+				const result = validate(
+					{ items: [{ children: [{ label: "" }] }, { "#": 25 }] },
+					{ model: true, shape, limit: 50, depth: 3 }
+				);
+				expect(result({ value: v => v })).toEqual({
+					items: [{ children: [{ label: "" }, { "#": 50 }] }, { "#": 25 }]
+				});
+
+			});
+
+			it("does not descend into selection-operator payloads", async () => {
+
+				const Target = resource({ name: required(string()), age: optional(integer()) });
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate(
+					{ items: [{ name: "" }, { "?age": [18, 21] }] },
+					{ model: true, shape, limit: 50 }
+				);
+				expect(result({ value: v => v })).toEqual({
+					items: [{ name: "" }, { "?age": [18, 21], "#": 50 }]
+				});
+
+			});
 
 		});
 
-		it("leaves a localised member alone however many maps it admits", async () => {
+		describe("model mode", () => {
 
-			const shape = resource({ labels: multiple(dictionary({ uniqueLang: true })) });
+			it("returns value for valid model", async () => {
 
-			expect(enforce({ labels: { en: "" } }, shape, { limit })).toEqual({ labels: { en: "" } });
+				const shape = resource({
+					name: required(string())
+				});
+
+				const result = validate({ name: "Alice" }, { model: true, shape });
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
+
+			});
+
+			it("returns value for empty model", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const result = validate({}, { model: true, shape });
+				expect(result({ value: v => v })).toEqual({});
+
+			});
+
+			it("accepts nested model via reference when depth is omitted (defaults to null)", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const shape = resource({
+					child: optional(reference(Inner))
+				});
+
+				const result = validate({ child: { label: "x" } }, { model: true, shape });
+				expect(result({ value: v => v })).toEqual({ child: { label: "x" } });
+
+			});
+
+			it("accepts nested model via reference when depth is null", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const shape = resource({
+					child: optional(reference(Inner))
+				});
+
+				const result = validate({ child: { label: "x" } }, { model: true, shape });
+				expect(result({ value: v => v })).toEqual({ child: { label: "x" } });
+
+			});
+
+			it("accepts nested model via reference when depth is 1", async () => {
+
+				const Inner = resource({ label: required(string()) });
+
+				const shape = resource({
+					child: optional(reference(Inner))
+				});
+
+				const result = validate({ child: { label: "x" } }, { model: true, shape, depth: 1 });
+				expect(result({ value: v => v })).toEqual({ child: { label: "x" } });
+
+			});
+
+			it("accepts aggregate binding when plain is omitted (defaults to false)", async () => {
+
+				const Target = resource({
+					price: optional(integer())
+				});
+
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{ "total=count:": 0 }] }, { model: true, shape });
+				expect(result({ value: v => v })).toEqual({ items: [{ "total=count:": 0 }] });
+
+			});
+
+			it("accepts aggregate binding when plain is false", async () => {
+
+				const Target = resource({
+					price: optional(integer())
+				});
+
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{ "total=count:": 0 }] }, { model: true, shape, plain: false });
+				expect(result({ value: v => v })).toEqual({ items: [{ "total=count:": 0 }] });
+
+			});
+
+			it("rejects aggregate binding when plain is true", async () => {
+
+				const shape = resource({
+					price: optional(integer())
+				});
+
+				const result = validate({ "total=count:": 0 }, { model: true, shape, plain: true });
+				expect(result({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("accepts non-aggregate binding when plain is true", async () => {
+
+				const Target = resource({
+					released: optional(date())
+				});
+
+				const shape = resource({ items: multiple(reference(Target)) });
+
+				const result = validate({ items: [{ "y=year:released": 0 }] }, { model: true, shape, plain: true });
+				expect(result({ value: v => v })).toEqual({ items: [{ "y=year:released": 0 }] });
+
+			});
+
+			it("accepts plain property when plain is true", async () => {
+
+				const shape = resource({
+					name: required(string())
+				});
+
+				const result = validate({ name: "" }, { model: true, shape, plain: true });
+				expect(result({ value: v => v })).toEqual({ name: "" });
+
+			});
 
 		});
 
-	});
+		describe("lazy shapes", () => {
 
-	describe("polymorphic members", () => {
+			it("resolves factory for model mode", async () => {
 
-		const A = resource({ name: required(string()) });
-		const B = resource({ tags: multiple(string()) });
+				const shape = resource({
+					name: required(string())
+				});
 
-		const shape = resource({
-			value: optional(union(A, B)),
-			values: multiple(union(A, B))
-		});
+				const result = validate({ name: "Alice" }, { model: true, shape: () => shape });
+				expect(result({ value: v => v })).toEqual({ name: "Alice" });
 
-		it("descends into each branch of a single value", async () => {
-
-			expect(enforce({ value: { "0": { name: "" }, "1": { tags: [""] } } }, shape, { limit }))
-				.toEqual({ value: { "0": { name: "" }, "1": { tags: ["", { "#": limit }] } } });
+			});
 
 		});
 
-		it("pages a collection stated as a branch map", async () => {
+		describe("arbitrary JSON hardening", () => {
 
-			expect(enforce({ values: [{ "1": { tags: [""] } }] }, shape, { limit }))
-				.toEqual({ values: [{ "1": { tags: ["", { "#": limit }] } }, { "#": limit }] });
+			const shape = resource({ name: optional(string()) });
 
-		});
+			it("returns trace for non-plain objects", async () => {
 
-		it("leaves a branch the union doesn't declare alone", async () => {
+				expect(validate(new Date(), { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate(/regex/, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate(new Map(), { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate(new Set(), { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate(new Error("boom"), { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate(Object.create(null), { model: true, shape })({ trace: t => t })).toBeDefined();
 
-			expect(enforce({ value: { "7": { name: "" } } }, shape, { limit }))
-				.toEqual({ value: { "7": { name: "" } } });
+				class Custom {name = "";}
 
-		});
+				expect(validate(new Custom(), { model: true, shape })({ trace: t => t })).toBeDefined();
 
-	});
+			});
 
-	describe("projections", () => {
+			it("returns trace for null, undefined, strings, arrays, primitives", async () => {
 
-		it("pages a collection asked for under a column", async () => {
+				expect(validate(null, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate(undefined, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate("not a template", { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate([{ name: "" }], { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate(42, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate(true, { model: true, shape })({ trace: t => t })).toBeDefined();
 
-			expect(enforce({ vendors: [{ "t=tags": [""] }] }, Product, { limit }))
-				.toEqual({ vendors: [{ "t=tags": ["", { "#": limit }] }, { "#": limit }] });
+			});
+
+			it("returns trace for functions, symbols, bigints as input", async () => {
+
+				expect(validate(() => {}, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate(Symbol("x"), { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate(BigInt(1), { model: true, shape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for non-identifier top-level keys", async () => {
+
+				expect(validate({ "foo-bar": "" }, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ "foo.bar": "" }, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ "@id": "" }, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ "123": "" }, { model: true, shape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for non-finite number placeholders", async () => {
+
+				const numShape = resource({ price: optional(integer()) });
+
+				expect(validate({ price: Number.NaN }, {
+					model: true,
+					shape: numShape
+				})({ trace: t => t })).toBeDefined();
+				expect(validate({ price: Number.POSITIVE_INFINITY }, {
+					model: true,
+					shape: numShape
+				})({ trace: t => t })).toBeDefined();
+				expect(validate({ price: Number.NEGATIVE_INFINITY }, {
+					model: true,
+					shape: numShape
+				})({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for function, symbol, bigint placeholder values", async () => {
+
+				expect(validate({ name: () => {} }, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ name: Symbol("s") }, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ name: BigInt(1) }, { model: true, shape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for non-plain objects nested as placeholder values", async () => {
+
+				expect(validate({ name: new Date() }, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ name: /regex/ }, { model: true, shape })({ trace: t => t })).toBeDefined();
+				expect(validate({ name: new Map() }, { model: true, shape })({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for invalid singleton-tuple structures", async () => {
+
+				const arrShape = resource({ tags: nonempty(string()) });
+
+				expect(validate({ tags: [null] }, { model: true, shape: arrShape })({ trace: t => t })).toBeDefined();
+				expect(validate({ tags: [] }, { model: true, shape: arrShape })({ trace: t => t })).toBeDefined();
+				expect(validate({ tags: ["a", "b"] }, {
+					model: true,
+					shape: arrShape
+				})({ trace: t => t })).toBeDefined();
+				expect(validate({ tags: [new Date()] }, {
+					model: true,
+					shape: arrShape
+				})({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace for non-identifier keys nested in sub-templates", async () => {
+
+				const Inner = resource({ label: optional(string()) });
+				const nested = resource({ child: optional(reference(Inner)) });
+
+				expect(validate({ child: { "bad-key": "" } }, {
+					model: true,
+					shape: nested
+				})({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("returns trace when depth=0 is combined with a nested template", async () => {
+
+				const Inner = resource({ label: required(string()) });
+				const parent = resource({ child: optional(reference(Inner)) });
+
+				expect(validate({ child: { label: "" } }, {
+					model: true,
+					shape: parent,
+					depth: 0
+				})({ trace: t => t })).toBeDefined();
+
+			});
+
+			it("accepts IRI reference when depth=0", async () => {
+
+				const Inner = resource({ label: required(string()) });
+				const parent = resource({ child: optional(reference(Inner)) });
+
+				const result = validate({ child: "app:/things/1" }, { model: true, shape: parent, depth: 0 });
+				expect(result({ value: v => v })).toEqual({ child: "app:/things/1" });
+
+			});
+
+			it("returns trace when # selection exceeds limit", async () => {
+
+				const Target = resource({ name: required(string()) });
+				const parent = resource({ items: multiple(reference(Target)) });
+
+				expect(validate({ items: [{ "#": 100 }] }, {
+					model: true,
+					shape: parent,
+					limit: 50
+				})({ trace: t => t }))
+					.toBeDefined();
+
+			});
+
+			it("returns trace for aggregate binding when plain is true", async () => {
+
+				const Target = resource({ price: optional(integer()) });
+				const parent = resource({ items: multiple(reference(Target)) });
+
+				expect(validate({ items: [{ "total=count:": 0 }] }, {
+					model: true,
+					shape: parent,
+					plain: true
+				})({ trace: t => t }))
+					.toBeDefined();
+
+			});
+
+			it("accepts JSON.parse output of a valid template", async () => {
+
+				const Vendor = resource({ id: id(), name: required(string()) });
+				const parent = resource({
+					id: id(),
+					name: required(string()),
+					price: optional(integer()),
+					tags: nonempty(string()),
+					vendor: optional(reference(Vendor))
+				});
+
+				const json = JSON.stringify({
+					id: "",
+					name: "",
+					price: 0,
+					tags: [""],
+					vendor: { id: "", name: "" }
+				});
+
+				expect(validate(JSON.parse(json), { model: true, shape: parent })({ value: v => v })).toBeDefined();
+
+			});
+
+			describe("prototype pollution resilience", () => {
+
+				it("returns trace for objects with non-plain prototype even if keys look valid", async () => {
+
+					const weird: Record<string, unknown> = Object.create({ name: "inherited" });
+					weird.name = "";
+
+					expect(validate(weird, { model: true, shape })({ trace: t => t })).toBeDefined();
+
+				});
+
+				it("accepts JSON-parsed __proto__ own property as an ordinary identifier key", async () => {
+
+					// Template mode rejects unknown identifier keys with an "undefined property path" trace.
+					// __proto__ is a valid ECMAScript identifier and iterates as an own property, so it
+					// must be handled uniformly with any other identifier rather than leaking into the
+					// shape prototype chain.
+					const parsed = JSON.parse("{\"__proto__\": \"\"}");
+
+					expect(() => validate(parsed, { model: true, shape })).not.toThrow();
+
+				});
+
+			});
 
 		});
 

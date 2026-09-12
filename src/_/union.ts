@@ -26,7 +26,7 @@
  * through which union-typed slots are addressed in retrieval templates.
  *
  * > [!NOTE]
- * > The [union design note](./union.md) covers how Blue drives full CRUD from union shapes, matched as `sh:xone` on
+ * > The [union design note](../union/index.md) covers how Blue drives full CRUD from union shapes, matched as `sh:xone` on
  * > write and `sh:or` on read.
  *
  * **Inheritance**
@@ -54,7 +54,7 @@
  * an ancestor. Union-form templates (`{"0": ..., "1": ...}`) are interpreted against the *current* shape's variants;
  * well-typed templates derived from {@link value!Schema | Schema} carry the correct indices automatically.
  *
- * @document ./union.md
+ * @document ../union/index.md
  *
  * @module
  *

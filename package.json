@@ -25,14 +25,14 @@
   "sideEffects": false,
   "exports": {
     ".": "./dist/index.js",
-    "./value": "./dist/value.js",
-    "./union": "./dist/union.js",
-    "./boolean": "./dist/boolean.js",
-    "./number": "./dist/number.js",
-    "./string": "./dist/string.js",
-    "./dictionary": "./dist/dictionary.js",
-    "./reference": "./dist/reference.js",
-    "./resource": "./dist/resource.js"
+    "./value": "./dist/value/index.js",
+    "./union": "./dist/union/index.js",
+    "./boolean": "./dist/boolean/index.js",
+    "./number": "./dist/number/index.js",
+    "./string": "./dist/string/index.js",
+    "./dictionary": "./dist/dictionary/index.js",
+    "./reference": "./dist/reference/index.js",
+    "./resource": "./dist/resource/index.js"
   },
   "files": [
     "README.md",

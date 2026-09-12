@@ -66,7 +66,7 @@ export function getShapeBranches(shape: Lazy<Shape>): readonly Shape[] {
  *
  * @returns The sole branch `state` belongs to, or `undefined` where it belongs to none or to several
  *
- * @see [Unions — Design](./union.md)
+ * @see [Unions — Design](./index.md)
  */
 export function getStateBranch<B extends Shape>(state: unknown, branches: readonly B[]): undefined | B {
 
@@ -91,7 +91,7 @@ export function getStateBranch<B extends Shape>(state: unknown, branches: readon
  *
  * @returns The sole branch `bound` filters against, or `undefined` where it filters none or several
  *
- * @see [Unions — Design](./union.md)
+ * @see [Unions — Design](./index.md)
  */
 export function getBoundBranch<B extends Shape>(bound: unknown, branches: readonly B[]): undefined | B {
 
@@ -115,7 +115,7 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
  *
  * @returns Every branch `model` fits, or `undefined` where it fits none
  *
- * @see [Unions — Design](./union.md)
+ * @see [Unions — Design](./index.md)
  */
 export function getModelBranches<B extends Shape>(model: unknown, branches: readonly B[]): undefined | readonly B[] {
 

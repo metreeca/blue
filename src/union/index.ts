@@ -48,7 +48,7 @@
  *
  * @module
  *
- * @see [Unions — Design](./union.md)
+ * @see [Unions — Design](./index.md)
  * @see {@link https://www.w3.org/TR/shacl/#XoneConstraintComponent SHACL § 4.6.4 sh:xone}
  * @see {@link https://www.w3.org/TR/shacl/#OrConstraintComponent SHACL § 4.6.2 sh:or}
  */

@@ -15,149 +15,44 @@
  */
 
 /**
- * Retrieval policy enforcement.
+ * Shared validation vocabulary.
  *
- * Holds a validated template to what the service will actually serve: {@link enforce} rewrites the template where a
- * policy requires it and leaves it as it stands everywhere else.
+ * Provides the SHACL namespace ({@link sh}) and the validation strictness selector ({@link Scope}).
+ *
+ * Trace definitions and the composable validators reporting into them live in the `@metreeca/core/trace` module.
  *
  * @module
  */
 
-import { isArray, isIdentifier, isObject } from "@metreeca/core";
-import { decodeProbe, isBinding, isBranch, isUnion } from "@metreeca/qest/template";
-import type { ResourceShape } from "./resource/index.js";
-import { getShapeBranches } from "./union/accessors.js";
-import { eager, effective } from "./value/accessors.js";
-import type { Range, Shape } from "./value/index.js";
+import { createNamespace, type Namespace } from "@metreeca/core/resource";
 
 
 /**
- * Applies retrieval policies to a validated template.
+ * SHACL vocabulary namespace.
  *
- * Returns the template the server will actually honour, so that a caller may hold a request to what the service
- * guarantees rather than to what the client happened to ask for. The template is rewritten where a policy requires it
- * and returned unchanged everywhere else, keeping what the client asked for intact; a template stating no policy at
- * all comes back as it went in.
+ * An open {@link Namespace} over `http://www.w3.org/ns/shacl#`, resolving any SHACL term as a named property.
  *
- * **Default paging**
- *
- * A collection left unpaged is given the largest page the service serves, so that a client omitting `#` is handed a
- * bounded set rather than the whole of it. A collection already stating a page of its own is left alone, as is a
- * single-valued or localised slot, which nothing pages.
- *
- * The template is expected to have been validated against the shape: a malformed one is returned as it stands rather
- * than reported.
- *
- * @param value The validated template to enforce
- * @param shape The shape the template was validated against
- * @param opts Enforcement options, each applied on its own
- * @param opts.limit The page every unpaged collection is held to; omitted, or `0`, leaves paging to the client
- *
- * @returns A template structurally equivalent to `value`, rewritten where a policy requires it
- *
- * @throws {TraceError} If `shape` transitively references itself through a cycle no deferred shape breaks
+ * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  */
-export function enforce(value: unknown, shape: ResourceShape, {
-
-	limit
-
-}: {
-
-	readonly limit?: number
-
-} = {}): unknown {
-
-	return limit ? template(value, shape) : value; // an omitted or `0` page leaves the set unbounded
+export const sh: Namespace = createNamespace("http://www.w3.org/ns/shacl#");
 
 
-	/**
-	 * Walks the slots of a template, resolving each to what the shape says it reaches.
-	 */
-	function template(value: unknown, shape: ResourceShape): unknown {
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-		if ( !isObject(value) ) { return value; }
-
-		return Object.fromEntries(Object.entries(value).map(([name, asked]) => {
-
-			// a projection column carries its own path, while a plain member names the single step it is
-
-			const probe = isBinding(name) ? decodeProbe(name)
-				: isIdentifier(name) ? { target: name, pipe: [], path: [name] }
-					: undefined;
-
-			const range = probe && effective(shape, probe);
-
-			// a path the shape cannot resolve leaves the slot as it stands
-
-			return [name, isObject(range) ? slot(asked, range) : asked];
-
-		}));
-
-	}
-
-	/**
-	 * Walks what a slot asks for, under the cardinality and the form the shape gives it.
-	 */
-	function slot(value: unknown, range: Range): unknown {
-
-		const branches = getShapeBranches(range.shape);
-		const [branch] = branches;
-
-		return branches.length > 1 ? indexed(value, branches, range.maxCount === 1)
-			: branch.kind === "dictionary" ? value // nothing pages a localised value
-				: range.maxCount === 1 ? nested(value, branch)
-					: isArray(value) ? [nested(value[0], branch), page(value[1])] : value;
-
-	}
-
-	/**
-	 * Walks what a single value asks for, descending into the template behind a resource.
-	 */
-	function nested(value: unknown, branch: Shape): unknown {
-
-		// a union of one flattens away, so its branch map arrives here rather than through `indexed`
-
-		return isUnion(value) ? branchmap(value, [branch])
-			: branch.kind === "resource" && isObject(value) ? template(value, branch)
-				: branch.kind === "reference" && isObject(value) ? template(value, eager(branch.target))
-					: value;
-
-	}
-
-	/**
-	 * Walks what a polymorphic slot asks for, paging the set it is stated as.
-	 */
-	function indexed(value: unknown, branches: readonly Shape[], scalar: boolean): unknown {
-
-		return scalar ? branchmap(value, branches)
-			: isArray(value) ? [branchmap(value[0], branches), page(value[1])] : value;
-
-	}
-
-	/**
-	 * Walks each branch of a branch map into the shape it is stated under.
-	 */
-	function branchmap(value: unknown, branches: readonly Shape[]): unknown {
-
-		if ( !isObject(value) ) { return value; }
-
-		return Object.fromEntries(Object.entries(value).map(([index, asked]) =>
-			isBranch(index) && Number(index) < branches.length
-				? [index, nested(asked, branches[Number(index)])]
-				: [index, asked]
-		));
-
-	}
-
-	/**
-	 * Holds a selection to the largest page the service serves, leaving a stated one alone.
-	 */
-	function page(selection: unknown): object {
-
-		return isObject(selection)
-			? "#" in selection ? selection : { ...selection, "#": limit }
-			: { "#": limit };
-
-	}
-
-}
+/**
+ * Validation strictness for matching a value against a shape.
+ *
+ * Selects how much of a shape the value validators enforce, so a caller can match the same shape against a stored
+ * value, a relational bound, or a retrieval model:
+ *
+ * - `"state"` enforces **every** constraint: the value must be a legal element of the shape's domain.
+ * - `"bound"` keeps the syntactic discriminators (`kind`, and a literal branch's `pattern`) but skips the value-domain
+ *   magnitude constraints, so a relational bound lying outside the domain still matches by form alone.
+ * - `"model"` matches by `kind` alone, ignoring every other constraint, so a retrieval placeholder need not be legal.
+ *
+ * @see [Unions — Design](../union/index.md)
+ */
+export type Scope =
+	| "state"
+	| "bound"
+	| "model"

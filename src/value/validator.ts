@@ -62,7 +62,7 @@ const PatternFormat = new RegExp("^"
  *   magnitude constraints, so a relational bound lying outside the domain still matches by form alone.
  * - `"model"` matches by `kind` alone, ignoring every other constraint, so a retrieval placeholder need not be legal.
  *
- * @see [Unions — Design](../union.md)
+ * @see [Unions — Design](../union/index.md)
  */
 export type Scope =
 	| "state"

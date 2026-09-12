@@ -48,8 +48,9 @@ npm install @metreeca/blue
 >
 > | Module                         | Description                                |
 > |--------------------------------|--------------------------------------------|
-> | [@metreeca/blue]               | Linked data validation API                 |
-> | [@metreeca/blue/value]         | Composite shapes and value projections     |
+> | [@metreeca/blue]               | Linked data validation                     |
+> | [@metreeca/blue/value]         | Shapes and the values they describe        |
+> | [@metreeca/blue/union]         | Union shape and factories                  |
 > | [@metreeca/blue/boolean]       | Boolean shape and factories                |
 > | [@metreeca/blue/number]        | Numeric shape and factories                |
 > | [@metreeca/blue/string]        | Textual shape and factories                |
@@ -60,6 +61,8 @@ npm install @metreeca/blue
 [@metreeca/blue]: https://metreeca.github.io/blue/modules/index.html
 
 [@metreeca/blue/value]: https://metreeca.github.io/blue/modules/value.html
+
+[@metreeca/blue/union]: https://metreeca.github.io/blue/modules/union.html
 
 [@metreeca/blue/boolean]: https://metreeca.github.io/blue/modules/boolean.html
 
