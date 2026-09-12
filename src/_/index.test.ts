@@ -20,11 +20,11 @@ import { type Issue, type Trace, TraceError } from "@metreeca/core/trace";
 import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean/index.js";
-import { dictionary } from "./dictionary.js";
+import { dictionary } from "./dictionary/index.js";
 import { eager, effective, enforce, mergeShape, narrowsShape, sh, validateShape } from "./index.core.js";
 import { type Range, type Shape, validate } from "./index.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number/index.js";
-import { reference } from "./reference.js";
+import { reference } from "./reference/index.js";
 import {
 	id,
 	multiple,

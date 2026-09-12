@@ -27,7 +27,7 @@
 import type { Eager, Lazy, Optional } from "@metreeca/core";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Compound, Instance, Shape } from "../index.js";
-import type { ReferenceShape } from "../reference.js";
+import type { ReferenceShape } from "../reference/index.js";
 import type { Id, Parents, Property, PropertyBounds, ResourceShape, Type } from "./index.js";
 
 

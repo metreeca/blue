@@ -55,10 +55,10 @@
  */
 
 import type { Lazy } from "@metreeca/core";
-import { create } from "./reference.core.js";
-import type { ResourceShape } from "./resource/index.js";
+import { create } from "./assembler.js";
+import type { ResourceShape } from "../resource/index.js";
 
-export { getShapeTarget } from "./reference.core.js";
+export { getShapeTarget } from "./accessors.js";
 
 
 /**

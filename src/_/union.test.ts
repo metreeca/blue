@@ -19,7 +19,7 @@ import { TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean/index.js";
 import { number } from "./number/index.js";
-import { reference } from "./reference.js";
+import { reference } from "./reference/index.js";
 import type { Parents, ResourceConstraints, ResourceShape } from "./resource/index.js";
 import { string } from "./string/index.js";
 import {
@@ -34,8 +34,9 @@ import {
 import { union } from "./union.js";
 
 
-// build a resource shape without the resource() factory, keeping the suite to the union module alone
-
+/**
+ * Builds a resource shape without the resource() factory, keeping the suite to the union module alone.
+ */
 function target(constraints: ResourceConstraints = {}, ...parents: Parents): ResourceShape {
 	return immutable({ kind: "resource", classes: [], parents, members: {}, ...constraints });
 }

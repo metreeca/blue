@@ -18,7 +18,7 @@ import type { Lazy, Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import { type Compound, type Shape } from "../index.js";
-import { type ReferenceShape } from "../reference.js";
+import { type ReferenceShape } from "../reference/index.js";
 import { type StringShape } from "../string/index.js";
 import { type Id, type Property, type ResourceShape, type Type } from "./index.js";
 import { type Arity, type Carried, type Content, type Input, type Retrieved, type Skippable } from "./inference.js";

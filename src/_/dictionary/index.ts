@@ -74,7 +74,7 @@
 
 import type { TagRange } from "@metreeca/core/language";
 import { TraceError } from "@metreeca/core/trace";
-import { create } from "./dictionary.core.js";
+import { create } from "./assembler.js";
 
 
 /**

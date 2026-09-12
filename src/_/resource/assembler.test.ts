@@ -20,7 +20,7 @@ import type { Resource } from "@metreeca/qest/resource";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
 import { number } from "../number/index.js";
-import { reference } from "../reference.js";
+import { reference } from "../reference/index.js";
 import { string } from "../string/index.js";
 import { union } from "../union.js";
 import { getShapeProperties } from "./accessors.js";

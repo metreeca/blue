@@ -19,9 +19,9 @@ import { type Trace } from "@metreeca/core/trace";
 import type { Resource } from "@metreeca/qest/resource";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
-import { dictionary } from "../dictionary.js";
+import { dictionary } from "../dictionary/index.js";
 import { integer, number } from "../number/index.js";
-import { reference } from "../reference.js";
+import { reference } from "../reference/index.js";
 import { date, string } from "../string/index.js";
 import { union } from "../union.js";
 import {

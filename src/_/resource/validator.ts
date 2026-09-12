@@ -53,10 +53,10 @@ import {
 	type Probe,
 	type Template
 } from "@metreeca/qest/template";
-import type { DictionaryShape } from "../dictionary.js";
+import type { DictionaryShape } from "../dictionary/index.js";
 import { eager, effective, type Scope, validateShape } from "../index.core.js";
 import type { Range, Shape } from "../index.js";
-import type { ReferenceShape } from "../reference.js";
+import type { ReferenceShape } from "../reference/index.js";
 import type { Property, ResourceShape } from "./index.js";
 import { getShapeBranches } from "../union.core.js";
 import { checkId } from "./assembler.js";
