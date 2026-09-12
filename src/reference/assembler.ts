@@ -100,8 +100,6 @@ export function narrowsReference(target: ReferenceShape, source: ReferenceShape)
  * Merges a reference shape with an inherited one.
  *
  * Yields the single shape an extending member is validated against: the overriding target, which already carries the
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
  * inherited definition through its own inheritance chain.
  *
  * @param target The overriding shape

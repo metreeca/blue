@@ -124,6 +124,11 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  */
 export type UnionShape<B extends UnionBranches = UnionBranches> = {
 
+	/**
+	 * Discriminator identifying this as a union shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
 	readonly kind: "union"
 
 	/**

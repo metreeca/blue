@@ -73,10 +73,17 @@ import { match } from "../value/validator.js";
  * own facet, keyed by the member it is stated under, so that a caller may tell which member failed and why. A resource
  * shape is closed: a value carrying a member the shape doesn't declare is rejected.
  *
+ * A captive member is stated either as the link naming its target or as the resource itself, held in turn to the
+ * target shape, so that a resource and the ones it holds captive travel as a single value; `depth` caps how far the
+ * expansion reaches. A foreign member is written by the resources it points at, so a value stating one is rejected.
+ *
  * @param values The values to validate
  * @param shape The shape the values are matched against
  * @param opts Validation options
  * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`
+ * @param opts.entry The identifier the resources are expected to be named by, where they state one at all
+ * @param opts.depth The nesting a captive member may be expanded to, counting each resource it descends into; `0`
+ *     refuses every expansion while still admitting the identifier naming the resource
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
  */

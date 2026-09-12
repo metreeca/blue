@@ -135,7 +135,14 @@ export function validate<S extends Lazy<ResourceShape>>(value: unknown, opts: {
 
 }): Relay<{
 
+	/**
+	 * The resource as it stands, typed as the shape describes it; relayed where it passes.
+	 */
 	readonly value: Instance<S>,
+
+	/**
+	 * The violations the resource states, keyed by the member at fault; relayed where it doesn't pass.
+	 */
 	readonly trace: Optional<Trace>
 
 }>;
@@ -174,7 +181,14 @@ export function validate<T extends Template>(value: unknown, opts: {
 
 }): Relay<{
 
+	/**
+	 * The resource as it stands, typed as the template asked for it; relayed where it passes.
+	 */
 	readonly value: Fetched<T>,
+
+	/**
+	 * The violations the retrieval brought back, keyed by the member at fault; relayed where it doesn't pass.
+	 */
 	readonly trace: Optional<Trace>
 
 }>;
@@ -228,7 +242,14 @@ export function validate<T extends Template>(value: unknown, opts: {
 
 }): Relay<{
 
+	/**
+	 * The template, held to whatever the service guarantees; relayed where it passes.
+	 */
 	readonly value: T,
+
+	/**
+	 * The violations the template states, keyed by the slot at fault; relayed where it doesn't pass.
+	 */
 	readonly trace: Optional<Trace>
 
 }>;

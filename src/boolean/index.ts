@@ -91,6 +91,11 @@ import { assemble } from "./assembler.js";
  */
 export type BooleanShape = {
 
+	/**
+	 * Discriminator identifying this as a boolean shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
 	readonly kind: "boolean"
 
 }

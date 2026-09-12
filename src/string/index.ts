@@ -197,6 +197,11 @@ const IRIPatterns: Readonly<Record<Variant, RegExp>> = {
  */
 export type StringShape<V extends string = string> = StringConstraints<V, string> & {
 
+	/**
+	 * Discriminator identifying this as a string shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
 	readonly kind: "string"
 
 }

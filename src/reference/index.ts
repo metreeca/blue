@@ -91,6 +91,11 @@ export { getShapeTarget } from "./accessors.js";
  */
 export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> = {
 
+	/**
+	 * Discriminator identifying this as a reference shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
 	readonly kind: "reference"
 
 	/**

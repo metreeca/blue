@@ -137,12 +137,16 @@ many values are expected and determining the inferred TypeScript type:
 |---------------------------------------------|-------------|-----------------------------|
 | `required(s)`                               | 1..1        | `V`                         |
 | `optional(s)`                               | 0..1        | `undefined \| V`            |
-| `nonempty(s)`                               | 1..*        | `readonly V[]`              |
+| `nonempty(s)`                               | 1..*        | `readonly [V, ...V[]]`      |
 | `multiple(s)`                               | 0..*        | `undefined \| readonly V[]` |
-| `property(s, { minCount: l, maxCount: u })` | l..u        | `readonly V[]`              |
+| `property(s, { minCount: l, maxCount: u })` | l..u        | as `l` and `u` imply        |
+
+An upper bound of 1 yields the bare value and any other an array, non-empty where at least one value is required.
+`property()` follows the same rules, so bounds beyond the four named cardinalities are typed exactly as their
+counterparts are.
 
 Each factory takes the constraints the property carries beyond its cardinality, such as IRI mappings, labels, or
-visibility flags, as a trailing argument: `required(string(), { forward: schema })`.
+ownership flags, as a trailing argument: `required(string(), { forward: schema })`.
 
 Cardinalities admitting absence also relax their key to an optional one, so a value literal spells out only the
 members it actually carries; reading an omitted member still yields `undefined`.

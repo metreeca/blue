@@ -126,6 +126,11 @@ import { assemble } from "./assembler.js";
  */
 export type DictionaryShape = DictionaryConstraints & {
 
+	/**
+	 * Discriminator identifying this as a dictionary shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
 	readonly kind: "dictionary"
 
 }
@@ -223,7 +228,15 @@ export type DictionaryConstraints = {
  * ```
  */
 export function dictionary<const C extends DictionaryConstraints = {}>(constraints?: C): DictionaryShape & {
+
+	/**
+	 * Restricts every tag to a single string, exactly as stated.
+	 *
+	 * Carries the constraint at the value it was given rather than at the whole boolean domain, so that the content of
+	 * a tag is typed at the arity the shape admits.
+	 */
 	readonly uniqueLang: C["uniqueLang"]
+
 } {
 
 	return assemble<C["uniqueLang"]>(constraints ?? {});

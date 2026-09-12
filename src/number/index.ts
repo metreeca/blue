@@ -172,6 +172,11 @@ const FloatLimit = (2-2** -23)*2**127;
  */
 export type NumberShape<V extends number = number> = NumberConstraints<V> & {
 
+	/**
+	 * Discriminator identifying this as a number shape.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 */
 	readonly kind: "number"
 
 }

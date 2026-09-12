@@ -150,8 +150,6 @@ export function narrowsDictionary(target: DictionaryShape, source: DictionarySha
 
 /**
  * Merges a dictionary shape with an inherited one.
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
  *
  * Yields the single shape an extending member is validated against, combining the inherited constraints with the
  * overriding ones: length bounds accumulate, the accepted language ranges intersect, and `uniqueLang` carries through
