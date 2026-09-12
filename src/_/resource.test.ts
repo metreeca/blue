@@ -25,9 +25,11 @@ import { integer, number } from "./number.js";
 import { reference } from "./reference.js";
 import {
 	checkBounds,
+	checkParents,
 	checkPredicates,
 	checkResource,
 	checkSingletons,
+	flatten,
 	enforce,
 	mergeProperty,
 	mergeResource,
@@ -375,6 +377,123 @@ describe("operators", () => {
 
 			expect(checkResource({ in: ["app:/1"], hasValue: ["app:/2"] }))
 				.toContainEqual(expect.stringContaining("{hasValue/in}"));
+
+		});
+
+	});
+
+	describe("checkParents", () => {
+
+		const One = resource({ name: required(string()) });
+		const Other = resource({ code: required(string()) });
+
+		it("returns undefined where a single shape is extended", async () => {
+
+			const shape = resource(One, {}, { virtual: true });
+
+			expect(checkParents(shape, [One])).toBeUndefined();
+
+		});
+
+		it("returns undefined where the extended shapes agree", async () => {
+
+			const first = resource({ name: required(string()) }, { virtual: true, space: schema });
+			const second = resource({ code: required(string()) }, { virtual: true, space: schema });
+
+			expect(checkParents(resource(first, second, {}), [first, second])).toBeUndefined();
+
+		});
+
+		it("reports extended shapes disagreeing on what a resource is", async () => {
+
+			const virtual = resource({ name: required(string()) }, { virtual: true });
+
+			expect(checkParents(resource({}), [virtual, Other]))
+				.toContainEqual(expect.stringContaining("{virtual}"));
+
+		});
+
+		it("reports extended shapes disagreeing on where members resolve", async () => {
+
+			const here = resource({ name: required(string()) }, { space: schema });
+			const there = resource({ code: required(string()) }, { space: createNamespace("https://example.net/") });
+
+			expect(checkParents(resource({}), [here, there]))
+				.toContainEqual(expect.stringContaining("{space}"));
+
+		});
+
+		it("returns undefined where the extending shape settles the disagreement", async () => {
+
+			const virtual = resource({ name: required(string()) }, { virtual: true });
+			const settled = resource({}, { virtual: false });
+
+			expect(checkParents(settled, [virtual, Other])).toBeUndefined();
+
+		});
+
+	});
+
+	describe("flatten", () => {
+
+		it("carries the members of a shape extending nothing through", async () => {
+
+			const shape = resource({ name: required(string()), size: optional(number()) });
+
+			expect(Object.keys(flatten(shape).members).sort()).toEqual(["name", "size"]);
+
+		});
+
+		it("merges the members of the shapes extended in", async () => {
+
+			const Base = resource({ name: required(string()) });
+
+			expect(Object.keys(flatten(resource(Base, { size: optional(number()) })).members).sort())
+				.toEqual(["name", "size"]);
+
+		});
+
+		it("settles a shape already flattened as it stands", async () => {
+
+			const shape = resource({ name: required(string()) });
+
+			expect(flatten(shape)).toBe(shape);
+
+		});
+
+		it("merges what a shape inherits, the factory having stated none of it", async () => {
+
+			const Base = resource({ label: required(string()) });
+
+			// stated as a literal, so that flattening is what merges the shape rather than the factory
+
+			const stated: ResourceShape = { kind: "resource", classes: [], parents: [Base], members: {} };
+
+			expect(Object.keys(flatten(stated).members)).toEqual(["label"]);
+
+		});
+
+		it("merges the shapes a member reaches in turn", async () => {
+
+			const Base = resource({ label: required(string()) });
+
+			const nested: ResourceShape = { kind: "resource", classes: [], parents: [Base], members: {} };
+
+			const shape = flatten({
+				kind: "resource", classes: [], parents: [],
+				members: { nested: required(nested) }
+			});
+
+			expect(Object.keys(getShapeProperties(getProperty(shape, "nested")!.shape))).toEqual(["label"]);
+
+		});
+
+		it("reports a merged shape stating two identifiers", async () => {
+
+			const One = resource({ one: id() });
+			const Other = resource({ other: id() });
+
+			expect(() => flatten(resource(One, Other, {}))).toThrow(TraceError);
 
 		});
 

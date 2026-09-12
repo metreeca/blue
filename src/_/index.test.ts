@@ -16,12 +16,12 @@
 
 import type { Optional } from "@metreeca/core";
 import type { Relay } from "@metreeca/core/relay";
-import type { Trace } from "@metreeca/core/trace";
+import { type Trace, TraceError } from "@metreeca/core/trace";
 import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { dictionary } from "./dictionary.js";
-import { eager, effective, sh } from "./index.core.js";
+import { eager, effective, mergeShape, narrowsShape, sh, validateShape } from "./index.core.js";
 import { type Range, type Shape, validate } from "./index.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { reference } from "./reference.js";
@@ -996,6 +996,170 @@ describe("effective", () => {
 			expect(reached.shape).toEqual(decimal());
 
 		});
+
+	});
+
+});
+
+describe("narrowsShape", () => {
+
+	it("routes a pair to the operators of the kind they share", async () => {
+
+		expect(narrowsShape(string({ minLength: 5 }), string())).toBeUndefined();
+		expect(narrowsShape(integer({ minInclusive: 0 }), integer())).toBeUndefined();
+		expect(narrowsShape(boolean(), boolean())).toBeUndefined();
+		expect(narrowsShape(dictionary({ uniqueLang: true }), dictionary())).toBeUndefined();
+
+	});
+
+	it("reports a pair of unshared kinds", async () => {
+
+		expect(narrowsShape(string(), boolean()))
+			.toContainEqual(expect.stringContaining("{kind}"));
+
+	});
+
+	it("reports a shape loosening what the inherited one states", async () => {
+
+		expect(narrowsShape(string({ minLength: 1 }), string({ minLength: 5 }))).toBeDefined();
+
+	});
+
+	describe("over a polymorphic inherited shape", () => {
+
+		const inherited = union(string(), integer());
+
+		it("accepts a polymorphic shape dropping an alternative", async () => {
+
+			expect(narrowsShape(union(integer()), inherited)).toBeUndefined();
+
+		});
+
+		it("accepts a plain shape restricting a single alternative", async () => {
+
+			expect(narrowsShape(integer(), inherited)).toBeUndefined();
+			expect(narrowsShape(integer({ minInclusive: 0 }), inherited)).toBeUndefined();
+
+		});
+
+		it("reports a plain shape restricting no alternative", async () => {
+
+			expect(narrowsShape(boolean(), inherited))
+				.toContainEqual(expect.stringContaining("{branches}"));
+
+		});
+
+		it("reports a plain shape restricting several alternatives", async () => {
+
+			const ambiguous = union(string({ minLength: 1 }), string({ maxLength: 5 }));
+
+			expect(narrowsShape(string({ minLength: 2, maxLength: 4 }), ambiguous))
+				.toContainEqual(expect.stringContaining("{branches}"));
+
+		});
+
+		it("reports a polymorphic shape over a plain inherited one", async () => {
+
+			expect(narrowsShape(union(string()), string())).toBeDefined();
+
+		});
+
+	});
+
+});
+
+describe("mergeShape", () => {
+
+	it("routes a pair to the operators of the kind they share", async () => {
+
+		expect(eager(mergeShape(string({ minLength: 5 }), string()))).toMatchObject({
+			kind: "string",
+			minLength: 5
+		});
+
+		expect(eager(mergeShape(integer({ minInclusive: 0 }), integer()))).toMatchObject({
+			kind: "number",
+			minInclusive: 0
+		});
+
+	});
+
+	it("collapses a polymorphic inherited shape to the alternative restricting it", async () => {
+
+		const merged = eager(mergeShape(integer({ minInclusive: 0 }), union(string(), integer())));
+
+		expect(merged).toMatchObject({ kind: "number", minInclusive: 0 });
+
+	});
+
+	it("merges the restricted alternative rather than replacing it", async () => {
+
+		const merged = eager(mergeShape(integer({ minInclusive: 0 }), union(string(), integer({ maxInclusive: 9 }))));
+
+		expect(merged).toMatchObject({ kind: "number", minInclusive: 0, maxInclusive: 9 });
+
+	});
+
+	it("throws where the shape doesn't narrow the inherited one", async () => {
+
+		expect(() => mergeShape(string(), boolean())).toThrow(TraceError);
+		expect(() => mergeShape(boolean(), union(string(), integer()))).toThrow(TraceError);
+
+	});
+
+});
+
+describe("validateShape", () => {
+
+	it("routes values to the validators of the shape's kind", async () => {
+
+		expect(validateShape(["Widget"], string())).toBeUndefined();
+		expect(validateShape([42], integer())).toBeUndefined();
+		expect(validateShape([true], boolean())).toBeUndefined();
+		expect(validateShape([{ en: ["Widget"] }], dictionary())).toBeUndefined();
+		expect(validateShape(["app:/vendors/1"], reference(resource({ id: id() })))).toBeUndefined();
+
+	});
+
+	it("reports a value of another kind", async () => {
+
+		expect(validateShape([42], string())).toBeDefined();
+		expect(validateShape(["Widget"], integer())).toBeDefined();
+
+	});
+
+	it("routes a polymorphic shape to the branch the value belongs to", async () => {
+
+		const shape = union(string(), integer());
+
+		expect(validateShape([42], shape)).toBeUndefined();
+		expect(validateShape([true], shape)).toBeDefined();
+
+	});
+
+	it("routes a resource shape to the members it declares", async () => {
+
+		const shape = resource({ name: required(string()) });
+
+		expect(validateShape([{ name: "Widget" }], shape)).toBeUndefined();
+		expect(validateShape([{ name: 42 }], shape)).toBeDefined();
+
+	});
+
+	it("carries the scope through to the validator it routes to", async () => {
+
+		const shape = integer({ minInclusive: 10 });
+
+		expect(validateShape([0], shape)).toBeDefined();
+		expect(validateShape([0], shape, { scope: "model" })).toBeUndefined();
+
+	});
+
+	it("validates every value it is given", async () => {
+
+		expect(validateShape(["Widget", "Gadget"], string())).toBeUndefined();
+		expect(validateShape(["Widget", 42], string())).toBeDefined();
+		expect(validateShape([], string())).toBeUndefined();
 
 	});
 
