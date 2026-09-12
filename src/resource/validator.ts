@@ -298,7 +298,8 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  *     retrieves rather than computes
  * @param opts.depth The nesting a template may ask for, counting each resource it descends into; `0` refuses every
  *     nested template while still admitting the identifier naming the resource
- * @param opts.limit The largest page a template may ask for
+ * @param opts.limit The largest page a template may ask for; a collection asking for none is held to it, and one
+ *     asking for more is refused. `0`, like omitting it, leaves the page to the caller
  *
  * @returns A trace of the violations found, or `undefined` where every template asks for what the shape can give
  *
@@ -898,12 +899,15 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 	/**
 	 * Validates the size a page is asked for at.
+	 *
+	 * A page of `0` asks for the whole set, so it is held to the limit like any other size; a limit of `0` caps
+	 * nothing, leaving the page to the caller as it does for the default paging the same option drives.
 	 */
 	function page(value: unknown): Optional<Trace> {
 
 		return !isNumber(value) ? ["expected number value"]
 			: !Number.isInteger(value) || value < 0 ? ["expected non-negative integer"]
-				: limit !== undefined && (value === 0 || value > limit)
+				: limit !== undefined && limit > 0 && (value === 0 || value > limit)
 					? [`exceeded maximum result set limit <${limit}>`]
 					: undefined;
 

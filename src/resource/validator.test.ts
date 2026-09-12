@@ -1285,6 +1285,15 @@ describe("validateTemplate", () => {
 
 		});
 
+		it("admits any page where the limit served leaves it unbounded", async () => {
+
+			// a limit of 0 caps nothing, exactly as the enforcement the same option drives reads it
+
+			expect(validateTemplate([{ tags: ["", { "#": 100 }] }], Product, { limit: 0 })).toBeUndefined();
+			expect(validateTemplate([{ tags: ["", { "#": 0 }] }], Product, { limit: 0 })).toBeUndefined();
+
+		});
+
 	});
 
 	describe("grouped ordering", () => {

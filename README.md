@@ -398,7 +398,8 @@ Three options bound the query language a template may draw on:
 
 - **`plain`**: rejects the aggregate transforms combining several values into one (`count`, `sum`, `min`, `max`, `avg`)
 - **`depth`**: caps nested template expansion and property path length
-- **`limit`**: caps the `#` pagination constraint, and is injected as a default where a collection states none
+- **`limit`**: caps the `#` pagination constraint, and is injected as a default where a collection states none; `0`,
+  like omitting it, leaves the page to the client
 
 > [!CAUTION]
 >
