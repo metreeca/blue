@@ -24,7 +24,7 @@
  * @module
  */
 
-import { type Optional } from "@metreeca/core";
+import { assert, type Optional } from "@metreeca/core";
 import { type Trace } from "@metreeca/core/trace";
 import { type Reference } from "@metreeca/qest/resource";
 import { validateBoolean } from "../boolean/validator.js";
@@ -149,20 +149,18 @@ export function validateShape(values: readonly unknown[], shape: Shape, {
  */
 export function match(iri: Reference, pattern: string): boolean {
 
-	if ( !PatternFormat.test(pattern) ) {
-		throw new TypeError(`malformed pattern <${pattern}>`);
-	}
+	const $pattern = assert(pattern, pattern => PatternFormat.test(pattern), `malformed pattern <${pattern}>`);
 
 	// {name} matches a single path segment; a trailing /* matches one or more
 
-	const expression = pattern
+	const expression = $pattern
 		.replace(/[.+?^$()|[\]\\]/g, "\\$&")
 		.replace(/\/\{\w*}(?=\/|$)/g, "/[^/]+")
 		.replace(/\/\*$/, "/.+");
 
 	// a root-relative pattern is matched against the path alone, ignoring scheme and authority
 
-	const target = pattern.startsWith("/")
+	const target = $pattern.startsWith("/")
 		? iri.replace(/^[a-z][a-z0-9+.-]*:(\/\/[^/]*)?/i, "")
 		: iri;
 
