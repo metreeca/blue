@@ -28,7 +28,8 @@
  * > stating `minLength` above `maxLength` throws a {@link @metreeca/core!TraceError | TraceError}.
  *
  * How many strings a tag carries is fixed by {@link DictionaryConstraints.uniqueLang | uniqueLang}: a unique-tagged
- * shape gives every tag a single string, and any other gives every tag an array.
+ * shape gives every tag a single string, and any other gives every tag an array. A member ranging over a dictionary
+ * carries the map whole, never in an array, whatever cardinality it states.
  *
  * The tag-keyed map is the form a value is stored and submitted in. A localised member additionally *coalesces* under
  * language negotiation when retrieved, at the same per-tag arity: the value may be retrieved as the negotiated content
@@ -69,6 +70,9 @@
  * });
  * ```
  *
+ * A member carries one map whatever cardinality it states, so `keywords` above reads as a single map of string arrays
+ * and never as an array of maps.
+ *
  * @module
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#language-maps JSON-LD 1.1 § 9.8 Language Maps}
@@ -92,9 +96,10 @@ import { assemble } from "./assembler.js";
  * [RDF 1.1](https://www.w3.org/TR/rdf11-concepts/#dfn-language-tagged-string) language-tagged string.
  *
  * How many strings a tag carries is fixed by {@link DictionaryConstraints.uniqueLang | uniqueLang}: a unique-tagged
- * shape gives every tag a single string, and any other gives every tag an array. The map is a structured value in its
- * own right, as a resource is, so the bounds of the enclosing {@link value!Range} count the maps a member carries
- * rather than the strings a tag holds.
+ * shape gives every tag a single string, and any other gives every tag an array. The map is a value set in its own
+ * right, so a member carries it whole, never in an array, whatever the bounds of the enclosing {@link value!Range}
+ * admit: those bounds count the values of the other branches of a two-natured range, which a resource carries in
+ * place of the map and never beside it.
  *
  * **Negotiation**
  *

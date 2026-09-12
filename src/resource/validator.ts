@@ -77,6 +77,10 @@ import { match } from "../value/validator.js";
  * target shape, so that a resource and the ones it holds captive travel as a single value; `depth` caps how far the
  * expansion reaches. A foreign member is written by the resources it points at, so a value stating one is rejected.
  *
+ * A member ranging over a {@link dictionary!DictionaryShape | dictionary} states the language map whole, whatever
+ * bounds it carries: a map wrapped in an array is rejected, as is one stated beside values of other alternatives, and
+ * the bounds are held against those other values alone.
+ *
  * @param values The values to validate
  * @param shape The shape the values are matched against
  * @param opts Validation options
@@ -157,12 +161,21 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 		}
 
 		const resolved = eager(range);
+		const branches = getShapeBranches(resolved);
 
 		// a member reaching a resource reads an empty record as nothing stated, as a resource stating no member at
 		// all names nothing to hold; one reaching a value reads it as a value of the wrong kind
 
-		const nesting = getShapeBranches(resolved).some(branch =>
+		const nesting = branches.some(branch =>
 			branch.kind === "reference" || branch.kind === "resource"
+		);
+
+		// a localised value is a value set in its own right, holding its strings per tag at the arity its own shape
+		// states: a member carries it whole, never in an array and never beside the other values, and the bounds
+		// stated for the member count the other values alone
+
+		const localised = (element: unknown) => !isArray(element) && branches.some(branch =>
+			branch.kind === "dictionary" && validateShape([element], branch, { scope }) === undefined
 		);
 
 		const present = value === undefined || isArray(value, []) || nesting && vacant(value) ? undefined : value;
@@ -170,21 +183,27 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 		const carried = (present === undefined ? [] : isArray(present) ? present : [present])
 			.filter(element => !(nesting && vacant(element)));
 
-		const arity = maxCount === 1
-			? isArray(present) ? ["{kind} expected a single value"] : undefined
-			: present !== undefined && !isArray(present) ? ["{kind} expected an array of values"] : undefined;
+		const whole = localised(present);
+
+		const arity = whole ? undefined
+			: isArray(present) && present.some(localised) ? ["{kind} expected a single localised value"]
+				: maxCount === 1
+					? isArray(present) ? ["{kind} expected a single value"] : undefined
+					: present !== undefined && !isArray(present) ? ["{kind} expected an array of values"] : undefined;
+
+		const bounds = whole ? undefined : all(
+			(minCount !== undefined && carried.length < minCount)
+			&& fail([`{minCount} expected at least <${minCount}> value(s)`]),
+
+			(maxCount !== undefined && carried.length > maxCount)
+			&& fail([`{maxCount} expected at most <${maxCount}> value(s)`])
+		)(undefined);
 
 		// the arity is reported first, then the values, then the cardinality
 
 		return arity
 			?? elements(carried, resolved, captive)
-			?? all(
-				(minCount !== undefined && carried.length < minCount)
-				&& fail([`{minCount} expected at least <${minCount}> value(s)`]),
-
-				(maxCount !== undefined && carried.length > maxCount)
-				&& fail([`{maxCount} expected at most <${maxCount}> value(s)`])
-			)(undefined);
+			?? bounds;
 
 	}
 
@@ -325,8 +344,8 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		const branches = getShapeBranches(member.shape);
 		const [branch] = branches;
 
-		// a localised member is one structured value however many maps it admits, so it is asked for as a
-		// placeholder and never as a collection
+		// a localised member carries one map whatever its bounds admit, so it is asked for as a placeholder and
+		// never as a collection
 
 		return member.maxCount === 1 || branches.length === 1 && branch.kind === "dictionary"
 			? model(value, member, depth)

@@ -145,6 +145,11 @@ An upper bound of 1 yields the bare value and any other an array, non-empty wher
 `property()` follows the same rules, so bounds beyond the four named cardinalities are typed exactly as their
 counterparts are.
 
+A `dictionary()` range stands apart: a localised property carries its language map whole, never in an array, so it is
+typed as the bare map at every cardinality. Where a dictionary sits in a union beside other branches, the property is
+typed as either the map or the array those branches imply, since a resource carries one or the other and never both,
+and the bounds count the other branches alone.
+
 Each factory takes the constraints the property carries beyond its cardinality, such as IRI mappings, labels,
 ownership flags, or a `hidden` flag withholding it from default serialisation, as a trailing argument:
 `required(string(), { forward: schema })`. The `id()` and `type()` markers take the same `hidden` flag.

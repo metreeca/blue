@@ -27,7 +27,9 @@
 import type { Eager, Lazy, Optional } from "@metreeca/core";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Compound, Instance, Shape } from "../value/index.js";
+import type { DictionaryShape } from "../dictionary/index.js";
 import type { ReferenceShape } from "../reference/index.js";
+import type { UnionShape } from "../union/index.js";
 import type { Id, Parents, Property, PropertyBounds, ResourceShape, Type } from "./index.js";
 
 
@@ -180,15 +182,15 @@ export type Omitted<M, X = never> =
 /**
  * Resolves the value a member carries in an instance.
  *
- * Yields an IRI for an identifier, an optional IRI for a type and, for a property, the value its range describes in
- * the form its cardinality admits.
+ * Yields an IRI for an identifier, an optional IRI for a type and, for a property, the
+ * {@link Slot | form its range and cardinality admit}.
  *
  * @typeParam M The member to resolve
  */
 export type Content<M> =
 	M extends Id ? Reference
 		: M extends Type ? Optional<Reference>
-			: M extends Property<infer R, infer L, infer U> ? Arity<Instance<R>, L, U>
+			: M extends Property<infer R, infer L, infer U> ? Slot<R, L, U>
 				: never
 
 /**
@@ -206,6 +208,55 @@ export type Input<M> =
 
 
 //// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the form a property carries its values in, holding localised text apart.
+ *
+ * Yields the {@link Arity | arity} form of the values a range describes, except that localised text is carried whole:
+ * a language map holds its strings per tag at the arity its own shape states, so it is never wrapped in an array and
+ * never sits in one beside the values of sibling branches. A range admitting localised text alone reads as the bare
+ * map, whatever the upper bound; one admitting it beside other branches reads as either the map or the arity form of
+ * the other values, as a resource carries one or the other and never both. Either form is optional where the lower
+ * bound lets the property be left out.
+ *
+ * @typeParam R The range describing the values, possibly deferred to break definition cycles
+ * @typeParam L The least number of values admitted
+ * @typeParam U The greatest number of values admitted
+ */
+export type Slot<R extends Lazy<Shape>, L extends Optional<number>, U extends Optional<number>> =
+	[Localised<R>] extends [never] ? Arity<Instance<R>, L, U>
+		: [Valued<R>] extends [never] ? Arity<Instance<R>, L, 1>
+			: Arity<Instance<Valued<R>>, L, U> | Arity<Instance<Localised<R>>, L, 1>
+
+/**
+ * Resolves the alternatives a range admits, each eager.
+ *
+ * Yields every branch of a union and a shape of any other kind as it stands, so that the branches can be told apart by
+ * kind; a bare {@link value!Shape}, standing for any kind at all, admits no alternative.
+ *
+ * @typeParam R The range describing the values, possibly deferred to break definition cycles
+ */
+type Variant<R extends Lazy<Shape>> =
+	Shape extends Eager<R> ? never
+		: Eager<R> extends infer E extends Shape
+			? E extends UnionShape<infer B> ? Eager<B[number]> : E
+			: never
+
+/**
+ * Resolves the alternatives of a range carrying localised text.
+ *
+ * @typeParam R The range describing the values, possibly deferred to break definition cycles
+ */
+type Localised<R extends Lazy<Shape>> =
+	Extract<Variant<R>, DictionaryShape>
+
+/**
+ * Resolves the alternatives of a range carrying anything but localised text.
+ *
+ * @typeParam R The range describing the values, possibly deferred to break definition cycles
+ */
+type Valued<R extends Lazy<Shape>> =
+	Exclude<Variant<R>, DictionaryShape>
 
 /**
  * Resolves the form a value takes at the arity its bounds admit.

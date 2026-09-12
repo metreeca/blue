@@ -120,8 +120,8 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 	 *
 	 * Reports a value that is not a language map as a `{kind}` violation, and a key that is not a language tag or an
 	 * entry stated at the other per-tag arity as an entry violation keyed by the tag; every violation is keyed by the
-	 * index of the map carrying it, as a localised value is a structured value in its own right and a member may carry
-	 * several. A surviving entry is handed to `unique` or to `stacked`, according to the arity the shape states.
+	 * index of the map carrying it in the validated set. A surviving entry is handed to `unique` or to `stacked`,
+	 * according to the arity the shape states.
 	 */
 	function map(
 		uniqueLang: undefined | boolean,

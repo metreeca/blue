@@ -61,6 +61,9 @@
  * });
  * ```
  *
+ * A member ranging over a {@link dictionary!dictionary | dictionary} stands apart from its cardinality: it carries the
+ * language map whole at every one, never in an array, and the bounds count the values of its other alternatives alone.
+ *
  * Each factory takes, after the range, the constraints the member carries beyond its cardinality, such as the
  * predicate it maps to, the labels it carries, or whether it is serialised by default:
  *
@@ -509,6 +512,11 @@ export type Type = {
  * States the shape its values are drawn from and how many of them a resource may carry, alongside the predicate the
  * values are stored under and the labels the member is presented by.
  *
+ * Localised text stands apart from the cardinality: a member ranging over a
+ * {@link dictionary!DictionaryShape | dictionary} carries the language map whole, never in an array, whatever bounds
+ * it states; one ranging over a dictionary alongside other alternatives carries either the map or the values of those
+ * alternatives, never both, and the bounds count the latter alone.
+ *
  * **Inheritance**
  *
  * Where a shape extends the ones it lists as `parents`, members stated on both sides are merged according to the
@@ -691,7 +699,9 @@ export type PropertyBounds = PropertyConstraints & {
 	/**
 	 * Least number of values admitted.
 	 *
-	 * Left unstated, the member is unbounded below and a resource may leave it out.
+	 * Left unstated, the member is unbounded below and a resource may leave it out. A member carrying a
+	 * {@link dictionary!DictionaryShape | language map} satisfies the bound with the map alone, as it stands for the
+	 * whole of what the member carries.
 	 *
 	 * **Inheritance** — child may only raise the lower bound.
 	 *
@@ -704,7 +714,9 @@ export type PropertyBounds = PropertyConstraints & {
 	/**
 	 * Greatest number of values admitted.
 	 *
-	 * Left unstated, the member is unbounded above and a resource states its values as an array.
+	 * Left unstated, the member is unbounded above and a resource states its values as an array. A
+	 * {@link dictionary!DictionaryShape | language map} is stated whole all the same, never in an array, and is not
+	 * counted against the bound.
 	 *
 	 * **Inheritance** — child may only lower the upper bound.
 	 *

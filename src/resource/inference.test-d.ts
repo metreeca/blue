@@ -21,7 +21,18 @@ import { type Compound, type Shape } from "../value/index.js";
 import { type ReferenceShape } from "../reference/index.js";
 import { type StringShape } from "../string/index.js";
 import { type Id, type Property, type ResourceShape, type Type } from "./index.js";
-import { type Arity, type Carried, type Content, type Input, type Retrieved, type Skippable } from "./inference.js";
+import { type DictionaryShape } from "../dictionary/index.js";
+import { type Tagged } from "../dictionary/inference.js";
+import { type UnionShape } from "../union/index.js";
+import {
+	type Arity,
+	type Carried,
+	type Content,
+	type Input,
+	type Retrieved,
+	type Skippable,
+	type Slot
+} from "./inference.js";
 
 
 type LabelShape={
@@ -191,9 +202,66 @@ describe("members", () => {
 				.toEqualTypeOf<undefined | readonly string[]>();
 		});
 
+		test("Property → a bare map for a localised range, whatever the upper bound", () => {
+			expectTypeOf<Content<Property<DictionaryShape, 1, 1>>>().toEqualTypeOf<Tagged<DictionaryShape>>();
+			expectTypeOf<Content<Property<DictionaryShape, 1, undefined>>>().toEqualTypeOf<Tagged<DictionaryShape>>();
+		});
+
+		test("Property → an optional map for a localised range that may be left out", () => {
+			expectTypeOf<Content<Property<DictionaryShape, undefined, undefined>>>()
+				.toEqualTypeOf<undefined | Tagged<DictionaryShape>>();
+		});
+
+		test("Property → either the map or the other values for a two-natured range", () => {
+			expectTypeOf<Content<Property<UnionShape<[StringShape, DictionaryShape]>, 1, 1>>>()
+				.toEqualTypeOf<string | Tagged<DictionaryShape>>();
+			expectTypeOf<Content<Property<UnionShape<[StringShape, DictionaryShape]>, 1, undefined>>>()
+				.toEqualTypeOf<readonly [string, ...string[]] | Tagged<DictionaryShape>>();
+			expectTypeOf<Content<Property<UnionShape<[StringShape, DictionaryShape]>, undefined, undefined>>>()
+				.toEqualTypeOf<undefined | readonly string[] | Tagged<DictionaryShape>>();
+		});
+
 		test("distributes over a member union", () => {
 			expectTypeOf<Content<Id | Property<StringShape, 1, 1>>>()
 				.toEqualTypeOf<Reference | string>();
+		});
+
+	});
+
+	describe("Slot", () => {
+
+		test("the value at the arity its bounds admit, where no branch is localised", () => {
+			expectTypeOf<Slot<StringShape, 1, 1>>().toEqualTypeOf<string>();
+			expectTypeOf<Slot<StringShape, undefined, undefined>>().toEqualTypeOf<undefined | readonly string[]>();
+			expectTypeOf<Slot<UnionShape<[StringShape, ReferenceShape]>, undefined, undefined>>()
+				.toEqualTypeOf<undefined | readonly (string | Reference)[]>();
+		});
+
+		test("the map alone, never an array of maps, where the range is localised", () => {
+			expectTypeOf<Slot<DictionaryShape, 1, undefined>>().toEqualTypeOf<Tagged<DictionaryShape>>();
+			expectTypeOf<Slot<DictionaryShape, undefined, undefined>>()
+				.toEqualTypeOf<undefined | Tagged<DictionaryShape>>();
+		});
+
+		test("the map beside the array of the other values, where the range is two-natured", () => {
+			expectTypeOf<Slot<UnionShape<[StringShape, ReferenceShape, DictionaryShape]>, 1, undefined>>()
+				.toEqualTypeOf<readonly [string | Reference, ...(string | Reference)[]] | Tagged<DictionaryShape>>();
+		});
+
+		test("the map at the arity its own shape states, not the property's", () => {
+			expectTypeOf<Slot<UnionShape<[StringShape, DictionaryShape & { readonly uniqueLang: true }]>, 1, undefined>>()
+				.toEqualTypeOf<readonly [string, ...string[]] | Tagged<DictionaryShape & { readonly uniqueLang: true }>>();
+		});
+
+		test("a deferred localised branch, as an eager one", () => {
+			expectTypeOf<Slot<UnionShape<[StringShape, () => DictionaryShape]>, undefined, undefined>>()
+				.toEqualTypeOf<undefined | readonly string[] | Tagged<DictionaryShape>>();
+			expectTypeOf<Slot<() => DictionaryShape, undefined, undefined>>()
+				.toEqualTypeOf<undefined | Tagged<DictionaryShape>>();
+		});
+
+		test("no value at all for a range standing for any kind", () => {
+			expectTypeOf<Slot<Shape, 1, 1>>().toEqualTypeOf<never>();
 		});
 
 	});

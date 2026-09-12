@@ -115,7 +115,7 @@ describe("members", () => {
 			.toEqualTypeOf<undefined | { readonly [tag: Tag]: string }>();
 
 		expectTypeOf<Instance<typeof Article>["keywords"]>()
-			.toEqualTypeOf<undefined | readonly { readonly [tag: Tag]: readonly string[] }[]>();
+			.toEqualTypeOf<undefined | { readonly [tag: Tag]: readonly string[] }>();
 
 	});
 
