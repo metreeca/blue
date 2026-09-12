@@ -58,7 +58,7 @@ import { eager, effective, type Scope, validateShape } from "../index.core.js";
 import type { Range, Shape } from "../index.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { Property, ResourceShape } from "./index.js";
-import { getShapeBranches } from "../union.core.js";
+import { getShapeBranches } from "../union/accessors.js";
 import { checkId } from "./assembler.js";
 import { getShapeId } from "./accessors.js";
 import { match } from "../value/validator.js";

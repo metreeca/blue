@@ -22,7 +22,7 @@ import { boolean } from "../boolean/index.js";
 import { number } from "../number/index.js";
 import { reference } from "../reference/index.js";
 import { string } from "../string/index.js";
-import { union } from "../union.js";
+import { union } from "../union/index.js";
 import { getShapeProperties } from "./accessors.js";
 import {
 	checkBounds,

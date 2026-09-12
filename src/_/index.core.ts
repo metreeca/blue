@@ -70,8 +70,10 @@ import type { ResourceShape } from "./resource/index.js";
 import { mergeString, narrowsString } from "./string/assembler.js";
 import { validateString } from "./string/validator.js";
 import { string, type StringShape } from "./string/index.js";
-import { getShapeBranches, mergeUnion, narrowsUnion, validateUnion } from "./union.core.js";
-import { union, type UnionShape } from "./union.js";
+import { getShapeBranches } from "./union/accessors.js";
+import { mergeUnion, narrowsUnion } from "./union/assembler.js";
+import { validateUnion } from "./union/validator.js";
+import { union, type UnionShape } from "./union/index.js";
 
 
 /**

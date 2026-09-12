@@ -52,7 +52,8 @@ import type {
 	ResourceConstraints,
 	ResourceShape
 } from "./index.js";
-import { create as createUnion, getShapeBranches } from "../union.core.js";
+import { getShapeBranches } from "../union/accessors.js";
+import { create as createUnion } from "../union/assembler.js";
 import { getShapeId } from "./accessors.js";
 
 

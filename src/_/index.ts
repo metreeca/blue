@@ -107,8 +107,8 @@ import type { ResourceShape } from "./resource/index.js";
 import type { Retrieved, Submitted } from "./resource/inference.js";
 import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
 import type { StringShape } from "./string/index.js";
-import type { Branch } from "./union.core.js";
-import type { UnionShape } from "./union.js";
+import type { Branch } from "./union/inference.js";
+import type { UnionShape } from "./union/index.js";
 
 export { eager, effective, sh } from "./index.core.js";
 

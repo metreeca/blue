@@ -16,13 +16,12 @@
 
 import type { Reference } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Compound } from "./index.js";
-import { type NumberShape } from "./number/index.js";
-import { reference, type ReferenceShape } from "./reference/index.js";
-import { id, type Id, multiple, type Property, required, resource } from "./resource/index.js";
-import { string, type StringShape } from "./string/index.js";
-import { type Branch } from "./union.core.js";
-import { union, type UnionShape } from "./union.js";
+import { type Instance, type Compound } from "../index.js";
+import { type NumberShape } from "../number/index.js";
+import { reference, type ReferenceShape } from "../reference/index.js";
+import { id, type Id, multiple, type Property, required, resource } from "../resource/index.js";
+import { string, type StringShape } from "../string/index.js";
+import { union, type UnionShape } from "./index.js";
 
 
 type LinkShape={
@@ -37,27 +36,6 @@ type LinkShape={
 	}
 
 }
-
-
-describe("Branch", () => {
-
-	test("union shape → the shape of every branch", () => {
-		expectTypeOf<Branch<UnionShape<[StringShape, ReferenceShape]>>>().toEqualTypeOf<StringShape | ReferenceShape>();
-	});
-
-	test("lazy union → the branches of the shape it returns", () => {
-		expectTypeOf<Branch<() => UnionShape<[StringShape]>>>().toEqualTypeOf<StringShape>();
-	});
-
-	test("lazy branch → the deferred shape as declared", () => {
-		expectTypeOf<Branch<UnionShape<[() => LinkShape]>>>().toEqualTypeOf<() => LinkShape>();
-	});
-
-	test("non-union shape → no branch at all", () => {
-		expectTypeOf<Branch<StringShape>>().toBeNever();
-	});
-
-});
 
 
 describe("union values", () => {

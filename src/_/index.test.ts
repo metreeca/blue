@@ -37,8 +37,8 @@ import {
 	type as typed
 } from "./resource/index.js";
 import { date, duration, instant, string, time, timestamp, year } from "./string/index.js";
-import { getShapeBranches } from "./union.core.js";
-import { union } from "./union.js";
+import { getShapeBranches } from "./union/accessors.js";
+import { union } from "./union/index.js";
 
 
 describe("eager", () => {

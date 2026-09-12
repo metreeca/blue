@@ -23,7 +23,7 @@ import { dictionary } from "../dictionary/index.js";
 import { integer, number } from "../number/index.js";
 import { reference } from "../reference/index.js";
 import { date, string } from "../string/index.js";
-import { union } from "../union.js";
+import { union } from "../union/index.js";
 import {
 	id,
 	multiple,
