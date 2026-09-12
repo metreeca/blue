@@ -599,6 +599,73 @@ describe("validateResource", () => {
 
 		});
 
+		describe("reached through alternatives", () => {
+
+			// captivity is stated on the member, so it reaches whichever alternative names a resource: a link is
+			// expanded wherever it is admitted, and the alternatives still single out the one admitting the value
+
+			const Mixed = resource({ parts: multiple(union(integer(), reference(Part)), { captive: true }) });
+
+			it("admits a captive alternative stated as a link", async () => {
+
+				expect(validateResource([{ parts: ["app:/parts/1"] }], Mixed)).toBeUndefined();
+
+			});
+
+			it("admits a captive alternative stated inline", async () => {
+
+				expect(validateResource([{ parts: [{ id: "app:/parts/1", name: "Bolt" }] }], Mixed))
+					.toBeUndefined();
+
+			});
+
+			it("rejects an inline captive breaking the target shape", async () => {
+
+				expect(validateResource([{ parts: [{ id: "app:/parts/1" }] }], Mixed)).toBeDefined();
+
+			});
+
+			it("rejects an expansion beyond the stated depth", async () => {
+
+				expect(validateResource([{ parts: [{ id: "app:/parts/1", name: "Bolt" }] }], Mixed, { depth: 0 }))
+					.toBeDefined();
+
+			});
+
+			it("admits the link naming a captive whatever nesting is allowed", async () => {
+
+				expect(validateResource([{ parts: ["app:/parts/1"] }], Mixed, { depth: 0 })).toBeUndefined();
+
+			});
+
+			it("admits a value of an alternative naming no resource", async () => {
+
+				expect(validateResource([{ parts: [42] }], Mixed)).toBeUndefined();
+
+			});
+
+			it("rejects an inline captive several alternatives admit", async () => {
+
+				const Piece = resource({ id: id(), name: required(string()) });
+				const shape = resource({
+					parts: multiple(union(reference(Part), reference(Piece)), { captive: true })
+				});
+
+				expect(validateResource([{ parts: [{ id: "app:/parts/1", name: "Bolt" }] }], shape)).toBeDefined();
+
+			});
+
+			it("leaves alternatives it holds nothing captive alone", async () => {
+
+				const shape = resource({ parts: multiple(union(integer(), reference(Part))) });
+
+				expect(validateResource([{ parts: ["app:/parts/1"] }], shape)).toBeUndefined();
+				expect(validateResource([{ parts: [{ id: "app:/parts/1", name: "Bolt" }] }], shape)).toBeDefined();
+
+			});
+
+		});
+
 	});
 
 	describe("localised members", () => {

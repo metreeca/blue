@@ -212,11 +212,37 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	 */
 	function elements(carried: readonly unknown[], range: Shape, captive: undefined | boolean): Optional<Trace> {
 
-		return captive && range.kind === "reference"
+		const branches = getShapeBranches(range);
+		const [branch] = branches;
 
-			? array((value: unknown) => expanded(value, range))(carried)
+		// captivity is stated on the member, so it reaches a target named through an alternative as well as a bare
+		// one: a sole alternative reports the obstacles it found, several are told apart by the one admitting the value
 
-			: validateShape(carried, range, { scope });
+		return !captive || !branches.some(alternative => alternative.kind === "reference")
+
+			? validateShape(carried, range, { scope })
+
+			: branches.length === 1 && branch.kind === "reference"
+
+				? array((value: unknown) => expanded(value, branch))(carried)
+
+				: array((value: unknown) => admitting(value, branches))(carried);
+
+	}
+
+	/**
+	 * Validates a captive element against several alternatives, expanding the ones naming a resource.
+	 */
+	function admitting(value: unknown, branches: readonly Shape[]): Optional<Trace> {
+
+		const matched = branches.filter(alternative => alternative.kind === "reference"
+			? expanded(value, alternative) === undefined
+			: validateShape([value], alternative, { scope }) === undefined
+		);
+
+		return matched.length === 0 ? ["{branches} no branch admits the value"]
+			: matched.length > 1 ? ["{branches} several branches admit the value"]
+				: undefined;
 
 	}
 
