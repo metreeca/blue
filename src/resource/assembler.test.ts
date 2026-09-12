@@ -20,7 +20,7 @@ import type { Resource } from "@metreeca/qest/resource";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
 import { number } from "../number/index.js";
-import { reference } from "../reference/index.js";
+import { getShapeTarget, reference } from "../reference/index.js";
 import { string } from "../string/index.js";
 import { union } from "../union/index.js";
 import { getShapeProperties } from "./accessors.js";
@@ -213,7 +213,33 @@ describe("flatten", () => {
 			const Base = resource({ link: required(reference(Wider)) });
 			const shape = resource(Base, { link: required(reference(Narrower)) });
 
-			expect(getProperty(shape, "link")?.shape).toMatchObject({ kind: "reference" });
+			expect(getShapeTarget(getProperty(shape, "link")?.shape ?? string())).toBe(Narrower);
+
+		});
+
+		it("re-points an inherited link at a target deferred to break a definition cycle", async () => {
+
+			const Wider = resource({ id: id() });
+			const Narrower = resource(Wider, {});
+
+			const Base = resource({ link: required(reference(Wider)) });
+			const shape = resource(Base, { link: required(reference(() => Narrower)) });
+
+			expect(getShapeTarget(getProperty(shape, "link")?.shape ?? string())).toBe(Narrower);
+
+		});
+
+		it("keeps the inherited target definition without restating it", async () => {
+
+			const Wider = resource({ id: id(), label: required(string()) });
+			const Narrower = resource(Wider, { label: required(string({ minLength: 1 })) });
+
+			const Base = resource({ link: required(reference(Wider)) });
+			const shape = resource(Base, { link: required(reference(Narrower)) });
+
+			const target = getShapeTarget(getProperty(shape, "link")?.shape ?? string());
+
+			expect(Object.keys(target?.members ?? {})).toEqual(expect.arrayContaining(["id", "label"]));
 
 		});
 

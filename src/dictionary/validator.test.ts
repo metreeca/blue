@@ -89,6 +89,21 @@ describe("validateDictionary", () => {
 
 			});
 
+			it("rejects the @none tag, content in no language being stated under und or zxx", async () => {
+
+				expect(at(validateDictionary([{ "@none": "hello" }], unique), "@none")).toBeDefined();
+
+			});
+
+			it.each<[string, string]>([
+				["content of an undetermined language", "und"],
+				["content in no language at all", "zxx"]
+			])("admits the tag stating %s", async (_label, tag) => {
+
+				expect(validateDictionary([{ [tag]: "hello" }], unique)).toBeUndefined();
+
+			});
+
 			it("keys a violation by a tag carrying a non-string", async () => {
 
 				expect(at(validateDictionary([{ en: 42 }], unique), "en")).toBeDefined();

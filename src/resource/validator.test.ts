@@ -2115,6 +2115,179 @@ describe("validateResult", () => {
 
 	});
 
+	describe("class", () => {
+
+		const Thing = resource({ id: id(), type: typed(), name: required(string()) }, {
+			class: "https://schema.org/Thing"
+		});
+
+		it("admits the class the shape declares", async () => {
+
+			expect(validateResult([{ type: "https://schema.org/Thing" }], { shape: Thing, model: { type: "" } }))
+				.toBeUndefined();
+
+		});
+
+		it("reports a class other than the one declared", async () => {
+
+			const trace = validateResult([{ type: "https://schema.org/Place" }], {
+				shape: Thing,
+				model: { type: "" }
+			});
+
+			expect(at(trace, "0", "type")).toContainEqual(expect.stringContaining("{class}"));
+
+		});
+
+	});
+
+	describe("foreign members", () => {
+
+		// a foreign member is written by the resources pointing back, yet it is retrievable through them, so it comes
+		// back where the template asks for it
+
+		const Vendors = resource({ id: id(), name: required(string()) });
+		const Held = resource({ id: id(), name: required(string()), held: multiple(reference(Vendors), {
+			foreign: true
+		}) });
+
+		it("admits a foreign member the template asked for", async () => {
+
+			expect(validateResult([{ name: "Acme", held: ["app:/vendors/1"] }], {
+				shape: Held,
+				model: { name: "", held: [""] }
+			})).toBeUndefined();
+
+		});
+
+		it("reports a foreign member the template didn't ask for", async () => {
+
+			expect(validateResult([{ name: "Acme", held: ["app:/vendors/1"] }], {
+				shape: Held,
+				model: { name: "" }
+			})).toBeDefined();
+
+		});
+
+	});
+
+	describe("polymorphic members", () => {
+
+		// a branch key is an opaque label carrying no positional meaning: a placeholder singles out the alternative it
+		// fits by shape, several placeholders may single out the same one, and a value of an alternative no
+		// placeholder singles out is rejected
+
+		const Address = resource({ street: required(string()), city: required(string()) });
+		const shape = resource({ id: id(), contact: optional(union(string(), Address)) });
+
+		it("singles out an alternative by the placeholder rather than by its key", async () => {
+
+			expect(validateResult([{ contact: { street: "Main St", city: "Springfield" } }], {
+				shape,
+				model: { contact: { "0": { street: "", city: "" } } }
+			})).toBeUndefined();
+
+		});
+
+		it("admits an alternative asked for under any branch key", async () => {
+
+			expect(validateResult([{ contact: "info@example.net" }], { shape, model: { contact: { "7": "" } } }))
+				.toBeUndefined();
+
+		});
+
+		it("admits a placeholder listing every alternative", async () => {
+
+			expect(validateResult([{ contact: { street: "Main St", city: "Springfield" } }], {
+				shape,
+				model: { contact: { "0": "", "1": { street: "", city: "" } } }
+			})).toBeUndefined();
+
+		});
+
+		it("admits several placeholders singling out the same alternative", async () => {
+
+			const plain = resource({ id: id(), value: required(union(string(), integer())) });
+
+			expect(validateResult([{ value: "literal" }], { shape: plain, model: { value: { "0": "", "1": "" } } }))
+				.toBeUndefined();
+
+		});
+
+		it("reports a value of an alternative no placeholder singles out", async () => {
+
+			expect(validateResult([{ contact: "info@example.net" }], {
+				shape,
+				model: { contact: { "0": { street: "", city: "" } } }
+			})).toBeDefined();
+
+		});
+
+		it("reports a value no alternative admits", async () => {
+
+			expect(validateResult([{ contact: 42 }], { shape, model: { contact: { "0": "" } } })).toBeDefined();
+
+		});
+
+		it("reports a key that is not a branch key", async () => {
+
+			expect(validateResult([{ contact: "info@example.net" }], { shape, model: { contact: { "": "" } } }))
+				.toBeDefined();
+
+		});
+
+		it("reports a value several alternatives admit", async () => {
+
+			const ambiguous = resource({ id: id(), value: required(union(string(), string({ minLength: 1 }))) });
+
+			expect(validateResult([{ value: "literal" }], {
+				shape: ambiguous,
+				model: { value: { "0": "", "1": "" } }
+			})).toBeDefined();
+
+		});
+
+		describe("linked alternatives", () => {
+
+			const Person = resource({ id: id(), name: required(string()) }, { pattern: "/people/{id}" });
+			const linked = resource({ id: id(), link: optional(union(integer(), reference(Person))) });
+
+			it("admits a link alternative stated as an identifier", async () => {
+
+				expect(validateResult([{ link: "app:/people/1" }], { shape: linked, model: { link: { "1": "" } } }))
+					.toBeUndefined();
+
+			});
+
+			it("admits a link alternative expanded to the resource it points at", async () => {
+
+				expect(validateResult([{ link: { id: "app:/people/1", name: "Alice" } }], {
+					shape: linked,
+					model: { link: { "1": { id: "", name: "" } } }
+				})).toBeUndefined();
+
+			});
+
+			it("singles out the link alternative whose target admits the identifier", async () => {
+
+				const Place = resource({ id: id(), name: required(string()) }, { pattern: "/places/{id}" });
+				const targets = resource({
+					id: id(),
+					link: optional(union(reference(Person), reference(Place)))
+				});
+
+				expect(validateResult([{ link: "app:/people/1" }], { shape: targets, model: { link: { "0": "" } } }))
+					.toBeUndefined();
+
+				expect(validateResult([{ link: "app:/widgets/1" }], { shape: targets, model: { link: { "0": "" } } }))
+					.toBeDefined();
+
+			});
+
+		});
+
+	});
+
 	describe("linked resources", () => {
 
 		it("admits a link stated as an identifier", async () => {
@@ -2272,6 +2445,25 @@ describe("validateResult", () => {
 				shape,
 				model: { label: { en: "" } }
 			})).toBeDefined();
+
+		});
+
+		it("admits the map whatever the placeholder asked for", async () => {
+
+			// the negotiated placeholder belongs to a projection column, so a slot brings the map back whether it
+			// was asked for by tag or as plain text
+
+			const shape = resource({ label: required(dictionary({ uniqueLang: true })) });
+
+			expect(validateResult([{ label: { en: "Widget" } }], { shape, model: { label: "" } })).toBeUndefined();
+
+		});
+
+		it("reports the negotiated text where the map was asked for", async () => {
+
+			const shape = resource({ label: required(dictionary({ uniqueLang: true })) });
+
+			expect(validateResult([{ label: "Widget" }], { shape, model: { label: "" } })).toBeDefined();
 
 		});
 

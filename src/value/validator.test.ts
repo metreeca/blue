@@ -88,7 +88,11 @@ describe("match", () => {
 		["a mismatched segment", "app:/products/123", "/users/{id}", false],
 		["a trailing wildcard", "app:/users/1/2", "/users/*", true],
 		["an absolute pattern", "https://example.net/users/1", "https://example.net/users/{id}", true],
-		["a root-relative pattern against an absolute IRI", "https://example.net/users/1", "/users/{id}", true]
+		["an absolute pattern against another origin", "https://example.com/users/1",
+			"https://example.net/users/{id}", false],
+		["an absolute pattern against a root-relative IRI", "/users/1", "https://example.net/users/{id}", false],
+		["a root-relative pattern against an absolute IRI", "https://example.net/users/1", "/users/{id}", true],
+		["a root-relative pattern against a root-relative IRI", "/users/1", "/users/{id}", true]
 	])("matches %s", async (_label, iri, pattern, expected) => {
 
 		expect(match(iri, pattern)).toBe(expected);
