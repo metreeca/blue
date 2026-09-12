@@ -113,7 +113,7 @@
 import { xsd } from "@metreeca/core/datatype";
 import { TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
-import type { Legal } from "../index.core.js";
+import type { Legal } from "../value/inference.js";
 import { create } from "./assembler.js";
 
 

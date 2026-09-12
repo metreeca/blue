@@ -17,12 +17,12 @@
 import type { Tag } from "@metreeca/core/language";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type BooleanShape } from "./boolean/index.js";
-import { type DictionaryShape } from "./dictionary/index.js";
-import { type Compound, type Instance, type Range } from "./value/index.js";
-import { reference, type ReferenceShape } from "./reference/index.js";
-import { id, multiple, type Property, required, resource, type ResourceShape } from "./resource/index.js";
-import { string, type StringShape } from "./string/index.js";
+import { type BooleanShape } from "../boolean/index.js";
+import { type DictionaryShape } from "../dictionary/index.js";
+import { reference, type ReferenceShape } from "../reference/index.js";
+import { id, multiple, type Property, required, resource, type ResourceShape } from "../resource/index.js";
+import { string, type StringShape } from "../string/index.js";
+import { type Compound, type Instance, type Range } from "./index.js";
 
 
 type LabelShape={
@@ -39,11 +39,44 @@ type LabelShape={
 
 type LabelState={ readonly label: string }
 
+
 type Singular={ readonly [tag: Tag]: string }
+
 type Plural={ readonly [tag: Tag]: readonly string[] }
+
 
 type UniqueShape=DictionaryShape & { readonly uniqueLang: true }
 
+
+describe("Range", () => {
+
+	test("carries the shape its values are drawn from", () => {
+		expectTypeOf<Range<StringShape, 1, 1>["shape"]>().toEqualTypeOf<StringShape>();
+	});
+
+	test("carries a deferred shape as it stands", () => {
+		expectTypeOf<Range<() => StringShape, 1, 1>["shape"]>().toEqualTypeOf<() => StringShape>();
+	});
+
+	test("carries the bounds it is given", () => {
+		expectTypeOf<Range<StringShape, 2, 5>["minCount"]>().toEqualTypeOf<2>();
+		expectTypeOf<Range<StringShape, 2, 5>["maxCount"]>().toEqualTypeOf<5>();
+	});
+
+	test("carries an unstated bound as absent", () => {
+		expectTypeOf<Range<StringShape, undefined, undefined>["minCount"]>().toEqualTypeOf<undefined>();
+		expectTypeOf<Range<StringShape, undefined, undefined>["maxCount"]>().toEqualTypeOf<undefined>();
+	});
+
+	test("admits any shape at any cardinality where nothing is stated", () => {
+		expectTypeOf<Range<StringShape, 1, 1>>().toExtend<Range>();
+	});
+
+	test("admits a range assembled from a shape", () => {
+		expectTypeOf<{ readonly shape: StringShape, readonly minCount: 1, readonly maxCount: 1 }>().toExtend<Range>();
+	});
+
+});
 
 describe("Instance", () => {
 
@@ -97,7 +130,6 @@ describe("Instance", () => {
 	});
 
 });
-
 
 describe("Compound", () => {
 
@@ -180,37 +212,6 @@ describe("Compound", () => {
 	test("resolves a localised shape as the state does", () => {
 		expectTypeOf<Compound<DictionaryShape>>().toEqualTypeOf<Plural>();
 		expectTypeOf<Compound<UniqueShape>>().toEqualTypeOf<Singular>();
-	});
-
-});
-
-
-describe("Range", () => {
-
-	test("carries the shape its values are drawn from", () => {
-		expectTypeOf<Range<StringShape, 1, 1>["shape"]>().toEqualTypeOf<StringShape>();
-	});
-
-	test("carries a deferred shape as it stands", () => {
-		expectTypeOf<Range<() => StringShape, 1, 1>["shape"]>().toEqualTypeOf<() => StringShape>();
-	});
-
-	test("carries the bounds it is given", () => {
-		expectTypeOf<Range<StringShape, 2, 5>["minCount"]>().toEqualTypeOf<2>();
-		expectTypeOf<Range<StringShape, 2, 5>["maxCount"]>().toEqualTypeOf<5>();
-	});
-
-	test("carries an unstated bound as absent", () => {
-		expectTypeOf<Range<StringShape, undefined, undefined>["minCount"]>().toEqualTypeOf<undefined>();
-		expectTypeOf<Range<StringShape, undefined, undefined>["maxCount"]>().toEqualTypeOf<undefined>();
-	});
-
-	test("admits any shape at any cardinality where nothing is stated", () => {
-		expectTypeOf<Range<StringShape, 1, 1>>().toExtend<Range>();
-	});
-
-	test("admits a range assembled from a shape", () => {
-		expectTypeOf<{ readonly shape: StringShape, readonly minCount: 1, readonly maxCount: 1 }>().toExtend<Range>();
 	});
 
 });

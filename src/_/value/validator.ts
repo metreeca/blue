@@ -17,13 +17,24 @@
 /**
  * Value validation.
  *
- * Holds a value to the form a constraint states: {@link match} tests an identifier against the pattern a shape admits
- * its resources under.
+ * Holds a value to what a shape admits: {@link validateShape} routes it to the validators of the shape's kind, so that
+ * a caller matching a value against a shape needs not know which kind it holds, and {@link match} tests an identifier
+ * against the pattern a shape admits its resources under.
  *
  * @module
  */
 
+import { type Optional } from "@metreeca/core";
+import { type Trace } from "@metreeca/core/trace";
 import { type Reference } from "@metreeca/qest/resource";
+import { validateBoolean } from "../boolean/validator.js";
+import { validateDictionary } from "../dictionary/validator.js";
+import { validateNumber } from "../number/validator.js";
+import { validateReference } from "../reference/validator.js";
+import { validateResource } from "../resource/validator.js";
+import { validateString } from "../string/validator.js";
+import { validateUnion } from "../union/validator.js";
+import type { Shape } from "./index.js";
 
 
 /**
@@ -35,6 +46,88 @@ const PatternFormat = new RegExp("^"
 	+"(?:/\\*)?" // optional /* wildcard
 	+"$"
 );
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Validation strictness for matching a value against a shape.
+ *
+ * Selects how much of a shape the value validators enforce, so a caller can match the same shape against a stored
+ * value, a relational bound, or a retrieval model:
+ *
+ * - `"state"` enforces **every** constraint: the value must be a legal element of the shape's domain.
+ * - `"bound"` keeps the syntactic discriminators (`kind`, and a literal branch's `pattern`) but skips the value-domain
+ *   magnitude constraints, so a relational bound lying outside the domain still matches by form alone.
+ * - `"model"` matches by `kind` alone, ignoring every other constraint, so a retrieval placeholder need not be legal.
+ *
+ * @see [Unions — Design](../union.md)
+ */
+export type Scope =
+	| "state"
+	| "bound"
+	| "model"
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Validates values against a shape.
+ *
+ * Routes the values to the validators of the shape's kind, so that a caller holding a shape matches values against it
+ * without knowing which kind it holds.
+ *
+ * @param values The values to validate
+ * @param shape The shape the values are matched against
+ * @param opts Validation options
+ * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`
+ *
+ * @returns A trace of the violations found, or `undefined` where every value matches `shape`
+ */
+export function validateShape(values: readonly unknown[], shape: Shape, {
+
+	scope = "state"
+
+}: {
+
+	scope?: Scope
+
+} = {}): Optional<Trace> {
+
+	switch ( shape.kind ) {
+
+		case "boolean":
+
+			return validateBoolean(values, shape, { scope });
+
+		case "number":
+
+			return validateNumber(values, shape, { scope });
+
+		case "string":
+
+			return validateString(values, shape, { scope });
+
+		case "dictionary":
+
+			return validateDictionary(values, shape, { scope });
+
+		case "reference":
+
+			return validateReference(values, shape, { scope });
+
+		case "union":
+
+			return validateUnion(values, shape, { scope });
+
+		case "resource":
+
+			return validateResource(values, shape, { scope });
+
+	}
+
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

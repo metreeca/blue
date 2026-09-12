@@ -138,7 +138,7 @@ import { TagPattern } from "@metreeca/core/language";
 import type { Variant } from "@metreeca/core/resource";
 import { TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
-import type { Legal } from "../index.core.js";
+import type { Legal } from "../value/inference.js";
 import { create } from "./assembler.js";
 
 

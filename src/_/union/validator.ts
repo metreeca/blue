@@ -25,7 +25,8 @@
 
 import { type Optional } from "@metreeca/core";
 import { array, type Trace } from "@metreeca/core/trace";
-import { type Scope, validateShape } from "../index.core.js";
+import type { Scope } from "../value/validator.js";
+import { validateShape } from "../value/validator.js";
 import type { UnionShape } from "./index.js";
 import { getShapeBranches } from "./accessors.js";
 

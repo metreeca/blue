@@ -14,1308 +14,19 @@
  * limitations under the License.
  */
 
-import { isString, type Optional } from "@metreeca/core";
+import { type Optional } from "@metreeca/core";
 import type { Relay } from "@metreeca/core/relay";
-import { type Issue, type Trace, TraceError } from "@metreeca/core/trace";
-import type { Probe, Transform } from "@metreeca/qest/template";
+import { type Trace, TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
-import { boolean } from "./boolean/index.js";
 import { dictionary } from "./dictionary/index.js";
-import { eager, effective, enforce, mergeShape, narrowsShape, sh, validateShape } from "./index.core.js";
+import { enforce } from "./index.core.js";
 import { validate } from "./index.js";
-import { type Range, type Shape } from "./value/index.js";
-import { byte, decimal, double, float, int, integer, long, number, short } from "./number/index.js";
+import { integer } from "./number/index.js";
 import { reference } from "./reference/index.js";
-import {
-	id,
-	multiple,
-	nonempty,
-	optional,
-	property,
-	required,
-	resource,
-	type ResourceShape,
-	type as typed
-} from "./resource/index.js";
-import { date, duration, instant, string, time, timestamp, year } from "./string/index.js";
-import { getShapeBranches } from "./union/accessors.js";
+import { id, multiple, optional, required, resource } from "./resource/index.js";
+import { string } from "./string/index.js";
 import { union } from "./union/index.js";
 
-
-describe("eager", () => {
-
-	describe("a stated shape", () => {
-
-		it("resolves to itself", async () => {
-
-			const shape = resource({});
-
-			expect(eager(shape)).toBe(shape);
-
-		});
-
-		it("resolves a leaf shape to itself", async () => {
-
-			const shape = string();
-
-			expect(eager(shape)).toBe(shape);
-
-		});
-
-		it("merges what a resource inherits", async () => {
-
-			const Base = resource({ name: required(string()) });
-			const Child = resource(Base, { size: required(integer()) });
-
-			expect(Object.keys(eager(Child).members).sort()).toEqual(["name", "size"]);
-
-		});
-
-	});
-
-	describe("a deferred shape", () => {
-
-		it("resolves to the shape it states", async () => {
-
-			expect(eager(() => resource({})).kind).toBe("resource");
-
-		});
-
-		it("hands back the same shape on every reach", async () => {
-
-			const deferred = () => resource({});
-
-			expect(eager(deferred)).toBe(eager(deferred));
-
-		});
-
-		it("keeps distinct definitions apart", async () => {
-
-			expect(eager(() => resource({}))).not.toBe(eager(() => resource({})));
-
-		});
-
-		it("resolves a cycle a deferred definition breaks", async () => {
-
-			const Node: ResourceShape = resource({
-				id: id(),
-				next: optional(reference(() => Node))
-			});
-
-			expect(eager(() => Node)).toBe(Node);
-
-		});
-
-		it("reports a definition reaching itself", async () => {
-
-			const circular = (): Shape => eager(circular);
-
-			expect(() => eager(circular)).toThrow("circular definition");
-
-		});
-
-		it("leaves nothing cached where a definition throws", async () => {
-
-			const failing = (): Shape => { throw new Error("stated wrongly"); };
-
-			expect(() => eager(failing)).toThrow("stated wrongly");
-			expect(() => eager(failing)).toThrow("stated wrongly"); // not the circularity report
-
-		});
-
-	});
-
-});
-
-describe("effective", () => {
-
-	// the shapes a range draws its values from, a union of alternatives flattened into the branches it opens
-
-	function branches(reached: Range | Issue): readonly Shape[] {
-		return getShapeBranches(range(reached).shape);
-	}
-
-	// the range a probe reached, failing the test where it reached nothing
-
-	function range(reached: Range | Issue): Range {
-
-		if ( isString(reached) ) { throw new Error(`expected a range, got the issue <${reached}>`); }
-
-		return reached;
-
-	}
-
-	function probe(path: readonly string[], pipe: readonly Transform[] = []): Probe {
-		return { target: path[path.length-1] ?? "_", pipe, path };
-	}
-
-	// exercise a pipe against a leaf shape, wrapped in the member carrying it
-
-	function piped(pipe: readonly Transform[], shape: Shape): Range | Issue {
-		return effective(resource({ _: required(shape) }), probe(["_"], pipe));
-	}
-
-
-	describe("malformed probes", () => {
-
-		it("reports a pipe naming an unknown transform", async () => {
-
-			const bogus = { target: "_", path: ["_"], pipe: ["bogus"] } as unknown as Probe;
-
-			expect(() => effective(resource({ _: required(integer()) }), bogus)).toThrow("malformed probe");
-
-		});
-
-		it("reports a probe that is not one", async () => {
-
-			expect(() => effective(resource({ _: required(integer()) }), {} as unknown as Probe))
-				.toThrow("malformed probe");
-
-		});
-
-	});
-
-	describe("paths", () => {
-
-		it("reaches the shape itself where it names no member", async () => {
-
-			const shape = resource({ name: required(string()) });
-
-			expect(range(effective(shape, probe([]))).shape).toBe(shape);
-
-		});
-
-		it("reaches the member it names", async () => {
-
-			const shape = resource({ name: required(string()) });
-
-			const reached = range(effective(shape, probe(["name"])));
-
-			expect(reached.shape).toEqual(string());
-			expect(reached.minCount).toBe(1);
-			expect(reached.maxCount).toBe(1);
-
-		});
-
-		it("steps into an embedded resource", async () => {
-
-			const shape = resource({ child: required(resource({ label: required(string()) })) });
-
-			expect(range(effective(shape, probe(["child", "label"]))).shape).toEqual(string());
-
-		});
-
-		it("crosses a link to the resource it points at", async () => {
-
-			const Inner = resource({ label: required(string()) });
-			const shape = resource({ child: optional(reference(Inner)) });
-
-			expect(range(effective(shape, probe(["child", "label"]))).shape).toEqual(string());
-
-		});
-
-		it("reaches a member a shape inherits", async () => {
-
-			const Base = resource({ label: required(string()) });
-			const Derived = resource(Base, { extra: required(integer()) });
-
-			expect(range(effective(Derived, probe(["label"]))).shape).toEqual(string());
-
-		});
-
-		it("reports a member the shape doesn't carry", async () => {
-
-			expect(effective(resource({ name: required(string()) }), probe(["missing"])))
-				.toBe("unknown property path");
-
-		});
-
-		it("reports a member a nested resource doesn't carry", async () => {
-
-			const shape = resource({ child: required(resource({ label: required(string()) })) });
-
-			expect(effective(shape, probe(["child", "missing"]))).toBe("unknown property path");
-
-		});
-
-		it("reports a step past a value nothing steps past", async () => {
-
-			expect(effective(string(), probe(["missing"]))).toBe("unknown property path");
-			expect(effective(integer(), probe(["missing"]))).toBe("unknown property path");
-			expect(effective(boolean(), probe(["missing"]))).toBe("unknown property path");
-
-		});
-
-	});
-
-	describe("identifiers", () => {
-
-		// the members naming and typing a resource are reached as the scalar IRI they carry
-
-		const iri = string({ datatype: sh.IRI, pattern: /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/ });
-
-		it("reaches the member naming a resource", async () => {
-
-			const shape = resource({ rid: id(), name: required(string()) });
-
-			const reached = range(effective(shape, probe(["rid"])));
-
-			expect(reached.shape).toEqual(iri);
-			expect(reached.minCount).toBeUndefined();
-			expect(reached.maxCount).toBe(1);
-
-		});
-
-		it("reaches the member typing a resource", async () => {
-
-			const shape = resource({ kind: typed(), name: required(string()) }, { class: "app:/types/T" });
-
-			expect(range(effective(shape, probe(["kind"]))).shape).toEqual(iri);
-
-		});
-
-		it("reaches an identifier across a link", async () => {
-
-			const Inner = resource({ rid: id(), label: required(string()) });
-			const shape = resource({ child: optional(reference(Inner)) });
-
-			expect(range(effective(shape, probe(["child", "rid"]))).shape).toEqual(iri);
-
-		});
-
-		it("reports a step past the member naming a resource", async () => {
-
-			const shape = resource({ rid: id(), name: required(string()) });
-
-			expect(effective(shape, probe(["rid", "something"]))).toBe("unknown property path");
-
-		});
-
-		it("reports a step past the member typing a resource", async () => {
-
-			const shape = resource({ kind: typed(), name: required(string()) }, { class: "app:/types/T" });
-
-			expect(effective(shape, probe(["kind", "something"]))).toBe("unknown property path");
-
-		});
-
-	});
-
-	describe("alternatives", () => {
-
-		it("opens on every alternative where the path names no member", async () => {
-
-			const reached = range(effective(union(string(), integer()), probe([])));
-
-			expect(getShapeBranches(reached.shape)).toEqual([string(), integer()]);
-			expect(reached.minCount).toBe(1);
-			expect(reached.maxCount).toBe(1);
-
-		});
-
-		it("reaches the member in each alternative carrying it", async () => {
-
-			const shape = resource({
-				value: required(union(
-					resource({ name: required(string()) }),
-					resource({ name: required(integer()) })
-				))
-			});
-
-			expect(branches(effective(shape, probe(["value", "name"])))).toHaveLength(2);
-			expect(branches(effective(shape, probe(["value", "name"])))).toContainEqual(string());
-			expect(branches(effective(shape, probe(["value", "name"])))).toContainEqual(integer());
-
-		});
-
-		it("drops an alternative lacking the member", async () => {
-
-			const shape = resource({
-				value: required(union(
-					resource({ name: required(string()) }),
-					resource({ age: required(integer()) })
-				))
-			});
-
-			expect(range(effective(shape, probe(["value", "name"]))).shape).toEqual(string());
-
-		});
-
-		it("drops an alternative the path cannot step through", async () => {
-
-			const shape = resource({
-				value: required(union(
-					resource({ x: required(resource({ y: required(string()) })) }),
-					resource({ x: required(integer()) })
-				))
-			});
-
-			expect(range(effective(shape, probe(["value", "x", "y"]))).shape).toEqual(string());
-
-		});
-
-		it("reaches through nested alternatives", async () => {
-
-			const shape = resource({
-				value: required(union(
-					resource({
-						x: required(union(
-							resource({ y: required(string()) }),
-							resource({ y: required(integer()) })
-						))
-					}),
-					resource({ x: required(boolean()) })
-				))
-			});
-
-			expect(branches(effective(shape, probe(["value", "x", "y"])))).toContainEqual(string());
-			expect(branches(effective(shape, probe(["value", "x", "y"])))).toContainEqual(integer());
-
-		});
-
-		it("reports a member no alternative carries", async () => {
-
-			const shape = resource({
-				value: required(union(
-					resource({ name: required(string()) }),
-					resource({ age: required(integer()) })
-				))
-			});
-
-			expect(effective(shape, probe(["value", "missing"]))).toBe("unknown property path");
-
-		});
-
-		it("reports a step past an identifier every alternative carries", async () => {
-
-			const shape = resource({
-				value: required(union(
-					reference(resource({ name: id() })),
-					reference(resource({ name: id() }))
-				))
-			});
-
-			expect(effective(shape, probe(["value", "name", "x"]))).toBe("unknown property path");
-
-		});
-
-		it("reaches the navigable alternative where a sibling ends on an identifier", async () => {
-
-			const shape = resource({
-				value: required(union(
-					reference(resource({ name: id() })),
-					resource({ name: required(resource({ x: required(string()) })) })
-				))
-			});
-
-			expect(range(effective(shape, probe(["value", "name", "x"]))).shape).toEqual(string());
-
-		});
-
-		it("reports the same shape once where alternatives converge on it", async () => {
-
-			const Person = resource({ id: id(), name: required(string()) });
-			const Company = resource({ id: id(), name: required(string()) });
-
-			const shape = resource({ link: required(union(reference(Person), reference(Company))) });
-
-			expect(range(effective(shape, probe(["link", "name"]))).shape).toEqual(string());
-
-		});
-
-		it("reaches a link stated as an alternative", async () => {
-
-			const Inner = resource({ label: required(string()) });
-
-			expect(range(effective(union(reference(Inner), integer()), probe(["label"]))).shape)
-				.toEqual(string());
-
-		});
-
-	});
-
-	describe("bounds", () => {
-
-		it("carries the bounds a member states", async () => {
-
-			expect(range(effective(resource({ v: required(string()) }), probe(["v"]))).minCount).toBe(1);
-			expect(range(effective(resource({ v: required(string()) }), probe(["v"]))).maxCount).toBe(1);
-
-			expect(range(effective(resource({ v: optional(string()) }), probe(["v"]))).minCount).toBeUndefined();
-			expect(range(effective(resource({ v: optional(string()) }), probe(["v"]))).maxCount).toBe(1);
-
-			expect(range(effective(resource({ v: nonempty(string()) }), probe(["v"]))).minCount).toBe(1);
-			expect(range(effective(resource({ v: nonempty(string()) }), probe(["v"]))).maxCount).toBeUndefined();
-
-		});
-
-		it.each([
-			["required through required", required, required, 1, 1],
-			["required through optional", required, optional, undefined, 1],
-			["required through nonempty", required, nonempty, 1, undefined],
-			["optional through required", optional, required, undefined, 1],
-			["optional through optional", optional, optional, undefined, 1],
-			["optional through nonempty", optional, nonempty, undefined, undefined],
-			["nonempty through required", nonempty, required, 1, undefined],
-			["nonempty through optional", nonempty, optional, undefined, undefined],
-			["nonempty through nonempty", nonempty, nonempty, 1, undefined]
-		] as const)("accumulates %s", async (_label, outer, inner, min, max) => {
-
-			const shape = resource({ child: outer(resource({ name: inner(string()) })) });
-
-			const reached = range(effective(shape, probe(["child", "name"])));
-
-			expect(reached.minCount).toBe(min);
-			expect(reached.maxCount).toBe(max);
-
-		});
-
-		it("accumulates across every step of a path", async () => {
-
-			const shape = resource({
-				a: nonempty(resource({
-					b: optional(resource({
-						c: required(string())
-					}))
-				}))
-			});
-
-			const reached = range(effective(shape, probe(["a", "b", "c"])));
-
-			expect(reached.minCount).toBeUndefined();
-			expect(reached.maxCount).toBeUndefined();
-
-		});
-
-		it("keeps a member admitting nothing at zero", async () => {
-
-			const shape = resource({ forbidden: property(string(), { minCount: 0, maxCount: 0 }) });
-
-			const reached = range(effective(shape, probe(["forbidden"])));
-
-			expect(reached.minCount).toBe(0);
-			expect(reached.maxCount).toBe(0);
-
-		});
-
-		it("carries a zero bound through the rest of the path", async () => {
-
-			const shape = resource({
-				child: property(resource({ name: required(string()) }), { minCount: 0, maxCount: 0 })
-			});
-
-			const reached = range(effective(shape, probe(["child", "name"])));
-
-			expect(reached.minCount).toBe(0);
-			expect(reached.maxCount).toBe(0);
-
-		});
-
-		it("envelopes the lowest lower bound across alternatives", async () => {
-
-			const shape = union(
-				resource({ name: required(string()) }),
-				resource({ name: optional(integer()) })
-			);
-
-			const reached = range(effective(shape, probe(["name"])));
-
-			expect(reached.minCount).toBeUndefined();
-			expect(reached.maxCount).toBe(1);
-
-		});
-
-		it("envelopes the highest upper bound across alternatives", async () => {
-
-			const shape = union(
-				resource({ name: required(string()) }),
-				resource({ name: nonempty(integer()) })
-			);
-
-			const reached = range(effective(shape, probe(["name"])));
-
-			expect(reached.minCount).toBe(1);
-			expect(reached.maxCount).toBeUndefined();
-
-		});
-
-		it("envelopes across alternatives reached mid-path", async () => {
-
-			const shape = resource({
-				value: required(union(
-					resource({ name: required(string()) }),
-					resource({ name: optional(integer()) })
-				))
-			});
-
-			const reached = range(effective(shape, probe(["value", "name"])));
-
-			expect(reached.minCount).toBeUndefined();
-			expect(reached.maxCount).toBe(1);
-
-		});
-
-	});
-
-	describe("transforms", () => {
-
-		it("carries the shape through where the pipe states no transform", async () => {
-
-			const shape = integer();
-
-			expect(range(piped([], shape)).shape).toBe(shape);
-			expect(range(piped([], shape)).minCount).toBe(1);
-			expect(range(piped([], shape)).maxCount).toBe(1);
-
-		});
-
-		it("counts values of any kind", async () => {
-
-			expect(range(piped(["count"], integer())).shape).toEqual(integer());
-			expect(range(piped(["count"], string())).shape).toEqual(integer());
-			expect(range(piped(["count"], dictionary())).shape).toEqual(integer());
-			expect(range(piped(["count"], reference(resource({ id: id() })))).shape).toEqual(integer());
-
-		});
-
-		it("carries a compared shape through verbatim", async () => {
-
-			const shape = decimal();
-
-			expect(range(piped(["min"], shape)).shape).toBe(shape);
-			expect(range(piped(["max"], boolean())).shape).toEqual(boolean());
-			expect(range(piped(["min"], date())).shape).toEqual(date());
-
-		});
-
-		it.each([
-			["byte", byte()],
-			["short", short()],
-			["int", int()],
-			["long", long()],
-			["integer", integer()]
-		])("widens a combined %s to the bare integral type", async (_label, shape) => {
-
-			expect(range(piped(["sum"], shape)).shape).toEqual(integer());
-
-		});
-
-		it.each([
-			["number", number()],
-			["float", float()],
-			["double", double()],
-			["decimal", decimal()]
-		])("widens a combined %s to the bare fractional type", async (_label, shape) => {
-
-			expect(range(piped(["sum"], shape)).shape).toEqual(decimal());
-
-		});
-
-		it("yields a fractional average whatever it averages", async () => {
-
-			expect(range(piped(["avg"], float())).shape).toEqual(decimal());
-			expect(range(piped(["avg"], double())).shape).toEqual(decimal());
-
-		});
-
-		it("reads text as text", async () => {
-
-			const shape = string();
-
-			expect(range(piped(["lower"], shape)).shape).toBe(shape);
-			expect(range(piped(["length"], shape)).shape).toEqual(integer());
-
-		});
-
-		it.each([
-			["date", date()],
-			["time", time()],
-			["instant", instant()],
-			["timestamp", timestamp()]
-		])("reads a component of a %s", async (_label, shape) => {
-
-			expect(range(piped(["year"], shape)).shape).toEqual(integer());
-
-		});
-
-		it.each([
-			["year", year()],
-			["duration", duration()]
-		])("reads an opaque %s as text rather than as a point in time", async (_label, shape) => {
-
-			expect(piped(["year"], shape)).toBe("incompatible transform input");
-			expect(range(piped(["length"], shape)).shape).toEqual(integer());
-
-		});
-
-		it("drops a value the transform cannot act on", async () => {
-
-			expect(piped(["min"], reference(resource({ id: id() })))).toBe("incompatible transform input");
-			expect(piped(["sum"], string())).toBe("incompatible transform input");
-			expect(piped(["sum"], date())).toBe("incompatible transform input");
-			expect(piped(["lower"], date())).toBe("incompatible transform input");
-			expect(piped(["lower"], integer())).toBe("incompatible transform input");
-			expect(piped(["year"], string())).toBe("incompatible transform input");
-			expect(piped(["year"], integer())).toBe("incompatible transform input");
-
-		});
-
-		it("applies the transforms right to left", async () => {
-
-			expect(range(piped(["avg", "floor"], decimal())).shape).toEqual(decimal());
-			expect(range(piped(["abs", "year"], date())).shape).toEqual(integer());
-			expect(range(piped(["min", "floor"], decimal())).shape).toEqual(decimal());
-
-		});
-
-		it("drops a value a later transform cannot act on", async () => {
-
-			expect(piped(["floor"], string())).toBe("incompatible transform input");
-			expect(piped(["year", "lower"], date())).toBe("incompatible transform input");
-
-		});
-
-		it.each([
-			["count then sum", ["count", "sum"]],
-			["avg then sum", ["avg", "sum"]],
-			["min then max", ["min", "max"]],
-			["three at once", ["count", "min", "sum"]],
-			["with a transform in between", ["sum", "abs", "count"]]
-		] as const)("reports a pipe combining values more than once, %s", async (_label, pipe) => {
-
-			expect(piped([...pipe], integer())).toBe("multiple aggregate transforms");
-
-		});
-
-		it("reports a pipe combining values more than once ahead of anything else", async () => {
-
-			expect(piped(["count", "sum"], string())).toBe("multiple aggregate transforms");
-
-		});
-
-		describe("over alternatives", () => {
-
-			const shape = resource({ value: required(union(string(), integer())) });
-
-			it("keeps the alternatives the transforms act on", async () => {
-
-				expect(range(effective(shape, probe(["value"], ["length"]))).shape).toEqual(integer());
-
-			});
-
-			it("reports a shape the transforms fold alternatives onto once", async () => {
-
-				expect(range(effective(shape, probe(["value"], ["count"]))).shape).toEqual(integer());
-
-			});
-
-			it("stands as long as one alternative survives every transform", async () => {
-
-				expect(range(effective(shape, probe(["value"], ["count", "length"]))).shape).toEqual(integer());
-
-				const temporal = resource({ value: required(union(string(), integer(), date())) });
-
-				expect(range(effective(temporal, probe(["value"], ["abs", "year"]))).shape).toEqual(integer());
-
-			});
-
-			it("reports a pipe no alternative survives", async () => {
-
-				expect(effective(shape, probe(["value"], ["year"]))).toBe("incompatible transform input");
-				expect(effective(shape, probe(["value"], ["lower", "year"]))).toBe("incompatible transform input");
-
-			});
-
-		});
-
-		describe("bounds", () => {
-
-			it("leaves the count unstated below where a transform may drop a value", async () => {
-
-				const reached = range(effective(resource({ v: required(integer()) }), probe(["v"], ["abs"])));
-
-				expect(reached.minCount).toBeUndefined();
-				expect(reached.maxCount).toBe(1);
-
-			});
-
-			it("leaves the count as it stands above", async () => {
-
-				const reached = range(effective(resource({ v: nonempty(integer()) }), probe(["v"], ["abs"])));
-
-				expect(reached.minCount).toBeUndefined();
-				expect(reached.maxCount).toBeUndefined();
-
-			});
-
-			it.each([
-				["count", ["count"]],
-				["sum", ["sum"]]
-			] as const)("floors and caps the count at one for %s, which always yields a value", async (_l, pipe) => {
-
-				const reached = range(effective(resource({ v: nonempty(integer()) }), probe(["v"], [...pipe])));
-
-				expect(reached.minCount).toBe(1);
-				expect(reached.maxCount).toBe(1);
-
-			});
-
-			it.each([
-				["avg", ["avg"], nonempty(integer())],
-				["min", ["min"], nonempty(string())],
-				["max", ["max"], nonempty(string())],
-				["avg then floor", ["avg", "floor"], nonempty(decimal())]
-			] as const)("caps the count at one for %s, which may yield none", async (_l, pipe, member) => {
-
-				const reached = range(effective(resource({ v: member }), probe(["v"], [...pipe])));
-
-				expect(reached.minCount).toBeUndefined();
-				expect(reached.maxCount).toBe(1);
-
-			});
-
-		});
-
-	});
-
-	describe("localised values", () => {
-
-		it("is reached as the structured value it is where no transform reads it", async () => {
-
-			const shape = resource({ label: required(dictionary({ uniqueLang: true })) });
-
-			expect(eager(range(effective(shape, probe(["label"]))).shape).kind).toBe("dictionary");
-
-		});
-
-		it("is read as text where a transform reads it", async () => {
-
-			const shape = dictionary({ uniqueLang: true });
-
-			expect(range(piped(["lower"], shape)).shape).toEqual(string());
-			expect(range(piped(["upper"], shape)).shape).toEqual(string());
-			expect(range(piped(["min"], shape)).shape).toEqual(string());
-			expect(range(piped(["length"], shape)).shape).toEqual(integer());
-
-		});
-
-		it("is read as text whatever the tags carry", async () => {
-
-			expect(range(piped(["lower"], dictionary())).shape).toEqual(string());
-
-		});
-
-		it("drops a transform text cannot be read through", async () => {
-
-			const shape = dictionary({ uniqueLang: true });
-
-			expect(piped(["year"], shape)).toBe("incompatible transform input");
-			expect(piped(["abs"], shape)).toBe("incompatible transform input");
-			expect(piped(["sum"], shape)).toBe("incompatible transform input");
-
-		});
-
-		it("contributes an alternative to a path reaching it beside other values", async () => {
-
-			const shape = resource({
-				value: required(union(
-					resource({ label: required(dictionary({ uniqueLang: true })) }),
-					resource({ label: required(integer()) })
-				))
-			});
-
-			const reached = branches(effective(shape, probe(["value", "label"])));
-
-			expect(reached).toHaveLength(2);
-			expect(reached.map(branch => branch.kind)).toContain("dictionary");
-			expect(reached).toContainEqual(integer());
-
-		});
-
-		describe("bounds", () => {
-
-			// bounds count the maps a member admits, the tags within one being a matter for the shape itself
-
-			const Item = resource({
-				label: required(dictionary({ uniqueLang: true })),
-				labels: nonempty(dictionary())
-			});
-
-			const Wrapper = resource({ items: multiple(reference(Item)) });
-
-			it("counts a single map as one value", async () => {
-
-				expect(range(effective(Item, probe(["label"]))).maxCount).toBe(1);
-
-			});
-
-			it("multiplies through a multi-valued step", async () => {
-
-				expect(range(effective(Wrapper, probe(["items", "label"]))).maxCount).toBeUndefined();
-				expect(range(effective(Wrapper, probe(["items", "labels"]))).maxCount).toBeUndefined();
-
-			});
-
-			it("reads the text of a map reached through a multi-valued step", async () => {
-
-				const reached = range(effective(Wrapper, probe(["items", "label"], ["lower"])));
-
-				expect(reached.shape).toEqual(string());
-				expect(reached.maxCount).toBeUndefined();
-
-			});
-
-			it("caps the count at one where a transform combines the text read", async () => {
-
-				const reached = range(effective(resource({ labels: nonempty(dictionary()) }), probe(["labels"], ["min"])));
-
-				expect(reached.shape).toEqual(string());
-				expect(reached.maxCount).toBe(1);
-
-			});
-
-		});
-
-	});
-
-	describe("links", () => {
-
-		const Inner = resource({ label: optional(string()), value: required(integer()) });
-
-		it("opens on the resource it points at", async () => {
-
-			expect(range(effective(reference(Inner), probe([]))).shape).toBe(Inner);
-
-		});
-
-		it("reaches the members of the resource it points at", async () => {
-
-			const reached = range(effective(reference(Inner), probe(["label"])));
-
-			expect(reached.shape).toEqual(string());
-			expect(reached.minCount).toBeUndefined();
-			expect(reached.maxCount).toBe(1);
-
-		});
-
-		it("applies the pipe to what the target reaches", async () => {
-
-			expect(range(effective(reference(Inner), probe(["value"], ["abs"]))).shape).toEqual(integer());
-
-		});
-
-		it("reports a member the target doesn't carry", async () => {
-
-			expect(effective(reference(Inner), probe(["missing"]))).toBe("unknown property path");
-
-		});
-
-	});
-
-	describe("leaf shapes", () => {
-
-		it.each([
-			["boolean", boolean()],
-			["number", integer()],
-			["string", string()],
-			["dictionary", dictionary()]
-		])("is reached as itself where the path names no member, %s", async (_label, shape) => {
-
-			expect(range(effective(shape, probe([]))).shape).toBe(shape);
-
-		});
-
-		it("applies the pipe to the shape itself", async () => {
-
-			expect(range(effective(decimal(), probe([], ["floor"]))).shape).toEqual(decimal());
-			expect(range(effective(decimal(), probe([], ["avg", "floor"]))).shape).toEqual(decimal());
-
-		});
-
-		it("counts the shape itself", async () => {
-
-			const reached = range(effective(integer(), probe([], ["count"])));
-
-			expect(reached.shape).toEqual(integer());
-			expect(reached.minCount).toBe(1);
-			expect(reached.maxCount).toBe(1);
-
-		});
-
-		it("reports a pipe the shape cannot be read through", async () => {
-
-			expect(effective(string(), probe([], ["floor"]))).toBe("incompatible transform input");
-
-		});
-
-	});
-
-	describe("ranges", () => {
-
-		it("carries a range through where the probe reaches nothing further", async () => {
-
-			const reached = range(effective({ minCount: 2, maxCount: 5, shape: integer() }, probe([])));
-
-			expect(reached.shape).toEqual(integer());
-			expect(reached.minCount).toBe(2);
-			expect(reached.maxCount).toBe(5);
-
-		});
-
-		it("opens on every alternative a range admits", async () => {
-
-			const reached = range(effective({
-				minCount: undefined,
-				maxCount: undefined,
-				shape: union(integer(), string())
-			}, probe([])));
-
-			expect(getShapeBranches(reached.shape)).toEqual([integer(), string()]);
-			expect(reached.minCount).toBeUndefined();
-			expect(reached.maxCount).toBeUndefined();
-
-		});
-
-		it("multiplies the bounds it carries through a step", async () => {
-
-			const reached = range(effective({
-				minCount: 2,
-				maxCount: 3,
-				shape: resource({ name: required(string()) })
-			}, probe(["name"])));
-
-			expect(reached.shape).toEqual(string());
-			expect(reached.minCount).toBe(2);
-			expect(reached.maxCount).toBe(3);
-
-		});
-
-		it("applies the pipe to what it admits", async () => {
-
-			const reached = range(effective({ minCount: 1, maxCount: 1, shape: decimal() }, probe([], ["floor"])));
-
-			expect(reached.shape).toEqual(decimal());
-
-		});
-
-	});
-
-});
-
-describe("narrowsShape", () => {
-
-	it("routes a pair to the operators of the kind they share", async () => {
-
-		expect(narrowsShape(string({ minLength: 5 }), string())).toBeUndefined();
-		expect(narrowsShape(integer({ minInclusive: 0 }), integer())).toBeUndefined();
-		expect(narrowsShape(boolean(), boolean())).toBeUndefined();
-		expect(narrowsShape(dictionary({ uniqueLang: true }), dictionary())).toBeUndefined();
-
-	});
-
-	it("reports a pair of unshared kinds", async () => {
-
-		expect(narrowsShape(string(), boolean()))
-			.toContainEqual(expect.stringContaining("{kind}"));
-
-	});
-
-	it("reports a shape loosening what the inherited one states", async () => {
-
-		expect(narrowsShape(string({ minLength: 1 }), string({ minLength: 5 }))).toBeDefined();
-
-	});
-
-	describe("over a polymorphic inherited shape", () => {
-
-		const inherited = union(string(), integer());
-
-		it("accepts a polymorphic shape dropping an alternative", async () => {
-
-			expect(narrowsShape(union(integer()), inherited)).toBeUndefined();
-
-		});
-
-		it("accepts a plain shape restricting a single alternative", async () => {
-
-			expect(narrowsShape(integer(), inherited)).toBeUndefined();
-			expect(narrowsShape(integer({ minInclusive: 0 }), inherited)).toBeUndefined();
-
-		});
-
-		it("reports a plain shape restricting no alternative", async () => {
-
-			expect(narrowsShape(boolean(), inherited))
-				.toContainEqual(expect.stringContaining("{branches}"));
-
-		});
-
-		it("reports a plain shape restricting several alternatives", async () => {
-
-			const ambiguous = union(string({ minLength: 1 }), string({ maxLength: 5 }));
-
-			expect(narrowsShape(string({ minLength: 2, maxLength: 4 }), ambiguous))
-				.toContainEqual(expect.stringContaining("{branches}"));
-
-		});
-
-		it("reports a polymorphic shape over a plain inherited one", async () => {
-
-			expect(narrowsShape(union(string()), string())).toBeDefined();
-
-		});
-
-	});
-
-});
-
-describe("mergeShape", () => {
-
-	it("routes a pair to the operators of the kind they share", async () => {
-
-		expect(eager(mergeShape(string({ minLength: 5 }), string()))).toMatchObject({
-			kind: "string",
-			minLength: 5
-		});
-
-		expect(eager(mergeShape(integer({ minInclusive: 0 }), integer()))).toMatchObject({
-			kind: "number",
-			minInclusive: 0
-		});
-
-	});
-
-	it("collapses a polymorphic inherited shape to the alternative restricting it", async () => {
-
-		const merged = eager(mergeShape(integer({ minInclusive: 0 }), union(string(), integer())));
-
-		expect(merged).toMatchObject({ kind: "number", minInclusive: 0 });
-
-	});
-
-	it("merges the restricted alternative rather than replacing it", async () => {
-
-		const merged = eager(mergeShape(integer({ minInclusive: 0 }), union(string(), integer({ maxInclusive: 9 }))));
-
-		expect(merged).toMatchObject({ kind: "number", minInclusive: 0, maxInclusive: 9 });
-
-	});
-
-	it("throws where the shape doesn't narrow the inherited one", async () => {
-
-		expect(() => mergeShape(string(), boolean())).toThrow(TraceError);
-		expect(() => mergeShape(boolean(), union(string(), integer()))).toThrow(TraceError);
-
-	});
-
-});
-
-describe("validateShape", () => {
-
-	it("routes values to the validators of the shape's kind", async () => {
-
-		expect(validateShape(["Widget"], string())).toBeUndefined();
-		expect(validateShape([42], integer())).toBeUndefined();
-		expect(validateShape([true], boolean())).toBeUndefined();
-		expect(validateShape([{ en: ["Widget"] }], dictionary())).toBeUndefined();
-		expect(validateShape(["app:/vendors/1"], reference(resource({ id: id() })))).toBeUndefined();
-
-	});
-
-	it("reports a value of another kind", async () => {
-
-		expect(validateShape([42], string())).toBeDefined();
-		expect(validateShape(["Widget"], integer())).toBeDefined();
-
-	});
-
-	it("routes a polymorphic shape to the branch the value belongs to", async () => {
-
-		const shape = union(string(), integer());
-
-		expect(validateShape([42], shape)).toBeUndefined();
-		expect(validateShape([true], shape)).toBeDefined();
-
-	});
-
-	it("routes a resource shape to the members it declares", async () => {
-
-		const shape = resource({ name: required(string()) });
-
-		expect(validateShape([{ name: "Widget" }], shape)).toBeUndefined();
-		expect(validateShape([{ name: 42 }], shape)).toBeDefined();
-
-	});
-
-	it("carries the scope through to the validator it routes to", async () => {
-
-		const shape = integer({ minInclusive: 10 });
-
-		expect(validateShape([0], shape)).toBeDefined();
-		expect(validateShape([0], shape, { scope: "model" })).toBeUndefined();
-
-	});
-
-	it("validates every value it is given", async () => {
-
-		expect(validateShape(["Widget", "Gadget"], string())).toBeUndefined();
-		expect(validateShape(["Widget", 42], string())).toBeDefined();
-		expect(validateShape([], string())).toBeUndefined();
-
-	});
-
-});
-
-describe("enforce", () => {
-
-	const limit = 100;
-
-	const Vendor = resource({ id: id(), name: required(string()), tags: multiple(string()) });
-
-	const Product = resource({
-		name: required(string()),
-		size: optional(integer()),
-		tags: multiple(string()),
-		label: optional(dictionary({ uniqueLang: true })),
-		vendor: optional(reference(Vendor)),
-		vendors: multiple(reference(Vendor))
-	});
-
-	it("leaves the template alone where no page is served", async () => {
-
-		expect(enforce({ tags: [""] }, Product)).toEqual({ tags: [""] });
-		expect(enforce({ tags: [""] }, Product, { limit: 0 })).toEqual({ tags: [""] });
-
-	});
-
-	it("leaves a malformed template alone", async () => {
-
-		expect(enforce(42, Product, { limit })).toBe(42);
-		expect(enforce({ unknown: "" }, Product, { limit })).toEqual({ unknown: "" });
-
-	});
-
-	describe("single values", () => {
-
-		it("leaves a placeholder alone", async () => {
-
-			expect(enforce({ name: "", size: 0 }, Product, { limit })).toEqual({ name: "", size: 0 });
-
-		});
-
-		it("leaves an identifier standing for a link alone", async () => {
-
-			expect(enforce({ vendor: "app:/vendors/1" }, Product, { limit }))
-				.toEqual({ vendor: "app:/vendors/1" });
-
-		});
-
-		it("leaves a localised value alone", async () => {
-
-			expect(enforce({ label: { en: "" } }, Product, { limit })).toEqual({ label: { en: "" } });
-
-		});
-
-		it("descends into the template behind a link", async () => {
-
-			expect(enforce({ vendor: { tags: [""] } }, Product, { limit }))
-				.toEqual({ vendor: { tags: ["", { "#": limit }] } });
-
-		});
-
-	});
-
-	describe("collections", () => {
-
-		it("pages a collection of placeholders", async () => {
-
-			expect(enforce({ tags: [""] }, Product, { limit })).toEqual({ tags: ["", { "#": limit }] });
-
-		});
-
-		it("pages a collection of templates", async () => {
-
-			expect(enforce({ vendors: [{ name: "" }] }, Product, { limit }))
-				.toEqual({ vendors: [{ name: "" }, { "#": limit }] });
-
-		});
-
-		it("leaves a page the client stated alone", async () => {
-
-			expect(enforce({ tags: ["", { "#": 25 }] }, Product, { limit }))
-				.toEqual({ tags: ["", { "#": 25 }] });
-
-		});
-
-		it("keeps the rest of a selection the client stated", async () => {
-
-			expect(enforce({ tags: ["", { "~": "wid" }] }, Product, { limit }))
-				.toEqual({ tags: ["", { "~": "wid", "#": limit }] });
-
-		});
-
-		it("pages a collection nested within a paged one", async () => {
-
-			expect(enforce({ vendors: [{ tags: [""] }, { "#": 25 }] }, Product, { limit }))
-				.toEqual({ vendors: [{ tags: ["", { "#": limit }] }, { "#": 25 }] });
-
-		});
-
-		it("leaves a localised member alone however many maps it admits", async () => {
-
-			const shape = resource({ labels: multiple(dictionary({ uniqueLang: true })) });
-
-			expect(enforce({ labels: { en: "" } }, shape, { limit })).toEqual({ labels: { en: "" } });
-
-		});
-
-	});
-
-	describe("polymorphic members", () => {
-
-		const A = resource({ name: required(string()) });
-		const B = resource({ tags: multiple(string()) });
-
-		const shape = resource({
-			value: optional(union(A, B)),
-			values: multiple(union(A, B))
-		});
-
-		it("descends into each branch of a single value", async () => {
-
-			expect(enforce({ value: { "0": { name: "" }, "1": { tags: [""] } } }, shape, { limit }))
-				.toEqual({ value: { "0": { name: "" }, "1": { tags: ["", { "#": limit }] } } });
-
-		});
-
-		it("pages a collection stated as a branch map", async () => {
-
-			expect(enforce({ values: [{ "1": { tags: [""] } }] }, shape, { limit }))
-				.toEqual({ values: [{ "1": { tags: ["", { "#": limit }] } }, { "#": limit }] });
-
-		});
-
-		it("leaves a branch the union doesn't declare alone", async () => {
-
-			expect(enforce({ value: { "7": { name: "" } } }, shape, { limit }))
-				.toEqual({ value: { "7": { name: "" } } });
-
-		});
-
-	});
-
-	describe("projections", () => {
-
-		it("pages a collection asked for under a column", async () => {
-
-			expect(enforce({ vendors: [{ "t=tags": [""] }] }, Product, { limit }))
-				.toEqual({ vendors: [{ "t=tags": ["", { "#": limit }] }, { "#": limit }] });
-
-		});
-
-	});
-
-});
 
 describe("validate", () => {
 
@@ -1871,6 +582,157 @@ describe("validate", () => {
 
 			expect(validated).toEqual({ vendor: { name: "" } });
 			expect(trace(validate(validated, { shape: Product }))).toBeDefined();
+
+		});
+
+	});
+
+});
+
+describe("enforce", () => {
+
+	const limit = 100;
+
+	const Vendor = resource({ id: id(), name: required(string()), tags: multiple(string()) });
+
+	const Product = resource({
+		name: required(string()),
+		size: optional(integer()),
+		tags: multiple(string()),
+		label: optional(dictionary({ uniqueLang: true })),
+		vendor: optional(reference(Vendor)),
+		vendors: multiple(reference(Vendor))
+	});
+
+	it("leaves the template alone where no page is served", async () => {
+
+		expect(enforce({ tags: [""] }, Product)).toEqual({ tags: [""] });
+		expect(enforce({ tags: [""] }, Product, { limit: 0 })).toEqual({ tags: [""] });
+
+	});
+
+	it("leaves a malformed template alone", async () => {
+
+		expect(enforce(42, Product, { limit })).toBe(42);
+		expect(enforce({ unknown: "" }, Product, { limit })).toEqual({ unknown: "" });
+
+	});
+
+	describe("single values", () => {
+
+		it("leaves a placeholder alone", async () => {
+
+			expect(enforce({ name: "", size: 0 }, Product, { limit })).toEqual({ name: "", size: 0 });
+
+		});
+
+		it("leaves an identifier standing for a link alone", async () => {
+
+			expect(enforce({ vendor: "app:/vendors/1" }, Product, { limit }))
+				.toEqual({ vendor: "app:/vendors/1" });
+
+		});
+
+		it("leaves a localised value alone", async () => {
+
+			expect(enforce({ label: { en: "" } }, Product, { limit })).toEqual({ label: { en: "" } });
+
+		});
+
+		it("descends into the template behind a link", async () => {
+
+			expect(enforce({ vendor: { tags: [""] } }, Product, { limit }))
+				.toEqual({ vendor: { tags: ["", { "#": limit }] } });
+
+		});
+
+	});
+
+	describe("collections", () => {
+
+		it("pages a collection of placeholders", async () => {
+
+			expect(enforce({ tags: [""] }, Product, { limit })).toEqual({ tags: ["", { "#": limit }] });
+
+		});
+
+		it("pages a collection of templates", async () => {
+
+			expect(enforce({ vendors: [{ name: "" }] }, Product, { limit }))
+				.toEqual({ vendors: [{ name: "" }, { "#": limit }] });
+
+		});
+
+		it("leaves a page the client stated alone", async () => {
+
+			expect(enforce({ tags: ["", { "#": 25 }] }, Product, { limit }))
+				.toEqual({ tags: ["", { "#": 25 }] });
+
+		});
+
+		it("keeps the rest of a selection the client stated", async () => {
+
+			expect(enforce({ tags: ["", { "~": "wid" }] }, Product, { limit }))
+				.toEqual({ tags: ["", { "~": "wid", "#": limit }] });
+
+		});
+
+		it("pages a collection nested within a paged one", async () => {
+
+			expect(enforce({ vendors: [{ tags: [""] }, { "#": 25 }] }, Product, { limit }))
+				.toEqual({ vendors: [{ tags: ["", { "#": limit }] }, { "#": 25 }] });
+
+		});
+
+		it("leaves a localised member alone however many maps it admits", async () => {
+
+			const shape = resource({ labels: multiple(dictionary({ uniqueLang: true })) });
+
+			expect(enforce({ labels: { en: "" } }, shape, { limit })).toEqual({ labels: { en: "" } });
+
+		});
+
+	});
+
+	describe("polymorphic members", () => {
+
+		const A = resource({ name: required(string()) });
+		const B = resource({ tags: multiple(string()) });
+
+		const shape = resource({
+			value: optional(union(A, B)),
+			values: multiple(union(A, B))
+		});
+
+		it("descends into each branch of a single value", async () => {
+
+			expect(enforce({ value: { "0": { name: "" }, "1": { tags: [""] } } }, shape, { limit }))
+				.toEqual({ value: { "0": { name: "" }, "1": { tags: ["", { "#": limit }] } } });
+
+		});
+
+		it("pages a collection stated as a branch map", async () => {
+
+			expect(enforce({ values: [{ "1": { tags: [""] } }] }, shape, { limit }))
+				.toEqual({ values: [{ "1": { tags: ["", { "#": limit }] } }, { "#": limit }] });
+
+		});
+
+		it("leaves a branch the union doesn't declare alone", async () => {
+
+			expect(enforce({ value: { "7": { name: "" } } }, shape, { limit }))
+				.toEqual({ value: { "7": { name: "" } } });
+
+		});
+
+	});
+
+	describe("projections", () => {
+
+		it("pages a collection asked for under a column", async () => {
+
+			expect(enforce({ vendors: [{ "t=tags": [""] }] }, Product, { limit }))
+				.toEqual({ vendors: [{ "t=tags": ["", { "#": limit }] }, { "#": limit }] });
 
 		});
 

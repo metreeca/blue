@@ -26,7 +26,7 @@
 import { type Lazy, type Optional } from "@metreeca/core";
 import { equals, immutable } from "@metreeca/core/structures";
 import { test, type Trace, TraceError } from "@metreeca/core/trace";
-import { eager } from "../index.core.js";
+import { eager } from "../value/accessors.js";
 import type { ReferenceShape } from "./index.js";
 import type { ResourceShape } from "../resource/index.js";
 

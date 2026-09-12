@@ -24,7 +24,8 @@
  */
 
 import { type Lazy } from "@metreeca/core";
-import { eager, validateShape } from "../index.core.js";
+import { eager } from "../value/accessors.js";
+import { validateShape } from "../value/validator.js";
 import type { Shape } from "../value/index.js";
 
 

@@ -27,7 +27,7 @@
 import { isArray, isObject, isString, opt as fold, type Optional } from "@metreeca/core";
 import { isTag, matchTag, type Tag } from "@metreeca/core/language";
 import { all, array, fail, length, object, type Trace, type Validator } from "@metreeca/core/trace";
-import type { Scope } from "../index.core.js";
+import type { Scope } from "../value/validator.js";
 import { type DictionaryShape } from "./index.js";
 
 

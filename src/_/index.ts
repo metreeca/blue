@@ -98,12 +98,15 @@ import { equals, seal } from "@metreeca/core/structures";
 import { type Trace, TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Instance as Fetched, Template } from "@metreeca/qest/template";
-import { eager, enforce, validateShape } from "./index.core.js";
+import { enforce } from "./index.core.js";
+import { eager } from "./value/accessors.js";
+import { validateShape } from "./value/validator.js";
 import type { ResourceShape } from "./resource/index.js";
 import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
 import type { Compound, Instance, Shape } from "./value/index.js";
 
-export { eager, effective, sh } from "./index.core.js";
+export { eager, effective } from "./value/accessors.js";
+export { sh } from "./value/index.js";
 export type { Compound, Instance, Range, Shape } from "./value/index.js";
 
 

@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Scope } from "../index.core.js";
+import type { Scope } from "../value/validator.js";
 import { reference } from "./index.js";
 import { resource, type ResourceConstraints, type ResourceShape } from "../resource/index.js";
 import { validateReference } from "./validator.js";

@@ -41,7 +41,8 @@ import { dedent, tidy } from "@metreeca/core/strings";
 import { equals, immutable, seal } from "@metreeca/core/structures";
 import { all, fail, test, type Trace, TraceError } from "@metreeca/core/trace";
 import { type Dictionary, type Reference } from "@metreeca/qest/resource";
-import { eager, mergeShape, narrowsShape } from "../index.core.js";
+import { eager } from "../value/accessors.js";
+import { mergeShape, narrowsShape } from "../value/assembler.js";
 import type { Shape } from "../value/index.js";
 import type {
 	Member,

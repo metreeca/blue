@@ -54,7 +54,9 @@ import {
 	type Template
 } from "@metreeca/qest/template";
 import type { DictionaryShape } from "../dictionary/index.js";
-import { eager, effective, type Scope, validateShape } from "../index.core.js";
+import { eager, effective } from "../value/accessors.js";
+import type { Scope } from "../value/validator.js";
+import { validateShape } from "../value/validator.js";
 import type { Range, Shape } from "../value/index.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { Property, ResourceShape } from "./index.js";

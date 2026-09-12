@@ -26,7 +26,7 @@
 
 import { isNumber, type Optional } from "@metreeca/core";
 import { all, array, domain, gt, gte, integer, lt, lte, type Trace, type, values as contains } from "@metreeca/core/trace";
-import type { Scope } from "../index.core.js";
+import type { Scope } from "../value/validator.js";
 import { type NumberShape } from "./index.js";
 
 

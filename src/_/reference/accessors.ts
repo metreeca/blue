@@ -25,7 +25,7 @@
  */
 
 import { type Lazy, map } from "@metreeca/core";
-import { eager } from "../index.core.js";
+import { eager } from "../value/accessors.js";
 import type { Shape } from "../value/index.js";
 import type { ResourceShape } from "../resource/index.js";
 

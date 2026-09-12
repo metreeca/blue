@@ -26,7 +26,7 @@
 
 import { isBoolean, type Optional } from "@metreeca/core";
 import { array, type Trace, type } from "@metreeca/core/trace";
-import type { Scope } from "../index.core.js";
+import type { Scope } from "../value/validator.js";
 import type { BooleanShape } from "./index.js";
 
 

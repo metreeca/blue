@@ -16,7 +16,7 @@
 
 
 import { describe, expect, it } from "vitest";
-import type { Scope } from "../index.core.js";
+import type { Scope } from "../value/validator.js";
 import { dictionary } from "./index.js";
 import { validateDictionary } from "./validator.js";
 

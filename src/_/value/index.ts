@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 /**
  * Shapes and the values they describe.
  *
@@ -28,9 +27,9 @@
  */
 
 import type { Eager, Lazy, Optional } from "@metreeca/core";
+import { createNamespace, type Namespace } from "@metreeca/core/resource";
 import type { BooleanShape } from "../boolean/index.js";
 import type { DictionaryShape } from "../dictionary/index.js";
-import type { Plain } from "../index.core.js";
 import type { NumberShape } from "../number/index.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { ResourceShape } from "../resource/index.js";
@@ -38,7 +37,20 @@ import type { Retrieved, Submitted } from "../resource/inference.js";
 import type { StringShape } from "../string/index.js";
 import type { UnionShape } from "../union/index.js";
 import type { Branch } from "../union/inference.js";
+import type { Plain } from "./inference.js";
 
+
+/**
+ * SHACL vocabulary namespace.
+ *
+ * An open {@link Namespace} over `http://www.w3.org/ns/shacl#`, resolving any SHACL term as a named property.
+ *
+ * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
+ */
+export const sh: Namespace = createNamespace("http://www.w3.org/ns/shacl#");
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * A description of a value.
@@ -103,6 +115,8 @@ export type Range<
 
 }
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Resolves the value a shape describes.

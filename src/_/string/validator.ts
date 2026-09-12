@@ -26,7 +26,7 @@
 import { isString, type Optional } from "@metreeca/core";
 import { all, array, domain, length, pass, test, type Trace, type, type Validator, values as contains }
 	from "@metreeca/core/trace";
-import type { Scope } from "../index.core.js";
+import type { Scope } from "../value/validator.js";
 import { type StringShape } from "./index.js";
 
 
