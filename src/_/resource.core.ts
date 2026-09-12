@@ -658,6 +658,29 @@ export function checkResource(constraints: Partial<ResourceShape>): Optional<Tra
 }
 
 /**
+ * Checks a pair of cardinality bounds for internal consistency.
+ *
+ * Reports bounds that cross, leaving a member admitting no value at all, so that a contradiction between what is
+ * required and what is admitted surfaces as the member is settled rather than when a resource is first matched against
+ * it. An unstated bound leaves that end unbounded and crosses nothing.
+ *
+ * @param bounds The bounds to check
+ *
+ * @returns A trace of the inconsistency found, or `undefined` where the bounds admit at least one value
+ */
+export function checkBounds(bounds: Partial<PropertyBounds>): Optional<Trace> {
+
+	return test<typeof bounds>(({ minCount, maxCount }) => {
+
+		return minCount === undefined || maxCount === undefined || minCount <= maxCount || [
+			`{minCount/maxCount} inconsistent bounds <${minCount}> > <${maxCount}>`
+		];
+
+	})(bounds);
+
+}
+
+/**
  * Checks the extended shapes for conflicts the extending shape leaves unsettled.
  *
  * Reports the inherited fields the extended shapes disagree on and the extending shape states no value for, so that a
@@ -1040,7 +1063,14 @@ export function narrowsProperty(target: Property, source: Property): Optional<Tr
 			];
 
 		}),
-		() => narrowsShape(eager(target.shape), eager(source.shape))
+		() => narrowsShape(eager(target.shape), eager(source.shape)),
+
+		// the bounds the merged member carries, which each may narrow on its own and still cross
+
+		() => checkBounds({
+			minCount: target.minCount ?? source.minCount,
+			maxCount: target.maxCount ?? source.maxCount
+		})
 	)(target);
 
 }

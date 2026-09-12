@@ -511,6 +511,10 @@ export type Type = {
  * A bound left unstated leaves that end unbounded rather than unsaid, so a child stating none inherits the bound the
  * parent states.
  *
+ * **Cross-Field Validation**
+ *
+ * - the merged `minCount` must not exceed the merged `maxCount`, which each may narrow on its own and still cross
+ *
  * @typeParam R The shape the values are drawn from, possibly deferred to break definition cycles
  * @typeParam L The least number of values admitted
  * @typeParam U The greatest number of values admitted

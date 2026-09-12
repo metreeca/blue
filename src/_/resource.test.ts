@@ -24,6 +24,7 @@ import { dictionary } from "./dictionary.js";
 import { integer, number } from "./number.js";
 import { reference } from "./reference.js";
 import {
+	checkBounds,
 	checkPredicates,
 	checkResource,
 	checkSingletons,
@@ -359,6 +360,33 @@ describe("operators", () => {
 
 	});
 
+	describe("checkBounds", () => {
+
+		it("returns undefined for bounds admitting a value", async () => {
+
+			expect(checkBounds({ minCount: 1, maxCount: 10 })).toBeUndefined();
+			expect(checkBounds({ minCount: 1, maxCount: 1 })).toBeUndefined();
+			expect(checkBounds({ minCount: 0, maxCount: 0 })).toBeUndefined();
+
+		});
+
+		it("returns undefined where an end is left unbounded", async () => {
+
+			expect(checkBounds({ minCount: 5 })).toBeUndefined();
+			expect(checkBounds({ maxCount: 5 })).toBeUndefined();
+			expect(checkBounds({})).toBeUndefined();
+
+		});
+
+		it("returns trace for bounds admitting nothing at all", async () => {
+
+			expect(checkBounds({ minCount: 5, maxCount: 2 }))
+				.toContainEqual(expect.stringContaining("{minCount/maxCount}"));
+
+		});
+
+	});
+
 	describe("checkSingletons", () => {
 
 		it("returns undefined for at most one of each marker", async () => {
@@ -531,6 +559,25 @@ describe("operators", () => {
 
 			expect(narrowsProperty(required(string(), constraints), required(string())))
 				.toContainEqual(expect.stringContaining(`{${field}}`));
+
+		});
+
+		it("rejects a child whose bounds leave the merged member admitting nothing", async () => {
+
+			const inherited = property(string(), { maxCount: 2 });
+			const declared = property(string(), { minCount: 3, maxCount: 2 });
+
+			expect(narrowsProperty(declared, inherited))
+				.toContainEqual(expect.stringContaining("{minCount/maxCount}"));
+
+		});
+
+		it("rejects a child raising a lower bound past an inherited upper one", async () => {
+
+			const inherited = property(string(), { minCount: 1, maxCount: 2 });
+			const declared = property(string(), { minCount: 3 });
+
+			expect(narrowsProperty(declared, inherited)).toBeDefined();
 
 		});
 

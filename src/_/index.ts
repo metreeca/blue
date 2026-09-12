@@ -103,7 +103,14 @@ import type { DictionaryShape } from "./dictionary.js";
 import { eager, type Plain, validateShape } from "./index.core.js";
 import type { NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
-import { enforce, type Retrieved, type Submitted, validateResource, validateResult, validateTemplate } from "./resource.core.js";
+import {
+	enforce,
+	type Retrieved,
+	type Submitted,
+	validateResource,
+	validateResult,
+	validateTemplate
+} from "./resource.core.js";
 import type { ResourceShape } from "./resource.js";
 import type { StringShape } from "./string.js";
 import type { Branch } from "./union.core.js";
@@ -111,6 +118,17 @@ import type { UnionShape } from "./union.js";
 
 export { eager, effective, sh } from "./index.core.js";
 
+
+/**
+ * The seal marking a value as already validated.
+ *
+ * Carries what it was validated against, so that validating it again on the same terms is settled by the seal rather
+ * than by walking the value a second time.
+ */
+const Validated: unique symbol = Symbol("validated");
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * A description of a value.
@@ -219,15 +237,6 @@ export type Compound<S extends Lazy<Shape>> =
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * The seal marking a value as already validated.
- *
- * Carries what it was validated against, so that validating it again on the same terms is settled by the seal rather
- * than by walking the value a second time.
- */
-const Validated: unique symbol = Symbol("validated");
-
 
 /**
  * Validates a resource against a shape.
