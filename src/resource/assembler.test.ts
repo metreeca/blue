@@ -307,6 +307,65 @@ describe("flatten", () => {
 
 		});
 
+		describe("hidden", () => {
+
+			it("inherits what the extended shape states", async () => {
+
+				const Base = resource({ name: required(string(), { hidden: true }) });
+
+				expect(getProperty(resource(Base, {}), "name")?.hidden).toBe(true);
+
+			});
+
+			it("takes the value the extending shape states", async () => {
+
+				const Base = resource({ name: required(string(), { hidden: true }) });
+				const shape = resource(Base, { name: required(string(), { hidden: false }) });
+
+				expect(getProperty(shape, "name")?.hidden).toBe(false);
+
+			});
+
+			it("rejects extended shapes disagreeing", async () => {
+
+				const One = resource({ name: required(string(), { hidden: true }) });
+				const Other = resource({ name: required(string()) });
+
+				expect(() => resource(One, Other, {})).toThrow(TraceError);
+
+			});
+
+			it("admits extended shapes disagreeing where the extending shape states a value", async () => {
+
+				const One = resource({ name: required(string(), { hidden: true }) });
+				const Other = resource({ name: required(string()) });
+
+				expect(() => resource(One, Other, { name: required(string(), { hidden: true }) })).not.toThrow();
+
+			});
+
+			it("takes the marker the most derived shape declares", async () => {
+
+				const Base = resource({ id: id({ hidden: true }) });
+				const shape = resource(Base, { id: id() });
+
+				expect(shape.members["id"]?.hidden).toBeUndefined();
+
+			});
+
+			it("takes the marker the first extended shape declares", async () => {
+
+				const One = resource({ id: id({ hidden: true }) });
+				const Other = resource({ id: id() });
+
+				const shape: ResourceShape = resource(One, Other, {});
+
+				expect(shape.members["id"]?.hidden).toBe(true);
+
+			});
+
+		});
+
 		describe("validators", () => {
 
 			const check: Validator<Resource> = () => undefined;
@@ -520,6 +579,34 @@ describe("checkParents", () => {
 
 	});
 
+	it("reports extended shapes disagreeing on the hidden of a member", async () => {
+
+		const shown = resource({ name: required(string()) });
+		const kept = resource({ name: required(string(), { hidden: true }) });
+
+		expect(checkParents(resource({}), [shown, kept]))
+			.toContainEqual(expect.stringContaining("{hidden}"));
+
+	});
+
+	it("returns undefined where the extending shape settles the hidden disagreement", async () => {
+
+		const shown = resource({ name: required(string()) });
+		const kept = resource({ name: required(string(), { hidden: true }) });
+		const settled = resource({ name: required(string(), { hidden: false }) });
+
+		expect(checkParents(settled, [shown, kept])).toBeUndefined();
+
+	});
+
+	it("returns undefined where a single extended shape hides a member", async () => {
+
+		const kept = resource({ name: required(string(), { hidden: true }) });
+
+		expect(checkParents(resource({}), [kept, Other])).toBeUndefined();
+
+	});
+
 });
 
 describe("checkSingletons", () => {
@@ -697,6 +784,13 @@ describe("narrowsProperty", () => {
 
 	});
 
+	it("accepts a child overriding hidden", async () => {
+
+		expect(narrowsProperty(required(string(), { hidden: false }), required(string(), { hidden: true })))
+			.toBeUndefined();
+
+	});
+
 	it("rejects a child whose bounds leave the merged one admitting nothing", async () => {
 
 		// the factories refuse crossed bounds outright, so the check guards a member stated by other means
@@ -816,6 +910,33 @@ describe("mergeProperty", () => {
 		);
 
 		expect(merged.forward).toBe("https://schema.org/name");
+
+	});
+
+	it("takes the hidden stated by the overriding member", async () => {
+
+		const merged = mergeProperty(
+			required(string(), { hidden: false }),
+			required(string(), { hidden: true })
+		);
+
+		expect(merged.hidden).toBe(false);
+
+	});
+
+	it("carries the inherited hidden through", async () => {
+
+		const merged = mergeProperty(required(string()), required(string(), { hidden: true }));
+
+		expect(merged.hidden).toBe(true);
+
+	});
+
+	it("leaves hidden unstated where neither member states it", async () => {
+
+		const merged = mergeProperty(required(string()), required(string()));
+
+		expect(merged).not.toHaveProperty("hidden");
 
 	});
 

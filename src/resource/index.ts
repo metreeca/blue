@@ -151,7 +151,7 @@
 
 import type { Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
-import { TraceError, type Validator } from "@metreeca/core/trace";
+import { type Validator } from "@metreeca/core/trace";
 import type { Dictionary, Reference, Resource } from "@metreeca/qest/resource";
 import type { Range, Shape } from "../value/index.js";
 import { assemble, declare } from "./assembler.js";
@@ -275,7 +275,7 @@ export type ResourceConstraints = {
 	 *
 	 * @defaultValue `undefined` (held as it stands)
 	 */
-	readonly virtual?: boolean;
+	readonly virtual?: boolean; // !!! remove
 
 
 	/**
@@ -311,6 +311,7 @@ export type ResourceConstraints = {
 	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
 	 */
 	readonly description?: string | Dictionary;
+
 
 	/**
 	 * Default space for converting property names to IRIs.
@@ -393,9 +394,9 @@ export type ResourceConstraints = {
 	 * Checks a resource must pass on top of the ones the shape states.
 	 *
 	 * Carries the constraints a shape cannot state declaratively: each is handed the whole resource and reports what
-	 * it finds as a {@link @metreeca/core!Trace | Trace}, or `undefined` where the resource passes. Every check runs, so
-	 * a resource is told everything that is wrong with it at once rather than one thing at a time, and each trace is
-	 * keyed by the name of the check reporting it.
+	 * it finds as a {@link @metreeca/core!Trace | Trace}, or `undefined` where the resource passes. Every check runs,
+	 * so a resource is told everything that is wrong with it at once rather than one thing at a time, and each trace
+	 * is keyed by the name of the check reporting it.
 	 *
 	 * **Inheritance** — union of the checks stated and the ones inherited; every check applies.
 	 *
@@ -460,6 +461,15 @@ export type Id = {
 	 */
 	readonly kind: "id"
 
+	/**
+	 * Excludes the member from default serialisation.
+	 *
+	 * **Inheritance** — taken from the most derived declaration; among sibling parents, from the first declared.
+	 *
+	 * @defaultValue `undefined` (`false`)
+	 */
+	readonly hidden?: boolean;
+
 }
 
 /**
@@ -480,6 +490,15 @@ export type Type = {
 	 */
 	readonly kind: "type"
 
+	/**
+	 * Excludes the member from default serialisation.
+	 *
+	 * **Inheritance** — taken from the most derived declaration; among sibling parents, from the first declared.
+	 *
+	 * @defaultValue `undefined` (`false`)
+	 */
+	readonly hidden?: boolean;
+
 }
 
 
@@ -497,6 +516,7 @@ export type Type = {
  * | Field         | Override Rule                                    |
  * | ------------- | ------------------------------------------------ |
  * | `kind`        | Cannot be overridden                             |
+ * | `hidden`      | Inherited; conflicting parents need an override  |
  * | `foreign`     | Cannot be overridden                             |
  * | `captive`     | Cannot be overridden                             |
  * | `name`        | Cannot be overridden                             |
@@ -549,6 +569,46 @@ export type Property<
 export type PropertyConstraints = {
 
 	/**
+	 * Human-readable name for the property.
+	 *
+	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a plain
+	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
+	 * {@link Property.name | resolved property}.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @defaultValue `undefined` (no label)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
+	 */
+	readonly name?: string | Dictionary;
+
+	/**
+	 * Human-readable description of the property.
+	 *
+	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a
+	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
+	 * {@link Property.description | resolved property}.
+	 *
+	 * **Inheritance** — cannot be overridden.
+	 *
+	 * @defaultValue `undefined` (no description)
+	 *
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
+	 */
+	readonly description?: string | Dictionary;
+
+
+	/**
+	 * Excludes the member from default serialisation.
+	 *
+	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
+	 *
+	 * @defaultValue `undefined` (`false`)
+	 */
+	readonly hidden?: boolean;
+
+	/**
 	 * Marks the property as owned by the resources in its range.
 	 *
 	 * A foreign property is read-only for the resource declaring it: a retrieval template may ask for it, but a
@@ -582,37 +642,6 @@ export type PropertyConstraints = {
 	 * @defaultValue `undefined` (`false`)
 	 */
 	readonly captive?: boolean;
-
-
-	/**
-	 * Human-readable name for the property.
-	 *
-	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a plain
-	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
-	 * {@link Property.name | resolved property}.
-	 *
-	 * **Inheritance** — cannot be overridden.
-	 *
-	 * @defaultValue `undefined` (no label)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
-	 */
-	readonly name?: string | Dictionary;
-
-	/**
-	 * Human-readable description of the property.
-	 *
-	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a
-	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
-	 * {@link Property.description | resolved property}.
-	 *
-	 * **Inheritance** — cannot be overridden.
-	 *
-	 * @defaultValue `undefined` (no description)
-	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
-	 */
-	readonly description?: string | Dictionary;
 
 
 	/**
@@ -752,13 +781,20 @@ export function resource(...args: readonly unknown[]): ResourceShape {
  * under one name through several parents, or redeclared over an inherited one, is a single member, while two markers
  * under distinct names are rejected.
  *
+ * @param constraints The member constraints
+ * @param constraints.hidden Excludes the member from default serialisation
+ *
  * @returns An immutable member naming the resource
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#node-identifiers JSON-LD 1.1 § 3.3 Node Identifiers}
  */
-export function id(): Id {
+export function id(constraints: {
 
-	return declare({ kind: "id" });
+	readonly hidden?: boolean;
+
+} = {}): Id {
+
+	return declare({ kind: "id", ...constraints });
 
 }
 
@@ -771,13 +807,20 @@ export function id(): Id {
  * thus declare the member once for the shapes extending it, each activating it by stating a class of its own. A shape
  * states at most one, counted as {@link id} is.
  *
+ * @param constraints The member constraints
+ * @param constraints.hidden Excludes the member from default serialisation
+ *
  * @returns An immutable member typing the resource
  *
  * @see {@link https://www.w3.org/TR/json-ld11/#specifying-the-type JSON-LD 1.1 § 3.5 Specifying the Type}
  */
-export function type(): Type {
+export function type(constraints: {
 
-	return declare({ kind: "type" });
+	readonly hidden?: boolean;
+
+} = {}): Type {
+
+	return declare({ kind: "type", ...constraints });
 
 }
 
@@ -798,7 +841,7 @@ export function multiple<
 	const C extends PropertyConstraints = {}
 >(
 	range: R, constraints?: C
-): C & Property<R, undefined, undefined> {
+): NoInfer<C> & Property<R, undefined, undefined> {
 
 	return declare({ kind: "property", ...constraints, minCount: undefined, maxCount: undefined, shape: range });
 
@@ -820,7 +863,7 @@ export function nonempty<
 	const C extends PropertyConstraints = {}
 >(
 	range: R, constraints?: C
-): C & Property<R, 1, undefined> {
+): NoInfer<C> & Property<R, 1, undefined> {
 
 	return declare({ kind: "property", ...constraints, minCount: 1, maxCount: undefined, shape: range });
 
@@ -842,7 +885,7 @@ export function optional<
 	const C extends PropertyConstraints = {}
 >(
 	range: R, constraints?: C
-): C & Property<R, undefined, 1> {
+): NoInfer<C> & Property<R, undefined, 1> {
 
 	return declare({ kind: "property", ...constraints, minCount: undefined, maxCount: 1, shape: range });
 
@@ -864,7 +907,7 @@ export function required<
 	const C extends PropertyConstraints = {}
 >(
 	range: R, constraints?: C
-): C & Property<R, 1, 1> {
+): NoInfer<C> & Property<R, 1, 1> {
 
 	return declare({ kind: "property", ...constraints, minCount: 1, maxCount: 1, shape: range });
 
@@ -901,7 +944,7 @@ export function property<
 	const C extends PropertyBounds = {}
 >(
 	range: R, constraints?: C
-): C & Property<R, Declared<C, "minCount">, Declared<C, "maxCount">> {
+): NoInfer<C> & Property<R, Declared<C, "minCount">, Declared<C, "maxCount">> {
 
 	return declare({
 

@@ -464,7 +464,8 @@ export function checkBounds(bounds: Partial<PropertyBounds>): Optional<Trace> {
  * Checks the extended shapes for conflicts the extending shape leaves unsettled.
  *
  * Reports the inherited fields the extended shapes disagree on and the extending shape states no value for, so that a
- * shape reaching the same field along two paths never resolves it by declaration order.
+ * shape reaching the same field along two paths never resolves it by declaration order. Inherit fields are `virtual`
+ * and `space` on resources, `hidden` on members.
  *
  * @param shape The extending shape
  * @param parents The extended shapes, already merged
@@ -485,7 +486,28 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 		(shape.space === undefined && !parents.every(p => p.space?.[""] === parents[0].space?.[""]))
 		&& fail([`{space} conflicting inherited values <${parents[0].space?.[""]}> vs <${
 			parents.find(p => p.space?.[""] !== parents[0].space?.[""])?.space?.[""]
-		}> without an override`])
+		}> without an override`]),
+
+		// a marker carries no `hidden` of its own and is taken from the most derived declaration instead
+
+		...unique(parents.flatMap(parent => Object.keys(parent.members))).map(name => {
+
+			const inherited = parents.flatMap(parent => {
+
+				const member = parent.members[name];
+
+				return member?.kind === "property" ? [member] : [];
+
+			});
+
+			return inherited.length > 1
+				&& shape.members[name]?.hidden === undefined
+				&& !inherited.every(member => member.hidden === inherited[0].hidden)
+				&& fail([`{hidden} conflicting inherited values <${inherited[0].hidden}> vs <${
+					inherited.find(member => member.hidden !== inherited[0].hidden)?.hidden
+				}> for <${name}> without an override`]);
+
+		})
 
 	)(undefined);
 
@@ -811,7 +833,8 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
  * Merges a member with an inherited one.
  *
  * Yields the single member an extending resource is validated against: the tighter of the two cardinality bounds, the
- * merged range, and the fields the override may not restate carried through from the inherited member.
+ * merged range, and the fields the override may not restate carried through from the inherited member. `hidden` falls
+ * back to the inherited value where the override leaves it unstated.
  *
  * @param target The overriding member
  * @param source The inherited member
@@ -828,9 +851,13 @@ export function mergeProperty(target: Property, source: Property): Property {
 		throw new TraceError("incompatible member override", trace);
 	}
 
+	const hidden = target.hidden ?? source.hidden;
+
 	return immutable({
 
 		kind: target.kind,
+
+		...hidden !== undefined && { hidden },
 
 		...source.name !== undefined && { name: source.name },
 		...source.description !== undefined && { description: source.description },
