@@ -34,7 +34,7 @@ import { unique } from "@metreeca/core/arrays";
 import { xsd } from "@metreeca/core/datatype";
 import { createNamespace, type Namespace } from "@metreeca/core/resource";
 import { equals, immutable } from "@metreeca/core/structures";
-import { type Trace, TraceError } from "@metreeca/core/trace";
+import { type Issue, type Trace, TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/template";
 import { mergeBoolean, narrowsBoolean, validateBoolean } from "./boolean.core.js";
@@ -414,9 +414,9 @@ export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
  *     already resolved to probe further
  * @param probe The path and transform pipe to resolve
  *
- * @returns The range the probe reaches, or a message stating why it reaches nothing: `"undefined property path"`
+ * @returns The range the probe reaches, or an {@link Issue} stating why it reaches nothing: `"unknown property path"`
  *     where the path names a member no alternative carries or steps past one that cannot be stepped past,
- *     `"multiple aggregate transforms"` where the pipe combines values more than once, or
+ *     `"duplicate aggregate transform"` where the pipe combines values more than once, or
  *     `"incompatible transform input"` where no alternative survives the transforms
  *
  * @throws {TraceError} Where a deferred definition reaches itself, leaving the shape it states undefined
@@ -424,7 +424,7 @@ export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | string {
+export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | Issue {
 
 	// a hand-built probe may name an unknown transform or a malformed path, which would otherwise surface as a
 	// crash deep inside the pipe; it is rejected up front
@@ -464,7 +464,7 @@ export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | str
 	/**
 	 * Steps the path across the branches, accumulating the bounds each one reaches its values through.
 	 */
-	function traverse(seed: readonly Range<Shape>[]): Range | string {
+	function traverse(seed: readonly Range<Shape>[]): Range | Issue {
 
 		const branches = path.reduce<readonly Range<Shape>[]>((branches, segment) => branches.flatMap(branch => {
 
@@ -480,7 +480,7 @@ export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | str
 
 		}), seed);
 
-		return branches.length === 0 ? "undefined property path" : {
+		return branches.length === 0 ? "unknown property path" : {
 
 			minCount: branches.map(branch => branch.minCount).reduce(least),
 			maxCount: branches.map(branch => branch.maxCount).reduce(most),
@@ -514,12 +514,12 @@ export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | str
 	/**
 	 * Applies the pipe to each branch, dropping the ones its transforms cannot act on.
 	 */
-	function transform(reached: Range | string): Range | string {
+	function transform(reached: Range | Issue): Range | Issue {
 
 		if ( isString(reached) ) { return reached; }
 
 		if ( pipe.filter(name => Transforms[name].aggregate !== false).length > 1 ) {
-			return "multiple aggregate transforms";
+			return "duplicate aggregate transform";
 		}
 
 		// a pipe reads a localised value through the content negotiation settles on, as ordinary text

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import type { Optional } from "@metreeca/core";
+import { isString, type Optional } from "@metreeca/core";
 import type { Relay } from "@metreeca/core/relay";
-import { type Trace, TraceError } from "@metreeca/core/trace";
+import { type Issue, type Trace, TraceError } from "@metreeca/core/trace";
 import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
@@ -130,15 +130,15 @@ describe("effective", () => {
 
 	// the shapes a range draws its values from, a union of alternatives flattened into the branches it opens
 
-	function branches(reached: Range | string): readonly Shape[] {
+	function branches(reached: Range | Issue): readonly Shape[] {
 		return getShapeBranches(range(reached).shape);
 	}
 
 	// the range a probe reached, failing the test where it reached nothing
 
-	function range(reached: Range | string): Range {
+	function range(reached: Range | Issue): Range {
 
-		if ( typeof reached === "string" ) { throw new Error(`expected a range, got the trace <${reached}>`); }
+		if ( isString(reached) ) { throw new Error(`expected a range, got the issue <${reached}>`); }
 
 		return reached;
 
@@ -150,7 +150,7 @@ describe("effective", () => {
 
 	// exercise a pipe against a leaf shape, wrapped in the member carrying it
 
-	function piped(pipe: readonly Transform[], shape: Shape): Range | string {
+	function piped(pipe: readonly Transform[], shape: Shape): Range | Issue {
 		return effective(resource({ _: required(shape) }), probe(["_"], pipe));
 	}
 
@@ -225,7 +225,7 @@ describe("effective", () => {
 		it("reports a member the shape doesn't carry", async () => {
 
 			expect(effective(resource({ name: required(string()) }), probe(["missing"])))
-				.toBe("undefined property path");
+				.toBe("unknown property path");
 
 		});
 
@@ -233,15 +233,15 @@ describe("effective", () => {
 
 			const shape = resource({ child: required(resource({ label: required(string()) })) });
 
-			expect(effective(shape, probe(["child", "missing"]))).toBe("undefined property path");
+			expect(effective(shape, probe(["child", "missing"]))).toBe("unknown property path");
 
 		});
 
 		it("reports a step past a value nothing steps past", async () => {
 
-			expect(effective(string(), probe(["missing"]))).toBe("undefined property path");
-			expect(effective(integer(), probe(["missing"]))).toBe("undefined property path");
-			expect(effective(boolean(), probe(["missing"]))).toBe("undefined property path");
+			expect(effective(string(), probe(["missing"]))).toBe("unknown property path");
+			expect(effective(integer(), probe(["missing"]))).toBe("unknown property path");
+			expect(effective(boolean(), probe(["missing"]))).toBe("unknown property path");
 
 		});
 
@@ -286,7 +286,7 @@ describe("effective", () => {
 
 			const shape = resource({ rid: id(), name: required(string()) });
 
-			expect(effective(shape, probe(["rid", "something"]))).toBe("undefined property path");
+			expect(effective(shape, probe(["rid", "something"]))).toBe("unknown property path");
 
 		});
 
@@ -294,7 +294,7 @@ describe("effective", () => {
 
 			const shape = resource({ kind: typed(), name: required(string()) }, { class: "app:/types/T" });
 
-			expect(effective(shape, probe(["kind", "something"]))).toBe("undefined property path");
+			expect(effective(shape, probe(["kind", "something"]))).toBe("unknown property path");
 
 		});
 
@@ -381,7 +381,7 @@ describe("effective", () => {
 				))
 			});
 
-			expect(effective(shape, probe(["value", "missing"]))).toBe("undefined property path");
+			expect(effective(shape, probe(["value", "missing"]))).toBe("unknown property path");
 
 		});
 
@@ -394,7 +394,7 @@ describe("effective", () => {
 				))
 			});
 
-			expect(effective(shape, probe(["value", "name", "x"]))).toBe("undefined property path");
+			expect(effective(shape, probe(["value", "name", "x"]))).toBe("unknown property path");
 
 		});
 
@@ -682,13 +682,13 @@ describe("effective", () => {
 			["with a transform in between", ["sum", "abs", "count"]]
 		] as const)("reports a pipe combining values more than once, %s", async (_label, pipe) => {
 
-			expect(piped([...pipe], integer())).toBe("multiple aggregate transforms");
+			expect(piped([...pipe], integer())).toBe("duplicate aggregate transform");
 
 		});
 
 		it("reports a pipe combining values more than once ahead of anything else", async () => {
 
-			expect(piped(["count", "sum"], string())).toBe("multiple aggregate transforms");
+			expect(piped(["count", "sum"], string())).toBe("duplicate aggregate transform");
 
 		});
 
@@ -905,7 +905,7 @@ describe("effective", () => {
 
 		it("reports a member the target doesn't carry", async () => {
 
-			expect(effective(reference(Inner), probe(["missing"]))).toBe("undefined property path");
+			expect(effective(reference(Inner), probe(["missing"]))).toBe("unknown property path");
 
 		});
 

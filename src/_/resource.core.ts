@@ -1725,7 +1725,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			!isIdentifier(name) ? ["expected property identifier"]
 				: asked === undefined ? undefined
-					: !Object.hasOwn(shape.members, name) ? ["undefined property path"]
+					: !Object.hasOwn(shape.members, name) ? ["unknown property path"]
 						: shape.members[name].kind === "property"
 							? slot(asked, shape.members[name], depth)
 							: isIRI(asked) ? undefined : ["expected <IRI> value"], // the id/type members
