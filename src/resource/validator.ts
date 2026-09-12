@@ -174,19 +174,16 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 		// states: a member carries it whole, never in an array and never beside the other values, and the bounds
 		// stated for the member count the other values alone
 
-		const localised = (element: unknown) => !isArray(element) && branches.some(branch =>
-			branch.kind === "dictionary" && validateShape([element], branch, { scope }) === undefined
-		);
-
 		const present = value === undefined || isArray(value, []) || nesting && vacant(value) ? undefined : value;
 
 		const carried = (present === undefined ? [] : isArray(present) ? present : [present])
 			.filter(element => !(nesting && vacant(element)));
 
-		const whole = localised(present);
+		const whole = isLocalised(present, branches, scope);
 
 		const arity = whole ? undefined
-			: isArray(present) && present.some(localised) ? ["{kind} expected a single localised value"]
+			: isArray(present) && present.some(element => isLocalised(element, branches, scope))
+				? ["{kind} expected a single localised value"]
 				: maxCount === 1
 					? isArray(present) ? ["{kind} expected a single value"] : undefined
 					: present !== undefined && !isArray(present) ? ["{kind} expected an array of values"] : undefined;
@@ -1021,15 +1018,26 @@ export function validateResult(values: readonly unknown[], {
 
 		}
 
+		// a localised member comes back as it is carried: one map, whole and never in an array, whatever bounds it
+		// states of the other values, and the bounds count those other values alone
+
+		const whole = isLocalised(present, branches, "state");
 		const scalar = maxCount === 1;
 
-		if ( scalar === isArray(present) ) {
-			return [scalar ? "{kind} expected a single value" : "{kind} expected an array of values"];
-		}
+		const arity = whole ? undefined
+			: isArray(present) && present.some(element => isLocalised(element, branches, "state"))
+				? ["{kind} expected a single localised value"]
+				: scalar === isArray(present)
+					? [scalar ? "{kind} expected a single value" : "{kind} expected an array of values"]
+					: undefined;
 
 		const carried = isArray(present) ? present : [present];
 
-		return elements(carried, branches, requested) ?? counts(carried.length, member);
+		// a map is matched against the range as it stands, the template narrowing the other values alone
+
+		return arity
+			?? (whole ? validateShape(carried, eager(range)) : elements(carried, branches, requested))
+			?? (whole ? undefined : counts(carried.length, member));
 
 	}
 
@@ -1171,6 +1179,27 @@ export function validateResult(values: readonly unknown[], {
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Reports whether a value is the whole language map a localised member carries.
+ *
+ * A localised value is a value set in its own right, holding its strings per tag at the arity its own shape states, so
+ * a member carries it whole rather than among the values its bounds count: the map stands apart from the cardinality,
+ * and an array never holds one.
+ *
+ * @param value The value to test
+ * @param branches The alternatives the member ranges over
+ * @param scope The strictness the dictionary alternatives are enforced at
+ *
+ * @returns `true` where `value` is a language map one of `branches` admits
+ */
+function isLocalised(value: unknown, branches: readonly Shape[], scope: Scope): boolean {
+
+	return !isArray(value) && branches.some(branch =>
+		branch.kind === "dictionary" && validateShape([value], branch, { scope }) === undefined
+	);
+
+}
 
 /**
  * Validates the identifier a resource states against the constraints its shape puts on identifiers.

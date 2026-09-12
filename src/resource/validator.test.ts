@@ -2155,6 +2155,119 @@ describe("validateResult", () => {
 
 	});
 
+	describe("localised members", () => {
+
+		// a localised member comes back as it is carried: one map, whole and never in an array, whatever its bounds
+		// admit of the other values, and the bounds count those other values alone
+
+		it("admits a single map where a single value is admitted", async () => {
+
+			const shape = resource({ label: required(dictionary({ uniqueLang: true })) });
+
+			expect(validateResult([{ label: { en: "Widget" } }], {
+				shape,
+				model: { label: { en: "" } }
+			})).toBeUndefined();
+
+		});
+
+		it("reports an array where a single value is admitted", async () => {
+
+			const shape = resource({ label: required(dictionary({ uniqueLang: true })) });
+
+			expect(validateResult([{ label: [{ en: "Widget" }] }], {
+				shape,
+				model: { label: { en: "" } }
+			})).toBeDefined();
+
+		});
+
+		it("admits a bare map where an array is admitted", async () => {
+
+			const shape = resource({ labels: multiple(dictionary()) });
+
+			expect(validateResult([{ labels: { en: ["Widget"] } }], {
+				shape,
+				model: { labels: { en: [""] } }
+			})).toBeUndefined();
+
+		});
+
+		it("reports an array of maps where an array is admitted", async () => {
+
+			const shape = resource({ labels: multiple(dictionary()) });
+
+			expect(validateResult([{ labels: [{ en: ["Widget"] }] }], {
+				shape,
+				model: { labels: { en: [""] } }
+			})).toBeDefined();
+
+		});
+
+		it("holds the map apart from the bounds stated for the member", async () => {
+
+			const shape = resource({ labels: property(dictionary(), { minCount: 2, maxCount: 3 }) });
+
+			expect(validateResult([{ labels: { en: ["Widget"] } }], {
+				shape,
+				model: { labels: { en: [""] } }
+			})).toBeUndefined();
+
+		});
+
+		it("reports a requested localised member left out", async () => {
+
+			const shape = resource({ labels: nonempty(dictionary()) });
+
+			expect(validateResult([{}], { shape, model: { labels: { en: [""] } } })).toBeDefined();
+
+		});
+
+		it("admits either the map or an array of the other values on a two-natured member", async () => {
+
+			const shape = resource({ names: multiple(union(string(), dictionary())) });
+
+			expect(validateResult([{ names: { en: ["Widget"] } }], {
+				shape,
+				model: { names: { "0": "", "1": { en: [""] } } }
+			})).toBeUndefined();
+
+			expect(validateResult([{ names: ["Widget", "Gadget"] }], {
+				shape,
+				model: { names: { "0": "", "1": { en: [""] } } }
+			})).toBeUndefined();
+
+		});
+
+		it("reports a map among the other values on a two-natured member", async () => {
+
+			const shape = resource({ names: multiple(union(string(), dictionary())) });
+
+			expect(validateResult([{ names: ["Widget", { en: ["Widget"] }] }], {
+				shape,
+				model: { names: { "0": "", "1": { en: [""] } } }
+			})).toBeDefined();
+
+		});
+
+		it("holds the map to the shape's constraints", async () => {
+
+			const shape = resource({ label: required(dictionary({ uniqueLang: true, minLength: 3 })) });
+
+			expect(validateResult([{ label: { en: "Widget" } }], {
+				shape,
+				model: { label: { en: "" } }
+			})).toBeUndefined();
+
+			expect(validateResult([{ label: { en: "W" } }], {
+				shape,
+				model: { label: { en: "" } }
+			})).toBeDefined();
+
+		});
+
+	});
+
 	describe("embedded resources", () => {
 
 		const Rating = resource({ average: required(number()) });
