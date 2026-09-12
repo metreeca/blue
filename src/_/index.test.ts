@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
+import type { Optional } from "@metreeca/core";
+import type { Relay } from "@metreeca/core/relay";
+import type { Trace } from "@metreeca/core/trace";
 import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { dictionary } from "./dictionary.js";
 import { eager, effective, sh } from "./index.core.js";
-import type { Range, Shape } from "./index.js";
+import { type Range, type Shape, validate } from "./index.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { reference } from "./reference.js";
 import {
@@ -991,6 +994,267 @@ describe("effective", () => {
 			const reached = range(effective({ minCount: 1, maxCount: 1, shape: decimal() }, probe([], ["floor"])));
 
 			expect(reached.shape).toEqual(decimal());
+
+		});
+
+	});
+
+});
+
+describe("validate", () => {
+
+	// the value where it passed, or undefined where it didn't
+
+	function value(relay: Relay<{ readonly value: unknown, readonly trace: Optional<Trace> }>): unknown {
+		return relay({ value: value => value, trace: () => undefined });
+	}
+
+	// the trace where it didn't pass, or undefined where it did
+
+	function trace(relay: Relay<{ readonly value: unknown, readonly trace: Optional<Trace> }>): Optional<Trace> {
+		return relay({ value: () => undefined, trace: trace => trace });
+	}
+
+
+	const Vendor = resource({ id: id(), name: required(string()) });
+
+	const Product = resource({
+		id: id(),
+		name: required(string()),
+		size: optional(integer()),
+		tags: multiple(string()),
+		vendor: optional(reference(Vendor))
+	});
+
+
+	describe("a resource in its own right", () => {
+
+		it("hands back the resource it admits", async () => {
+
+			expect(value(validate({ id: "app:/products/1", name: "Widget" }, { shape: Product })))
+				.toEqual({ id: "app:/products/1", name: "Widget" });
+
+		});
+
+		it("reports what a resource states wrongly", async () => {
+
+			expect(trace(validate({ name: 42 }, { shape: Product }))).toBeDefined();
+
+		});
+
+		it("reports a member the shape doesn't declare", async () => {
+
+			expect(trace(validate({ name: "Widget", unknown: "x" }, { shape: Product }))).toBeDefined();
+
+		});
+
+		it("reports a member the shape requires and the resource leaves out", async () => {
+
+			expect(trace(validate({ id: "app:/products/1" }, { shape: Product }))).toBeDefined();
+
+		});
+
+		it("reports a value that is not a resource at all", async () => {
+
+			expect(trace(validate("Widget", { shape: Product }))).toBeDefined();
+			expect(trace(validate([{ name: "Widget" }], { shape: Product }))).toBeDefined();
+
+		});
+
+		it("holds the resource to the identifier it is expected to be named by", async () => {
+
+			const stated = { id: "app:/products/1", name: "Widget" };
+
+			expect(value(validate(stated, { shape: Product, entry: "app:/products/1" }))).toEqual(stated);
+			expect(trace(validate(stated, { shape: Product, entry: "app:/products/2" }))).toBeDefined();
+
+		});
+
+		it("hands back a resource that cannot be written through", async () => {
+
+			// ;(cast) the relay hands back an unknown, which this test writes through on purpose
+
+			const validated = value(validate({ name: "Widget" }, { shape: Product })) as Record<string, unknown>;
+
+			expect(() => { validated["name"] = "Gadget"; }).toThrow();
+
+		});
+
+		it("resolves a shape deferred to break a definition cycle", async () => {
+
+			expect(value(validate({ name: "Widget" }, { shape: () => Product }))).toEqual({ name: "Widget" });
+
+		});
+
+		it("settles a second validation on the same terms off the first", async () => {
+
+			const validated = value(validate({ name: "Widget" }, { shape: Product }));
+
+			expect(value(validate(validated, { shape: Product }))).toBe(validated);
+
+		});
+
+		it("validates again where the terms tightened", async () => {
+
+			const validated = value(validate({ vendor: "app:/vendors/1", name: "Widget" }, { shape: Product }));
+
+			expect(value(validate(validated, { shape: Product, entry: "app:/products/1" }))).not.toBe(validated);
+
+		});
+
+	});
+
+	describe("a retrieval", () => {
+
+		it("hands back the resource the template asked for", async () => {
+
+			const retrieved = { id: "app:/products/1", name: "Widget" };
+
+			expect(value(validate(retrieved, { shape: Product, model: { id: "", name: "" } })))
+				.toEqual(retrieved);
+
+		});
+
+		it("leaves a member the template didn't ask for unchecked", async () => {
+
+			expect(value(validate({ id: "app:/products/1" }, { shape: Product, model: { id: "" } })))
+				.toEqual({ id: "app:/products/1" });
+
+		});
+
+		it("reports a member the template didn't ask for", async () => {
+
+			expect(trace(validate({ id: "app:/products/1", name: "Widget" }, {
+				shape: Product,
+				model: { id: "" }
+			}))).toBeDefined();
+
+		});
+
+		it("holds a member the template asked for to the shape", async () => {
+
+			expect(trace(validate({ name: 42 }, { shape: Product, model: { name: "" } }))).toBeDefined();
+
+		});
+
+		it("holds the resource to the identifier it is expected to be named by", async () => {
+
+			const retrieved = { id: "app:/products/1" };
+
+			expect(trace(validate(retrieved, {
+				shape: Product,
+				model: { id: "" },
+				entry: "app:/products/2"
+			}))).toBeDefined();
+
+		});
+
+		it("settles a second validation on the same template off the first", async () => {
+
+			const validated = value(validate({ name: "Widget" }, { shape: Product, model: { name: "" } }));
+
+			expect(value(validate(validated, { shape: Product, model: { name: "" } }))).toBe(validated);
+
+		});
+
+		it("validates again where another template is asked about", async () => {
+
+			const validated = value(validate({ name: "Widget" }, { shape: Product, model: { name: "" } }));
+
+			expect(trace(validate(validated, { shape: Product, model: { size: 0 } }))).toBeDefined();
+
+		});
+
+	});
+
+	describe("a retrieval template", () => {
+
+		it("hands back the template the shape can serve", async () => {
+
+			expect(value(validate({ id: "", name: "" }, { shape: Product, model: true })))
+				.toEqual({ id: "", name: "" });
+
+		});
+
+		it("reports a slot naming a member the shape doesn't declare", async () => {
+
+			expect(trace(validate({ unknown: "" }, { shape: Product, model: true }))).toBeDefined();
+
+		});
+
+		it("leaves the value domain alone, a placeholder standing for a value", async () => {
+
+			const shape = resource({ size: optional(integer({ minInclusive: 10 })) });
+
+			expect(value(validate({ size: 0 }, { shape, model: true }))).toEqual({ size: 0 });
+
+		});
+
+		it("refuses the transforms combining values where asked to", async () => {
+
+			const shape = resource({ items: multiple(reference(Product)) });
+			const template = { items: [{ "n=count:name": 0 }] };
+
+			expect(value(validate(template, { shape, model: true }))).toBeDefined();
+			expect(trace(validate(template, { shape, model: true, plain: true }))).toBeDefined();
+
+		});
+
+		it("caps the nesting a template may ask for", async () => {
+
+			expect(value(validate({ vendor: "app:/vendors/1" }, { shape: Product, model: true, depth: 0 })))
+				.toEqual({ vendor: "app:/vendors/1" });
+
+			expect(trace(validate({ vendor: { name: "" } }, { shape: Product, model: true, depth: 0 })))
+				.toBeDefined();
+
+		});
+
+		it("refuses a page larger than the one served", async () => {
+
+			expect(trace(validate({ tags: ["", { "#": 100 }] }, { shape: Product, model: true, limit: 10 })))
+				.toBeDefined();
+
+		});
+
+		it("holds a collection asking for no page to the one served", async () => {
+
+			expect(value(validate({ tags: [""] }, { shape: Product, model: true, limit: 10 })))
+				.toEqual({ tags: ["", { "#": 10 }] });
+
+		});
+
+		it("leaves a page the template asked for alone", async () => {
+
+			expect(value(validate({ tags: ["", { "#": 5 }] }, { shape: Product, model: true, limit: 10 })))
+				.toEqual({ tags: ["", { "#": 5 }] });
+
+		});
+
+		it("settles a second validation on the same terms off the first", async () => {
+
+			const validated = value(validate({ name: "" }, { shape: Product, model: true }));
+
+			expect(value(validate(validated, { shape: Product, model: true }))).toBe(validated);
+
+		});
+
+		it("validates again where the terms tightened", async () => {
+
+			const validated = value(validate({ name: "" }, { shape: Product, model: true }));
+
+			expect(value(validate(validated, { shape: Product, model: true, plain: true }))).not.toBe(validated);
+
+		});
+
+		it("tells a template apart from a resource on the same shape", async () => {
+
+			// a nested template stands for the resource behind a link, which the link itself never admits
+
+			const validated = value(validate({ vendor: { name: "" } }, { shape: Product, model: true }));
+
+			expect(validated).toEqual({ vendor: { name: "" } });
+			expect(trace(validate(validated, { shape: Product }))).toBeDefined();
 
 		});
 
