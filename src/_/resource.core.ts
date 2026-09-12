@@ -1225,11 +1225,19 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 			return value !== undefined ? ["unexpected foreign member"] : undefined;
 		}
 
-		const present = value === undefined || isArray(value, []) ? undefined : value;
-
 		const resolved = eager(range);
 
-		const carried = present === undefined ? [] : isArray(present) ? present : [present];
+		// a member reaching a resource reads an empty record as nothing stated, as a resource stating no member at
+		// all names nothing to hold; one reaching a value reads it as a value of the wrong kind
+
+		const nesting = getShapeBranches(resolved).some(branch =>
+			branch.kind === "reference" || branch.kind === "resource"
+		);
+
+		const present = value === undefined || isArray(value, []) || nesting && vacant(value) ? undefined : value;
+
+		const carried = (present === undefined ? [] : isArray(present) ? present : [present])
+			.filter(element => !(nesting && vacant(element)));
 
 		const arity = maxCount === 1
 			? isArray(present) ? ["{kind} expected a single value"] : undefined
@@ -1332,6 +1340,17 @@ function classifier(value: unknown, shape: ResourceShape): Optional<Trace> {
 			: `{class} expected the declared class <${declared}>`
 		])
 	)(undefined);
+
+}
+
+/**
+ * Reports whether a value states nothing at all.
+ *
+ * Shared by the validators reading a stored resource and a retrieved one alike.
+ */
+function vacant(value: unknown): boolean {
+
+	return isObject(value) && Object.keys(value).length === 0;
 
 }
 

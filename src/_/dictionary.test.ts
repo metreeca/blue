@@ -658,6 +658,33 @@ describe("validators", () => {
 
 				});
 
+				it.each<[string, readonly string[], Record<string, number>]>([
+					["several texts below the lower bound", ["ab", "c", "d"], { minLength: 3 }],
+					["several texts above the upper bound", ["toolong", "alsotoolong"], { maxLength: 3 }],
+					["one text among several breaking the bound", ["ab", "hello", "c"], { minLength: 3 }]
+				])("keys a length violation by the tag carrying %s", async (_label, texts, constraints) => {
+
+					expect(JSON.stringify(at(validateDictionary([{ en: texts }], dictionary(constraints)), "en")))
+						.toContain("{length}");
+
+				});
+
+				it("keys a length violation by the text breaking the bound within a tag", async () => {
+
+					const trace = validateDictionary([{ en: ["hello", "ab"] }], dictionary({ minLength: 3 }));
+
+					expect(JSON.stringify(at(trace, "en"))).toContain("1");
+
+				});
+
+				it("keys a violation by the map carrying it, a member admitting several", async () => {
+
+					const trace = validateDictionary([{ en: ["hello"] }, { en: ["ab"] }], dictionary({ minLength: 3 }));
+
+					expect(trace).toEqual([{ "1": [{ en: expect.anything() }] }]);
+
+				});
+
 				it("returns undefined for a tag carrying several strings", async () => {
 
 					expect(validateDictionary([{ en: ["hello", "hi"] }], stacked)).toBeUndefined();
