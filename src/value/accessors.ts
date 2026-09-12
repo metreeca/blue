@@ -62,6 +62,7 @@ const Temporal: ReadonlySet<string> = new Set([
 	xsd.dateTime
 ]);
 
+
 /**
  * The range a resource identifier is reached through.
  *
@@ -74,10 +75,22 @@ const IRIRange: Range = immutable({
 	minCount: undefined,
 	maxCount: 1,
 
-	shape: string({ datatype: sh.IRI, pattern: /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/ })
+	shape: IRIShape // deferred, so that nothing is read from a module still being initialised
 
 });
 
+
+/**
+ * The shape an identifier is stated by.
+ *
+ * Stated as a single thunk, so that {@link eager} resolves it once and every range reaching it compares equal.
+ */
+function IRIShape(): Shape {
+	return string({ datatype: sh.IRI, pattern: /^[a-zA-Z][a-zA-Z0-9+.-]*:\S+$/ });
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * The shapes already resolved from a deferred definition.
