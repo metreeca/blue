@@ -464,8 +464,9 @@ export function checkBounds(bounds: Partial<PropertyBounds>): Optional<Trace> {
  * Checks the extended shapes for conflicts the extending shape leaves unsettled.
  *
  * Reports the inherited fields the extended shapes disagree on and the extending shape states no value for, so that a
- * shape reaching the same field along two paths never resolves it by declaration order. Inherit fields are `virtual`
- * and `space` on resources, `hidden` on members.
+ * shape reaching the same field along two paths never resolves it by declaration order. The fields held to this rule
+ * are `virtual` and `space` on the resource, and `hidden` on each of its properties; a marker carries its own `hidden`
+ * from the declaration that states it and conflicts on none.
  *
  * @param shape The extending shape
  * @param parents The extended shapes, already merged
@@ -488,7 +489,7 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 			parents.find(p => p.space?.[""] !== parents[0].space?.[""])?.space?.[""]
 		}> without an override`]),
 
-		// a marker carries no `hidden` of its own and is taken from the most derived declaration instead
+		// a marker is taken whole from the most derived declaration, so its `hidden` is settled before this check
 
 		...unique(parents.flatMap(parent => Object.keys(parent.members))).map(name => {
 
@@ -764,7 +765,7 @@ export function narrowsProperty(target: Property, source: Property): Optional<Tr
  *
  * Yields the single shape an extending resource is validated against, combining the inherited constraints with the
  * overriding ones: the admitted identifiers intersect, the required ones accumulate, and members declared on both
- * sides are merged one by one.
+ * sides are merged one by one, a marker being taken whole from the overriding shape.
  *
  * @param target The overriding shape
  * @param source The inherited shape
@@ -821,7 +822,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 			return declared === undefined || inherited === undefined ? [name, declared ?? inherited]
 				: declared.kind === "property" && inherited.kind === "property"
 					? [name, mergeProperty(declared, inherited)]
-					: [name, declared]; // a marker states nothing to merge, and narrowsResource kept the kind
+					: [name, declared]; // a marker is taken whole, `hidden` included, and narrowsResource kept the kind
 
 		}))
 

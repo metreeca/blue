@@ -62,7 +62,7 @@
  * ```
  *
  * Each factory takes, after the range, the constraints the member carries beyond its cardinality, such as the
- * predicate it maps to or the labels it carries:
+ * predicate it maps to, the labels it carries, or whether it is serialised by default:
  *
  * ```typescript
  * import { createNamespace } from '@metreeca/core/resource';
@@ -179,20 +179,20 @@ export {
  * Where a shape extends the ones it lists as `parents`, they are merged according to the following rules. The *child*
  * is the extending shape; the *parent* is the inherited one.
  *
- * | Field         | Override Rule                                                                       |
- * | ------------- | ------------------------------------------------------------------------------------ |
- * | `kind`        | Cannot be overridden                                                                |
- * | `name`        | Always from the child; not inherited                                                |
- * | `description` | Always from the child; not inherited                                                |
- * | `virtual`     | Inherited; conflicting parents without a child override are reported as an error    |
- * | `space`       | Inherited; conflicting parents without a child override are reported as an error    |
- * | `class`       | Always from the child; outside inheritance scope                                    |
- * | `classes`     | Computed from the `class` of the shapes extended; never stated                      |
- * | `pattern`     | Only a trailing `/*` admits narrowing; any other case requires equality             |
- * | `in`          | Child may only drop allowed identifiers                                             |
- * | `hasValue`    | Child may only add required identifiers                                             |
- * | `members`     | Declared members merged over inherited ones, each narrowing the one it overrides     |
- * | `validators`  | Union of the checks stated and the ones inherited; every check applies               |
+ * | Field         | Override Rule                                                                    |
+ * | ------------- | -------------------------------------------------------------------------------- |
+ * | `kind`        | Cannot be overridden                                                             |
+ * | `name`        | Always from the child; not inherited                                             |
+ * | `description` | Always from the child; not inherited                                             |
+ * | `virtual`     | Inherited; conflicting parents without a child override are reported as an error |
+ * | `space`       | Inherited; conflicting parents without a child override are reported as an error |
+ * | `class`       | Always from the child; not inherited                                             |
+ * | `classes`     | Computed from the `class` of the shapes extended; never stated                   |
+ * | `pattern`     | Only a trailing `/*` admits narrowing; any other case requires equality          |
+ * | `in`          | Child may only drop allowed identifiers                                          |
+ * | `hasValue`    | Child may only add required identifiers                                          |
+ * | `members`     | Declared members merged over inherited ones, each narrowing the one it overrides |
+ * | `validators`  | Union of the checks stated and the ones inherited; every check applies           |
  *
  * **Cross-field validation**
  *
@@ -271,7 +271,7 @@ export type ResourceConstraints = {
 	 * Tells a caller that a resource is at least partly derived on the way out, so that it is not expected to be found
 	 * as it stands in whatever holds the others.
 	 *
-	 * **Inheritance** — inherited; extended shapes disagreeing without an override are reported as an error.
+	 * **Inheritance** — inherited; conflicting parents without a child override are reported as an error.
 	 *
 	 * @defaultValue `undefined` (held as it stands)
 	 */
@@ -285,7 +285,7 @@ export type ResourceConstraints = {
 	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
 	 * {@link ResourceShape.name | built shape}.
 	 *
-	 * **Inheritance** — always from child; not inherited.
+	 * **Inheritance** — always from the child; not inherited.
 	 *
 	 * @remarks
 	 *
@@ -302,7 +302,7 @@ export type ResourceConstraints = {
 	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
 	 * {@link ResourceShape.description | built shape}.
 	 *
-	 * **Inheritance** — always from child; not inherited.
+	 * **Inheritance** — always from the child; not inherited.
 	 *
 	 * @remarks
 	 *
@@ -318,7 +318,7 @@ export type ResourceConstraints = {
 	 *
 	 * Property names without explicit IRI mappings are resolved relative to this space.
 	 *
-	 * **Inheritance** — inherited; extended shapes disagreeing without an override are reported as an error.
+	 * **Inheritance** — inherited; conflicting parents without a child override are reported as an error.
 	 *
 	 * @defaultValue the {@link @metreeca/core!app | app} namespace (`app:/#`)
 	 */
@@ -331,7 +331,7 @@ export type ResourceConstraints = {
 	 * shape declares a {@link type} member, the class is the value that member carries; the classes inherited on top of
 	 * it are read off `classes`.
 	 *
-	 * **Inheritance** — always from the child; outside inheritance scope.
+	 * **Inheritance** — always from the child; not inherited.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#targetClass SHACL § 2.1.3.2 sh:targetClass}
 	 */
@@ -464,7 +464,8 @@ export type Id = {
 	/**
 	 * Excludes the member from default serialisation.
 	 *
-	 * **Inheritance** — taken from the most derived declaration; among sibling parents, from the first declared.
+	 * **Inheritance** — always from the most derived declaration, which replaces the inherited marker rather than
+	 * merging with it; conflicting parents resolve to the first declared.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -493,7 +494,8 @@ export type Type = {
 	/**
 	 * Excludes the member from default serialisation.
 	 *
-	 * **Inheritance** — taken from the most derived declaration; among sibling parents, from the first declared.
+	 * **Inheritance** — always from the most derived declaration, which replaces the inherited marker rather than
+	 * merging with it; conflicting parents resolve to the first declared.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -513,19 +515,19 @@ export type Type = {
  * Where a shape extends the ones it lists as `parents`, members stated on both sides are merged according to the
  * following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
- * | Field         | Override Rule                                    |
- * | ------------- | ------------------------------------------------ |
- * | `kind`        | Cannot be overridden                             |
- * | `hidden`      | Inherited; conflicting parents need an override  |
- * | `foreign`     | Cannot be overridden                             |
- * | `captive`     | Cannot be overridden                             |
- * | `name`        | Cannot be overridden                             |
- * | `description` | Cannot be overridden                             |
- * | `forward`     | Cannot be overridden                             |
- * | `reverse`     | Cannot be overridden                             |
- * | `minCount`    | Child ≥ parent, narrowing the lower bound        |
- * | `maxCount`    | Child ≤ parent, narrowing the upper bound        |
- * | `shape`       | Child narrows the range it overrides             |
+ * | Field         | Override Rule                                                                    |
+ * | ------------- | -------------------------------------------------------------------------------- |
+ * | `kind`        | Cannot be overridden                                                             |
+ * | `hidden`      | Inherited; conflicting parents without a child override are reported as an error |
+ * | `foreign`     | Cannot be overridden                                                             |
+ * | `captive`     | Cannot be overridden                                                             |
+ * | `name`        | Cannot be overridden                                                             |
+ * | `description` | Cannot be overridden                                                             |
+ * | `forward`     | Cannot be overridden                                                             |
+ * | `reverse`     | Cannot be overridden                                                             |
+ * | `minCount`    | Child may only raise the lower bound                                             |
+ * | `maxCount`    | Child may only lower the upper bound                                             |
+ * | `shape`       | Child may only narrow the inherited range                                        |
  *
  * A bound left unstated leaves that end unbounded rather than unsaid, so a child stating none inherits the bound the
  * parent states.
@@ -602,7 +604,7 @@ export type PropertyConstraints = {
 	/**
 	 * Excludes the member from default serialisation.
 	 *
-	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
+	 * **Inheritance** — inherited; conflicting parents without a child override are reported as an error.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -692,7 +694,7 @@ export type PropertyBounds = PropertyConstraints & {
 	 *
 	 * Left unstated, the member is unbounded below and a resource may leave it out.
 	 *
-	 * **Inheritance** — child value must be ≥ parent value, narrowing the lower bound.
+	 * **Inheritance** — child may only raise the lower bound.
 	 *
 	 * @defaultValue `undefined` (no lower bound)
 	 *
@@ -705,7 +707,7 @@ export type PropertyBounds = PropertyConstraints & {
 	 *
 	 * Left unstated, the member is unbounded above and a resource states its values as an array.
 	 *
-	 * **Inheritance** — child value must be ≤ parent value, narrowing the upper bound.
+	 * **Inheritance** — child may only lower the upper bound.
 	 *
 	 * @defaultValue `undefined` (no upper bound)
 	 *
@@ -781,7 +783,7 @@ export function resource(...args: readonly unknown[]): ResourceShape {
  * under one name through several parents, or redeclared over an inherited one, is a single member, while two markers
  * under distinct names are rejected.
  *
- * @param constraints The member constraints
+ * @param constraints Optional member constraints
  * @param constraints.hidden Excludes the member from default serialisation
  *
  * @returns An immutable member naming the resource
@@ -807,7 +809,7 @@ export function id(constraints: {
  * thus declare the member once for the shapes extending it, each activating it by stating a class of its own. A shape
  * states at most one, counted as {@link id} is.
  *
- * @param constraints The member constraints
+ * @param constraints Optional member constraints
  * @param constraints.hidden Excludes the member from default serialisation
  *
  * @returns An immutable member typing the resource
@@ -838,7 +840,7 @@ export function type(constraints: {
  */
 export function multiple<
 	R extends Lazy<Shape>,
-	const C extends PropertyConstraints = {}
+	const C extends PropertyConstraints = {} // ;( {} prevents C from being inferred as Member
 >(
 	range: R, constraints?: C
 ): NoInfer<C> & Property<R, undefined, undefined> {
@@ -860,7 +862,7 @@ export function multiple<
  */
 export function nonempty<
 	R extends Lazy<Shape>,
-	const C extends PropertyConstraints = {}
+	const C extends PropertyConstraints = {} // ;( {} prevents C from being inferred as Member
 >(
 	range: R, constraints?: C
 ): NoInfer<C> & Property<R, 1, undefined> {
@@ -882,7 +884,7 @@ export function nonempty<
  */
 export function optional<
 	R extends Lazy<Shape>,
-	const C extends PropertyConstraints = {}
+	const C extends PropertyConstraints = {} // ;( {} prevents C from being inferred as Member
 >(
 	range: R, constraints?: C
 ): NoInfer<C> & Property<R, undefined, 1> {
@@ -904,7 +906,7 @@ export function optional<
  */
 export function required<
 	R extends Lazy<Shape>,
-	const C extends PropertyConstraints = {}
+	const C extends PropertyConstraints = {} // ;( {} prevents C from being inferred as Member
 >(
 	range: R, constraints?: C
 ): NoInfer<C> & Property<R, 1, 1> {
@@ -941,7 +943,7 @@ export function required<
  */
 export function property<
 	R extends Lazy<Shape>,
-	const C extends PropertyBounds = {}
+	const C extends PropertyBounds = {} // ;( {} prevents C from being inferred as Member
 >(
 	range: R, constraints?: C
 ): NoInfer<C> & Property<R, Declared<C, "minCount">, Declared<C, "maxCount">> {

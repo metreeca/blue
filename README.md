@@ -145,8 +145,9 @@ An upper bound of 1 yields the bare value and any other an array, non-empty wher
 `property()` follows the same rules, so bounds beyond the four named cardinalities are typed exactly as their
 counterparts are.
 
-Each factory takes the constraints the property carries beyond its cardinality, such as IRI mappings, labels, or
-ownership flags, as a trailing argument: `required(string(), { forward: schema })`.
+Each factory takes the constraints the property carries beyond its cardinality, such as IRI mappings, labels,
+ownership flags, or a `hidden` flag withholding it from default serialisation, as a trailing argument:
+`required(string(), { forward: schema })`. The `id()` and `type()` markers take the same `hidden` flag.
 
 Cardinalities admitting absence also relax their key to an optional one, so a value literal spells out only the
 members it actually carries; reading an omitted member still yields `undefined`.

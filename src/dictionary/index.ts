@@ -109,13 +109,13 @@ import { assemble } from "./assembler.js";
  * Where a {@link resource!ResourceShape} extends the shapes it lists as `parents`, localised members are merged
  * according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
- * | Field        | Override Rule                                                               |
- * | ------------ | --------------------------------------------------------------------------- |
- * | `kind`       | Cannot be overridden                                                        |
- * | `minLength`  | Child ≥ parent, narrowing the minimum length                                |
- * | `maxLength`  | Child ≤ parent, narrowing the maximum length                                |
- * | `languageIn` | Child may only drop accepted ranges                                          |
- * | `uniqueLang` | Child may add but not drop; an inherited constraint always carries through  |
+ * | Field        | Override Rule                                                              |
+ * | ------------ | -------------------------------------------------------------------------- |
+ * | `kind`       | Cannot be overridden                                                       |
+ * | `minLength`  | Child may only raise the minimum length                                    |
+ * | `maxLength`  | Child may only lower the maximum length                                    |
+ * | `languageIn` | Child may only drop accepted ranges                                        |
+ * | `uniqueLang` | Child may add but not drop; an inherited constraint always carries through |
  *
  * **Cross-field validation**
  *
@@ -164,7 +164,7 @@ export type DictionaryConstraints = {
 	/**
 	 * Minimum string length in characters.
 	 *
-	 * **Inheritance** — child value must be ≥ parent value, narrowing the lower bound.
+	 * **Inheritance** — child may only raise the minimum length.
 	 *
 	 * @defaultValue `undefined` (no minimum length)
 	 *
@@ -175,7 +175,7 @@ export type DictionaryConstraints = {
 	/**
 	 * Maximum string length in characters.
 	 *
-	 * **Inheritance** — child value must be ≤ parent value, narrowing the upper bound.
+	 * **Inheritance** — child may only lower the maximum length.
 	 *
 	 * @defaultValue `undefined` (no maximum length)
 	 *

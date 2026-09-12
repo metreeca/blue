@@ -180,8 +180,8 @@ const IRIPatterns: Readonly<Record<Variant, RegExp>> = {
  * | `kind`      | Cannot be overridden                                                               |
  * | `datatype`  | Must be strictly equal when both defined; the single defined value carries through |
  * | `pattern`   | Must be strictly equal when both defined; the single defined value carries through |
- * | `minLength` | Child ≥ parent, narrowing the minimum length                                       |
- * | `maxLength` | Child ≤ parent, narrowing the maximum length                                       |
+ * | `minLength` | Child may only raise the minimum length                                            |
+ * | `maxLength` | Child may only lower the maximum length                                            |
  * | `in`        | Child may only drop allowed values                                                 |
  * | `hasValue`  | Child may only add required values                                                 |
  *
@@ -268,7 +268,7 @@ export type StringLengthConstraints = {
 	/**
 	 * Minimum string length in characters.
 	 *
-	 * **Inheritance** — child value must be ≥ parent value, narrowing the lower bound.
+	 * **Inheritance** — child may only raise the minimum length.
 	 *
 	 * @defaultValue `undefined` (no minimum length)
 	 *
@@ -279,7 +279,7 @@ export type StringLengthConstraints = {
 	/**
 	 * Maximum string length in characters.
 	 *
-	 * **Inheritance** — child value must be ≤ parent value, narrowing the upper bound.
+	 * **Inheritance** — child may only lower the maximum length.
 	 *
 	 * @defaultValue `undefined` (no maximum length)
 	 *

@@ -108,9 +108,9 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  * Where a {@link resource!ResourceShape} extends the shapes it lists as `parents`, union-valued members are merged
  * according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
- * | Field      | Override Rule                                                                           |
- * | ---------- | --------------------------------------------------------------------------------------- |
- * | `kind`     | Cannot be overridden                                                                    |
+ * | Field      | Override Rule                                                                             |
+ * | ---------- | ----------------------------------------------------------------------------------------- |
+ * | `kind`     | Cannot be overridden                                                                      |
  * | `branches` | Each child branch narrows exactly one parent branch; unpaired parent branches are dropped |
  *
  * A child narrowing a branch that no parent branch matches, one that several match, or one already taken by another

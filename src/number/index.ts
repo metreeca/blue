@@ -143,17 +143,17 @@ const FloatLimit = (2-2** -23)*2**127;
  * Where a {@link resource!ResourceShape} extends the shapes it lists as `parents`, numeric-valued members are merged
  * according to the following rules. The *child* is the extending shape; the *parent* is the inherited one.
  *
- * | Field          | Override Rule                                                                               |
- * | -------------- | ------------------------------------------------------------------------------------------- |
- * | `kind`         | Cannot be overridden                                                                        |
- * | `datatype`     | Must be strictly equal when both defined; the single defined value carries through          |
- * | `integral`     | Child may add but not drop; an integral parent cannot be overridden by a non-integral child |
- * | `minExclusive` | Child ≥ parent, narrowing the exclusive lower bound                                         |
- * | `maxExclusive` | Child ≤ parent, narrowing the exclusive upper bound                                         |
- * | `minInclusive` | Child ≥ parent, narrowing the inclusive lower bound                                         |
- * | `maxInclusive` | Child ≤ parent, narrowing the inclusive upper bound                                         |
- * | `in`           | Child may only drop allowed values                                                          |
- * | `hasValue`     | Child may only add required values                                                          |
+ * | Field          | Override Rule                                                                      |
+ * | -------------- | ---------------------------------------------------------------------------------- |
+ * | `kind`         | Cannot be overridden                                                               |
+ * | `datatype`     | Must be strictly equal when both defined; the single defined value carries through |
+ * | `integral`     | Child may add but not drop; an inherited constraint always carries through         |
+ * | `minExclusive` | Child may only raise the exclusive lower bound                                     |
+ * | `maxExclusive` | Child may only lower the exclusive upper bound                                     |
+ * | `minInclusive` | Child may only raise the inclusive lower bound                                     |
+ * | `maxInclusive` | Child may only lower the inclusive upper bound                                     |
+ * | `in`           | Child may only drop allowed values                                                 |
+ * | `hasValue`     | Child may only add required values                                                 |
  *
  * Inclusive/exclusive pairs are independently merged: a child may define an exclusive bound alongside a parent's
  * inclusive bound (or vice versa), narrowing the range without removing the original constraint.
@@ -237,7 +237,7 @@ export type NumberRangeConstraints<V extends number = number> = {
 	/**
 	 * Exclusive minimum value (value must be strictly greater).
 	 *
-	 * **Inheritance** — child value must be ≥ parent value, narrowing the exclusive lower bound.
+	 * **Inheritance** — child may only raise the exclusive lower bound.
 	 *
 	 * @defaultValue `undefined` (no minimum constraint)
 	 *
@@ -248,7 +248,7 @@ export type NumberRangeConstraints<V extends number = number> = {
 	/**
 	 * Exclusive maximum value (value must be strictly less).
 	 *
-	 * **Inheritance** — child value must be ≤ parent value, narrowing the exclusive upper bound.
+	 * **Inheritance** — child may only lower the exclusive upper bound.
 	 *
 	 * @defaultValue `undefined` (no maximum constraint)
 	 *
@@ -259,7 +259,7 @@ export type NumberRangeConstraints<V extends number = number> = {
 	/**
 	 * Inclusive minimum value (value must be greater than or equal).
 	 *
-	 * **Inheritance** — child value must be ≥ parent value, narrowing the inclusive lower bound.
+	 * **Inheritance** — child may only raise the inclusive lower bound.
 	 *
 	 * @defaultValue `undefined` (no minimum constraint)
 	 *
@@ -270,7 +270,7 @@ export type NumberRangeConstraints<V extends number = number> = {
 	/**
 	 * Inclusive maximum value (value must be less than or equal).
 	 *
-	 * **Inheritance** — child value must be ≤ parent value, narrowing the inclusive upper bound.
+	 * **Inheritance** — child may only lower the inclusive upper bound.
 	 *
 	 * @defaultValue `undefined` (no maximum constraint)
 	 *
