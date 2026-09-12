@@ -384,9 +384,11 @@ What each kind of member may be asked for:
   union is rejected. Each branch placeholder is matched by JSON type alone and retrieves every branch it fits, so a
   literal or reference placeholder requests all same-kind branches while a nested template discriminates the
   resource branches its structure fits. Only a placeholder fitting no branch at all is rejected.
-- **Localised**: a map of the tags wanted, or the single value language negotiation settles on. A coalesced placeholder
-  carries the negotiated content at the member's per-tag arity: a bare string where a tag carries one, a single-element
-  array where it carries several.
+- **Localised**: a map of the tags wanted, each paired with the placeholder a matched tag comes back as, or a coalesced
+  placeholder standing for the content language negotiation settles on. A coalesced placeholder carries the negotiated
+  content at the member's per-tag arity: a bare string where a tag carries one, a single-element array where it carries
+  several. A localised branch of a union takes the map within a projection column alone, where each branch is asked for
+  under a column of its own; elsewhere it takes the coalesced placeholder.
 
 Selection operands follow their own rules: comparison bounds and set-matching options are values rather than
 placeholders, so each must single out exactly one branch, while a `~` text search is a plain string applied to every
