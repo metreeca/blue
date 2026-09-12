@@ -16,7 +16,7 @@
 
 import { describe, expectTypeOf, test } from "vitest";
 import { type Instance, type Compound } from "./index.js";
-import { multiple, optional, required, resource } from "./resource.js";
+import { multiple, optional, required, resource } from "./resource/index.js";
 import {
 	date,
 	duration,

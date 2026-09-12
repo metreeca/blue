@@ -143,11 +143,12 @@
  */
 
 import type { Identifier, Lazy, Optional } from "@metreeca/core";
-import { createNamespace, type Namespace } from "@metreeca/core/resource";
+import type { Namespace } from "@metreeca/core/resource";
 import { TraceError, type Validator } from "@metreeca/core/trace";
 import type { Dictionary, Reference, Resource } from "@metreeca/qest/resource";
-import type { Range, Shape } from "./index.js";
-import { assemble, type Declared, declare } from "./resource.core.js";
+import type { Range, Shape } from "../index.js";
+import { assemble, declare } from "./assembler.js";
+import type { Declared } from "./inference.js";
 
 export {
 	getShapeClass,
@@ -155,15 +156,7 @@ export {
 	getShapeId,
 	getShapeProperties,
 	getShapeType
-} from "./resource.core.js";
-
-
-/**
- * Default space for resolving member names to predicate IRIs (`app:/#`).
- *
- * Stands in wherever a shape states no {@link ResourceConstraints.space | space} of its own and inherits none.
- */
-export const defaultNamespace: Namespace = createNamespace("app:/#");
+} from "./accessors.js";
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -321,7 +314,7 @@ export type ResourceConstraints = {
 	 *
 	 * **Inheritance** — inherited from parent; conflicting parents without child override are reported as an error.
 	 *
-	 * @defaultValue {@link defaultNamespace}
+	 * @defaultValue the {@link @metreeca/core!app | app} namespace (`app:/#`)
 	 */
 	readonly space?: Namespace;
 

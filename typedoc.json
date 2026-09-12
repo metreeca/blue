@@ -39,6 +39,7 @@
       "Lazy": "https://metreeca.github.io/core/types/index.Lazy.html",
       "Eager": "https://metreeca.github.io/core/types/index.Eager.html",
       "IRI": "https://metreeca.github.io/core/types/resource.IRI.html",
+      "app": "https://metreeca.github.io/core/variables/resource.app.html",
       "Namespace": "https://metreeca.github.io/core/types/resource.Namespace.html",
       "Variant": "https://metreeca.github.io/core/types/resource.Variant.html",
       "Tag": "https://metreeca.github.io/core/types/language.Tag.html",

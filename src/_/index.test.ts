@@ -21,7 +21,7 @@ import type { Probe, Transform } from "@metreeca/qest/template";
 import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { dictionary } from "./dictionary.js";
-import { eager, effective, mergeShape, narrowsShape, sh, validateShape } from "./index.core.js";
+import { eager, effective, enforce, mergeShape, narrowsShape, sh, validateShape } from "./index.core.js";
 import { type Range, type Shape, validate } from "./index.js";
 import { byte, decimal, double, float, int, integer, long, number, short } from "./number.js";
 import { reference } from "./reference.js";
@@ -35,7 +35,7 @@ import {
 	resource,
 	type ResourceShape,
 	type as typed
-} from "./resource.js";
+} from "./resource/index.js";
 import { date, duration, instant, string, time, timestamp, year } from "./string.js";
 import { getShapeBranches } from "./union.core.js";
 import { union } from "./union.js";
@@ -1160,6 +1160,157 @@ describe("validateShape", () => {
 		expect(validateShape(["Widget", "Gadget"], string())).toBeUndefined();
 		expect(validateShape(["Widget", 42], string())).toBeDefined();
 		expect(validateShape([], string())).toBeUndefined();
+
+	});
+
+});
+
+describe("enforce", () => {
+
+	const limit = 100;
+
+	const Vendor = resource({ id: id(), name: required(string()), tags: multiple(string()) });
+
+	const Product = resource({
+		name: required(string()),
+		size: optional(integer()),
+		tags: multiple(string()),
+		label: optional(dictionary({ uniqueLang: true })),
+		vendor: optional(reference(Vendor)),
+		vendors: multiple(reference(Vendor))
+	});
+
+	it("leaves the template alone where no page is served", async () => {
+
+		expect(enforce({ tags: [""] }, Product)).toEqual({ tags: [""] });
+		expect(enforce({ tags: [""] }, Product, { limit: 0 })).toEqual({ tags: [""] });
+
+	});
+
+	it("leaves a malformed template alone", async () => {
+
+		expect(enforce(42, Product, { limit })).toBe(42);
+		expect(enforce({ unknown: "" }, Product, { limit })).toEqual({ unknown: "" });
+
+	});
+
+	describe("single values", () => {
+
+		it("leaves a placeholder alone", async () => {
+
+			expect(enforce({ name: "", size: 0 }, Product, { limit })).toEqual({ name: "", size: 0 });
+
+		});
+
+		it("leaves an identifier standing for a link alone", async () => {
+
+			expect(enforce({ vendor: "app:/vendors/1" }, Product, { limit }))
+				.toEqual({ vendor: "app:/vendors/1" });
+
+		});
+
+		it("leaves a localised value alone", async () => {
+
+			expect(enforce({ label: { en: "" } }, Product, { limit })).toEqual({ label: { en: "" } });
+
+		});
+
+		it("descends into the template behind a link", async () => {
+
+			expect(enforce({ vendor: { tags: [""] } }, Product, { limit }))
+				.toEqual({ vendor: { tags: ["", { "#": limit }] } });
+
+		});
+
+	});
+
+	describe("collections", () => {
+
+		it("pages a collection of placeholders", async () => {
+
+			expect(enforce({ tags: [""] }, Product, { limit })).toEqual({ tags: ["", { "#": limit }] });
+
+		});
+
+		it("pages a collection of templates", async () => {
+
+			expect(enforce({ vendors: [{ name: "" }] }, Product, { limit }))
+				.toEqual({ vendors: [{ name: "" }, { "#": limit }] });
+
+		});
+
+		it("leaves a page the client stated alone", async () => {
+
+			expect(enforce({ tags: ["", { "#": 25 }] }, Product, { limit }))
+				.toEqual({ tags: ["", { "#": 25 }] });
+
+		});
+
+		it("keeps the rest of a selection the client stated", async () => {
+
+			expect(enforce({ tags: ["", { "~": "wid" }] }, Product, { limit }))
+				.toEqual({ tags: ["", { "~": "wid", "#": limit }] });
+
+		});
+
+		it("pages a collection nested within a paged one", async () => {
+
+			expect(enforce({ vendors: [{ tags: [""] }, { "#": 25 }] }, Product, { limit }))
+				.toEqual({ vendors: [{ tags: ["", { "#": limit }] }, { "#": 25 }] });
+
+		});
+
+		it("leaves a localised member alone however many maps it admits", async () => {
+
+			const shape = resource({ labels: multiple(dictionary({ uniqueLang: true })) });
+
+			expect(enforce({ labels: { en: "" } }, shape, { limit })).toEqual({ labels: { en: "" } });
+
+		});
+
+	});
+
+	describe("polymorphic members", () => {
+
+		const A = resource({ name: required(string()) });
+		const B = resource({ tags: multiple(string()) });
+
+		const shape = resource({
+			value: optional(union(A, B)),
+			values: multiple(union(A, B))
+		});
+
+		it("descends into each branch of a single value", async () => {
+
+			expect(enforce({ value: { "0": { name: "" }, "1": { tags: [""] } } }, shape, { limit }))
+				.toEqual({ value: { "0": { name: "" }, "1": { tags: ["", { "#": limit }] } } });
+
+		});
+
+		it("pages a collection stated as a branch map", async () => {
+
+			expect(enforce({ values: [{ "1": { tags: [""] } }] }, shape, { limit }))
+				.toEqual({ values: [{ "1": { tags: ["", { "#": limit }] } }, { "#": limit }] });
+
+		});
+
+		it("leaves a branch the union doesn't declare alone", async () => {
+
+			expect(enforce({ value: { "7": { name: "" } } }, shape, { limit }))
+				.toEqual({ value: { "7": { name: "" } } });
+
+		});
+
+	});
+
+	describe("projections", () => {
+
+		it("pages a collection asked for under a column", async () => {
+
+			expect(enforce({ vendors: [{ "t=tags": [""] }] }, Product, { limit }))
+				.toEqual({ vendors: [{ "t=tags": ["", { "#": limit }] }, { "#": limit }] });
+
+		});
 
 	});
 

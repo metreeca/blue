@@ -19,7 +19,7 @@ import { isTagRange, type Tag } from "@metreeca/core/language";
 import { describe, expectTypeOf, test } from "vitest";
 import { dictionary, type DictionaryShape } from "./dictionary.js";
 import { type Compound, type Instance } from "./index.js";
-import { multiple, optional, required, resource } from "./resource.js";
+import { multiple, optional, required, resource } from "./resource/index.js";
 
 
 describe("dictionary", () => {

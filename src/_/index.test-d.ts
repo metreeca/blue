@@ -21,7 +21,7 @@ import { type BooleanShape } from "./boolean.js";
 import { type DictionaryShape } from "./dictionary.js";
 import { type Compound, type Instance, type Range } from "./index.js";
 import { reference, type ReferenceShape } from "./reference.js";
-import { id, multiple, type Property, required, resource, type ResourceShape } from "./resource.js";
+import { id, multiple, type Property, required, resource, type ResourceShape } from "./resource/index.js";
 import { string, type StringShape } from "./string.js";
 
 

@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 import { boolean } from "./boolean.js";
 import { number } from "./number.js";
 import { reference } from "./reference.js";
-import type { Parents, ResourceConstraints, ResourceShape } from "./resource.js";
+import type { Parents, ResourceConstraints, ResourceShape } from "./resource/index.js";
 import { string } from "./string.js";
 import {
 	getBoundBranch,

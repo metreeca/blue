@@ -28,8 +28,8 @@ import { isReference } from "@metreeca/qest/resource";
 import type { Shape } from "./index.js";
 import { eager, type Scope } from "./index.core.js";
 import type { ReferenceShape } from "./reference.js";
-import { match } from "./resource.core.js";
-import type { ResourceShape } from "./resource.js";
+import { match } from "./value/validator.js";
+import type { ResourceShape } from "./resource/index.js";
 
 
 /**

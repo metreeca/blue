@@ -100,18 +100,12 @@ import type { Reference } from "@metreeca/qest/resource";
 import type { Instance as Fetched, Template } from "@metreeca/qest/template";
 import type { BooleanShape } from "./boolean.js";
 import type { DictionaryShape } from "./dictionary.js";
-import { eager, type Plain, validateShape } from "./index.core.js";
+import { eager, enforce, type Plain, validateShape } from "./index.core.js";
 import type { NumberShape } from "./number.js";
 import type { ReferenceShape } from "./reference.js";
-import {
-	enforce,
-	type Retrieved,
-	type Submitted,
-	validateResource,
-	validateResult,
-	validateTemplate
-} from "./resource.core.js";
-import type { ResourceShape } from "./resource.js";
+import type { ResourceShape } from "./resource/index.js";
+import type { Retrieved, Submitted } from "./resource/inference.js";
+import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
 import type { StringShape } from "./string.js";
 import type { Branch } from "./union.core.js";
 import type { UnionShape } from "./union.js";
@@ -221,9 +215,9 @@ export type Instance<S extends Lazy<Shape>> =
  * Yields the {@link Instance} type of the shape, with the differences captivity brings: a captive reference admits its
  * target either as a {@link Reference} or as the resource itself, nested in turn as a compound, so that a resource and
  * the ones it holds captive travel as a single value; the identifier is left optional, as a resource yet to be created
- * has none to state; and a {@link resource!Foreign | foreign} member is left out altogether, as the resources it points
- * at carry the link rather than the compound. A {@link Plain} value, holding nothing captive, reads exactly as an
- * instance does.
+ * has none to state; and a {@link resource!PropertyConstraints.foreign | foreign} member is left out altogether, as
+ * the resources it points at carry the link rather than the compound. A {@link Plain} value, holding nothing captive,
+ * reads exactly as an instance does.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
