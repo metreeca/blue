@@ -57,14 +57,14 @@
  *
  * **Resolving what a shape reaches**
  *
- * {@link eager} resolves a shape deferred to break a definition cycle, yielding a resource shape with its inheritance
- * merged and handing back the same shape on every later reach.
+ * {@link eager} resolves a shape or range deferred to break a definition cycle, yielding a resource shape with its
+ * inheritance merged and handing back the same value on every later reach.
  *
- * {@link effective} resolves the {@link Range} a path and transform pipe reach through a shape, so that a caller may
- * type a projection column or a selection operand without walking the shape itself: it steps across the members of
- * the resources it reaches, crossing a link to the resource it points at and entering each alternative of a union in
- * turn, and answers with an issue where the path names a member no alternative carries or the pipe cannot act on what
- * the path reached.
+ * {@link effective} resolves the {@link Range} a path and transform pipe reach through a shape or range, so that a
+ * caller may type a projection column or a selection operand without walking the shape itself: it steps across the
+ * members of the resources it reaches, crossing a link to the resource it points at and entering each alternative of
+ * a union in turn, and answers with an issue where the path names a member no alternative carries or the pipe cannot
+ * act on what the path reached.
  *
  * @module
  *

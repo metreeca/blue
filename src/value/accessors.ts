@@ -17,9 +17,10 @@
 /**
  * Shape accessors.
  *
- * Reads what a shape reaches: {@link eager} resolves a shape deferred to break a definition cycle, yielding a resource
- * shape with its inheritance merged, and {@link effective} resolves the values a path and transform pipe reach through
- * it, so that a caller may type a projection binding or a selection operand without walking the shape itself.
+ * Reads what a shape reaches: {@link eager} resolves a shape or range deferred to break a definition cycle, yielding a
+ * resource shape with its inheritance merged, and {@link effective} resolves the values a path and transform pipe reach
+ * through a shape or range, so that a caller may type a projection binding or a selection operand without walking the
+ * shape itself.
  *
  * @module
  */
@@ -93,33 +94,34 @@ function IRIShape(): Shape {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * The shapes already resolved from a deferred definition.
+ * The shapes and ranges already resolved from a deferred definition.
  *
- * Keyed by the thunk that deferred them, so that a shape reached along several paths is resolved once and compared by
- * identity; a thunk under resolution is held as `null`, which is how a definition reaching itself is caught.
+ * Keyed by the thunk that deferred them, so that a definition reached along several paths is resolved once and compared
+ * by identity; a thunk under resolution is held as `null`, which is how a definition reaching itself is caught.
  */
-const shapes = new WeakMap<() => Shape, null | Shape>();
+const shapes = new WeakMap<() => Shape | Range, null | Shape | Range>();
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Resolves a possibly deferred shape.
+ * Resolves a possibly deferred shape or range.
  *
- * Yields the shape a definition states, resolving a deferred one on first reach and handing back the same shape on
- * every later reach, so that a shape stated once compares equal wherever it is reached from. A resource shape comes
- * back merged, so a caller reading its members needs not merge the inheritance chain itself.
+ * Yields the shape or range a definition states, resolving a deferred one on first reach and handing back the same
+ * value on every later reach, so that a definition stated once compares equal wherever it is reached from. A resource
+ * shape comes back merged, so a caller reading its members needs not merge the inheritance chain itself; a range comes
+ * back as stated, the shape it carries still possibly deferred.
  *
- * @typeParam S The stated shape, possibly deferred to break definition cycles
+ * @typeParam S The stated shape or range, possibly deferred to break definition cycles
  *
- * @param shape The shape to resolve
+ * @param shape The shape or range to resolve
  *
- * @returns The shape `shape` states, merged where it describes a resource
+ * @returns The shape or range `shape` states, merged where it describes a resource
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, leaving the
  *     shape it states undefined
  */
-export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
+export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
 
 	if ( !isFunction(shape) ) {
 
@@ -161,10 +163,12 @@ export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
 
 
 	/**
-	 * Merges a resolved shape where it describes a resource.
+	 * Merges a resolved shape where it describes a resource; a range is handed back as stated.
 	 */
-	function resolve(shape: Shape): Shape {
-		return shape.kind === "resource" ? flatten(shape) : shape;
+	function resolve(shape: Shape | Range): Shape | Range {
+		return "shape" in shape ? shape
+			: shape.kind === "resource" ? flatten(shape)
+				: shape;
 	}
 
 }
@@ -198,8 +202,8 @@ export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
  * highest upper bound win, and an unstated bound absorbs, leaving that end unbounded. A pipe that always yields a
  * value floors the count at one, an aggregate caps it at one, and any other transform leaves the count unstated.
  *
- * @param shape The shape to resolve the probe against, possibly deferred to break definition cycles, or a range
- *     already resolved to probe further
+ * @param shape The shape to resolve the probe against or a range already resolved to probe further, either possibly
+ *     deferred to break definition cycles
  * @param probe The path and transform pipe to resolve
  *
  * @returns The range the probe reaches, or an {@link Issue} stating why it reaches nothing: `"unknown property path"`
@@ -213,7 +217,7 @@ export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
  */
-export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | Issue {
+export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Issue {
 
 	// a hand-built probe may name an unknown transform or a malformed path, which would otherwise surface as a
 	// crash deep inside the pipe; it is rejected up front
@@ -229,19 +233,21 @@ export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | Iss
 	 * A union opens one branch per alternative and a link opens on the resource it points at, each at unit
 	 * cardinality; a range already resolved opens one branch per alternative, carrying the bounds it accumulated.
 	 */
-	function expand(shape: Lazy<Shape> | Range): readonly Range<Shape>[] {
+	function expand(shape: Lazy<Shape | Range>): readonly Range<Shape>[] {
 
-		if ( !isFunction(shape) && !("kind" in shape) ) {
+		const resolved = eager(shape);
 
-			return getShapeBranches(shape.shape).map(branch => ({
-				minCount: shape.minCount,
-				maxCount: shape.maxCount,
+		// told by the shape it carries, not by a missing kind: a property is a range carrying a kind
+
+		if ( "shape" in resolved ) {
+
+			return getShapeBranches(resolved.shape).map(branch => ({
+				minCount: resolved.minCount,
+				maxCount: resolved.maxCount,
 				shape: branch
 			}));
 
 		}
-
-		const resolved = eager(shape);
 
 		const branches = resolved.kind === "reference"
 			? [eager(resolved.target)]

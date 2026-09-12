@@ -124,6 +124,36 @@ describe("eager", () => {
 
 	});
 
+	describe("a range", () => {
+
+		it("resolves a stated range to itself", async () => {
+
+			const range: Range = { minCount: 1, maxCount: 1, shape: string() };
+
+			expect(eager(range)).toBe(range);
+
+		});
+
+		it("resolves a deferred range to the range it states", async () => {
+
+			const deferred = (): Range => ({ minCount: 1, maxCount: 1, shape: string() });
+
+			expect(eager(deferred).shape).toEqual(string());
+			expect(eager(deferred)).toBe(eager(deferred));
+
+		});
+
+		it("leaves the shape a range carries as stated", async () => {
+
+			const Base = resource({ name: required(string()) });
+			const deferred = () => resource(Base, { size: required(integer()) });
+
+			expect(eager({ minCount: 1, maxCount: 1, shape: deferred }).shape).toBe(deferred);
+
+		});
+
+	});
+
 });
 
 describe("effective", () => {
@@ -994,6 +1024,30 @@ describe("effective", () => {
 			const reached = range(effective({ minCount: 1, maxCount: 1, shape: decimal() }, probe([], ["floor"])));
 
 			expect(reached.shape).toEqual(decimal());
+
+		});
+
+		it("resolves a deferred range before probing it", async () => {
+
+			const reached = range(effective(() => ({
+				minCount: 2,
+				maxCount: 3,
+				shape: resource({ name: required(string()) })
+			}), probe(["name"])));
+
+			expect(reached.shape).toEqual(string());
+			expect(reached.minCount).toBe(2);
+			expect(reached.maxCount).toBe(3);
+
+		});
+
+		it("reads a property as the range it declares", async () => {
+
+			const reached = range(effective(required(integer()), probe([])));
+
+			expect(reached.shape).toEqual(integer());
+			expect(reached.minCount).toBe(1);
+			expect(reached.maxCount).toBe(1);
 
 		});
 
