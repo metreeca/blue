@@ -98,7 +98,7 @@ const Validated: unique symbol = Symbol("validated");
 /**
  * Validates a resource against a shape.
  *
- * Reports what a resource states wrongly, so that a caller may refuse it before it reaches whatever holds it, and
+ * Reports what a resource states wrongly, so that a caller may refuse it before it reaches the store holding it, and
  * hands back the resource itself where it passes, typed as the shape describes it. Every member the shape declares is
  * held to it and one it doesn't declare is rejected, the shape being closed; a member the shape admits no value for
  * may be left out.
@@ -197,7 +197,7 @@ export function validate<T extends Template>(value: unknown, opts: {
  * Validates a retrieval template against a shape.
  *
  * Reports each slot of a template that asks for something the shape cannot give, so that a caller may refuse a
- * request before issuing it, and hands back the template itself where it passes, held to whatever the service
+ * request before issuing it, and hands back the template itself where it passes, held to what the service
  * guarantees. A template describes what to retrieve rather than what is held, so the value-domain constraints are
  * left alone and a slot the template omits is simply not asked for.
  *
@@ -243,7 +243,7 @@ export function validate<T extends Template>(value: unknown, opts: {
 }): Relay<{
 
 	/**
-	 * The template, held to whatever the service guarantees; relayed where it passes.
+	 * The template, held to what the service guarantees; relayed where it passes.
 	 */
 	readonly value: T,
 
@@ -255,7 +255,7 @@ export function validate<T extends Template>(value: unknown, opts: {
 }>;
 
 /**
- * Validates resources and templates against shapes.
+ * Validates a value against a shape.
  */
 export function validate(value: unknown, {
 

@@ -104,7 +104,7 @@ export type BooleanShape = {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Assembles a boolean shape.
+ * Creates a boolean shape.
  *
  * Admits `true` and `false` and nothing else; the domain is closed by the kind alone, so the shape takes no
  * constraints and cannot be contradictory.

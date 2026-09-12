@@ -194,10 +194,10 @@ export type NumberConstraints<V extends number = number> = NumberRangeConstraint
 	/**
 	 * RDF datatype IRI for the numeric literal.
 	 *
-	 * Infers the RDF datatype of validated JSON values, which carry no datatype information of their own.
+	 * States the RDF datatype of validated JSON values, which carry none of their own.
 	 *
 	 * **Inheritance** — must be strictly equal when both parent and child define it; otherwise the single defined value
-	 * carries through. A mismatch signals incompatible datatypes.
+	 * carries through. A mismatch is reported as an error.
 	 *
 	 * @defaultValue `undefined` (falls back to `xsd:double`)
 	 *
@@ -295,9 +295,9 @@ export type NumberRangeConstraints<V extends number = number> = {
 	readonly in?: readonly V[];
 
 	/**
-	 * Required values that must be present.
+	 * Values a member must carry.
 	 *
-	 * When specified, all listed values must appear in the resource. Empty arrays are ignored.
+	 * When specified, all listed values must appear among the ones the member carries. Empty arrays are ignored.
 	 *
 	 * **Inheritance** — child may only add required values.
 	 *
@@ -313,7 +313,7 @@ export type NumberRangeConstraints<V extends number = number> = {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Assembles a number shape.
+ * Creates a number shape.
  *
  * Contradictory constraints are rejected as the shape is built, so a shape that exists admits at least one value.
  *
@@ -335,7 +335,7 @@ export function number<const C extends NumberConstraints = {}>(constraints?: C):
 //// Shorthands //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Assembles a shape for 8-bit signed integer values.
+ * Creates a shape for 8-bit signed integer values.
  *
  * Fixes the datatype to `xsd:byte`, marks the shape `integral` and defaults the range to `[-128, 127]`; supplied
  * bounds override the defaults.
@@ -367,7 +367,7 @@ export function byte<const C extends NumberRangeConstraints = {}>(constraints?: 
 }
 
 /**
- * Assembles a shape for 16-bit signed integer values.
+ * Creates a shape for 16-bit signed integer values.
  *
  * Fixes the datatype to `xsd:short`, marks the shape `integral` and defaults the range to `[-32768, 32767]`; supplied
  * bounds override the defaults.
@@ -399,7 +399,7 @@ export function short<const C extends NumberRangeConstraints = {}>(constraints?:
 }
 
 /**
- * Assembles a shape for 32-bit signed integer values.
+ * Creates a shape for 32-bit signed integer values.
  *
  * Fixes the datatype to `xsd:int`, marks the shape `integral` and defaults the range to
  * `[-2147483648, 2147483647]`; supplied bounds override the defaults.
@@ -431,7 +431,7 @@ export function int<const C extends NumberRangeConstraints = {}>(constraints?: C
 }
 
 /**
- * Assembles a shape for 64-bit signed integer values.
+ * Creates a shape for 64-bit signed integer values.
  *
  * Fixes the datatype to `xsd:long`, marks the shape `integral` and defaults the range to
  * {@link Number.MIN_SAFE_INTEGER}…{@link Number.MAX_SAFE_INTEGER} (±2⁵³−1), narrower than the datatype's
@@ -465,7 +465,7 @@ export function long<const C extends NumberRangeConstraints = {}>(constraints?: 
 }
 
 /**
- * Assembles a shape for IEEE 754 single-precision floating-point values.
+ * Creates a shape for IEEE 754 single-precision floating-point values.
  *
  * Fixes the datatype to `xsd:float` and defaults the range to the finite single-precision interval
  * `±(2 − 2⁻²³) × 2¹²⁷`; supplied bounds override the defaults.
@@ -496,7 +496,7 @@ export function float<const C extends NumberRangeConstraints = {}>(constraints?:
 }
 
 /**
- * Assembles a shape for IEEE 754 double-precision floating-point values.
+ * Creates a shape for IEEE 754 double-precision floating-point values.
  *
  * Fixes the datatype to `xsd:double`.
  *
@@ -517,7 +517,7 @@ export function double<const C extends NumberRangeConstraints = {}>(constraints?
 }
 
 /**
- * Assembles a shape for arbitrary-precision integer values.
+ * Creates a shape for arbitrary-precision integer values.
  *
  * Fixes the datatype to `xsd:integer` and marks the shape `integral`.
  *
@@ -538,7 +538,7 @@ export function integer<const C extends NumberRangeConstraints = {}>(constraints
 }
 
 /**
- * Assembles a shape for arbitrary-precision decimal values.
+ * Creates a shape for arbitrary-precision decimal values.
  *
  * Fixes the datatype to `xsd:decimal`.
  *

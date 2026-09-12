@@ -219,7 +219,7 @@ export type ResourceShape<
 
 
 	/**
-	 * The classes a resource belongs to on top of its own.
+	 * The classes a resource belongs to beyond the one its shape states.
 	 *
 	 * Lists the {@link ResourceConstraints.class | class} every extended shape states, transitively and deduplicated,
 	 * so that a caller may test a resource against a supertype without walking the inheritance chain itself. Each
@@ -245,9 +245,9 @@ export type ResourceShape<
 	/**
 	 * The members a resource carries.
 	 *
-	 * Stated merged: the members declared in the shape's own right over the ones the extended shapes contribute, so a
-	 * caller reads what a resource carries off the shape rather than by walking the inheritance chain. The shape is
-	 * closed, so a resource carrying anything else is rejected.
+	 * Merged as the shape is built: the members declared in the shape's own right override the ones the extended shapes
+	 * contribute, so a caller reads what a resource carries off the shape rather than by walking the inheritance chain.
+	 * The shape is closed, so a resource carrying anything else is rejected.
 	 *
 	 * **Inheritance** — declared members merged over inherited ones, each narrowing the one it overrides.
 	 */
@@ -269,7 +269,7 @@ export type ResourceConstraints = {
 	 * Whether the resources a shape describes are computed rather than held.
 	 *
 	 * Tells a caller that a resource is at least partly derived on the way out, so that it is not expected to be found
-	 * as it stands in whatever holds the others.
+	 * as it stands in the store holding the others.
 	 *
 	 * **Inheritance** — inherited; conflicting parents without a child override are reported as an error.
 	 *
@@ -328,8 +328,8 @@ export type ResourceConstraints = {
 	 * Target class for resource instances.
 	 *
 	 * The absolute IRI naming the primary class a resource belongs to, stated by each shape in its own right. Where the
-	 * shape declares a {@link type} member, the class is the value that member carries; the classes inherited on top of
-	 * it are read off `classes`.
+	 * shape declares a {@link type} member, that member carries this class as its value; the classes inherited on top
+	 * of it are read off `classes`.
 	 *
 	 * **Inheritance** — always from the child; not inherited.
 	 *
@@ -377,9 +377,10 @@ export type ResourceConstraints = {
 	readonly in?: readonly Reference[];
 
 	/**
-	 * Required resource {@link Id identifiers} that must be present.
+	 * Resource {@link Id identifiers} a resource must be named by.
 	 *
-	 * When specified, all listed resource identifiers must appear. IRIs must be absolute. Empty arrays are ignored.
+	 * When specified, the identifier must equal every listed value, so a shape listing two or more admits no resource
+	 * at all. IRIs must be absolute. Empty arrays are ignored.
 	 *
 	 * **Inheritance** — child may only add required identifiers.
 	 *
@@ -391,7 +392,7 @@ export type ResourceConstraints = {
 
 
 	/**
-	 * Checks a resource must pass on top of the ones the shape states.
+	 * Custom checks a resource must pass beyond the declarative constraints.
 	 *
 	 * Carries the constraints a shape cannot state declaratively: each is handed the whole resource and reports what
 	 * it finds as a {@link @metreeca/core!Trace | Trace}, or `undefined` where the resource passes. Every check runs,
@@ -399,10 +400,6 @@ export type ResourceConstraints = {
 	 * is keyed by the name of the check reporting it.
 	 *
 	 * **Inheritance** — union of the checks stated and the ones inherited; every check applies.
-	 *
-	 * @remarks
-	 *
-	 * SHACL states custom constraints as SPARQL; they are stated here as functions.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#constraints SHACL § 2.1.1 Constraint Components}
 	 */
@@ -414,8 +411,8 @@ export type ResourceConstraints = {
 /**
  * The shapes a resource shape extends.
  *
- * Retains the order the shapes were stated in, so that a member reaching the extending shape along several paths is
- * resolved against a stable sequence; order carries no priority, as every extended shape contributes.
+ * Retains the order the shapes were stated in, so that a shape reached along several inheritance paths is resolved
+ * against a stable sequence; order carries no priority, as every extended shape contributes.
  */
 export type Parents =
 	readonly Lazy<ResourceShape>[]
@@ -465,7 +462,8 @@ export type Id = {
 	 * Excludes the member from default serialisation.
 	 *
 	 * **Inheritance** — always from the most derived declaration, which replaces the inherited marker rather than
-	 * merging with it; conflicting parents resolve to the first declared.
+	 * merging with it; conflicting parents resolve to the first declared, and never to an error as they do for a
+	 * {@link PropertyConstraints.hidden | property}.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -495,7 +493,8 @@ export type Type = {
 	 * Excludes the member from default serialisation.
 	 *
 	 * **Inheritance** — always from the most derived declaration, which replaces the inherited marker rather than
-	 * merging with it; conflicting parents resolve to the first declared.
+	 * merging with it; conflicting parents resolve to the first declared, and never to an error as they do for a
+	 * {@link PropertyConstraints.hidden | property}.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -766,7 +765,7 @@ export function resource<I extends Parents, M extends Members>(
 ): ResourceShape<I, M>
 
 /**
- * Creates resource shapes.
+ * Creates a resource shape.
  */
 export function resource(...args: readonly unknown[]): ResourceShape {
 

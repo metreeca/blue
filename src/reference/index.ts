@@ -114,7 +114,7 @@ export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Assembles a reference shape.
+ * Creates a reference shape.
  *
  * @typeParam T The shape the reference points at
  *

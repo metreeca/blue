@@ -170,9 +170,9 @@ export type Range<
  *
  * Yields the type an instance of the shape takes: the plain value for a scalar, localised or reference shape,
  * for a resource shape a record of the members it declares merged over the ones it inherits, and for a union shape the
- * value of every branch at once, as the value alone tells the reader which branch it belongs to. A reference shape
+ * value of any of its branches, as the value alone tells the reader which branch it belongs to. A reference shape
  * contributes a {@link @metreeca/qest!Reference | Reference} to the target alone, keeping a linked resource out of the
- * value pointing at it. A shape left wholly undescribed, admitting any shape at all, resolves to no value.
+ * value pointing at it. A bare {@link Shape}, standing for any kind at all, resolves to no value.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */

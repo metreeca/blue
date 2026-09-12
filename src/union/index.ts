@@ -93,7 +93,7 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  *   and retrieves each branch it fits, as its value is immaterial and discriminates nothing.
  *
  * An input matching no branch is rejected as unsatisfiable, and one required to single out a branch but matching
- * several is rejected as ambiguous. A text search is matched against no branch at all: it filters every textual branch
+ * several is rejected as ambiguous. A text search singles out no branch at all: it filters every textual branch
  * at once.
  *
  * > [!IMPORTANT]
@@ -157,7 +157,7 @@ export type UnionBranches =
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Assembles a union shape.
+ * Creates a union shape.
  *
  * Alternatives are accepted as they are stated: a union that exists proves nothing about the distinguishability of its
  * branches, which is a {@link UnionShape | modelling contract} settled when a value is matched. An alternative that is

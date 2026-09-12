@@ -206,7 +206,7 @@ export type DictionaryConstraints = {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Assembles a dictionary shape.
+ * Creates a dictionary shape.
  *
  * Contradictory constraints are rejected as the shape is built, so a shape that exists admits at least one value.
  *
