@@ -426,11 +426,6 @@ export function eager<S extends Lazy<Shape>>(shape: S): Eager<S> {
  */
 export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | string {
 
-	// a branch the walk carries is a range whose shape is resolved, the path having reached it already
-
-	type Branch = Range<Shape>
-
-
 	// a hand-built probe may name an unknown transform or a malformed path, which would otherwise surface as a
 	// crash deep inside the pipe; it is rejected up front
 
@@ -445,7 +440,7 @@ export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | str
 	 * A union opens one branch per alternative and a link opens on the resource it points at, each at unit
 	 * cardinality; a range already resolved opens one branch per alternative, carrying the bounds it accumulated.
 	 */
-	function expand(shape: Lazy<Shape> | Range): readonly Branch[] {
+	function expand(shape: Lazy<Shape> | Range): readonly Range<Shape>[] {
 
 		if ( !isFunction(shape) && !("kind" in shape) ) {
 
@@ -469,9 +464,9 @@ export function effective(shape: Lazy<Shape> | Range, probe: Probe): Range | str
 	/**
 	 * Steps the path across the branches, accumulating the bounds each one reaches its values through.
 	 */
-	function traverse(seed: readonly Branch[]): Range | string {
+	function traverse(seed: readonly Range<Shape>[]): Range | string {
 
-		const branches = path.reduce<readonly Branch[]>((branches, segment) => branches.flatMap(branch => {
+		const branches = path.reduce<readonly Range<Shape>[]>((branches, segment) => branches.flatMap(branch => {
 
 			const reached = step(branch.shape, segment);
 
