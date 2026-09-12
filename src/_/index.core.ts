@@ -56,7 +56,7 @@ import { mergeDictionary, narrowsDictionary } from "./dictionary/assembler.js";
 import type { Tagged } from "./dictionary/inference.js";
 import { validateDictionary } from "./dictionary/validator.js";
 import type { DictionaryShape } from "./dictionary/index.js";
-import type { Range, Shape } from "./index.js";
+import type { Range, Shape } from "./value/index.js";
 import { mergeNumber, narrowsNumber } from "./number/assembler.js";
 import { validateNumber } from "./number/validator.js";
 import { decimal, integer, type NumberShape } from "./number/index.js";

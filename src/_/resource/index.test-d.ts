@@ -16,7 +16,7 @@
 
 import type { Reference } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Range } from "../index.js";
+import { type Instance, type Range } from "../value/index.js";
 import { number } from "../number/index.js";
 import { reference } from "../reference/index.js";
 import { string, type StringShape } from "../string/index.js";

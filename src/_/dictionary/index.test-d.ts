@@ -18,7 +18,7 @@ import { assert } from "@metreeca/core";
 import { isTagRange, type Tag } from "@metreeca/core/language";
 import { describe, expectTypeOf, test } from "vitest";
 import { dictionary, type DictionaryShape } from "./index.js";
-import { type Compound, type Instance } from "../index.js";
+import { type Compound, type Instance } from "../value/index.js";
 import { multiple, optional, required, resource } from "../resource/index.js";
 
 

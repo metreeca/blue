@@ -26,7 +26,7 @@
 
 import type { Identifier, Lazy } from "@metreeca/core";
 import type { Reference } from "@metreeca/qest/resource";
-import type { Shape } from "../index.js";
+import type { Shape } from "../value/index.js";
 import { getShapeTarget } from "../reference/accessors.js";
 import type { Members } from "./index.js";
 

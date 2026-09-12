@@ -24,7 +24,7 @@
  */
 
 import type { Eager, Lazy } from "@metreeca/core";
-import type { Shape } from "../index.js";
+import type { Shape } from "../value/index.js";
 import type { UnionShape } from "./index.js";
 
 
