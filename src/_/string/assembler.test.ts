@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 import { xsd } from "@metreeca/core/datatype";
 import { describe, expect, it } from "vitest";
 import { checkString, mergeString, narrowsString } from "./assembler.js";

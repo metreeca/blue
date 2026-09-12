@@ -123,302 +123,302 @@ describe("flatten", () => {
 
 	});
 
-});
+	describe("inheritance", () => {
 
-describe("inheritance", () => {
+		it("carries the members of the shapes it extends", async () => {
 
-	it("carries the members of the shapes it extends", async () => {
+			const Base = resource({ id: id(), name: required(string()) });
+			const shape = resource(Base, { code: required(string()) });
 
-		const Base = resource({ id: id(), name: required(string()) });
-		const shape = resource(Base, { code: required(string()) });
-
-		expect(Object.keys(shape.members).sort()).toEqual(["code", "id", "name"]);
-
-	});
-
-	it("carries the members of every shape it extends", async () => {
-
-		const Named = resource({ name: required(string()) });
-		const Coded = resource({ code: required(string()) });
-
-		expect(Object.keys(resource(Named, Coded, {}).members).sort()).toEqual(["code", "name"]);
-
-	});
-
-	it("carries the members of a shape reached transitively", async () => {
-
-		const Base = resource({ name: required(string()) });
-		const Middle = resource(Base, { code: required(string()) });
-		const shape = resource(Middle, { note: optional(string()) });
-
-		expect(Object.keys(shape.members).sort()).toEqual(["code", "name", "note"]);
-
-	});
-
-	it("resolves a deferred extended shape", async () => {
-
-		const Base = resource({ name: required(string()) });
-		const shape = resource(() => Base, {});
-
-		expect(Object.keys(shape.members)).toEqual(["name"]);
-
-	});
-
-	it("narrows a member the extending shape redeclares", async () => {
-
-		const Base = resource({ name: required(string()) });
-		const shape = resource(Base, { name: required(string({ minLength: 1 })) });
-
-		expect(getProperty(shape, "name")?.shape).toMatchObject({ minLength: 1 });
-
-	});
-
-	it("rejects a member the extending shape relaxes", async () => {
-
-		const Base = resource({ name: required(string({ minLength: 5 })) });
-
-		expect(() => resource(Base, { name: required(string({ minLength: 1 })) })).toThrow(TraceError);
-
-	});
-
-	it("rejects a member the extending shape retypes", async () => {
-
-		const Base = resource({ name: required(string()) });
-
-		expect(() => resource(Base, { name: required(number()) })).toThrow(TraceError);
-
-	});
-
-	it("rejects extended shapes disagreeing on the space", async () => {
-
-		const One = resource({}, { space: schema });
-		const Other = resource({}, { space: createNamespace("https://example.net/") });
-
-		expect(() => resource(One, Other, {})).toThrow(TraceError);
-
-	});
-
-	it("admits extended shapes disagreeing on the space where the child states one", async () => {
-
-		const One = resource({}, { space: schema });
-		const Other = resource({}, { space: createNamespace("https://example.net/") });
-
-		expect(() => resource(One, Other, {}, { space: schema })).not.toThrow();
-
-	});
-
-	it("re-points an inherited link at an extending target", async () => {
-
-		const Wider = resource({ id: id() });
-		const Narrower = resource(Wider, {});
-
-		const Base = resource({ link: required(reference(Wider)) });
-		const shape = resource(Base, { link: required(reference(Narrower)) });
-
-		expect(getProperty(shape, "link")?.shape).toMatchObject({ kind: "reference" });
-
-	});
-
-	it("rejects re-pointing an inherited link at an unrelated target", async () => {
-
-		const Wider = resource({ id: id() }, { pattern: "/wider/{id}" });
-		const Unrelated = resource({ id: id() }, { pattern: "/unrelated/{id}" });
-
-		const Base = resource({ link: required(reference(Wider)) });
-
-		expect(() => resource(Base, { link: required(reference(Unrelated)) })).toThrow(TraceError);
-
-	});
-
-	it("narrows an inherited union member by dropping an alternative", async () => {
-
-		const Base = resource({ code: required(union(string(), number())) });
-		const shape = resource(Base, { code: required(union(number())) });
-
-		expect(getProperty(shape, "code")?.shape).toMatchObject({ kind: "union" });
-
-	});
-
-	it("narrows an inherited union member to the single alternative it restricts", async () => {
-
-		const Base = resource({ code: required(union(string(), number())) });
-		const shape = resource(Base, { code: required(number({ minInclusive: 0 })) });
-
-		expect(getProperty(shape, "code")?.shape).toMatchObject({ kind: "number", minInclusive: 0 });
-
-	});
-
-	it("rejects a member restricting no alternative of an inherited union", async () => {
-
-		const Base = resource({ code: required(union(string(), number())) });
-
-		expect(() => resource(Base, { code: required(boolean()) })).toThrow(TraceError);
-
-	});
-
-	it("rejects a member restricting several alternatives of an inherited union", async () => {
-
-		const Base = resource({ code: required(union(string({ minLength: 1 }), string({ maxLength: 5 }))) });
-
-		expect(() => resource(Base, { code: required(string({ minLength: 2, maxLength: 4 })) }))
-			.toThrow(TraceError);
-
-	});
-
-	describe("virtual", () => {
-
-		it("inherits what the extended shape states", async () => {
-
-			const Base = resource({}, { virtual: true });
-
-			expect(resource(Base, {}).virtual).toBe(true);
+			expect(Object.keys(shape.members).sort()).toEqual(["code", "id", "name"]);
 
 		});
 
-		it("takes the value the extending shape states", async () => {
+		it("carries the members of every shape it extends", async () => {
 
-			const Base = resource({}, { virtual: true });
+			const Named = resource({ name: required(string()) });
+			const Coded = resource({ code: required(string()) });
 
-			expect(resource(Base, {}, { virtual: false }).virtual).toBe(false);
-
-		});
-
-		it("states none where nothing states one", async () => {
-
-			expect(resource({}).virtual).toBeUndefined();
+			expect(Object.keys(resource(Named, Coded, {}).members).sort()).toEqual(["code", "name"]);
 
 		});
 
-		it("rejects extended shapes disagreeing", async () => {
+		it("carries the members of a shape reached transitively", async () => {
 
-			const One = resource({}, { virtual: true });
-			const Other = resource({}, { virtual: false });
+			const Base = resource({ name: required(string()) });
+			const Middle = resource(Base, { code: required(string()) });
+			const shape = resource(Middle, { note: optional(string()) });
+
+			expect(Object.keys(shape.members).sort()).toEqual(["code", "name", "note"]);
+
+		});
+
+		it("resolves a deferred extended shape", async () => {
+
+			const Base = resource({ name: required(string()) });
+			const shape = resource(() => Base, {});
+
+			expect(Object.keys(shape.members)).toEqual(["name"]);
+
+		});
+
+		it("narrows a member the extending shape redeclares", async () => {
+
+			const Base = resource({ name: required(string()) });
+			const shape = resource(Base, { name: required(string({ minLength: 1 })) });
+
+			expect(getProperty(shape, "name")?.shape).toMatchObject({ minLength: 1 });
+
+		});
+
+		it("rejects a member the extending shape relaxes", async () => {
+
+			const Base = resource({ name: required(string({ minLength: 5 })) });
+
+			expect(() => resource(Base, { name: required(string({ minLength: 1 })) })).toThrow(TraceError);
+
+		});
+
+		it("rejects a member the extending shape retypes", async () => {
+
+			const Base = resource({ name: required(string()) });
+
+			expect(() => resource(Base, { name: required(number()) })).toThrow(TraceError);
+
+		});
+
+		it("rejects extended shapes disagreeing on the space", async () => {
+
+			const One = resource({}, { space: schema });
+			const Other = resource({}, { space: createNamespace("https://example.net/") });
 
 			expect(() => resource(One, Other, {})).toThrow(TraceError);
 
 		});
 
-		it("admits extended shapes disagreeing where the extending shape states a value", async () => {
+		it("admits extended shapes disagreeing on the space where the child states one", async () => {
 
-			const One = resource({}, { virtual: true });
-			const Other = resource({}, { virtual: false });
+			const One = resource({}, { space: schema });
+			const Other = resource({}, { space: createNamespace("https://example.net/") });
 
-			expect(() => resource(One, Other, {}, { virtual: true })).not.toThrow();
-
-		});
-
-	});
-
-	describe("validators", () => {
-
-		const check: Validator<Resource> = () => undefined;
-		const other: Validator<Resource> = () => undefined;
-
-		it("carries the checks the extended shape states", async () => {
-
-			const Base = resource({}, { validators: [check] });
-
-			expect(resource(Base, {}).validators).toEqual([check]);
+			expect(() => resource(One, Other, {}, { space: schema })).not.toThrow();
 
 		});
 
-		it("accumulates the checks stated over the ones inherited", async () => {
+		it("re-points an inherited link at an extending target", async () => {
 
-			const Base = resource({}, { validators: [check] });
+			const Wider = resource({ id: id() });
+			const Narrower = resource(Wider, {});
 
-			expect(resource(Base, {}, { validators: [other] })).toMatchObject({
-				validators: expect.arrayContaining([check, other])
+			const Base = resource({ link: required(reference(Wider)) });
+			const shape = resource(Base, { link: required(reference(Narrower)) });
+
+			expect(getProperty(shape, "link")?.shape).toMatchObject({ kind: "reference" });
+
+		});
+
+		it("rejects re-pointing an inherited link at an unrelated target", async () => {
+
+			const Wider = resource({ id: id() }, { pattern: "/wider/{id}" });
+			const Unrelated = resource({ id: id() }, { pattern: "/unrelated/{id}" });
+
+			const Base = resource({ link: required(reference(Wider)) });
+
+			expect(() => resource(Base, { link: required(reference(Unrelated)) })).toThrow(TraceError);
+
+		});
+
+		it("narrows an inherited union member by dropping an alternative", async () => {
+
+			const Base = resource({ code: required(union(string(), number())) });
+			const shape = resource(Base, { code: required(union(number())) });
+
+			expect(getProperty(shape, "code")?.shape).toMatchObject({ kind: "union" });
+
+		});
+
+		it("narrows an inherited union member to the single alternative it restricts", async () => {
+
+			const Base = resource({ code: required(union(string(), number())) });
+			const shape = resource(Base, { code: required(number({ minInclusive: 0 })) });
+
+			expect(getProperty(shape, "code")?.shape).toMatchObject({ kind: "number", minInclusive: 0 });
+
+		});
+
+		it("rejects a member restricting no alternative of an inherited union", async () => {
+
+			const Base = resource({ code: required(union(string(), number())) });
+
+			expect(() => resource(Base, { code: required(boolean()) })).toThrow(TraceError);
+
+		});
+
+		it("rejects a member restricting several alternatives of an inherited union", async () => {
+
+			const Base = resource({ code: required(union(string({ minLength: 1 }), string({ maxLength: 5 }))) });
+
+			expect(() => resource(Base, { code: required(string({ minLength: 2, maxLength: 4 })) }))
+				.toThrow(TraceError);
+
+		});
+
+		describe("virtual", () => {
+
+			it("inherits what the extended shape states", async () => {
+
+				const Base = resource({}, { virtual: true });
+
+				expect(resource(Base, {}).virtual).toBe(true);
+
+			});
+
+			it("takes the value the extending shape states", async () => {
+
+				const Base = resource({}, { virtual: true });
+
+				expect(resource(Base, {}, { virtual: false }).virtual).toBe(false);
+
+			});
+
+			it("states none where nothing states one", async () => {
+
+				expect(resource({}).virtual).toBeUndefined();
+
+			});
+
+			it("rejects extended shapes disagreeing", async () => {
+
+				const One = resource({}, { virtual: true });
+				const Other = resource({}, { virtual: false });
+
+				expect(() => resource(One, Other, {})).toThrow(TraceError);
+
+			});
+
+			it("admits extended shapes disagreeing where the extending shape states a value", async () => {
+
+				const One = resource({}, { virtual: true });
+				const Other = resource({}, { virtual: false });
+
+				expect(() => resource(One, Other, {}, { virtual: true })).not.toThrow();
+
 			});
 
 		});
 
-		it("states a check reaching the shape along several paths once", async () => {
+		describe("validators", () => {
 
-			const One = resource({}, { validators: [check] });
-			const Other = resource({}, { validators: [check] });
+			const check: Validator<Resource> = () => undefined;
+			const other: Validator<Resource> = () => undefined;
 
-			expect(resource(One, Other, {}).validators).toEqual([check]);
+			it("carries the checks the extended shape states", async () => {
+
+				const Base = resource({}, { validators: [check] });
+
+				expect(resource(Base, {}).validators).toEqual([check]);
+
+			});
+
+			it("accumulates the checks stated over the ones inherited", async () => {
+
+				const Base = resource({}, { validators: [check] });
+
+				expect(resource(Base, {}, { validators: [other] })).toMatchObject({
+					validators: expect.arrayContaining([check, other])
+				});
+
+			});
+
+			it("states a check reaching the shape along several paths once", async () => {
+
+				const One = resource({}, { validators: [check] });
+				const Other = resource({}, { validators: [check] });
+
+				expect(resource(One, Other, {}).validators).toEqual([check]);
+
+			});
+
+			it("states none where nothing states one", async () => {
+
+				expect(resource({}).validators).toBeUndefined();
+
+			});
 
 		});
 
-		it("states none where nothing states one", async () => {
+	});
 
-			expect(resource({}).validators).toBeUndefined();
+	describe("classes", () => {
+
+		const Thing = resource({ id: id() }, { class: "https://schema.org/Thing" });
+		const Product = resource(Thing, {}, { class: "https://schema.org/Product" });
+
+		it("states none where a shape extends nothing", async () => {
+
+			expect(resource({ id: id() }).classes).toEqual([]);
 
 		});
 
-	});
+		it("states none where a shape extends nothing stating a class", async () => {
 
-});
+			const Base = resource({ name: required(string()) });
 
-describe("classes", () => {
+			expect(resource(Base, {}).classes).toEqual([]);
 
-	const Thing = resource({ id: id() }, { class: "https://schema.org/Thing" });
-	const Product = resource(Thing, {}, { class: "https://schema.org/Product" });
+		});
 
-	it("states none where a shape extends nothing", async () => {
+		it("carries the class of the shape extended", async () => {
 
-		expect(resource({ id: id() }).classes).toEqual([]);
+			expect(Product.classes).toEqual(["https://schema.org/Thing"]);
 
-	});
+		});
 
-	it("states none where a shape extends nothing stating a class", async () => {
+		it("leaves the shape's own class out", async () => {
 
-		const Base = resource({ name: required(string()) });
+			expect(Product.classes).not.toContain("https://schema.org/Product");
 
-		expect(resource(Base, {}).classes).toEqual([]);
+		});
 
-	});
+		it("carries the class of a shape extended transitively", async () => {
 
-	it("carries the class of the shape extended", async () => {
+			const Offer = resource(Product, {}, { class: "https://schema.org/Offer" });
 
-		expect(Product.classes).toEqual(["https://schema.org/Thing"]);
+			expect(Offer.classes).toEqual(["https://schema.org/Product", "https://schema.org/Thing"]);
 
-	});
+		});
 
-	it("leaves the shape's own class out", async () => {
+		it("carries the class of every shape extended", async () => {
 
-		expect(Product.classes).not.toContain("https://schema.org/Product");
+			const Place = resource({ id: id() }, { class: "https://schema.org/Place" });
+			const Store = resource(Thing, Place, {}, { class: "https://schema.org/Store" });
 
-	});
+			expect(Store.classes).toEqual(["https://schema.org/Thing", "https://schema.org/Place"]);
 
-	it("carries the class of a shape extended transitively", async () => {
+		});
 
-		const Offer = resource(Product, {}, { class: "https://schema.org/Offer" });
+		it("states a class shared by several shapes extended once", async () => {
 
-		expect(Offer.classes).toEqual(["https://schema.org/Product", "https://schema.org/Thing"]);
+			const Left = resource(Thing, {}, { class: "https://schema.org/Left" });
+			const Right = resource(Thing, {}, { class: "https://schema.org/Right" });
 
-	});
+			const Joined = resource(Left, Right, {});
 
-	it("carries the class of every shape extended", async () => {
+			expect(Joined.classes).toEqual([
+				"https://schema.org/Left",
+				"https://schema.org/Thing",
+				"https://schema.org/Right"
+			]);
 
-		const Place = resource({ id: id() }, { class: "https://schema.org/Place" });
-		const Store = resource(Thing, Place, {}, { class: "https://schema.org/Store" });
+		});
 
-		expect(Store.classes).toEqual(["https://schema.org/Thing", "https://schema.org/Place"]);
+		it("carries the class of a shape extended through a deferred definition", async () => {
 
-	});
+			const Deferred = resource(() => Thing, {}, { class: "https://schema.org/Deferred" });
 
-	it("states a class shared by several shapes extended once", async () => {
+			expect(Deferred.classes).toEqual(["https://schema.org/Thing"]);
 
-		const Left = resource(Thing, {}, { class: "https://schema.org/Left" });
-		const Right = resource(Thing, {}, { class: "https://schema.org/Right" });
-
-		const Joined = resource(Left, Right, {});
-
-		expect(Joined.classes).toEqual([
-			"https://schema.org/Left",
-			"https://schema.org/Thing",
-			"https://schema.org/Right"
-		]);
-
-	});
-
-	it("carries the class of a shape extended through a deferred definition", async () => {
-
-		const Deferred = resource(() => Thing, {}, { class: "https://schema.org/Deferred" });
-
-		expect(Deferred.classes).toEqual(["https://schema.org/Thing"]);
+		});
 
 	});
 
@@ -434,7 +434,7 @@ describe("checkResource", () => {
 
 	});
 
-	it("returns trace for required identifiers outside the enumeration", async () => {
+	it("reports required identifiers outside the enumeration", async () => {
 
 		expect(checkResource({ in: ["app:/1"], hasValue: ["app:/2"] }))
 			.toContainEqual(expect.stringContaining("{hasValue/in}"));
@@ -461,7 +461,7 @@ describe("checkBounds", () => {
 
 	});
 
-	it("returns trace for bounds admitting nothing at all", async () => {
+	it("reports bounds admitting nothing at all", async () => {
 
 		expect(checkBounds({ minCount: 5, maxCount: 2 }))
 			.toContainEqual(expect.stringContaining("{minCount/maxCount}"));
@@ -530,14 +530,14 @@ describe("checkSingletons", () => {
 
 	});
 
-	it("returns trace for two identifiers", async () => {
+	it("reports two identifiers", async () => {
 
 		expect(checkSingletons([{ kind: "id" }, { kind: "id" }]))
 			.toContainEqual(expect.stringContaining("{id}"));
 
 	});
 
-	it("returns trace for two types", async () => {
+	it("reports two types", async () => {
 
 		expect(checkSingletons([{ kind: "type" }, { kind: "type" }]))
 			.toContainEqual(expect.stringContaining("{type}"));
@@ -558,7 +558,6 @@ describe("checkPredicates", () => {
 	});
 
 });
-
 
 describe("narrowsResource", () => {
 
@@ -698,7 +697,7 @@ describe("narrowsProperty", () => {
 
 	});
 
-	it("rejects a member whose bounds leave the merged one admitting nothing", async () => {
+	it("rejects a child whose bounds leave the merged one admitting nothing", async () => {
 
 		// the factories refuse crossed bounds outright, so the check guards a member stated by other means
 
@@ -721,10 +720,9 @@ describe("narrowsProperty", () => {
 
 });
 
-
 describe("mergeResource", () => {
 
-	it("preserves kind as 'resource'", async () => {
+	it("carries the kind", async () => {
 
 		expect(mergeResource(resource({}), resource({})).kind).toBe("resource");
 
