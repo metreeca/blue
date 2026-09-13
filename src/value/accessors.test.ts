@@ -37,7 +37,7 @@ import {
 import { date, duration, instant, string, time, timestamp, year } from "../string/index.js";
 import { getShapeBranches } from "../union/accessors.js";
 import { union } from "../union/index.js";
-import { eager, effective } from "./accessors.js";
+import { eager, effective, resolving } from "./accessors.js";
 import { type Range, type Shape, sh } from "./index.js";
 
 
@@ -151,6 +151,41 @@ describe("eager", () => {
 			expect(eager({ minCount: 1, maxCount: 1, shape: deferred }).shape).toBe(deferred);
 
 		});
+
+	});
+
+});
+
+describe("resolving", () => {
+
+	it("reports a definition stated outright as never under resolution", async () => {
+
+		expect(resolving(resource({ name: required(string()) }))).toBe(false);
+
+	});
+
+	it("reports a deferred definition under resolution from within its own resolution", async () => {
+
+		const reached: boolean[] = [];
+
+		const Node = (): ResourceShape => {
+			reached.push(resolving(Node));
+			return resource({ id: id() });
+		};
+
+		eager(Node);
+
+		expect(reached).toEqual([true]);
+
+	});
+
+	it("reports a deferred definition already resolved as no longer under resolution", async () => {
+
+		const Node = (): ResourceShape => resource({ id: id() });
+
+		eager(Node);
+
+		expect(resolving(Node)).toBe(false);
 
 	});
 

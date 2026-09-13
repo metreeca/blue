@@ -17,10 +17,10 @@
 /**
  * Shape accessors.
  *
- * Reads what a shape reaches: {@link eager} resolves a shape or range deferred to break a definition cycle, yielding a
- * resource shape with its inheritance merged, and {@link effective} resolves the values a path and transform pipe reach
- * through a shape or range, so that a caller may type a projection binding or a selection operand without walking the
- * shape itself.
+ * Reads what a shape reaches, so that a caller needs not walk it: a definition deferred to break a cycle is resolved
+ * to the shape it states, with inheritance already merged, and a path and transform pipe to the range their values are
+ * drawn from, which is what types a projection binding or a selection operand. A caller reached from within a
+ * resolution is told whether a definition is the one already under way.
  *
  * @module
  */
@@ -170,6 +170,23 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
 			: shape.kind === "resource" ? flatten(shape)
 				: shape;
 	}
+
+}
+
+/**
+ * Checks whether a definition is being resolved.
+ *
+ * Tells a definition whose resolution is already under way from one a caller may resolve in its own right, so that a
+ * caller reached from within a resolution leaves to it what only it can settle, rather than reaching for a shape not
+ * yet stated. A definition stated outright, or one {@link eager} has already resolved, is never under resolution.
+ *
+ * @param shape The shape or range to test, possibly deferred to break definition cycles
+ *
+ * @returns true if `shape` is a deferred definition whose resolution is under way; false otherwise
+ */
+export function resolving(shape: Lazy<Shape | Range>): boolean {
+
+	return isFunction(shape) && shapes.get(shape) === null;
 
 }
 

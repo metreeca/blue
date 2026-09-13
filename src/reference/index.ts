@@ -104,7 +104,8 @@ export type ReferenceShape<T extends Lazy<ResourceShape> = Lazy<ResourceShape>> 
 	 * **Inheritance** — may be re-pointed at a shape that lists the inherited target among its `parents`, directly or
 	 * transitively, so an extending shape refines what a link admits by naming the narrower target alone; the inherited
 	 * definition reaches the refined target through its own inheritance chain and is never restated. Any other target
-	 * is rejected.
+	 * is rejected. A target deferred to break a definition cycle is held to the same rule once its definition stands,
+	 * so a shape may be re-pointed at one extending it, and a pair of shapes reaching each other at each other.
 	 */
 	readonly target: T
 

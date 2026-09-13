@@ -18,7 +18,8 @@
  * Reference shape assembly.
  *
  * Builds the shape the factory states into the form its consumers read, and combines it with the one it overrides: an
- * extension is held to the shape it refines, narrowing exactly when its target is the inherited target or extends it.
+ * extension is held to the shape it refines, narrowing exactly when its target is the inherited target or extends it,
+ * with a target still being resolved left to the resolution that will state it.
  *
  * @module
  */
@@ -26,7 +27,8 @@
 import { type Lazy, type Optional } from "@metreeca/core";
 import { equals, immutable } from "@metreeca/core/structures";
 import { test, type Trace, TraceError } from "@metreeca/core/trace";
-import { eager } from "../value/accessors.js";
+import { eager } from "../value/index.js";
+import { resolving } from "../value/accessors.js";
 import type { ReferenceShape } from "./index.js";
 import type { ResourceShape } from "../resource/index.js";
 
@@ -65,22 +67,34 @@ export function assemble<T extends Lazy<ResourceShape>>(target: T): ReferenceSha
  * shape it points at, so it narrows the inherited one exactly when its target is the inherited target or extends it,
  * directly or transitively.
  *
+ * A target still being resolved is left to the resolution already under way: a link is deferred exactly so that a
+ * definition may reach itself, so holding such a target to an inheritance chain not yet stated would rule out a shape
+ * re-pointed at one extending it, or a pair of shapes re-pointed at each other. The chain is read once it stands, so
+ * an incompatible target is still reported.
+ *
  * @param target The overriding shape
  * @param source The inherited shape
  *
- * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
+ * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source` or points at a
+ *     definition still being resolved
  */
 export function narrowsReference(target: ReferenceShape, source: ReferenceShape): Optional<Trace> {
 
 	return test<ReferenceShape>(({ target: pointed }) => {
 
-		const inherited = eager(source.target);
-
-		return lineage(eager(pointed)).some(ancestor => equals(ancestor, inherited)) || [
+		return resolving(pointed) || extended(eager(pointed), eager(source.target)) || [
 			`{target} incompatible <target> override`
 		];
 
 	})(target);
+
+
+	/**
+	 * Reports whether a target is an inherited one or extends it, directly or transitively.
+	 */
+	function extended(pointed: ResourceShape, inherited: ResourceShape): boolean {
+		return lineage(pointed).some(ancestor => equals(ancestor, inherited));
+	}
 
 
 	/**

@@ -162,6 +162,55 @@ describe("flatten", () => {
 
 		});
 
+		// a link is deferred exactly so a definition may reach itself, so the narrowing check reads the chain the
+		// new target declares rather than the shape it merges to
+
+		it("re-points a member at a shape extending the one carrying the override", async () => {
+
+			function Organization(): ResourceShape {
+				return resource({ unit: multiple(reference(Organization)) });
+			}
+
+			function Unit(): ResourceShape {
+				return resource(Organization, { unit: multiple(reference(Unit)) });
+			}
+
+			expect(Object.keys(Unit().members)).toEqual(["unit"]);
+
+		});
+
+		it("re-points both ends of a pair of shapes reaching each other", async () => {
+
+			function SchemeBase(): ResourceShape {
+				return resource({ member: multiple(reference(ConceptBase)) });
+			}
+
+			function ConceptBase(): ResourceShape {
+				return resource({ scheme: required(reference(SchemeBase)) });
+			}
+
+			function Scheme(): ResourceShape {
+				return resource(SchemeBase, { member: multiple(reference(Concept)) });
+			}
+
+			function Concept(): ResourceShape {
+				return resource(ConceptBase, { scheme: required(reference(Scheme)) });
+			}
+
+			expect(Object.keys(Scheme().members)).toEqual(["member"]);
+			expect(Object.keys(Concept().members)).toEqual(["scheme"]);
+
+		});
+
+		it("rejects a re-pointed member whose target extends nothing the inherited one names", async () => {
+
+			const Base = resource({ link: optional(reference(resource({ name: optional(string()) }))) });
+
+			expect(() => resource(Base, { link: optional(reference(resource({}))) }))
+				.toThrow("incompatible resource shape override");
+
+		});
+
 		it("narrows a member the extending shape redeclares", async () => {
 
 			const Base = resource({ name: required(string()) });
