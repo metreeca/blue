@@ -179,6 +179,28 @@ describe("flatten", () => {
 
 		});
 
+		it("re-points a member at a shape extending both the overriding shape and the inherited target", async () => {
+
+			function OrganizationBase(): ResourceShape {
+				return resource({ unit: multiple(reference(UnitBase)) });
+			}
+
+			function UnitBase(): ResourceShape {
+				return resource(OrganizationBase, {});
+			}
+
+			function Organization(): ResourceShape {
+				return resource(OrganizationBase, { unit: multiple(reference(Unit)) });
+			}
+
+			function Unit(): ResourceShape {
+				return resource(Organization, UnitBase, {});
+			}
+
+			expect(Object.keys(Organization().members)).toEqual(["unit"]);
+
+		});
+
 		it("re-points both ends of a pair of shapes reaching each other", async () => {
 
 			function SchemeBase(): ResourceShape {

@@ -394,7 +394,10 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 			case "reference":
 
-				return { ...range, target: () => eager(range.target) };
+				// a deferred target is carried as stated: the resolution under way is keyed on the thunk, so a
+				// wrapper of its own would hide it and have the narrowing check report a cycle that is not one
+
+				return { ...range, target: isFunction(range.target) ? range.target : flatten(range.target) };
 
 			case "union":
 
