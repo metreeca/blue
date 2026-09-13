@@ -1,5 +1,9 @@
 {
   "tsconfig": "./tsconfig.build.json",
+  "plugin": [
+    "./typedoc.mjs"
+  ],
+  "excludeInternal": true,
   "includeVersion": true,
   "sortEntryPoints": false,
   "sort": [
@@ -13,14 +17,6 @@
     "*"
   ],
   "useFirstParagraphOfCommentAsSummary": true,
-  "intentionallyNotExported": [
-    "src/value/inference.ts:Plain",
-    "src/value/inference.ts:Legal",
-    "src/union/inference.ts:Branch",
-    "src/resource/inference.ts:Retrieved",
-    "src/resource/inference.ts:Submitted",
-    "src/resource/inference.ts:Declared"
-  ],
   "favicon": "https://metreeca.com/assets/icon.ico",
   "sourceLinkExternal": true,
   "markdownLinkExternal": true,
@@ -28,12 +24,15 @@
     "global": {
       "Error": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Error",
       "RangeError": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/RangeError",
-      "TypeError": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/TypeError"
+      "TypeError": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/TypeError",
+      "RegExp": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/RegExp"
     },
     "typescript": {
       "Error": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Error",
       "RangeError": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/RangeError",
       "TypeError": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/TypeError",
+      "RegExp": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/RegExp",
+      "NoInfer": "https://www.typescriptlang.org/docs/handbook/utility-types.html#noinfertype",
       "NumberConstructor.MIN_SAFE_INTEGER": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MIN_SAFE_INTEGER",
       "NumberConstructor.MAX_SAFE_INTEGER": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER"
     },
@@ -47,6 +46,7 @@
       "Identifier": "https://metreeca.github.io/core/types/index.Identifier.html",
       "Lazy": "https://metreeca.github.io/core/types/index.Lazy.html",
       "Eager": "https://metreeca.github.io/core/types/index.Eager.html",
+      "Optional": "https://metreeca.github.io/core/types/index.Optional.html",
       "IRI": "https://metreeca.github.io/core/types/resource.IRI.html",
       "app": "https://metreeca.github.io/core/variables/resource.app.html",
       "Namespace": "https://metreeca.github.io/core/types/resource.Namespace.html",

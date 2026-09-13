@@ -174,7 +174,19 @@ export type Range<
  * contributes a {@link @metreeca/qest!Reference | Reference} to the target alone, keeping a linked resource out of the
  * value pointing at it. A bare {@link Shape}, standing for any kind at all, resolves to no value.
  *
+ * Within a resource, an identifier carries the IRI of the resource itself and a type the IRI of its class, left
+ * undefined where the resource is untyped. A property carries the values its range describes, as a bare value where it
+ * admits at most one and as a read-only array otherwise, non-empty where at least one value is required; localised text
+ * is carried whole as a tag-keyed map, at the arity its own shape states, so it is never wrapped in an array and never
+ * sits in one beside the values of sibling branches, and a range admitting it alongside other branches carries either
+ * the map or the other values, never both.
+ *
+ * A member the resource may leave out is optional, and one voided by a conflicting override carries no value at all, so
+ * an extension relaxing what it inherits reads as a member nothing satisfies rather than silently dropping out.
+ *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
+ *
+ * @opaque
  */
 export type Instance<S extends Lazy<Shape>> =
 	Shape extends Eager<S> ? never
@@ -195,6 +207,8 @@ export type Instance<S extends Lazy<Shape>> =
  * carry the link rather than the compound. A plain value, holding nothing captive, reads exactly as an instance does.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
+ *
+ * @opaque
  */
 export type Compound<S extends Lazy<Shape>> =
 	Shape extends Eager<S> ? never
