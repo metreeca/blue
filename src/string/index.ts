@@ -195,7 +195,9 @@ const IRIPatterns: Readonly<Record<Variant, RegExp>> = {
  *
  * @see {@link https://www.w3.org/TR/xmlschema-2/#string XSD 1.0 Part 2: Datatypes § 3.2.1 string}
  */
-export type StringShape<V extends string = string> = StringConstraints<V, string> & {
+export type StringShape<
+	V extends string = string
+> = StringConstraints<V, string> & {
 
 	/**
 	 * Discriminator identifying this as a string shape.

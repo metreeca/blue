@@ -593,6 +593,14 @@ describe("factories", () => {
 			expectTypeOf<Property["shape"]>().toEqualTypeOf<Parameters<typeof property>[0]>();
 		});
 
+		// a namespace is stated as a shorthand and resolved to the absolute IRI as the shape is built, so a member
+		// read off a shape maps to an identifier and nothing else
+
+		test("Property maps to a resolved identifier", () => {
+			expectTypeOf<Property["forward"]>().toEqualTypeOf<undefined | Reference>();
+			expectTypeOf<Property["reverse"]>().toEqualTypeOf<undefined | Reference>();
+		});
+
 		test("Property states the values it admits as a range", () => {
 			expectTypeOf<Property<StringShape, 1, 1>>().toExtend<Range<StringShape, 1, 1>>();
 			expectTypeOf<Property<StringShape, undefined, undefined>>()

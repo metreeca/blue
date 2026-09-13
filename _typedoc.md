@@ -54,7 +54,7 @@ The plugin provides two guarantees, and each public symbol relies on one of them
   project, whether the target carries `@internal` or lives in a file that is not an entry point, is elided in every
   type TypeDoc renders: alias bodies, signatures, parameters and type parameter bounds. `property()` and the scalar
   factories rely on this, the former rendering as
-  `C & PropertyConstraints & Range<R, …, …> & { kind: "property" }` and the latter as `StringShape<…>`.
+  `C & PropertyConstraints<Reference> & Range<R, …, …> & { kind: "property" }` and the latter as `StringShape<…>`.
 
 The second guarantee is a safety net as well: any helper that leaks into a future public signature renders as `…`
 rather than as a dead name, with no per-site tagging.
@@ -148,9 +148,9 @@ tag and `excludeInternal` would silently stop excluding anything.
 
 # Limitations
 
-- **Flattened intersections.** `C & Property<R, …>` renders as `C & PropertyConstraints & Range<R, …, …> & { kind:
-  "property" }`: TypeScript drops the `Property` alias name inside an intersection before TypeDoc sees it. Unrelated to
-  the plugin and not fixable from it.
+- **Flattened intersections.** `C & Property<R, …>` renders as `C & PropertyConstraints<Reference> & Range<R, …, …> & {
+  kind: "property" }`: TypeScript drops the `Property` alias name inside an intersection before TypeDoc sees it.
+  Unrelated to the plugin and not fixable from it.
 - **External references stay.** A reference into `@metreeca/core` or `@metreeca/qest` carries an external URL and is
   left as it is, whether or not `externalSymbolLinkMappings` resolves it.
 - **Type tests import the helpers.** Test-only imports do not affect the docs, but the helpers remain part of the

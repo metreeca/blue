@@ -321,9 +321,10 @@ export type ResourceConstraints = {
 
 
 	/**
-	 * Default space for converting property names to IRIs.
+	 * Default namespace for mapping member names to predicates.
 	 *
-	 * Property names without explicit IRI mappings are resolved relative to this space.
+	 * A member stating neither a {@link PropertyConstraints.forward | forward} nor a
+	 * {@link PropertyConstraints.reverse | reverse} mapping is stored under its own name resolved against this space.
 	 *
 	 * **Inheritance** — inherited; conflicting parents without a child override are reported as an error.
 	 *
@@ -518,7 +519,8 @@ export type Type = {
  * A member carrying values of its own.
  *
  * States the shape its values are drawn from and how many of them a resource may carry, alongside the predicate the
- * values are stored under and the labels the member is presented by.
+ * values are stored under and the labels the member is presented by. The predicate is an absolute IRI: a
+ * {@link Namespace} shorthand stated where the member is declared is resolved by the time the shape is built.
  *
  * Localised text stands apart from the cardinality: a member ranging over a
  * {@link dictionary!DictionaryShape | dictionary} carries the language map whole, never in an array, whatever bounds
@@ -568,7 +570,7 @@ export type Property<
 	R extends Lazy<Shape> = Lazy<Shape>,
 	L extends Optional<number> = Optional<number>,
 	U extends Optional<number> = Optional<number>
-> = PropertyConstraints & Range<R, L, U> & {
+> = PropertyConstraints<Reference> & Range<R, L, U> & {
 
 	/**
 	 * Discriminator identifying this as a member carrying values.
@@ -585,9 +587,15 @@ export type Property<
  * States how a member is stored, presented and owned, leaving its cardinality to the factory naming it and its
  * {@link PropertyBounds | bounds} to the general-purpose one.
  *
+ * @typeParam M The form the {@link PropertyConstraints.forward | forward} and
+ *     {@link PropertyConstraints.reverse | reverse} mappings are stated in: a declaration accepts a {@link Namespace}
+ *     shorthand alongside an absolute IRI; a built {@link Property | property} carries the IRI it resolves to
+ *
  * @see {@link https://www.w3.org/TR/shacl/#property-shapes SHACL § 2.3 Property Shapes}
  */
-export type PropertyConstraints = {
+export type PropertyConstraints<
+	M extends Reference | Namespace = Reference | Namespace
+> = {
 
 	/**
 	 * Human-readable name for the property.
@@ -666,10 +674,11 @@ export type PropertyConstraints = {
 
 
 	/**
-	 * The absolute IRI identifying the property for direct mapping.
+	 * Maps the property to an absolute IRI for direct mapping.
 	 *
-	 * Accepts either an absolute IRI string or a {@link Namespace} function that resolves the property name to an
-	 * absolute IRI (for instance, `{ forward: schema }` on property `name` yields `http://schema.org/name`).
+	 * Accepts an absolute IRI or, as a shorthand, a {@link Namespace} resolving the property name against it (for
+	 * instance, `{ forward: schema }` on property `name` yields `http://schema.org/name`), narrowed on a built
+	 * {@link Property | property} to the IRI it denotes.
 	 *
 	 * > [!IMPORTANT]
 	 * > Both `forward` and {@link reverse} mappings write actual property values. This is independent from
@@ -677,15 +686,19 @@ export type PropertyConstraints = {
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
+	 * @defaultValue `undefined` (the property name resolved against the {@link ResourceConstraints.space | space} of
+	 * the shape declaring it, unless a {@link reverse} mapping is stated)
+	 *
 	 * @see {@link https://www.w3.org/TR/json-ld11/#iris JSON-LD 1.1 § 3.2 IRIs}
 	 */
-	readonly forward?: Reference | Namespace;
+	readonly forward?: M;
 
 	/**
-	 * The absolute IRI identifying the property for inverse mapping.
+	 * Maps the property to an absolute IRI for inverse mapping.
 	 *
-	 * Accepts either an absolute IRI string or a {@link Namespace} function that resolves the property name to an
-	 * absolute IRI (for instance, `{ reverse: schema }` on property `employee` yields `http://schema.org/employee`).
+	 * Accepts an absolute IRI or, as a shorthand, a {@link Namespace} resolving the property name against it (for
+	 * instance, `{ reverse: schema }` on property `employee` yields `http://schema.org/employee`), narrowed on a built
+	 * {@link Property | property} to the IRI it denotes.
 	 *
 	 * > [!IMPORTANT]
 	 * > Both {@link forward} and `reverse` mappings write actual property values. This is independent from
@@ -697,7 +710,7 @@ export type PropertyConstraints = {
 	 *
 	 * @see {@link https://www.w3.org/TR/json-ld11/#reverse-properties JSON-LD 1.1 § 4.8 Reverse Properties}
 	 */
-	readonly reverse?: Reference | Namespace;
+	readonly reverse?: M;
 
 }
 
