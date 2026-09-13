@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xl="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" viewBox="-79 396 554 483" width="554" height="483">
+<svg xmlns:xl="http://www.w3.org/1999/xlink" version="1.1" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns="http://www.w3.org/2000/svg" viewBox="-79 396 554 483" width="554" height="483">
   <defs>
     <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="StickArrow_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -10 26 20" markerWidth="26" markerHeight="20" color="black">
       <g>
@@ -18,7 +18,7 @@
       </g>
     </marker>
   </defs>
-  <g id="shape" stroke="none" fill-opacity="1" stroke-dasharray="none" fill="none" stroke-opacity="1">
+  <g id="shape" stroke-dasharray="none" fill="none" fill-opacity="1" stroke-opacity="1" stroke="none">
     <title>shape</title>
     <g id="shape_Layer_1">
       <title>Layer 1</title>
@@ -166,26 +166,26 @@
       </g>
       <g id="Group_924">
         <g id="Graphic_927">
-          <rect x="72.62595" y="763.8383" width="81.858" height="17.251999" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(78.62595 766.8383)" fill="black">
+          <rect x="72.62595" y="769.8383" width="81.858" height="17.251999" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+          <text transform="translate(78.62595 772.8383)" fill="black">
             <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">hidden?: boolean</tspan>
           </text>
         </g>
         <g id="Graphic_926">
-          <rect x="72.62595" y="746.5863" width="81.858" height="17.251999" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(78.62595 749.5863)" fill="black">
+          <rect x="72.62595" y="752.5863" width="81.858" height="17.251999" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+          <text transform="translate(78.62595 755.5863)" fill="black">
             <tspan font-family="Helvetica Neue" font-size="9" fill="black" x="0" y="9" xml:space="preserve">kind:”type”</tspan>
           </text>
         </g>
         <g id="Graphic_925">
-          <rect x="72.62595" y="729.3252" width="81.858" height="17.261063" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
-          <text transform="translate(103.63695 732.3252)" fill="black">
+          <rect x="72.62595" y="735.3252" width="81.858" height="17.261063" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+          <text transform="translate(103.63695 738.3252)" fill="black">
             <tspan font-family="Helvetica Neue" font-weight="bold" font-size="9" fill="black" x="0" y="9" xml:space="preserve">Type</tspan>
           </text>
         </g>
       </g>
       <g id="Line_923">
-        <line x1="113.55495" y1="729.3252" x2="113.55495" y2="715.4533" marker-end="url(#NegativeControls_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
+        <line x1="113.55495" y1="735.3252" x2="113.55495" y2="715.4533" marker-end="url(#NegativeControls_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width=".25"/>
       </g>
       <g id="Group_916">
         <g id="Group_918">
