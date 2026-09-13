@@ -16,6 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
+import { dictionary } from "../dictionary/index.js";
 import { number } from "../number/index.js";
 import { reference } from "../reference/index.js";
 import {
@@ -178,6 +179,14 @@ describe("getModelBranches", () => {
 		const branches = [reference(target()), string()];
 
 		expect(getModelBranches("app:/vendors/1", branches)).toEqual(branches);
+
+	});
+
+	it("fits a localised branch by the tag ranges it names", async () => {
+
+		const map = dictionary({ uniqueLang: true });
+
+		expect(getModelBranches({ "*": "" }, [string(), map])).toEqual([map]);
 
 	});
 

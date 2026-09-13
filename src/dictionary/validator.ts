@@ -25,7 +25,7 @@
  */
 
 import { isArray, isObject, isString, opt as fold, type Optional } from "@metreeca/core";
-import { isTag, matchTag, type Tag } from "@metreeca/core/language";
+import { isTag, isTagRange, matchTag, type Tag } from "@metreeca/core/language";
 import { all, array, fail, length, object, type Trace, type Validator } from "@metreeca/core/trace";
 import type { Scope } from "../value/validator.js";
 import { type DictionaryShape } from "./index.js";
@@ -44,7 +44,9 @@ import { type DictionaryShape } from "./index.js";
  * @param shape The shape the values are matched against
  * @param opts Validation options
  * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A language map
- *     carries no lexical discriminator, so `"bound"` matches by form alone, exactly as `"model"` does
+ *     carries no lexical discriminator, so `"bound"` matches by form alone, exactly as `"model"` does. A `"model"`
+ *     placeholder names the language ranges wanted rather than the tags they match, the `*` wildcard included, so it
+ *     is keyed by range where a value is keyed by tag
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
  */
@@ -86,7 +88,7 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 
 	}: DictionaryShape): Validator<readonly unknown[]> {
 
-		return map(uniqueLang,
+		return map(uniqueLang, isTag, "invalid tag",
 
 			(tag, content) => all(
 				length(minLength, maxLength),
@@ -104,13 +106,13 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 
 	function bound({ uniqueLang }: DictionaryShape): Validator<readonly unknown[]> {
 
-		return map(uniqueLang, () => undefined, () => undefined);
+		return map(uniqueLang, isTag, "invalid tag", () => undefined, () => undefined);
 
 	}
 
 	function model({ uniqueLang }: DictionaryShape): Validator<readonly unknown[]> {
 
-		return map(uniqueLang, () => undefined, () => undefined);
+		return map(uniqueLang, isTagRange, "invalid tag range", () => undefined, () => undefined);
 
 	}
 
@@ -118,13 +120,15 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 	/**
 	 * Builds a validator enforcing the form of every language map in a set, holding each entry to the stated arity.
 	 *
-	 * Reports a value that is not a language map as a `{kind}` violation, and a key that is not a language tag or an
-	 * entry stated at the other per-tag arity as an entry violation keyed by the tag; every violation is keyed by the
-	 * index of the map carrying it in the validated set. A surviving entry is handed to `unique` or to `stacked`,
-	 * according to the arity the shape states.
+	 * Reports a value that is not a language map as a `{kind}` violation, and a key `admits` turns down or an entry
+	 * stated at the other per-tag arity as an entry violation keyed by the key; every violation is keyed by the index
+	 * of the map carrying it in the validated set. A surviving entry is handed to `unique` or to `stacked`, according
+	 * to the arity the shape states.
 	 */
 	function map(
 		uniqueLang: undefined | boolean,
+		admits: (key: string) => boolean,
+		invalid: string,
 		unique: (tag: Tag, content: string) => Optional<Trace>,
 		stacked: (tag: Tag, content: readonly string[]) => Optional<Trace>
 	): Validator<readonly unknown[]> {
@@ -132,7 +136,7 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 		return array((value: unknown) => !isObject(value) ? ["{kind} expected <dictionary> value"]
 
 			: object(([tag, text]: readonly [string, unknown]) =>
-				!isTag(tag) ? [{ [tag]: ["invalid tag"] }]
+				!admits(tag) ? [{ [tag]: [invalid] }]
 					: uniqueLang === true
 						? isString(text)
 							? fold(unique(tag, text), trace => [{ [tag]: trace }])

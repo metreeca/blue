@@ -408,4 +408,39 @@ describe("validateDictionary", () => {
 
 	});
 
+	describe("bound scope", () => {
+
+		// a bound is a value, so it names the tag it filters rather than the range a placeholder wants
+
+		it("rejects a key that is not a tag", async () => {
+
+			expect(at(validateDictionary([{ "*": "hi" }], dictionary({ uniqueLang: true }), { scope: "bound" }), "*"))
+				.toEqual(["invalid tag"]);
+
+		});
+
+	});
+
+	describe("model scope", () => {
+
+		const unique = dictionary({ uniqueLang: true });
+
+		// a placeholder names the language ranges wanted rather than the tags they match, the wildcard included
+
+		it("admits the tag ranges a placeholder names", async () => {
+
+			expect(validateDictionary([{ "*": "" }], unique, { scope: "model" })).toBeUndefined();
+			expect(validateDictionary([{ en: "" }], unique, { scope: "model" })).toBeUndefined();
+
+		});
+
+		it("reports a key that is not a tag range", async () => {
+
+			expect(at(validateDictionary([{ "de-*": "" }], unique, { scope: "model" }), "de-*"))
+				.toEqual(["invalid tag range"]);
+
+		});
+
+	});
+
 });
