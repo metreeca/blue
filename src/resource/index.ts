@@ -298,7 +298,7 @@ export type ResourceConstraints = {
 	 *
 	 * SHACL defines sh:name only for property shapes; extended here to node shapes.
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name and sh:description}
 	 */
 	readonly name?: string | Dictionary;
 
@@ -315,7 +315,7 @@ export type ResourceConstraints = {
 	 *
 	 * SHACL defines sh:description only for property shapes; extended here to node shapes.
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name and sh:description}
 	 */
 	readonly description?: string | Dictionary;
 
@@ -602,13 +602,13 @@ export type PropertyConstraints<
 	 *
 	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a plain
 	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
-	 * {@link Property.name | resolved property}.
+	 * {@link Property | resolved property}.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
 	 * @defaultValue `undefined` (no label)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name}
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name and sh:description}
 	 */
 	readonly name?: string | Dictionary;
 
@@ -617,13 +617,13 @@ export type PropertyConstraints<
 	 *
 	 * Accepts a localised {@link Dictionary} or, as a shorthand for the English-only case, a
 	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
-	 * {@link Property.description | resolved property}.
+	 * {@link Property | resolved property}.
 	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
 	 * @defaultValue `undefined` (no description)
 	 *
-	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:description}
+	 * @see {@link https://www.w3.org/TR/shacl/#name SHACL § 2.3.2.1 sh:name and sh:description}
 	 */
 	readonly description?: string | Dictionary;
 
