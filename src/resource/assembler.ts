@@ -394,8 +394,8 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 			case "reference":
 
-				// a deferred target is carried as stated: the resolution under way is keyed on the thunk, so a
-				// wrapper of its own would hide it and have the narrowing check report a cycle that is not one
+				// a deferred target is carried as stated: resolving it merges the shape it states, as for any
+				// deferred range, so a wrapper of its own would add an indirection merging nothing further
 
 				return { ...range, target: isFunction(range.target) ? range.target : flatten(range.target) };
 

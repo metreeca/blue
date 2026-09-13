@@ -16,6 +16,7 @@
 
 import { TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
+import { eager } from "../value/index.js";
 import { mergeReference, narrowsReference } from "./assembler.js";
 import { reference } from "./index.js";
 import { resource, type ResourceConstraints, type ResourceShape } from "../resource/index.js";
@@ -123,6 +124,24 @@ describe("mergeReference", () => {
 			reference(target({ pattern: "/users/{id}" })),
 			reference(target({ pattern: "/vendors/{id}" }))
 		)).toThrow(TraceError);
+
+	});
+
+	it("crosses a deferred target narrowing the inherited one", async () => {
+
+		const merged = mergeReference(reference(() => Narrower), reference(Wider));
+
+		expect(eager(merged.target)).toBe(Narrower);
+
+	});
+
+	it("rejects a divergent deferred target as the link is crossed", async () => {
+
+		const Unrelated = target({ pattern: "/vendors/{id}" });
+
+		const merged = mergeReference(reference(() => Unrelated), reference(target({ pattern: "/users/{id}" })));
+
+		expect(() => eager(merged.target)).toThrow(TraceError);
 
 	});
 

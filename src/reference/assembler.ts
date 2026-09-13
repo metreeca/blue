@@ -19,16 +19,15 @@
  *
  * Builds the shape the factory states into the form its consumers read, and combines it with the one it overrides: an
  * extension is held to the shape it refines, narrowing exactly when its target is the inherited target or extends it,
- * with a target still being resolved left to the resolution that will state it.
+ * with a target deferred to break a definition cycle held to the same rule as the link is first crossed.
  *
  * @module
  */
 
-import { type Lazy, type Optional } from "@metreeca/core";
+import { isFunction, type Lazy, type Optional } from "@metreeca/core";
 import { equals, immutable } from "@metreeca/core/structures";
 import { test, type Trace, TraceError } from "@metreeca/core/trace";
 import { eager } from "../value/index.js";
-import { resolving } from "../value/accessors.js";
 import type { ReferenceShape } from "./index.js";
 import type { ResourceShape } from "../resource/index.js";
 
@@ -67,22 +66,22 @@ export function assemble<T extends Lazy<ResourceShape>>(target: T): ReferenceSha
  * shape it points at, so it narrows the inherited one exactly when its target is the inherited target or extends it,
  * directly or transitively.
  *
- * A target still being resolved is left to the resolution already under way: a link is deferred exactly so that a
- * definition may reach itself, so holding such a target to an inheritance chain not yet stated would rule out a shape
- * re-pointed at one extending it, or a pair of shapes re-pointed at each other. The chain is read once it stands, so
- * an incompatible target is still reported.
+ * A deferred target is admitted unread: a link is deferred exactly so that a definition may reach itself, so resolving
+ * one here would state a definition the shape being built is part of, which is what a deferral withholds. The
+ * obligation is not waived but carried by {@link mergeReference} to the link itself, which holds the target to the
+ * inherited chain when it is first crossed.
  *
  * @param target The overriding shape
  * @param source The inherited shape
  *
- * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source` or points at a
- *     definition still being resolved
+ * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source` or defers the
+ *     shape it points at
  */
 export function narrowsReference(target: ReferenceShape, source: ReferenceShape): Optional<Trace> {
 
 	return test<ReferenceShape>(({ target: pointed }) => {
 
-		return resolving(pointed) || extended(eager(pointed), eager(source.target)) || [
+		return isFunction(pointed) || extended(eager(pointed), eager(source.target)) || [
 			`{target} incompatible <target> override`
 		];
 
@@ -114,23 +113,38 @@ export function narrowsReference(target: ReferenceShape, source: ReferenceShape)
  * Merges a reference shape with an inherited one.
  *
  * Yields the single shape an extending member is validated against: the overriding target, which already carries the
- * inherited definition through its own inheritance chain.
+ * inherited definition through its own inheritance chain. A target stated outright is held to that chain at once; a
+ * deferred one is held to it as the link is first crossed, its chain standing only then, so that a shape re-pointed at
+ * one extending it merges whatever order the definitions happen to be built in.
  *
  * @param target The overriding shape
  * @param source The inherited shape
  *
- * @returns An immutable shape pointing at the narrower of the two targets
+ * @returns An immutable shape pointing at the narrower of the two targets, deferred where `target` defers it
  *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` states a shape that doesn't narrow `source`;
+ *     where it defers one, the same report is raised as the link is crossed
  */
 export function mergeReference(target: ReferenceShape, source: ReferenceShape): ReferenceShape {
 
-	const trace = narrowsReference(target, source);
+	const { target: pointed } = target;
 
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible reference shape override", trace);
+	return assemble(isFunction(pointed) ? () => narrowed(eager(pointed)) : narrowed(pointed));
+
+
+	/**
+	 * Holds a stated target to the inherited chain.
+	 */
+	function narrowed(shape: ResourceShape): ResourceShape {
+
+		const trace = narrowsReference(assemble(shape), source);
+
+		if ( trace !== undefined ) {
+			throw new TraceError("incompatible reference shape override", trace);
+		}
+
+		return shape;
+
 	}
-
-	return assemble(target.target);
 
 }

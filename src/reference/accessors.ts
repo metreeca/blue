@@ -19,7 +19,8 @@
  * Reference shape accessors.
  *
  * Reads off a range the resource shape it reaches, crossing a link and taking a resource to itself, so that a caller
- * needs not tell a link from a resource carried inline.
+ * needs not tell a link from a resource carried inline. Crossing a link whose target was deferred to break a
+ * definition cycle is where a re-pointed target is held to the one it overrides.
  *
  * @module
  */
@@ -40,6 +41,9 @@ import type { ResourceShape } from "../resource/index.js";
  * @param shape The range to resolve, possibly deferred to break definition cycles
  *
  * @returns The resource shape `shape` points at, or `undefined` where it points at none
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the target is deferred and the definition it states
+ *     doesn't narrow the target of the link it overrides
  */
 export function getShapeTarget(shape: Lazy<Shape>): undefined | ResourceShape {
 

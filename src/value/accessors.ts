@@ -19,8 +19,7 @@
  *
  * Reads what a shape reaches, so that a caller needs not walk it: a definition deferred to break a cycle is resolved
  * to the shape it states, with inheritance already merged, and a path and transform pipe to the range their values are
- * drawn from, which is what types a projection binding or a selection operand. A caller reached from within a
- * resolution is told whether a definition is the one already under way.
+ * drawn from, which is what types a projection binding or a selection operand.
  *
  * @module
  */
@@ -119,7 +118,8 @@ const shapes = new WeakMap<() => Shape | Range, null | Shape | Range>();
  * @returns The shape or range `shape` states, merged where it describes a resource
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, leaving the
- *     shape it states undefined
+ *     shape it states undefined, or where it states a target that doesn't narrow the one the link it is reached
+ *     through overrides
  */
 export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
 
@@ -174,23 +174,6 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
 }
 
 /**
- * Checks whether a definition is being resolved.
- *
- * Tells a definition whose resolution is already under way from one a caller may resolve in its own right, so that a
- * caller reached from within a resolution leaves to it what only it can settle, rather than reaching for a shape not
- * yet stated. A definition stated outright, or one {@link eager} has already resolved, is never under resolution.
- *
- * @param shape The shape or range to test, possibly deferred to break definition cycles
- *
- * @returns true if `shape` is a deferred definition whose resolution is under way; false otherwise
- */
-export function resolving(shape: Lazy<Shape | Range>): boolean {
-
-	return isFunction(shape) && shapes.get(shape) === null;
-
-}
-
-/**
  * Resolves the values a probe reaches.
  *
  * Yields the range a {@link Probe | probe} resolves to against a shape: the shapes its values may be drawn from and
@@ -229,7 +212,8 @@ export function resolving(shape: Lazy<Shape | Range>): boolean {
  *     `"incompatible transform input"` where no alternative survives the transforms
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, leaving the
- *     shape it states undefined
+ *     shape it states undefined, or where it states a target that doesn't narrow the one the link it is reached
+ *     through overrides
  * @throws {@link !TypeError TypeError} Where `probe` is not a well-formed probe
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}

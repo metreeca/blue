@@ -37,6 +37,9 @@ import type { Members } from "./index.js";
  * @param shape The range to resolve, possibly deferred to break definition cycles
  *
  * @returns The class the target shape declares, or `undefined` where it declares none
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
+ *     target that doesn't narrow the one the link it is reached through overrides
  */
 export function getShapeClass(shape: Lazy<Shape>): undefined | Reference {
 
@@ -50,6 +53,9 @@ export function getShapeClass(shape: Lazy<Shape>): undefined | Reference {
  * @param shape The range to resolve, possibly deferred to break definition cycles
  *
  * @returns The classes the target shape inherits, or `undefined` where it extends nothing stating one
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
+ *     target that doesn't narrow the one the link it is reached through overrides
  */
 export function getShapeClasses(shape: Lazy<Shape>): undefined | readonly Reference[] {
 
@@ -63,6 +69,9 @@ export function getShapeClasses(shape: Lazy<Shape>): undefined | readonly Refere
  * @param shape The range to resolve, possibly deferred to break definition cycles
  *
  * @returns The name the identifier is stated under, or `undefined` where the target states none
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
+ *     target that doesn't narrow the one the link it is reached through overrides
  */
 export function getShapeId(shape: Lazy<Shape>): undefined | Identifier {
 
@@ -78,6 +87,9 @@ export function getShapeId(shape: Lazy<Shape>): undefined | Identifier {
  * @param shape The range to resolve, possibly deferred to break definition cycles
  *
  * @returns The name the class is stated under, or `undefined` where the target states none
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
+ *     target that doesn't narrow the one the link it is reached through overrides
  */
 export function getShapeType(shape: Lazy<Shape>): undefined | Identifier {
 
@@ -93,6 +105,9 @@ export function getShapeType(shape: Lazy<Shape>): undefined | Identifier {
  * @param shape The range to resolve, possibly deferred to break definition cycles
  *
  * @returns The members of the target shape, or no member at all where the range points at no resource
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
+ *     target that doesn't narrow the one the link it is reached through overrides
  */
 export function getShapeProperties(shape: Lazy<Shape>): Members {
 

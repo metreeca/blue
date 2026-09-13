@@ -201,6 +201,28 @@ describe("flatten", () => {
 
 		});
 
+		it("re-points a member whatever the order the shapes are first built in", async () => {
+
+			function OrganizationBase(): ResourceShape {
+				return resource({ unit: multiple(reference(UnitBase)) });
+			}
+
+			function UnitBase(): ResourceShape {
+				return resource(OrganizationBase, {});
+			}
+
+			function Organization(): ResourceShape {
+				return resource(OrganizationBase, { unit: multiple(reference(Unit)) });
+			}
+
+			function Unit(): ResourceShape {
+				return resource(Organization, UnitBase, {});
+			}
+
+			expect(Object.keys(Unit().members)).toEqual(["unit"]);
+
+		});
+
 		it("re-points both ends of a pair of shapes reaching each other", async () => {
 
 			function SchemeBase(): ResourceShape {
@@ -311,6 +333,18 @@ describe("flatten", () => {
 			const target = getShapeTarget(getProperty(shape, "link")?.shape ?? string());
 
 			expect(Object.keys(target?.members ?? {})).toEqual(expect.arrayContaining(["id", "label"]));
+
+		});
+
+		it("rejects re-pointing an inherited link at an unrelated target deferred to break a cycle", async () => {
+
+			const Wider = resource({ id: id() }, { pattern: "/wider/{id}" });
+			const Unrelated = resource({ id: id() }, { pattern: "/unrelated/{id}" });
+
+			const Base = resource({ link: required(reference(Wider)) });
+			const shape = resource(Base, { link: required(reference(() => Unrelated)) });
+
+			expect(() => getShapeTarget(getProperty(shape, "link")?.shape ?? string())).toThrow(TraceError);
 
 		});
 
