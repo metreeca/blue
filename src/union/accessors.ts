@@ -24,6 +24,7 @@
  */
 
 import { isObject, type Lazy } from "@metreeca/core";
+import { validateTemplate } from "../resource/validator.js";
 import { eager } from "../value/index.js";
 import { validateShape } from "../value/validator.js";
 import type { Shape } from "../value/index.js";
@@ -105,11 +106,14 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
  * Picks every branch a retrieval placeholder fits.
  *
  * Routes a placeholder to all branches it may draw from, so that a caller retrieving against a polymorphic range needs
- * not know which branch a value was stored on. A placeholder is matched by JSON type alone, its value immaterial, so
- * it may span several branches and retrieve each; only one fitting no branch at all is unsatisfiable.
+ * not know which branch a value was stored on. A placeholder discriminates nothing on its own, so it may span several
+ * branches and retrieve each; only one fitting no branch at all is unsatisfiable.
  *
- * A branch naming a resource is reached either way it may be asked for: by the identifier naming it, or by a nested
- * template, which is matched against the resource the link points at rather than against the link itself.
+ * A placeholder standing for a literal or a link fits by JSON type alone, its value immaterial. A nested template fits
+ * by the members it asks for instead, so that a branch naming a resource is reached either way it may be asked for: by
+ * the identifier naming it, or by a template crossing the link to the resource it points at. A template states what to
+ * bring back rather than what is held, so it is held to the members the resource declares but not to their presence:
+ * leaving one out routes the template all the same.
  *
  * @typeParam B The branch type, carried through from the branches supplied
  *
@@ -122,11 +126,17 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
  */
 export function getModelBranches<B extends Shape>(model: unknown, branches: readonly B[]): undefined | readonly B[] {
 
-	const matched = branches.filter(branch => validateShape(
-		[model],
-		isObject(model) && branch.kind === "reference" ? eager(branch.target) : branch,
-		{ scope: "model" }
-	) === undefined);
+	const matched = branches.filter(branch => {
+
+		// a template crosses a link, standing for the resource it points at rather than for the link itself
+
+		const admits = isObject(model) && branch.kind === "reference" ? eager(branch.target) : branch;
+
+		return isObject(model) && admits.kind === "resource"
+			? validateTemplate([model], admits) === undefined
+			: validateShape([model], admits, { scope: "model" }) === undefined;
+
+	});
 
 	return matched.length > 0 ? matched : undefined;
 

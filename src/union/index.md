@@ -109,10 +109,13 @@ that project the property, and, inside a collection query, the **operands** of a
 
 A model placeholder MUST match **at least one** branch (`sh:or`), but no more is required. Matching tests **kind (type
 compatibility) alone** and ignores every other constraint: a literal placeholder matches every branch of its processing
-kind, a reference placeholder every reference branch, and a template placeholder every nested-resource branch whose type
-its members fit. The placeholder's value is **immaterial** and need not be a legal value of any branch, so it selects
-nothing on its own; it only names, by kind, the branches to project. A placeholder matching several branches retrieves
-each; one matching **no** branch is **unsatisfiable** and rejected, exactly as a state value is.
+kind, a reference placeholder every reference branch, and a template placeholder every resource branch declaring the
+members it asks for, reached either directly or across a reference branch pointing at that resource. A template states
+what to bring back rather than what is held, so it is held to the declared members but **not to their presence**: a
+template asking for part of a resource matches it all the same. The placeholder's value is **immaterial** and need not
+be a legal value of any branch, so it selects nothing on its own; it only names, by kind, the branches to project. A
+placeholder matching several branches retrieves each; one matching **no** branch is **unsatisfiable** and rejected,
+exactly as a state value is.
 
 The keyed union form supplies one alternative placeholder per branch, keyed by opaque non-negative integer strings that
 carry no positional meaning. Each alternative is matched independently, so several alternatives may resolve to

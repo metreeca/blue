@@ -18,7 +18,14 @@ import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
 import { number } from "../number/index.js";
 import { reference } from "../reference/index.js";
-import { optional, type Parents, resource, type ResourceConstraints, type ResourceShape } from "../resource/index.js";
+import {
+	optional,
+	type Parents,
+	required,
+	resource,
+	type ResourceConstraints,
+	type ResourceShape
+} from "../resource/index.js";
 import { string } from "../string/index.js";
 import { getBoundBranch, getModelBranches, getShapeBranches, getStateBranch } from "./accessors.js";
 import { union } from "./index.js";
@@ -214,6 +221,24 @@ describe("getModelBranches", () => {
 			const link = reference(Vendor);
 
 			expect(getModelBranches({ nope: "" }, [number(), link])).toBeUndefined();
+
+		});
+
+		// a template states what to bring back, never what is held, so a slot the shape declares may be left out
+
+		const Postal = resource({ street: required(string()), city: required(string()) });
+
+		it("fits an embedded resource branch asked for in part", async () => {
+
+			expect(getModelBranches({ city: "" }, [string(), Postal])).toEqual([Postal]);
+
+		});
+
+		it("fits a reference branch asked for in part through its target", async () => {
+
+			const link = reference(Postal);
+
+			expect(getModelBranches({ city: "" }, [string(), link])).toEqual([link]);
 
 		});
 

@@ -89,8 +89,10 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  * - a **relational bound** singles out **exactly one** branch as well, but keys on syntactic traits alone (the value's
  *   `kind` and, where branches share it, their lexical `pattern`), as a bound filters by order and need not be a legal
  *   value of the branch it selects;
- * - a **retrieval placeholder** matches **at least one** branch by JSON type alone, ignoring every other constraint,
- *   and retrieves each branch it fits, as its value is immaterial and discriminates nothing.
+ * - a **retrieval placeholder** matches **at least one** branch and retrieves each branch it fits, as its value is
+ *   immaterial and discriminates nothing: a literal or link placeholder matches by JSON type alone, ignoring every
+ *   other constraint, a nested template by the members it asks for, which the resource branch must declare though the
+ *   template needs not ask for them all.
  *
  * An input matching no branch is rejected as unsatisfiable, and one required to single out a branch but matching
  * several is rejected as ambiguous. A text search singles out no branch at all: it filters every textual branch
