@@ -159,7 +159,7 @@ import { type Validator } from "@metreeca/core/trace";
 import type { Dictionary, Reference, Resource } from "@metreeca/qest/resource";
 import type { Range, Shape } from "../value/index.js";
 import { assemble, declare } from "./assembler.js";
-import type { Declared } from "./inference.js";
+import type { Declared, Unbounded } from "./inference.js";
 
 export {
 	getShapeClass,
@@ -518,9 +518,10 @@ export type Type = {
 /**
  * A member carrying values of its own.
  *
- * States the shape its values are drawn from and how many of them a resource may carry, alongside the predicate the
- * values are stored under and the labels the member is presented by. The predicate is an absolute IRI: a
- * {@link Namespace} shorthand stated where the member is declared is resolved by the time the shape is built.
+ * Holds the {@link Range | range} its values are drawn from, stating their shape and how many of them a resource may
+ * carry, alongside the predicate the values are stored under and the labels the member is presented by. The predicate
+ * is an absolute IRI: a {@link Namespace} shorthand stated where the member is declared is resolved by the time the
+ * shape is built.
  *
  * Localised text stands apart from the cardinality: a member ranging over a
  * {@link dictionary!DictionaryShape | dictionary} carries the language map whole, never in an array, whatever bounds
@@ -542,12 +543,11 @@ export type Type = {
  * | `description` | Cannot be overridden                                                             |
  * | `forward`     | Cannot be overridden                                                             |
  * | `reverse`     | Cannot be overridden                                                             |
- * | `minCount`    | Child may only raise the lower bound                                             |
- * | `maxCount`    | Child may only lower the upper bound                                             |
- * | `shape`       | Child may only narrow the inherited range                                        |
+ * | `range`       | Child may only narrow the inherited range, bound by bound and shape by shape     |
  *
- * A bound left unstated leaves that end unbounded rather than unsaid, so a child stating none inherits the bound the
- * parent states.
+ * A child narrows the range it inherits by raising its lower bound, lowering its upper bound or restricting its
+ * shape, and never the other way round. A bound left unstated leaves that end unbounded rather than unsaid, so a
+ * child stating none inherits the bound the parent states.
  *
  * A child narrowing a {@link ResourceShape | resource} range states a shape belonging to every
  * {@link ResourceConstraints.class | class} the inherited range declares, whether stated in its own right or
@@ -558,7 +558,7 @@ export type Type = {
  *
  * **Cross-field validation**
  *
- * - the merged `minCount` must not exceed the merged `maxCount`, which each may narrow on its own and still cross
+ * - the merged lower bound must not exceed the merged upper bound, which each may narrow on its own and still cross
  *
  * @typeParam R The shape the values are drawn from, possibly deferred to break definition cycles
  * @typeParam L The least number of values admitted
@@ -570,7 +570,7 @@ export type Property<
 	R extends Lazy<Shape> = Lazy<Shape>,
 	L extends Optional<number> = Optional<number>,
 	U extends Optional<number> = Optional<number>
-> = PropertyConstraints<Reference> & Range<R, L, U> & {
+> = PropertyConstraints<Reference> & {
 
 	/**
 	 * Discriminator identifying this as a member carrying values.
@@ -578,6 +578,17 @@ export type Property<
 	 * **Inheritance** — cannot be overridden.
 	 */
 	readonly kind: "property"
+
+	/**
+	 * Value set the property carries.
+	 *
+	 * States the shape every value is drawn from and how many of them a resource may carry. A path resolved through
+	 * the property yields a {@link Range} of the same form, so the range a property states and the one a path reaches
+	 * are read alike.
+	 *
+	 * **Inheritance** — child may only narrow the inherited range, bound by bound and shape by shape.
+	 */
+	readonly range: Range<R, L, U>
 
 }
 
@@ -956,7 +967,8 @@ export function required<
  * Creates a member carrying a stated number of values.
  *
  * Reads the cardinality off the `minCount` and `maxCount` the {@link PropertyBounds | constraints} state, for the
- * bounds the four named factories leave uncovered; a bound left unstated leaves that end unbounded.
+ * bounds the four named factories leave uncovered; a bound left unstated leaves that end unbounded. The bounds are
+ * carried by the range of the built {@link Property | property} alone, not restated beside its other constraints.
  *
  * @typeParam R The shape the values are drawn from
  * @typeParam C The stated constraints and cardinality bounds
@@ -982,7 +994,7 @@ export function property<
 	const C extends PropertyBounds = {} // ;( {} prevents C from being inferred as Member
 >(
 	range: R, constraints?: C
-): NoInfer<C> & Property<R, Declared<C, "minCount">, Declared<C, "maxCount">> {
+): NoInfer<Unbounded<C>> & Property<R, Declared<C, "minCount">, Declared<C, "maxCount">> {
 
 	return member(range, constraints, constraints?.minCount, constraints?.maxCount);
 
@@ -1001,15 +1013,17 @@ function member<M>(
 	maxCount: Optional<number>
 ): M {
 
+	// the bounds a caller states alongside the constraints are carried by the range alone
+
+	const { minCount: _stated, maxCount: _bound, ...stated } = constraints ?? {};
+
 	return declare({
 
 		kind: "property",
 
-		...constraints,
+		...stated,
 
-		minCount,maxCount,
-
-		shape
+		range: { minCount, maxCount, shape }
 
 	});
 

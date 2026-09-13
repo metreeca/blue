@@ -1043,7 +1043,7 @@ describe("effective", () => {
 
 		it("reads a property as the range it declares", async () => {
 
-			const reached = range(effective(required(integer()), probe([])));
+			const reached = range(effective(required(integer()).range, probe([])));
 
 			expect(reached.shape).toEqual(integer());
 			expect(reached.minCount).toBe(1);

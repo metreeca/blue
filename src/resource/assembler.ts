@@ -287,7 +287,8 @@ export function assemble(args: readonly unknown[]): ResourceShape {
  */
 export function declare<M>(member: Record<string, unknown>): M {
 
-	const { minCount, maxCount } = member;
+	const { range } = member;
+	const { minCount, maxCount } = isObject(range) ? range : {};
 
 	if ( isNumber(minCount) && minCount < 0 ) {
 		throw new TypeError(`negative minCount <${minCount}>`);
@@ -361,7 +362,9 @@ export function flatten(shape: ResourceShape): ResourceShape {
 		classes,
 
 		members: Object.fromEntries(Object.entries(merged.members).map(([name, member]) =>
-			member.kind === "property" ? [name, { ...member, shape: descend(member.shape) }] : [name, member]
+			member.kind === "property"
+				? [name, { ...member, range: { ...member.range, shape: descend(member.range.shape) } }]
+				: [name, member]
 		))
 
 	}), Flattened, null);
@@ -666,8 +669,8 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): O
  * Reports whether a member narrows an inherited one.
  *
  * Tests the override relation without building the merged member: a member narrows the inherited one where it leaves
- * the fields it may not override untouched, leaves neither cardinality bound wider, and states a range narrowing the
- * inherited one.
+ * the fields it may not override untouched and states a range narrowing the inherited one, bound by bound and shape
+ * by shape.
  *
  * @param target The overriding member
  * @param source The inherited member
@@ -711,27 +714,27 @@ export function narrowsProperty(target: Property, source: Property): Optional<Tr
 		}),
 		// an unstated bound leaves that end unbounded rather than unsaid, so it is read as the widest one
 
-		test(({ minCount }) => {
+		test(({ range: { minCount } }) => {
 
-			return (minCount ?? 0) >= (source.minCount ?? 0) || [
-				`{minCount} widened limit <${minCount}> beyond <${source.minCount}>`
+			return (minCount ?? 0) >= (source.range.minCount ?? 0) || [
+				`{minCount} widened limit <${minCount}> beyond <${source.range.minCount}>`
 			];
 
 		}),
-		test(({ maxCount }) => {
+		test(({ range: { maxCount } }) => {
 
-			return (maxCount ?? Infinity) <= (source.maxCount ?? Infinity) || [
-				`{maxCount} widened limit <${maxCount}> beyond <${source.maxCount}>`
+			return (maxCount ?? Infinity) <= (source.range.maxCount ?? Infinity) || [
+				`{maxCount} widened limit <${maxCount}> beyond <${source.range.maxCount}>`
 			];
 
 		}),
-		() => narrowsShape(eager(target.shape), eager(source.shape)),
+		() => narrowsShape(eager(target.range.shape), eager(source.range.shape)),
 
 		// the bounds the merged member carries, which each may narrow on its own and still cross
 
 		() => checkBounds({
-			minCount: target.minCount ?? source.minCount,
-			maxCount: target.maxCount ?? source.maxCount
+			minCount: target.range.minCount ?? source.range.minCount,
+			maxCount: target.range.maxCount ?? source.range.maxCount
 		})
 	)(target);
 
@@ -807,9 +810,9 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 /**
  * Merges a member with an inherited one.
  *
- * Yields the single member an extending resource is validated against: the tighter of the two cardinality bounds, the
- * merged range, and the fields the override may not restate carried through from the inherited member. `hidden` falls
- * back to the inherited value where the override leaves it unstated.
+ * Yields the single member an extending resource is validated against: a range taking the tighter of the two
+ * cardinality bounds over the merged shape, and the fields the override may not restate carried through from the
+ * inherited member. `hidden` falls back to the inherited value where the override leaves it unstated.
  *
  * @param target The overriding member
  * @param source The inherited member
@@ -839,10 +842,14 @@ export function mergeProperty(target: Property, source: Property): Property {
 		...source.foreign !== undefined && { foreign: source.foreign },
 		...source.captive !== undefined && { captive: source.captive },
 
-		minCount: target.minCount ?? source.minCount,
-		maxCount: target.maxCount ?? source.maxCount,
+		range: {
 
-		shape: mergeShape(eager(target.shape), eager(source.shape))
+			minCount: target.range.minCount ?? source.range.minCount,
+			maxCount: target.range.maxCount ?? source.range.maxCount,
+
+			shape: mergeShape(eager(target.range.shape), eager(source.range.shape))
+
+		}
 
 	});
 

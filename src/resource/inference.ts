@@ -51,14 +51,30 @@ export type Carried<S extends Lazy<Shape>> =
  * Resolves the members a list of extended shapes contributes.
  *
  * Yields the members every extended shape carries, so that a constraint stated anywhere up the chain reaches every
- * extending resource and shapes agreeing on a member pass it on as it stands.
+ * extending resource and shapes agreeing on a member pass it on as it stands. A member stated by two shapes with
+ * ranges no single value satisfies is voided, so that the conflict surfaces where the state is resolved rather than
+ * settling on either side.
  *
  * @typeParam P The extended shapes, possibly deferred to break definition cycles
  */
 export type Inherited<P extends Parents> =
 	P extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends Parents]
-		? Carried<H> & Inherited<T>
+		? Settled<Carried<H> & Inherited<T>>
 		: {}
+
+/**
+ * Settles the members several extended shapes contribute into a single record.
+ *
+ * Yields one record carrying every member the shapes state, voiding a member whose ranges no single value satisfies
+ * rather than carrying it as a range nothing fits.
+ *
+ * @typeParam M The members to settle
+ */
+type Settled<M> = {
+
+	readonly [field in keyof M]: M[field] extends { readonly range: never } ? never : M[field]
+
+}
 
 /**
  * Merges declared members over inherited ones.
@@ -302,3 +318,14 @@ export type Skippable<L extends Optional<number>> =
  */
 export type Declared<C extends PropertyBounds, K extends keyof PropertyBounds> =
 	K extends keyof C ? C[K] : undefined
+
+/**
+ * Resolves the constraints a property carries in its own right.
+ *
+ * Yields the stated constraints stripped of the cardinality bounds, which the range of the built property carries
+ * alone, so a property built from constraints restates no bound beside its range.
+ *
+ * @typeParam C The stated constraints
+ */
+export type Unbounded<C extends PropertyBounds> =
+	[Exclude<keyof C, "minCount" | "maxCount">] extends [never] ? {} : Omit<C, "minCount" | "maxCount">

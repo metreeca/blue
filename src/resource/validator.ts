@@ -138,7 +138,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	 */
 	function contents(value: unknown, member: Property): Optional<Trace> {
 
-		const { minCount, maxCount, shape: range, foreign, captive } = member;
+		const { range: { minCount, maxCount, shape: range }, foreign, captive } = member;
 
 		// a foreign member is written by the resources it points at, not by the one exposing it
 
@@ -336,14 +336,14 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	 */
 	function slot(value: unknown, member: Property, depth: Optional<number>): Optional<Trace> {
 
-		const branches = getShapeBranches(member.shape);
+		const branches = getShapeBranches(member.range.shape);
 		const [branch] = branches;
 
 		// a localised member carries one map whatever its bounds admit, so it is asked for as a placeholder and
 		// never as a collection
 
-		return member.maxCount === 1 || branches.length === 1 && branch.kind === "dictionary"
-			? model(value, member, depth)
+		return member.range.maxCount === 1 || branches.length === 1 && branch.kind === "dictionary"
+			? model(value, member.range, depth)
 			: collection(value, member, depth);
 
 	}
@@ -544,7 +544,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( exhausted(depth) ) { return ["exceeded maximum nesting depth"]; }
 
-		const branches = getShapeBranches(member.shape);
+		const branches = getShapeBranches(member.range.shape);
 		const [branch] = branches;
 
 		if ( branches.length > 1 ) { return indexed(value, branches, depth, false); }
@@ -667,7 +667,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			if ( plain && probe.pipe.some(isAggregate) ) { return ["disabled aggregate transforms"]; }
 
-			const range = effective(member.shape, probe);
+			const range = effective(member.range.shape, probe);
 
 			if ( isString(range) ) { return [range]; } // the path the shape cannot resolve
 
@@ -972,7 +972,7 @@ export function validateResult(values: readonly unknown[], {
 	 */
 	function contents(value: unknown, member: Property, requested: unknown): Optional<Trace> {
 
-		const { minCount, maxCount, shape: range } = member;
+		const { range: { minCount, maxCount, shape: range } } = member;
 
 		const branches = getShapeBranches(range);
 
@@ -1146,7 +1146,7 @@ export function validateResult(values: readonly unknown[], {
 	/**
 	 * Reports the cardinality bounds the values a member came back with break.
 	 */
-	function counts(count: number, { minCount, maxCount }: Property): Optional<Trace> {
+	function counts(count: number, { range: { minCount, maxCount } }: Property): Optional<Trace> {
 
 		return all(
 			(minCount !== undefined && count < minCount)
@@ -1194,7 +1194,7 @@ export function validateResult(values: readonly unknown[], {
 function checkId(shape: ResourceShape): Optional<Trace> {
 
 	return all(...Object.entries(shape.members)
-		.flatMap(([name, member]) => member.kind === "property" ? getShapeBranches(member.shape)
+		.flatMap(([name, member]) => member.kind === "property" ? getShapeBranches(member.range.shape)
 			.filter(branch => branch.kind === "resource" && getShapeId(branch) !== undefined)
 			.map(() => fail([`{id} unexpected identifier in the resource embedded under <${name}>`]))
 			: []

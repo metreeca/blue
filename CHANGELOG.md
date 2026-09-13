@@ -9,6 +9,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Carry the value set of a `Property` as a `range` field, a `Range` stating `shape`, `minCount` and `maxCount`, in
+  place of the three flat fields on the member: `member.range.shape` replaces `member.shape`, a path resolved through
+  a member yields a range of the same form, and `property()` folds the bounds it is given into the range rather than
+  restating them on the member; the member factories keep their flat signatures
 - Accept an inherited reference re-pointed at a target extending the inherited target: an extending shape refines what
   a reference admits by naming the narrower target alone, with the merged entry keeping that target; any other target
   is rejected

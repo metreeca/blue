@@ -110,7 +110,7 @@ describe("flatten", () => {
 			members: { nested: required(nested) }
 		});
 
-		expect(Object.keys(getShapeProperties(getProperty(shape, "nested")!.shape))).toEqual(["label"]);
+		expect(Object.keys(getShapeProperties(getProperty(shape, "nested")!.range.shape))).toEqual(["label"]);
 
 	});
 
@@ -154,7 +154,7 @@ describe("flatten", () => {
 
 			const shape = resource(Left, Right, {});
 
-			expect(getProperty(shape, "location")?.shape).toMatchObject({ kind: "union" });
+			expect(getProperty(shape, "location")?.range.shape).toMatchObject({ kind: "union" });
 
 		});
 
@@ -275,7 +275,7 @@ describe("flatten", () => {
 			const Base = resource({ name: required(string()) });
 			const shape = resource(Base, { name: required(string({ minLength: 1 })) });
 
-			expect(getProperty(shape, "name")?.shape).toMatchObject({ minLength: 1 });
+			expect(getProperty(shape, "name")?.range.shape).toMatchObject({ minLength: 1 });
 
 		});
 
@@ -321,7 +321,7 @@ describe("flatten", () => {
 			const Base = resource({ link: required(reference(Wider)) });
 			const shape = resource(Base, { link: required(reference(Narrower)) });
 
-			expect(getShapeTarget(getProperty(shape, "link")?.shape ?? string())).toBe(Narrower);
+			expect(getShapeTarget(getProperty(shape, "link")?.range.shape ?? string())).toBe(Narrower);
 
 		});
 
@@ -333,7 +333,7 @@ describe("flatten", () => {
 			const Base = resource({ link: required(reference(Wider)) });
 			const shape = resource(Base, { link: required(reference(() => Narrower)) });
 
-			expect(getShapeTarget(getProperty(shape, "link")?.shape ?? string())).toBe(Narrower);
+			expect(getShapeTarget(getProperty(shape, "link")?.range.shape ?? string())).toBe(Narrower);
 
 		});
 
@@ -345,7 +345,7 @@ describe("flatten", () => {
 			const Base = resource({ link: required(reference(Wider)) });
 			const shape = resource(Base, { link: required(reference(Narrower)) });
 
-			const target = getShapeTarget(getProperty(shape, "link")?.shape ?? string());
+			const target = getShapeTarget(getProperty(shape, "link")?.range.shape ?? string());
 
 			expect(Object.keys(target?.members ?? {})).toEqual(expect.arrayContaining(["id", "label"]));
 
@@ -359,7 +359,7 @@ describe("flatten", () => {
 			const Base = resource({ link: required(reference(Wider)) });
 			const shape = resource(Base, { link: required(reference(() => Unrelated)) });
 
-			expect(() => getShapeTarget(getProperty(shape, "link")?.shape ?? string())).toThrow(TraceError);
+			expect(() => getShapeTarget(getProperty(shape, "link")?.range.shape ?? string())).toThrow(TraceError);
 
 		});
 
@@ -379,7 +379,7 @@ describe("flatten", () => {
 			const Base = resource({ code: required(union(string(), number())) });
 			const shape = resource(Base, { code: required(union(number())) });
 
-			expect(getProperty(shape, "code")?.shape).toMatchObject({ kind: "union" });
+			expect(getProperty(shape, "code")?.range.shape).toMatchObject({ kind: "union" });
 
 		});
 
@@ -388,7 +388,7 @@ describe("flatten", () => {
 			const Base = resource({ code: required(union(string(), number())) });
 			const shape = resource(Base, { code: required(number({ minInclusive: 0 })) });
 
-			expect(getProperty(shape, "code")?.shape).toMatchObject({ kind: "number", minInclusive: 0 });
+			expect(getProperty(shape, "code")?.range.shape).toMatchObject({ kind: "number", minInclusive: 0 });
 
 		});
 
@@ -941,8 +941,8 @@ describe("narrowsProperty", () => {
 
 		// the factories refuse crossed bounds outright, so the check guards a member stated by other means
 
-		const inherited: Property = { kind: "property", minCount: undefined, maxCount: 2, shape: string() };
-		const declared: Property = { kind: "property", minCount: 3, maxCount: 2, shape: string() };
+		const inherited: Property = { kind: "property", range: { minCount: undefined, maxCount: 2, shape: string() } };
+		const declared: Property = { kind: "property", range: { minCount: 3, maxCount: 2, shape: string() } };
 
 		expect(narrowsProperty(declared, inherited))
 			.toContainEqual(expect.stringContaining("{minCount/maxCount}"));
@@ -986,7 +986,7 @@ describe("mergeResource", () => {
 			resource({ name: required(string({ maxLength: 9 })) })
 		);
 
-		expect(getProperty(merged, "name")?.shape).toMatchObject({ minLength: 1, maxLength: 9 });
+		expect(getProperty(merged, "name")?.range.shape).toMatchObject({ minLength: 1, maxLength: 9 });
 
 	});
 
@@ -1035,8 +1035,8 @@ describe("mergeProperty", () => {
 
 		const merged = mergeProperty(required(string()), optional(string()));
 
-		expect(merged.minCount).toBe(1);
-		expect(merged.maxCount).toBe(1);
+		expect(merged.range.minCount).toBe(1);
+		expect(merged.range.maxCount).toBe(1);
 
 	});
 
@@ -1044,7 +1044,7 @@ describe("mergeProperty", () => {
 
 		const merged = mergeProperty(required(string({ minLength: 1 })), required(string({ maxLength: 9 })));
 
-		expect(merged.shape).toMatchObject({ minLength: 1, maxLength: 9 });
+		expect(merged.range.shape).toMatchObject({ minLength: 1, maxLength: 9 });
 
 	});
 

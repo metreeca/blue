@@ -120,8 +120,8 @@ export type Shape =
 /**
  * Description of a cardinality-constrained value set.
  *
- * Describes the set a property declares and the set a path resolves to alike, so that either may be read for how many
- * values it admits and for the shape those values are drawn from.
+ * Describes the set a {@link resource!Property | property} declares and the set a path resolves to alike, so
+ * that either may be read for how many values it admits and for the shape those values are drawn from.
  *
  * @typeParam R The shape the values are drawn from, possibly deferred to break definition cycles
  * @typeParam L The least number of values admitted

@@ -300,7 +300,7 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 
 		return member === undefined ? undefined
 			: member.kind === "id" || member.kind === "type" ? IRIRange
-				: member.kind === "property" ? member
+				: member.kind === "property" ? member.range
 					: undefined;
 
 	}

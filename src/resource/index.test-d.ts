@@ -566,7 +566,7 @@ describe("factories", () => {
 
 		test("property → the bounds it was given", () => {
 			expectTypeOf(property(string(), { minCount: 2, maxCount: 5 }))
-				.toEqualTypeOf<{ readonly minCount: 2, readonly maxCount: 5 } & Property<StringShape, 2, 5>>();
+				.toEqualTypeOf<Property<StringShape, 2, 5>>();
 		});
 
 		test("property → unstated bounds where none are given", () => {
@@ -576,12 +576,12 @@ describe("factories", () => {
 
 		test("property → one bound where only one is given", () => {
 			expectTypeOf(property(string(), { minCount: 1 }))
-				.toEqualTypeOf<{ readonly minCount: 1 } & Property<StringShape, 1, undefined>>();
+				.toEqualTypeOf<Property<StringShape, 1, undefined>>();
 		});
 
 		test("property → accepts constraints after the range", () => {
-			expectTypeOf(property(string(), { foreign: true, forward: "https://example.org/label" }))
-				.toEqualTypeOf<{ readonly foreign: true, readonly forward: "https://example.org/label" } & Property<StringShape, undefined, undefined>>();
+			expectTypeOf(property(string(), { foreign: true, forward: "https://example.org/label", maxCount: 1 }))
+				.toEqualTypeOf<{ readonly foreign: true, readonly forward: "https://example.org/label" } & Property<StringShape, undefined, 1>>();
 		});
 
 		test("property → rejects an unknown constraint", () => {
@@ -590,7 +590,7 @@ describe("factories", () => {
 		});
 
 		test("Property admits any shape as its range", () => {
-			expectTypeOf<Property["shape"]>().toEqualTypeOf<Parameters<typeof property>[0]>();
+			expectTypeOf<Property["range"]["shape"]>().toEqualTypeOf<Parameters<typeof property>[0]>();
 		});
 
 		// a namespace is stated as a shorthand and resolved to the absolute IRI as the shape is built, so a member
@@ -601,10 +601,16 @@ describe("factories", () => {
 			expectTypeOf<Property["reverse"]>().toEqualTypeOf<undefined | Reference>();
 		});
 
-		test("Property states the values it admits as a range", () => {
-			expectTypeOf<Property<StringShape, 1, 1>>().toExtend<Range<StringShape, 1, 1>>();
-			expectTypeOf<Property<StringShape, undefined, undefined>>()
-				.toExtend<Range<StringShape, undefined, undefined>>();
+		test("Property holds the values it admits as a range", () => {
+			expectTypeOf<Property<StringShape, 1, 1>["range"]>().toEqualTypeOf<Range<StringShape, 1, 1>>();
+			expectTypeOf<Property<StringShape, undefined, undefined>["range"]>()
+				.toEqualTypeOf<Range<StringShape, undefined, undefined>>();
+		});
+
+		test("Property restates no bound of its own", () => {
+			expectTypeOf<Property<StringShape, 1, 1>>().not.toHaveProperty("minCount");
+			expectTypeOf<Property<StringShape, 1, 1>>().not.toHaveProperty("maxCount");
+			expectTypeOf<Property<StringShape, 1, 1>>().not.toHaveProperty("shape");
 		});
 
 	});

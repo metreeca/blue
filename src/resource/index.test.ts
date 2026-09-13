@@ -265,14 +265,14 @@ describe("factories", () => {
 
 				const member = factory(string());
 
-				expect(member.minCount).toBe(expectedMin);
-				expect(member.maxCount).toBe(expectedMax);
+				expect(member.range.minCount).toBe(expectedMin);
+				expect(member.range.maxCount).toBe(expectedMax);
 
 			});
 
 			it("carries the range it is given", async () => {
 
-				expect(factory(string()).shape).toMatchObject({ kind: "string" });
+				expect(factory(string()).range.shape).toMatchObject({ kind: "string" });
 
 			});
 
@@ -286,7 +286,7 @@ describe("factories", () => {
 
 				const member = factory(string());
 
-				expect(() => Object.assign(member, { minCount: 99 })).toThrow();
+				expect(() => Object.assign(member.range, { minCount: 99 })).toThrow();
 
 			});
 
@@ -298,8 +298,8 @@ describe("factories", () => {
 
 				const member = property(string(), { minCount: 2, maxCount: 5 });
 
-				expect(member.minCount).toBe(2);
-				expect(member.maxCount).toBe(5);
+				expect(member.range.minCount).toBe(2);
+				expect(member.range.maxCount).toBe(5);
 
 			});
 
@@ -307,8 +307,18 @@ describe("factories", () => {
 
 				const member = property(string(), { minCount: 2 });
 
-				expect(member.minCount).toBe(2);
-				expect(member.maxCount).toBeUndefined();
+				expect(member.range.minCount).toBe(2);
+				expect(member.range.maxCount).toBeUndefined();
+
+			});
+
+			it("carries the bounds on the range alone", async () => {
+
+				const member = property(string(), { minCount: 2, maxCount: 5, foreign: true });
+
+				expect(member).not.toHaveProperty("minCount");
+				expect(member).not.toHaveProperty("maxCount");
+				expect(member.foreign).toBe(true);
 
 			});
 
