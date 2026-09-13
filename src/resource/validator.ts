@@ -36,7 +36,7 @@ import {
 	opt as fold,
 	type Optional
 } from "@metreeca/core";
-import { isTagRange } from "@metreeca/core/language";
+import { isTag, isTagRange } from "@metreeca/core/language";
 import { isIRI } from "@metreeca/core/resource";
 import { all, array, fail, object, type Trace } from "@metreeca/core/trace";
 import { isReference, type Reference, type Resource } from "@metreeca/qest/resource";
@@ -282,10 +282,18 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  * standing for a link, or a nested template standing for the resource behind it. A member admitting several is asked
  * for as a collection: the template for one of them, optionally followed by the selection filtering, ordering and
  * paging the set. A polymorphic member is asked for one branch at a time, under the index of the branch. A localised
- * member is asked for as a map of the tags wanted, each paired with the placeholder a matched tag comes back as, or as
- * a plain placeholder standing for the text content negotiation settles on, at the arity a tag carries: a string where
- * a tag carries one, a singleton tuple where it stacks several. Where a localised branch is one alternative among
- * others, the map is taken within a projection column alone.
+ * member is asked for as a map of the language ranges wanted, each paired with the placeholder a matched tag comes
+ * back as, or as a plain placeholder standing for the text content negotiation settles on, at the arity a tag carries:
+ * a string where a tag carries one, a singleton tuple where it stacks several. Where a localised branch is one
+ * alternative among others, the map is taken within a projection column alone.
+ *
+ * **What a selection may test against**
+ *
+ * A membership filter tests the options it lists by equality, so an option is held to the type of the member alone and
+ * need not be a legal value of it. A localised member is filtered through the text it carries: either plainly, as the
+ * string or strings any tag may match, or as a map grouping the options by the tag they are to match under, a tag
+ * carrying as many as the filter lists whatever arity the member admits. The two forms are never mixed within one set,
+ * and a map keyed by anything but a language tag is reported under the key at fault.
  *
  * **What a projection may ask for**
  *
@@ -839,7 +847,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			// the two forms are never mixed within one set
 
 			return value === null || isString(value) || isArray(value, isString) ? undefined
-				: isObject(value) ? validateShape([value], branch)
+				: isObject(value) ? tags(value)
 					: isArray(value) && value.some(value => isObject(value)) && value.some(value => isString(value))
 						? ["mixed plain and tagged options"]
 						: [`unsupported constraint for <${branch.kind}> value`];
@@ -850,6 +858,23 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			? array((value: unknown) => option(value, branch))(value)
 			: option(value, branch);
 
+
+		/**
+		 * Validates a set of options stated as a tag map, grouped by the tag they are to match under.
+		 *
+		 * The map states the options a filter tests against rather than a value a resource holds, so a tag carries as
+		 * many as the filter lists whatever the member admits, and the strings, being matched for equality, need not
+		 * be legal values of the shape.
+		 */
+		function tags(value: Readonly<Record<string, unknown>>): Optional<Trace> {
+
+			return object(([tag, asked]: readonly [string, unknown]) =>
+				!isTag(tag) ? [{ [tag]: ["invalid tag"] }]
+					: isString(asked) || isArray(asked, isString) ? undefined
+						: [{ [tag]: ["expected string or string array option"] }]
+			)(value);
+
+		}
 
 		/**
 		 * Reports whether an option singles out one branch; an option stated as nothing at all is typeless and exempt.

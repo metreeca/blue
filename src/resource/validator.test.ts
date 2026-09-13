@@ -460,6 +460,15 @@ describe("validateResource", () => {
 
 		});
 
+		it("reports a unique-tagged localised value stating nothing under a tag as an array", async () => {
+
+			const shape = resource({ label: optional(dictionary({ uniqueLang: true })) });
+
+			expect(validateResource([{ label: { und: [] } }], shape)).toBeDefined();
+			expect(validateResource([{ label: {} }], shape)).toBeUndefined();
+
+		});
+
 		it("admits a localised value carrying content under some tags alone", async () => {
 
 			const shape = resource({ label: optional(dictionary()) });
@@ -1524,6 +1533,25 @@ describe("validateTemplate", () => {
 			expect(validateTemplate([{ items: [{}, { "?label": "Widget" }] }], shape)).toBeUndefined();
 			expect(validateTemplate([{ items: [{}, { "?label": ["a", "b"] }] }], shape)).toBeUndefined();
 			expect(validateTemplate([{ items: [{}, { "?label": { en: "Widget" } }] }], shape)).toBeUndefined();
+
+		});
+
+		// a tag map states the options grouped by the tag they match under, so a tag carries as many as the filter
+		// lists whatever the member admits as a value
+
+		it("admits several options under one tag, whatever the member carries", async () => {
+
+			const unique = resource({
+				items: multiple(reference(resource({ label: optional(dictionary({ uniqueLang: true })) })))
+			});
+
+			expect(validateTemplate([{ items: [{}, { "?label": { en: ["a", "b"] } }] }], unique)).toBeUndefined();
+
+		});
+
+		it("reports an option stated under an invalid tag", async () => {
+
+			expect(validateTemplate([{ items: [{}, { "?label": { "123": "Widget" } }] }], shape)).toBeDefined();
 
 		});
 

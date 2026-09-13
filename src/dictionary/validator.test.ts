@@ -135,6 +135,16 @@ describe("validateDictionary", () => {
 
 			});
 
+			// the grammar states a map in one form or the other, never in both at once, which the arity the shape
+			// states settles tag by tag
+
+			it("rejects a map mixing the two forms", async () => {
+
+				expect(at(validateDictionary([{ en: "hello", fr: ["bonjour"] }], unique), "fr"))
+					.toEqual(["expected string value"]);
+
+			});
+
 		});
 
 		describe("length constraints", () => {

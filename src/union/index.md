@@ -142,11 +142,19 @@ is ambiguous and one matching none unsatisfiable, both rejected. Because it is m
 requires the union to be **literally disjoint** (see *State*, above); a union that is not is rejected at runtime by the
 ambiguous-match rule.
 
-A set-matching **option** must likewise single out **exactly one** branch, but it is a data value, not a placeholder, so
-it follows the **state** rule: it MUST match against all constraints, since it is a legal stored value the filter tests
-membership against. This holds for every option-bearing operator alike: the disjunctive `?`, the conjunctive `!`, and
-the sort-focus `+`, each carrying option values matched by equality against the branch type. An option matching several
-branches is ambiguous and one matching none is unsatisfiable, both rejected; a `null` option is typeless and exempt.
+A set-matching **option** must likewise single out **exactly one** branch, and is likewise **not** held to a legal
+element value: a filter tests membership by equality, so an option outside the domain is a legal query matching nothing,
+exactly as an out-of-range bound is. An option relaxes the value-domain facets the same way, and keys on the value's
+processing `kind` alone, the lexical `pattern` included among what it relaxes, so branches sharing a kind are told apart
+by nothing: options require the union to be **kind-disjoint**, a grade stronger than the literal disjointness a bound
+needs. This holds for every option-bearing operator alike: the disjunctive `?`, the conjunctive `!`, and the sort-focus
+`+`. An option matching several branches is ambiguous and one matching none is unsatisfiable, both rejected; a `null`
+option is typeless and exempt.
+
+A **localised** branch takes its options as the strings a tag carries, stated either plainly, as the text any tag may
+match, or grouped in a map keyed by the tag they are to match under. A tag carries as many options as the filter lists,
+whatever arity the branch admits, since the map states what to test membership against rather than a value a resource
+holds. The two forms are never mixed within one set, and a key that is not a language tag is rejected.
 
 A text-search **keywords** operand (`~`) is neither a placeholder nor a data value but a plain search string. It is not
 matched against the branches at all: it applies to **every** string branch of the union at once, filtering their values
@@ -158,8 +166,8 @@ A probe (path plus pipe) flattens every union its path crosses into one effectiv
 retrieval, but the range still meets **both** regimes, according to the probe's role:
 
 - a **projection binding** carries a placeholder, matched by the model rule: at least one branch, by kind;
-- a **selection operator** carries an option or a bound: an option validates as a state value (exactly one branch,
-  against all constraints), a bound by the relaxed rule (exactly one branch, by `kind` and `pattern` alone).
+- a **selection operator** carries an option or a bound, both by the relaxed rule: exactly one branch, by `kind` and,
+  for a bound alone, by `pattern`.
 
 Either input matches the flattened range exactly as it would a root union, so traversal needs no per-crossing reasoning:
 the rule stays flat across the whole path.
