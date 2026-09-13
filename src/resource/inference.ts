@@ -122,13 +122,13 @@ export type Submitted<S extends Lazy<Shape>> =
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Owned<S extends Lazy<Shape>> = {
+export type Owned<S extends Lazy<Shape>> = Carried<S> extends infer C ? {
 
-	readonly [field in keyof Carried<S> as [Carried<S>[field]] extends [never] ? field
-		: Carried<S>[field] extends Foreign ? never : field
-	]: Carried<S>[field]
+	readonly [field in keyof C as [C[field]] extends [never] ? field
+		: C[field] extends Foreign ? never : field
+	]: C[field]
 
-}
+} : never
 
 /**
  * A member a submission does not accept, as the resources it points at own it.

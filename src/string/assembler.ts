@@ -25,9 +25,9 @@
  */
 
 import { isRegExp, type Optional } from "@metreeca/core";
-import { union } from "@metreeca/core/arrays";
 import { immutable } from "@metreeca/core/structures";
-import { all, test, type Trace, TraceError } from "@metreeca/core/trace";
+import { all, test, type Trace } from "@metreeca/core/trace";
+import { checkDomain, intersect, narrowsDatatype, narrowsDomain, reject, unite } from "../value/assembler.js";
 import { type StringConstraints, type StringShape } from "./index.js";
 
 
@@ -58,11 +58,7 @@ export function assemble<V extends string>(constraints: StringConstraints): Stri
 
 	}) as StringShape<V>; // ;(cast) the factory signatures fix the admitted values to the enumerated ones
 
-	const trace = checkString(shape);
-
-	if ( trace !== undefined ) {
-		throw new TraceError("inconsistent string shape constraints", trace);
-	}
+	reject("inconsistent string shape constraints", checkString(shape));
 
 	return shape;
 
@@ -91,13 +87,7 @@ export function checkString(constraints: Partial<StringShape>): Optional<Trace> 
 			];
 
 		}),
-		test(({ in: allowed, hasValue }) => {
-
-			return hasValue === undefined || allowed === undefined || hasValue.every(v => allowed.includes(v)) || [
-				`{hasValue/in} required values <${hasValue.filter(v => !allowed.includes(v))}> not in allowed set`
-			];
-
-		})
+		checkDomain()
 	)(constraints);
 
 }
@@ -117,16 +107,8 @@ export function checkString(constraints: Partial<StringShape>): Optional<Trace> 
  */
 export function narrowsString(target: StringShape, source: StringShape): Optional<Trace> {
 
-	const { in: allowed, hasValue: required } = source;
-
 	return all<StringShape>(
-		test(({ datatype }) => {
-
-			return datatype === undefined || source.datatype === undefined || datatype === source.datatype || [
-				`{datatype} mismatched datatypes <${datatype}> and <${source.datatype}>`
-			];
-
-		}),
+		narrowsDatatype(source),
 		test(({ pattern }) => {
 
 			return pattern === undefined || source.pattern === undefined || pattern === source.pattern || [
@@ -148,20 +130,7 @@ export function narrowsString(target: StringShape, source: StringShape): Optiona
 			];
 
 		}),
-		test(({ in: values }) => {
-
-			return values === undefined || allowed === undefined || values.every(v => allowed.includes(v)) || [
-				`{in} unexpected values [${values.filter(v => !allowed.includes(v))}]`
-			];
-
-		}),
-		test(({ hasValue }) => {
-
-			return hasValue === undefined || required === undefined || required.every(v => hasValue.includes(v)) || [
-				`{hasValue} missing required values [${required.filter(v => !hasValue.includes(v))}]`
-			];
-
-		}),
+		narrowsDomain(source),
 		() => checkString(merge(target, source)) // post-merge constraint consistency
 	)(target);
 
@@ -183,11 +152,7 @@ export function narrowsString(target: StringShape, source: StringShape): Optiona
  */
 export function mergeString(target: StringShape, source: StringShape): StringShape {
 
-	const trace = narrowsString(target, source);
-
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible string shape override", trace);
-	}
+	reject("incompatible string shape override", narrowsString(target, source));
 
 	return immutable({
 
@@ -212,8 +177,6 @@ export function mergeString(target: StringShape, source: StringShape): StringSha
  */
 function merge(target: StringShape, source: StringShape): Omit<StringShape, "kind"> {
 
-	const { in: allowed, hasValue: required } = source;
-
 	return {
 
 		// structural: datatype, pattern — equal where both are stated
@@ -228,13 +191,8 @@ function merge(target: StringShape, source: StringShape): Omit<StringShape, "kin
 
 		// conjunctive: in — intersection; hasValue — union
 
-		in: target.in !== undefined && allowed !== undefined
-			? target.in.filter(v => allowed.includes(v))
-			: target.in ?? allowed,
-
-		hasValue: target.hasValue !== undefined && required !== undefined
-			? union<string>([target.hasValue, required])
-			: target.hasValue ?? required
+		in: intersect(target.in, source.in),
+		hasValue: unite(target.hasValue, source.hasValue)
 
 	};
 

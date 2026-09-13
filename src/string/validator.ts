@@ -26,7 +26,7 @@
 import { isString, type Optional } from "@metreeca/core";
 import { all, array, domain, length, pass, test, type Trace, type, type Validator, values as contains }
 	from "@metreeca/core/trace";
-import type { Scope } from "../value/validator.js";
+import { type Scope, scoped } from "../value/validator.js";
 import { type StringShape } from "./index.js";
 
 
@@ -44,94 +44,86 @@ import { type StringShape } from "./index.js";
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
  */
-export function validateString(values: readonly unknown[], shape: StringShape, {
-
-	scope = "state"
-
-}: {
+export const validateString: (values: readonly unknown[], shape: StringShape, opts?: {
 
 	scope?: Scope
 
-} = {}): Optional<Trace> {
-
-	switch ( scope ) {
-
-		case "state":
-
-			return state(shape)(values);
-
-		case "bound":
-
-			return bound(shape)(values);
-
-		case "model":
-
-			return model(shape)(values);
-
-	}
+}) => Optional<Trace> = scoped(state, bound, model);
 
 
-	function state({
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-		minLength,
-		maxLength,
+/**
+ * Every constraint: a legal element of the shape's domain.
+ */
+function state({
 
-		pattern,
+	minLength,
+	maxLength,
 
-		in: allowed,
-		hasValue: required
+	pattern,
 
-	}: StringShape) {
+	in: allowed,
+	hasValue: required
 
-		return array(
-			type(isString,
-				all(
-					length(minLength, maxLength),
-					domain(allowed),
-					format(pattern)
-				)
-			),
-			contains(required)
-		);
+}: StringShape): Validator<readonly unknown[]> {
 
-	}
-
-	function bound({
-
-		pattern
-
-	}: StringShape) {
-
-		return array(
-			type(isString,
+	return array(
+		type(isString,
+			all(
+				length(minLength, maxLength),
+				domain(allowed),
 				format(pattern)
 			)
-		);
+		),
+		contains(required)
+	);
 
-	}
+}
 
-	function model({}: StringShape) {
+/**
+ * The syntactic discriminators alone: a relational bound need not lie within the shape's domain.
+ */
+function bound({
 
-		return array(
-			type(isString)
-		);
+	pattern
 
-	}
+}: StringShape): Validator<readonly unknown[]> {
 
-	function format(pattern: undefined | string): Validator<string> {
+	return array(
+		type(isString,
+			format(pattern)
+		)
+	);
 
-		if ( pattern === undefined ) {
+}
 
-			return pass;
+/**
+ * The kind alone: a retrieval placeholder need not be a legal value.
+ */
+function model({}: StringShape): Validator<readonly unknown[]> {
 
-		} else {
+	return array(
+		type(isString)
+	);
 
-			const regex = new RegExp(pattern);
-			const mismatched = [`{format} expected string matching </${pattern}/>`];
+}
 
-			return test(value => regex.test(value) || mismatched);
+/**
+ * Matches a string against the lexical pattern a shape states, admitting every string where it states none.
+ */
+function format(pattern: undefined | string): Validator<string> {
 
-		}
+	if ( pattern === undefined ) {
+
+		return pass;
+
+	} else {
+
+		const regex = new RegExp(pattern);
+		const mismatched = [`{format} expected string matching </${pattern}/>`];
+
+		return test(value => regex.test(value) || mismatched);
 
 	}
 

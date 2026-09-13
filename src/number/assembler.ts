@@ -26,10 +26,50 @@
  */
 
 import { type Optional } from "@metreeca/core";
-import { union } from "@metreeca/core/arrays";
 import { immutable } from "@metreeca/core/structures";
-import { all, test, type Trace, TraceError } from "@metreeca/core/trace";
+import { all, test, type Trace } from "@metreeca/core/trace";
+import { checkDomain, intersect, narrowsDatatype, narrowsDomain, reject, unite } from "../value/assembler.js";
 import { type NumberConstraints, type NumberShape } from "./index.js";
+
+
+/**
+ * The facet a numeric range is bounded by at one end.
+ */
+type Bound =
+	| "minExclusive"
+	| "maxExclusive"
+	| "minInclusive"
+	| "maxInclusive"
+
+/**
+ * Every bound a range states, in the order they are reported in.
+ */
+const Bounds: readonly Bound[] = [
+	"minExclusive",
+	"maxExclusive",
+	"minInclusive",
+	"maxInclusive"
+];
+
+/**
+ * The bound pairs enclosing a range, each with whether the lower bound must fall strictly below the upper one.
+ */
+const Ranges: readonly (readonly [Bound, Bound, boolean])[] = [
+	["minExclusive", "maxExclusive", true],
+	["minInclusive", "maxInclusive", false],
+	["minExclusive", "maxInclusive", true],
+	["minInclusive", "maxExclusive", true]
+];
+
+/**
+ * The bounds an override may only tighten, each with the relation holding it to the inherited limit.
+ */
+const Limits: readonly (readonly [Bound, (limit: number, inherited: number) => boolean])[] = [
+	["minExclusive", (limit, inherited) => limit >= inherited],
+	["maxExclusive", (limit, inherited) => limit <= inherited],
+	["minInclusive", (limit, inherited) => limit >= inherited],
+	["maxInclusive", (limit, inherited) => limit <= inherited]
+];
 
 
 /**
@@ -56,11 +96,7 @@ export function assemble<V extends number>(constraints: NumberConstraints): Numb
 
 	}) as NumberShape<V>; // ;(cast) the factory signatures fix the admitted values to the enumerated ones
 
-	const trace = checkNumber(shape);
-
-	if ( trace !== undefined ) {
-		throw new TraceError("inconsistent number shape constraints", trace);
-	}
+	reject("inconsistent number shape constraints", checkNumber(shape));
 
 	return shape;
 
@@ -83,67 +119,34 @@ export function assemble<V extends number>(constraints: NumberConstraints): Numb
 export function checkNumber(constraints: Partial<NumberShape>): Optional<Trace> {
 
 	return all<typeof constraints>(
-		test(({ minExclusive, maxExclusive }) => {
+		test(constraints => {
 
-			return minExclusive === undefined || maxExclusive === undefined || minExclusive < maxExclusive || [
-				`{minExclusive/maxExclusive} inconsistent bounds <${minExclusive}> >= <${maxExclusive}>`
-			];
+			const crossed = Ranges.flatMap(([min, max, strict]) => {
 
-		}),
-		test(({ minInclusive, maxInclusive }) => {
+				const lower = constraints[min];
+				const upper = constraints[max];
 
-			return minInclusive === undefined || maxInclusive === undefined || minInclusive <= maxInclusive || [
-				`{minInclusive/maxInclusive} inconsistent bounds <${minInclusive}> > <${maxInclusive}>`
-			];
+				return lower === undefined || upper === undefined || (strict ? lower < upper : lower <= upper) ? []
+					: [`{${min}/${max}} inconsistent bounds <${lower}> ${strict ? ">=" : ">"} <${upper}>`];
 
-		}),
-		test(({ minExclusive, maxInclusive }) => {
+			});
 
-			return minExclusive === undefined || maxInclusive === undefined || minExclusive < maxInclusive || [
-				`{minExclusive/maxInclusive} inconsistent bounds <${minExclusive}> >= <${maxInclusive}>`
-			];
+			return crossed.length === 0 || crossed;
 
 		}),
-		test(({ minInclusive, maxExclusive }) => {
+		checkDomain(),
+		test(constraints => {
 
-			return minInclusive === undefined || maxExclusive === undefined || minInclusive < maxExclusive || [
-				`{minInclusive/maxExclusive} inconsistent bounds <${minInclusive}> >= <${maxExclusive}>`
-			];
+			const fractional = !constraints.integral ? [] : Bounds.flatMap(bound => {
 
-		}),
-		test(({ in: allowed, hasValue }) => {
+				const limit = constraints[bound];
 
-			return hasValue === undefined || allowed === undefined || hasValue.every(v => allowed.includes(v)) || [
-				`{hasValue/in} required values <${hasValue.filter(v => !allowed.includes(v))}> not in allowed set`
-			];
+				return limit === undefined || Number.isInteger(limit) ? []
+					: [`{${bound}} fractional bound <${limit}> on integral shape`];
 
-		}),
-		test(({ integral, minExclusive }) => {
+			});
 
-			return !integral || minExclusive === undefined || Number.isInteger(minExclusive) || [
-				`{minExclusive} fractional bound <${minExclusive}> on integral shape`
-			];
-
-		}),
-		test(({ integral, maxExclusive }) => {
-
-			return !integral || maxExclusive === undefined || Number.isInteger(maxExclusive) || [
-				`{maxExclusive} fractional bound <${maxExclusive}> on integral shape`
-			];
-
-		}),
-		test(({ integral, minInclusive }) => {
-
-			return !integral || minInclusive === undefined || Number.isInteger(minInclusive) || [
-				`{minInclusive} fractional bound <${minInclusive}> on integral shape`
-			];
-
-		}),
-		test(({ integral, maxInclusive }) => {
-
-			return !integral || maxInclusive === undefined || Number.isInteger(maxInclusive) || [
-				`{maxInclusive} fractional bound <${maxInclusive}> on integral shape`
-			];
+			return fractional.length === 0 || fractional;
 
 		}),
 		test(({ integral, in: allowed }) => {
@@ -196,16 +199,8 @@ export function checkNumber(constraints: Partial<NumberShape>): Optional<Trace> 
  */
 export function narrowsNumber(target: NumberShape, source: NumberShape): Optional<Trace> {
 
-	const { in: allowed, hasValue: required } = source;
-
 	return all<NumberShape>(
-		test(({ datatype }) => {
-
-			return datatype === undefined || source.datatype === undefined || datatype === source.datatype || [
-				`{datatype} mismatched datatypes <${datatype}> and <${source.datatype}>`
-			];
-
-		}),
+		narrowsDatatype(source),
 		test(({ integral }) => {
 
 			return integral !== false || source.integral !== true || [
@@ -213,66 +208,22 @@ export function narrowsNumber(target: NumberShape, source: NumberShape): Optiona
 			];
 
 		}),
-		test(({ minExclusive }) => {
+		test(target => {
 
-			return minExclusive === undefined
-				|| source.minExclusive === undefined
-				|| minExclusive >= source.minExclusive
-				|| [
-					`{minExclusive} widened limit <${minExclusive}> beyond <${source.minExclusive}>`
-				];
+			const widened = Limits.flatMap(([bound, narrows]) => {
 
-		}),
-		test(({ maxExclusive }) => {
+				const limit = target[bound];
+				const inherited = source[bound];
 
-			return maxExclusive === undefined
-				|| source.maxExclusive === undefined
-				|| maxExclusive <= source.maxExclusive
-				|| [
-					`{maxExclusive} widened limit <${maxExclusive}> beyond <${source.maxExclusive}>`
-				];
+				return limit === undefined || inherited === undefined || narrows(limit, inherited) ? []
+					: [`{${bound}} widened limit <${limit}> beyond <${inherited}>`];
+
+			});
+
+			return widened.length === 0 || widened;
 
 		}),
-		test(({ minInclusive }) => {
-
-			return minInclusive === undefined
-				|| source.minInclusive === undefined
-				|| minInclusive >= source.minInclusive
-				|| [
-					`{minInclusive} widened limit <${minInclusive}> beyond <${source.minInclusive}>`
-				];
-
-		}),
-		test(({ maxInclusive }) => {
-
-			return maxInclusive === undefined
-				|| source.maxInclusive === undefined
-				|| maxInclusive <= source.maxInclusive
-				|| [
-					`{maxInclusive} widened limit <${maxInclusive}> beyond <${source.maxInclusive}>`
-				];
-
-		}),
-		test(({ in: values }) => {
-
-			// a child listing a value the parent omits would be intersected away, leaving the state wider than
-			// the shape admits, so a widened set is rejected outright as with the bounds
-
-			return values === undefined || allowed === undefined || values.every(v => allowed.includes(v)) || [
-				`{in} unexpected values [${values.filter(v => !allowed.includes(v))}]`
-			];
-
-		}),
-		test(({ hasValue }) => {
-
-			// hasValue floors the value set, so a required value the child omits would be unioned back in,
-			// leaving the child stating a weaker requirement than it enforces
-
-			return hasValue === undefined || required === undefined || required.every(v => hasValue.includes(v)) || [
-				`{hasValue} missing required values [${required.filter(v => !hasValue.includes(v))}]`
-			];
-
-		}),
+		narrowsDomain(source),
 		() => checkNumber(merge(target, source)) // post-merge constraint consistency
 	)(target);
 
@@ -295,11 +246,7 @@ export function narrowsNumber(target: NumberShape, source: NumberShape): Optiona
  */
 export function mergeNumber(target: NumberShape, source: NumberShape): NumberShape {
 
-	const trace = narrowsNumber(target, source);
-
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible number shape override", trace);
-	}
+	reject("incompatible number shape override", narrowsNumber(target, source));
 
 	return immutable({
 
@@ -324,8 +271,6 @@ export function mergeNumber(target: NumberShape, source: NumberShape): NumberSha
  */
 function merge(target: NumberShape, source: NumberShape): Omit<NumberShape, "kind"> {
 
-	const { in: allowed, hasValue: required } = source;
-
 	return {
 
 		// structural: datatype — equal where both are stated
@@ -345,13 +290,8 @@ function merge(target: NumberShape, source: NumberShape): Omit<NumberShape, "kin
 
 		// conjunctive: in — intersection; hasValue — union
 
-		in: target.in !== undefined && allowed !== undefined
-			? target.in.filter(v => allowed.includes(v))
-			: target.in ?? allowed,
-
-		hasValue: target.hasValue !== undefined && required !== undefined
-			? union<number>([target.hasValue, required])
-			: target.hasValue ?? required
+		in: intersect(target.in, source.in),
+		hasValue: unite(target.hasValue, source.hasValue)
 
 	};
 

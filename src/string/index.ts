@@ -141,7 +141,6 @@
 import { xsd } from "@metreeca/core/datatype";
 import { TagPattern } from "@metreeca/core/language";
 import type { Variant } from "@metreeca/core/resource";
-import { TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Legal } from "../value/inference.js";
 import { assemble } from "./assembler.js";

@@ -79,8 +79,7 @@ import type { Instance as Fetched, Template } from "@metreeca/qest/template";
 import { enforce } from "./index.core.js";
 import type { ResourceShape } from "./resource/index.js";
 import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
-import type { Instance, Shape } from "./value/index.js";
-import { eager } from "./value/index.js";
+import { eager, type Instance, type Shape } from "./value/index.js";
 import { validateShape } from "./value/validator.js";
 
 
@@ -91,6 +90,26 @@ import { validateShape } from "./value/validator.js";
  * than by walking the value a second time.
  */
 const Validated: unique symbol = Symbol("validated");
+
+
+/**
+ * The terms a value was validated against.
+ *
+ * Carries the shape and the options the verdict was reached under, so that a later validation is settled by the seal
+ * exactly where it asks for no more than the first one already granted.
+ */
+type Sealed = {
+
+	readonly model: boolean | Template
+	readonly shape: ResourceShape
+
+	readonly entry?: Reference
+
+	readonly plain?: boolean
+	readonly depth?: number
+	readonly limit?: number
+
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -108,8 +127,8 @@ const Validated: unique symbol = Symbol("validated");
  * > `depth` as `0` to refuse every expansion, or as the nesting it may ask for.
  *
  * > [!TIP]
- * > Validating a value twice on the same terms costs nothing: the second call reads the first one's verdict off the
- * > value, so a caller may validate defensively wherever it is unsure.
+ * > Revalidating a value costs nothing where the second call asks for no more than the first: the earlier verdict is
+ * > read off the value itself, so a caller may validate defensively wherever it is unsure.
  *
  * @typeParam S The shape the resource is matched against
  *
@@ -157,8 +176,8 @@ export function validate<S extends Lazy<ResourceShape>>(value: unknown, opts: {
  * from one request to the next.
  *
  * > [!TIP]
- * > Validating a value twice on the same shape and template costs nothing, as {@link validate | validating a resource}
- * > explains.
+ * > Revalidating a value against the same shape and template costs nothing, as
+ * > {@link validate | validating a resource} explains.
  *
  * @typeParam T The template the resource was requested by
  *
@@ -212,7 +231,8 @@ export function validate<T extends Template>(value: unknown, opts: {
  * > `0` thus leaves a link retrievable while refusing the resource behind it.
  *
  * > [!TIP]
- * > Validating a value twice on the same terms costs nothing, as {@link validate | validating a resource} explains.
+ * > Revalidating a value costs nothing where the second call asks for no more than the first, as
+ * > {@link validate | validating a resource} explains.
  *
  * @typeParam T The template the shape admits
  *
@@ -298,127 +318,110 @@ export function validate(value: unknown, {
 
 		} else if ( model === true ) {
 
-			const sealed = seal<{
+			return verify(
 
-				readonly model: boolean | Template
-				readonly shape: ResourceShape
+				sealed => sealed.model === true
+					&& (!plain || sealed.plain === true)
+					&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
+					&& (!limit || !!sealed.limit && sealed.limit <= limit), // a limit of 0 leaves the page unbounded
 
-				readonly plain?: boolean
-				readonly depth?: number
-				readonly limit?: number
+				() => validateTemplate([value], shape, { plain, depth, limit }),
 
-			}>(value, Validated);
+				{
 
-			if ( sealed !== undefined && sealed.model === true
-				&& shape === sealed.shape
-				&& (!plain || sealed.plain)
-				&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
-				&& (!limit || sealed.limit && sealed.limit <= limit) // a limit of 0 leaves the page unbounded
-			) {
+					model: true,
+					shape,
 
-				return createRelay({ value });
+					plain,
+					depth,
+					limit
 
-			} else {
+				},
 
-				const trace = validateTemplate([value], shape, { plain, depth, limit });
+				() => enforce(value, shape, { limit })
 
-				return trace !== undefined ? createRelay({ trace }) : createRelay({
+			);
 
-					value: seal(enforce(value, shape, { limit }), Validated, {
+		} else if ( model ) {
 
-						model: true,
-						shape,
+			return verify(
 
-						plain,
-						depth,
-						limit
+				sealed => equals(sealed.model, model)
+					&& (entry === undefined || sealed.entry === entry),
 
-					})
+				() => validateResult([value], { shape, model, entry }),
 
-				});
+				{
 
-			}
+					model,
+					shape,
 
-		} else if ( model !== undefined && model !== false ) {
+					entry
 
-			const sealed = seal<{
+				}
 
-				readonly model: boolean | Template
-				readonly shape: ResourceShape
-
-				readonly entry?: Reference
-
-			}>(value, Validated);
-
-			if ( sealed !== undefined && sealed.model !== true && sealed.model !== false
-				&& equals(sealed.model, model)
-				&& shape === sealed.shape
-				&& (entry === undefined || sealed.entry === entry)
-			) {
-
-				return createRelay({ value });
-
-			} else {
-
-				const trace = validateResult([value], { shape, model, entry });
-
-				return trace !== undefined ? createRelay({ trace }) : createRelay({
-
-					value: seal(value, Validated, {
-
-						model,
-						shape,
-
-						entry
-
-					})
-
-				});
-
-			}
+			);
 
 		} else {
 
-			const sealed = seal<{
+			return verify(
 
-				readonly model: boolean | Template
-				readonly shape: ResourceShape
+				sealed => sealed.model === false
+					&& (entry === undefined || sealed.entry === entry)
+					&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth),
 
-				readonly entry?: Reference
-				readonly depth?: number
+				() => validateResource([value], shape, { entry, depth }),
 
-			}>(value, Validated);
+				{
 
-			if ( sealed !== undefined && sealed.model === false
-				&& shape === sealed.shape
-				&& (entry === undefined || sealed.entry === entry)
-				&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
-			) {
+					model: false,
+					shape,
 
-				return createRelay({ value });
+					entry,
+					depth
 
-			} else {
+				}
 
-				const trace = validateResource([value], shape, { entry, depth });
-
-				return trace !== undefined ? createRelay({ trace }) : createRelay({
-
-					value: seal(value, Validated, {
-
-						model: false,
-						shape,
-
-						entry,
-						depth
-
-					})
-
-				});
-
-			}
+			);
 
 		}
 
 	});
+
+
+	/**
+	 * Settles a resource validation against the seal the value may already carry.
+	 *
+	 * @param match Tells whether a seal already granted what this validation asks for; the shape the seal was reached
+	 *     under is matched beforehand
+	 * @param check Runs the validation where the seal settles nothing
+	 * @param terms The terms to seal on a value that passes
+	 * @param content Yields the value to seal, defaulting to the one validated
+	 *
+	 * @returns A {@link Relay} carrying the value where it passes and a trace of the violations where it doesn't
+	 */
+	function verify(
+		match: (sealed: Sealed) => boolean,
+		check: () => Optional<Trace>,
+		terms: Sealed,
+		content: () => unknown = () => value
+	): Relay<{
+
+		readonly value: unknown,
+		readonly trace: Optional<Trace>
+
+	}> {
+
+		const sealed = seal<Sealed>(value, Validated);
+
+		const settled = sealed !== undefined && sealed.shape === terms.shape && match(sealed);
+
+		const trace = settled ? undefined : check();
+
+		return trace !== undefined ? createRelay({ trace })
+			: settled ? createRelay({ value })
+				: createRelay({ value: seal(content(), Validated, terms) });
+
+	}
 
 }

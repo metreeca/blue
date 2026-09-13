@@ -881,7 +881,7 @@ export function multiple<
 	range: R, constraints?: C
 ): NoInfer<C> & Property<R, undefined, undefined> {
 
-	return declare({ kind: "property", ...constraints, minCount: undefined, maxCount: undefined, shape: range });
+	return member(range, constraints, undefined, undefined);
 
 }
 
@@ -903,7 +903,7 @@ export function nonempty<
 	range: R, constraints?: C
 ): NoInfer<C> & Property<R, 1, undefined> {
 
-	return declare({ kind: "property", ...constraints, minCount: 1, maxCount: undefined, shape: range });
+	return member(range, constraints, 1, undefined);
 
 }
 
@@ -925,7 +925,7 @@ export function optional<
 	range: R, constraints?: C
 ): NoInfer<C> & Property<R, undefined, 1> {
 
-	return declare({ kind: "property", ...constraints, minCount: undefined, maxCount: 1, shape: range });
+	return member(range, constraints, undefined, 1);
 
 }
 
@@ -947,7 +947,7 @@ export function required<
 	range: R, constraints?: C
 ): NoInfer<C> & Property<R, 1, 1> {
 
-	return declare({ kind: "property", ...constraints, minCount: 1, maxCount: 1, shape: range });
+	return member(range, constraints, 1, 1);
 
 }
 
@@ -984,16 +984,32 @@ export function property<
 	range: R, constraints?: C
 ): NoInfer<C> & Property<R, Declared<C, "minCount">, Declared<C, "maxCount">> {
 
+	return member(range, constraints, constraints?.minCount, constraints?.maxCount);
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Declares the member a cardinality factory states, at the bounds it fixes.
+ */
+function member<M>(
+	shape: Lazy<Shape>,
+	constraints: Optional<PropertyBounds>,
+	minCount: Optional<number>,
+	maxCount: Optional<number>
+): M {
+
 	return declare({
 
 		kind: "property",
 
 		...constraints,
 
-		minCount: constraints?.minCount,
-		maxCount: constraints?.maxCount,
+		minCount,maxCount,
 
-		shape: range
+		shape
 
 	});
 

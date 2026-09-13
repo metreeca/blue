@@ -26,9 +26,8 @@
 import { type Optional } from "@metreeca/core";
 import { array, type Trace } from "@metreeca/core/trace";
 import type { Scope } from "../value/validator.js";
-import { validateShape } from "../value/validator.js";
+import { getShapeBranches, matching } from "./accessors.js";
 import type { UnionShape } from "./index.js";
-import { getShapeBranches } from "./accessors.js";
 
 
 /**
@@ -62,7 +61,7 @@ export function validateUnion(values: readonly unknown[], shape: UnionShape, {
 
 	return array((value: unknown) => {
 
-		const matched = branches.filter(branch => validateShape([value], branch, { scope }) === undefined);
+		const matched = matching(value, branches, scope);
 
 		return matched.length === 0 ? ["{branches} no branch admits the value"]
 			: scope !== "model" && matched.length > 1 ? ["{branches} several branches admit the value"]

@@ -26,8 +26,8 @@
 
 import { isFunction, type Optional } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
-import { array, type Trace, TraceError } from "@metreeca/core/trace";
-import { mergeShape, narrowsShape } from "../value/assembler.js";
+import { array, type Trace } from "@metreeca/core/trace";
+import { mergeShape, narrowsShape, reject } from "../value/assembler.js";
 import { getShapeBranches } from "./accessors.js";
 import type { UnionBranches, UnionShape } from "./index.js";
 
@@ -82,9 +82,7 @@ export function assemble<B extends UnionBranches>(branches: B): UnionShape<B> {
  */
 export function narrowsUnion(target: UnionShape, source: UnionShape): Optional<Trace> {
 
-	const claimed = claim(target, source);
-
-	return claimed instanceof Map ? undefined : claimed;
+	return checkClaims(pair(target, source));
 
 }
 
@@ -103,19 +101,24 @@ export function narrowsUnion(target: UnionShape, source: UnionShape): Optional<T
  */
 export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
 
-	const claimed = claim(target, source);
+	const pairs = pair(target, source);
 
-	if ( !(claimed instanceof Map) ) {
-		throw new TraceError("incompatible union shape override", claimed);
-	}
+	reject("incompatible union shape override", checkClaims(pairs));
+
+	const overriding = getShapeBranches(target);
+	const inherited = getShapeBranches(source);
+
+	// the branch claiming each inherited one, keyed by the position the inherited union states it at
+
+	const claimants = new Map(pairs.map(([base], index) => [base, index]));
 
 	// merged branches keep the inherited order; unclaimed inherited branches are dropped
 
-	return assemble(getShapeBranches(source).flatMap((inherited, index) => {
+	return assemble(inherited.flatMap((base, index) => {
 
-		const claimant = claimed.get(index);
+		const claimant = claimants.get(index);
 
-		return claimant === undefined ? [] : [mergeShape(getShapeBranches(target)[claimant], inherited)];
+		return claimant === undefined ? [] : [mergeShape(overriding[claimant], base)];
 
 	}));
 
@@ -125,25 +128,24 @@ export function mergeUnion(target: UnionShape, source: UnionShape): UnionShape {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Claims each inherited branch for the branch narrowing it.
+ * Pairs each overriding branch with the inherited branches it claims.
  *
- * Pairs by trial narrowing: a branch claims an inherited one where {@link narrowsShape} reports no obstacle. Every
- * branch must claim exactly one, and no inherited branch may be claimed twice, so the pairing is a partial injection
- * from the inherited branches to the overriding ones and the inherited branches left over are dropped by the caller.
+ * Pairs by trial narrowing: a branch claims an inherited one where {@link narrowsShape} reports no obstacle.
  *
  * @param target The overriding union
  * @param source The inherited union
  *
- * @returns A map from inherited branch to the branch claiming it, or a trace of the obstacles to the pairing
+ * @returns For each overriding branch, in the order `target` states them, the positions of the inherited branches it
+ *     claims
  */
-function claim(target: UnionShape, source: UnionShape): NonNullable<Optional<Trace>> | Map<number, number> {
+function pair(target: UnionShape, source: UnionShape): readonly (readonly number[])[] {
 
 	const inherited = getShapeBranches(source);
 
-	// the inherited branches each overriding branch narrows; a branch restated unchanged, as where the same union
-	// reaches a shape along two inheritance paths, claims its own copy, never competing for the wider ones it narrows
+	// a branch restated unchanged, as where the same union reaches a shape along two inheritance paths, claims its own
+	// copy, never competing for the wider ones it narrows
 
-	const claims = getShapeBranches(target).map(branch => {
+	return getShapeBranches(target).map(branch => {
 
 		const restated = inherited.indexOf(branch);
 
@@ -152,24 +154,39 @@ function claim(target: UnionShape, source: UnionShape): NonNullable<Optional<Tra
 
 	});
 
+}
+
+/**
+ * Checks a pairing for the obstacles that stand against an override.
+ *
+ * Every branch must claim exactly one inherited branch, and no inherited branch may be claimed twice, so the pairing is
+ * a partial injection from the inherited branches to the overriding ones and the inherited branches left over are
+ * dropped by the caller.
+ *
+ * @param pairs The inherited branches each overriding branch claims
+ *
+ * @returns A trace of the obstacles to the pairing, or `undefined` where it is a partial injection
+ */
+function checkClaims(pairs: readonly (readonly number[])[]): Optional<Trace> {
+
 	const exactly = array((bases: readonly number[]) =>
 		bases.length === 0 ? ["branch narrows no inherited branch"]
 			: bases.length > 1 ? ["branch narrows several inherited branches"]
 				: undefined
-	)(claims);
+	)(pairs);
 
-	if ( exactly !== undefined ) {
-		return exactly;
+	return exactly ?? injective(pairs.map(bases => bases[0]));
+
+
+	/**
+	 * Reports the inherited branches claimed by more than one overriding branch.
+	 */
+	function injective(claimed: readonly number[]): Optional<Trace> {
+
+		return array((taken: boolean) =>
+			taken ? ["branch narrows an inherited branch already claimed"] : undefined
+		)(claimed.map((base, index) => claimed.indexOf(base) !== index));
+
 	}
-
-	// no two overriding branches may claim the same inherited branch
-
-	const claimed = claims.map(bases => bases[0]);
-
-	const injective = array((taken: boolean) =>
-		taken ? ["branch narrows an inherited branch already claimed"] : undefined
-	)(claimed.map((base, index) => claimed.findIndex(other => other === base) !== index));
-
-	return injective ?? new Map(claimed.map((base, index) => [base, index]));
 
 }

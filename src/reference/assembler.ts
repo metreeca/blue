@@ -26,10 +26,11 @@
 
 import { isFunction, type Lazy, type Optional } from "@metreeca/core";
 import { equals, immutable } from "@metreeca/core/structures";
-import { test, type Trace, TraceError } from "@metreeca/core/trace";
+import { type Trace } from "@metreeca/core/trace";
+import type { ResourceShape } from "../resource/index.js";
+import { reject } from "../value/assembler.js";
 import { eager } from "../value/index.js";
 import type { ReferenceShape } from "./index.js";
-import type { ResourceShape } from "../resource/index.js";
 
 
 /**
@@ -79,33 +80,7 @@ export function assemble<T extends Lazy<ResourceShape>>(target: T): ReferenceSha
  */
 export function narrowsReference(target: ReferenceShape, source: ReferenceShape): Optional<Trace> {
 
-	return test<ReferenceShape>(({ target: pointed }) => {
-
-		return isFunction(pointed) || extended(eager(pointed), eager(source.target)) || [
-			`{target} incompatible <target> override`
-		];
-
-	})(target);
-
-
-	/**
-	 * Reports whether a target is an inherited one or extends it, directly or transitively.
-	 */
-	function extended(pointed: ResourceShape, inherited: ResourceShape): boolean {
-		return lineage(pointed).some(ancestor => equals(ancestor, inherited));
-	}
-
-
-	/**
-	 * Lists a resource shape and the shapes it extends.
-	 *
-	 * @param shape The shape to walk
-	 *
-	 * @returns `shape` followed by every shape it extends, directly or transitively
-	 */
-	function lineage(shape: ResourceShape): readonly ResourceShape[] {
-		return [shape, ...shape.parents.flatMap(parent => lineage(eager(parent)))];
-	}
+	return narrowsTarget(target.target, source);
 
 }
 
@@ -137,14 +112,50 @@ export function mergeReference(target: ReferenceShape, source: ReferenceShape): 
 	 */
 	function narrowed(shape: ResourceShape): ResourceShape {
 
-		const trace = narrowsReference(assemble(shape), source);
-
-		if ( trace !== undefined ) {
-			throw new TraceError("incompatible reference shape override", trace);
-		}
+		reject("incompatible reference shape override", narrowsTarget(shape, source));
 
 		return shape;
 
+	}
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Reports whether the shape a link points at narrows the inherited target.
+ *
+ * @param pointed The shape the overriding link points at, possibly deferred to break definition cycles
+ * @param source The inherited shape
+ *
+ * @returns A trace of the obstacles to the override, or `undefined` where `pointed` narrows the target of `source` or
+ *     is deferred
+ */
+function narrowsTarget(pointed: Lazy<ResourceShape>, source: ReferenceShape): Optional<Trace> {
+
+	return isFunction(pointed) || extended(eager(pointed), eager(source.target))
+		? undefined
+		: [`{target} incompatible <target> override`];
+
+
+	/**
+	 * Reports whether a target is an inherited one or extends it, directly or transitively.
+	 */
+	function extended(pointed: ResourceShape, inherited: ResourceShape): boolean {
+		return lineage(pointed).some(ancestor => equals(ancestor, inherited));
+	}
+
+
+	/**
+	 * Lists a resource shape and the shapes it extends.
+	 *
+	 * @param shape The shape to walk
+	 *
+	 * @returns `shape` followed by every shape it extends, directly or transitively
+	 */
+	function lineage(shape: ResourceShape): readonly ResourceShape[] {
+		return [shape, ...shape.parents.flatMap(parent => lineage(eager(parent)))];
 	}
 
 }

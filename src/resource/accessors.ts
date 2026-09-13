@@ -75,9 +75,7 @@ export function getShapeClasses(shape: Lazy<Shape>): undefined | readonly Refere
  */
 export function getShapeId(shape: Lazy<Shape>): undefined | Identifier {
 
-	return Object.entries(getShapeTarget(shape)?.members ?? {})
-		.find(([, declared]) => declared.kind === "id")
-		?.[0];
+	return named(shape, "id");
 
 }
 
@@ -93,9 +91,7 @@ export function getShapeId(shape: Lazy<Shape>): undefined | Identifier {
  */
 export function getShapeType(shape: Lazy<Shape>): undefined | Identifier {
 
-	return Object.entries(getShapeTarget(shape)?.members ?? {})
-		.find(([, declared]) => declared.kind === "type")
-		?.[0];
+	return named(shape, "type");
 
 }
 
@@ -112,5 +108,19 @@ export function getShapeType(shape: Lazy<Shape>): undefined | Identifier {
 export function getShapeProperties(shape: Lazy<Shape>): Members {
 
 	return getShapeTarget(shape)?.members ?? {};
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the name the marker of a given kind is stated under.
+ */
+function named(shape: Lazy<Shape>, kind: "id" | "type"): undefined | Identifier {
+
+	return Object.entries(getShapeTarget(shape)?.members ?? {})
+		.find(([, declared]) => declared.kind === kind)
+		?.[0];
 
 }

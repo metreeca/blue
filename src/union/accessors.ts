@@ -17,17 +17,18 @@
 /**
  * Union shape accessors.
  *
- * Reads off a range the alternatives it admits values from, and picks the one a given value, bound or placeholder
- * singles out, so that a caller routing a value over a range needs not tell a polymorphic range from a plain one.
+ * Reads off a range the alternatives it admits values from, and selects the ones a given value, bound or placeholder
+ * fits, whether the caller needs the single branch it singles out or every branch it may be drawn from, so that a
+ * caller routing a value over a range needs not tell a polymorphic range from a plain one.
  *
  * @module
  */
 
 import { isObject, type Lazy } from "@metreeca/core";
+import { getShapeTarget } from "../reference/index.js";
 import { validateTemplate } from "../resource/validator.js";
-import { eager } from "../value/index.js";
-import { validateShape } from "../value/validator.js";
-import type { Shape } from "../value/index.js";
+import { eager, type Shape } from "../value/index.js";
+import { type Scope, validateShape } from "../value/validator.js";
 
 
 /**
@@ -71,7 +72,7 @@ export function getShapeBranches(shape: Lazy<Shape>): readonly Shape[] {
  */
 export function getStateBranch<B extends Shape>(state: unknown, branches: readonly B[]): undefined | B {
 
-	const matched = branches.filter(branch => validateShape([state], branch, { scope: "state" }) === undefined);
+	const matched = matching(state, branches, "state");
 
 	return matched.length === 1 ? matched[0] : undefined;
 
@@ -96,7 +97,7 @@ export function getStateBranch<B extends Shape>(state: unknown, branches: readon
  */
 export function getBoundBranch<B extends Shape>(bound: unknown, branches: readonly B[]): undefined | B {
 
-	const matched = branches.filter(branch => validateShape([bound], branch, { scope: "bound" }) === undefined);
+	const matched = matching(bound, branches, "bound");
 
 	return matched.length === 1 ? matched[0] : undefined;
 
@@ -130,14 +131,34 @@ export function getModelBranches<B extends Shape>(model: unknown, branches: read
 
 		// a template crosses a link, standing for the resource it points at rather than for the link itself
 
-		const admits = isObject(model) && branch.kind === "reference" ? eager(branch.target) : branch;
+		const target = isObject(model) ? getShapeTarget(branch) : undefined;
 
-		return isObject(model) && admits.kind === "resource"
-			? validateTemplate([model], admits) === undefined
-			: validateShape([model], admits, { scope: "model" }) === undefined;
+		return target !== undefined
+			? validateTemplate([model], target) === undefined
+			: validateShape([model], branch, { scope: "model" }) === undefined;
 
 	});
 
 	return matched.length > 0 ? matched : undefined;
+
+}
+
+/**
+ * Selects the branches admitting a value.
+ *
+ * Matches a value against each branch at the strictness the caller asks for, in the order the branches were stated, so
+ * that a caller routing a value over a union reads the alternatives it fits off a single list.
+ *
+ * @typeParam B The branch type, carried through from the branches supplied
+ *
+ * @param value The value to match
+ * @param branches The branches to match against
+ * @param scope The {@link Scope | strictness} the branches are matched at
+ *
+ * @returns The branches admitting `value`, in the order they were stated
+ */
+export function matching<B extends Shape>(value: unknown, branches: readonly B[], scope: Scope): readonly B[] {
+
+	return branches.filter(branch => validateShape([value], branch, { scope }) === undefined);
 
 }

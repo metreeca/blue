@@ -39,10 +39,10 @@ import { unique, union } from "@metreeca/core/arrays";
 import { app, isIRI, type Namespace } from "@metreeca/core/resource";
 import { dedent, tidy } from "@metreeca/core/strings";
 import { equals, immutable, seal } from "@metreeca/core/structures";
-import { all, fail, test, type Trace, TraceError } from "@metreeca/core/trace";
+import { all, fail, test, type Trace } from "@metreeca/core/trace";
 import { type Dictionary, type Reference } from "@metreeca/qest/resource";
 import { eager } from "../value/accessors.js";
-import { mergeShape, narrowsShape } from "../value/assembler.js";
+import { mergeShape, narrowsShape, reject } from "../value/assembler.js";
 import type { Shape } from "../value/index.js";
 import type {
 	Member,
@@ -53,9 +53,7 @@ import type {
 	ResourceConstraints,
 	ResourceShape
 } from "./index.js";
-import { getShapeBranches } from "../union/accessors.js";
 import { assemble as assembleUnion } from "../union/assembler.js";
-import { getShapeId } from "./accessors.js";
 
 
 /**
@@ -86,7 +84,7 @@ export function assemble(args: readonly unknown[]): ResourceShape {
 	const parents = args.filter(isParent);
 	const [members, constraints = {}] = args.filter(isDeclaration);
 
-	if ( members === undefined || !isMembers(members) ) {
+	if ( !isMembers(members) ) {
 		throw new TypeError(`malformed member declarations <${JSON.stringify(members)}>`);
 	}
 
@@ -133,15 +131,15 @@ export function assemble(args: readonly unknown[]): ResourceShape {
 	/**
 	 * Checks whether a declaration lists members.
 	 */
-	function isMembers(declaration: Members | ResourceConstraints): declaration is Members {
-		return Object.values(declaration).every(isMember);
+	function isMembers(declaration: unknown): declaration is Members {
+		return isObject(declaration) && Object.values(declaration).every(isMember);
 	}
 
 	/**
 	 * Checks whether a declaration lists constraints.
 	 */
-	function isConstraints(declaration: Members | ResourceConstraints): declaration is ResourceConstraints {
-		return !Object.values(declaration).some(isMember);
+	function isConstraints(declaration: unknown): declaration is ResourceConstraints {
+		return isObject(declaration) && !Object.values(declaration).some(isMember);
 	}
 
 	/**
@@ -185,7 +183,9 @@ export function assemble(args: readonly unknown[]): ResourceShape {
 
 		// a conflict among the extended shapes is reported by checkParents against the merged ones
 
-		return space ?? parents.map(parent => eager(parent).space)[0] ?? app;
+		const [first] = parents;
+
+		return space ?? (first === undefined ? undefined : eager(first).space) ?? app;
 
 	}
 
@@ -206,7 +206,7 @@ export function assemble(args: readonly unknown[]): ResourceShape {
 
 		return Object.fromEntries(Object.entries(members).map(([name, member]) => {
 
-			const base = inherited.reduce<undefined | Member>((found, source) => found ?? source[name], undefined);
+			const base = inherited.flatMap(source => source[name] ?? []).at(0);
 
 			return member.kind === "property"
 				&& member.forward === undefined && member.reverse === undefined
@@ -285,24 +285,20 @@ export function assemble(args: readonly unknown[]): ResourceShape {
  *
  * @throws {@link !TypeError TypeError} Where the member states a negative bound, or bounds admitting no value at all
  */
-export function declare<M>(member: unknown): M {
+export function declare<M>(member: Record<string, unknown>): M {
 
-	if ( isObject(member) ) {
+	const { minCount, maxCount } = member;
 
-		const { minCount, maxCount } = member;
+	if ( isNumber(minCount) && minCount < 0 ) {
+		throw new TypeError(`negative minCount <${minCount}>`);
+	}
 
-		if ( isNumber(minCount) && minCount < 0 ) {
-			throw new TypeError(`negative minCount <${minCount}>`);
-		}
+	if ( isNumber(maxCount) && maxCount < 0 ) {
+		throw new TypeError(`negative maxCount <${maxCount}>`);
+	}
 
-		if ( isNumber(maxCount) && maxCount < 0 ) {
-			throw new TypeError(`negative maxCount <${maxCount}>`);
-		}
-
-		if ( isNumber(minCount) && isNumber(maxCount) && minCount > maxCount ) {
-			throw new TypeError(`inconsistent bounds <${minCount}> > <${maxCount}>`);
-		}
-
+	if ( isNumber(minCount) && isNumber(maxCount) && minCount > maxCount ) {
+		throw new TypeError(`inconsistent bounds <${minCount}> > <${maxCount}>`);
 	}
 
 	return immutable(member) as M; // ;(cast) the factory signatures fix the member each one states
@@ -340,17 +336,13 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 	}));
 
-	const trace = all(
+	reject("incompatible merged shape", all(
 		() => checkParents(shape, parents),
 		() => checkSingletons(Object.values(merged.members)),
 		() => checkPredicates(merged)
 
 		// checkId is left to validateResource, which alone can tell an embedded resource from an expanded target
-	)(undefined);
-
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible merged shape", trace);
-	}
+	)(undefined));
 
 	// the class each extended shape states, followed by the ones it inherits in turn, so a caller tests a resource
 	// against a supertype without walking the chain itself
@@ -480,17 +472,19 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 
 	if ( parents.length < 2 ) { return undefined; }
 
+	const virtual = shape.virtual !== undefined ? undefined
+		: conflict(parents.map(parent => parent.virtual));
+
+	const space = shape.space !== undefined ? undefined
+		: conflict(parents.map(parent => parent.space?.[""]));
+
 	return all(
 
-		(shape.virtual === undefined && !parents.every(p => p.virtual === parents[0].virtual))
-		&& fail([`{virtual} conflicting inherited values <${parents[0].virtual}> vs <${
-			parents.find(p => p.virtual !== parents[0].virtual)?.virtual
-		}> without an override`]),
+		virtual !== undefined
+		&& fail([`{virtual} conflicting inherited values <${virtual[0]}> vs <${virtual[1]}> without an override`]),
 
-		(shape.space === undefined && !parents.every(p => p.space?.[""] === parents[0].space?.[""]))
-		&& fail([`{space} conflicting inherited values <${parents[0].space?.[""]}> vs <${
-			parents.find(p => p.space?.[""] !== parents[0].space?.[""])?.space?.[""]
-		}> without an override`]),
+		space !== undefined
+		&& fail([`{space} conflicting inherited values <${space[0]}> vs <${space[1]}> without an override`]),
 
 		// a marker is taken whole from the most derived declaration, so its `hidden` is settled before this check
 
@@ -504,16 +498,30 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 
 			});
 
-			return inherited.length > 1
-				&& shape.members[name]?.hidden === undefined
-				&& !inherited.every(member => member.hidden === inherited[0].hidden)
-				&& fail([`{hidden} conflicting inherited values <${inherited[0].hidden}> vs <${
-					inherited.find(member => member.hidden !== inherited[0].hidden)?.hidden
+			const hidden = inherited.length > 1 && shape.members[name]?.hidden === undefined
+				? conflict(inherited.map(member => member.hidden))
+				: undefined;
+
+			return hidden !== undefined
+				&& fail([`{hidden} conflicting inherited values <${hidden[0]}> vs <${hidden[1]
 				}> for <${name}> without an override`]);
 
 		})
 
 	)(undefined);
+
+
+	/**
+	 * Resolves the first pair of inherited values that disagree.
+	 */
+	function conflict<V>(values: readonly V[]): undefined | readonly [V, V] {
+
+		const [first] = values;
+		const other = values.findIndex(value => value !== first);
+
+		return other < 0 ? undefined : [first, values[other]];
+
+	}
 
 }
 
@@ -531,22 +539,13 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
  */
 export function checkSingletons(members: readonly { readonly kind?: string }[]): Optional<Trace> {
 
-	return all<typeof members>(
-		test(declared => {
+	return all(...["id", "type"].map(kind => () => {
 
-			return declared.filter(m => m.kind === "id").length <= 1 || [
-				`{id} duplicate member (<${declared.filter(m => m.kind === "id").length}> found)`
-			];
+		const declared = members.filter(member => member.kind === kind).length;
 
-		}),
-		test(declared => {
+		return declared <= 1 ? undefined : [`{${kind}} duplicate member (<${declared}> found)`];
 
-			return declared.filter(m => m.kind === "type").length <= 1 || [
-				`{type} duplicate member (<${declared.filter(m => m.kind === "type").length}> found)`
-			];
-
-		})
-	)(members);
+	}))(undefined);
 
 }
 
@@ -579,15 +578,15 @@ export function checkPredicates(shape: ResourceShape): Optional<Trace> {
 
 		return properties
 
-			.flatMap(([name, member]) => {
+			.flatMap(([name, member], index) => {
 
 				const iri = member[mapping];
 
 				const earlier = iri === undefined ? undefined : properties
-					.find(([other, source]) => other !== name && source[mapping] === iri);
+					.slice(0, index)
+					.find(([, source]) => source[mapping] === iri);
 
-				return earlier === undefined || properties.findIndex(([n]) => n === name)
-					< properties.findIndex(([n]) => n === earlier[0]) ? []
+				return earlier === undefined ? []
 					: [`{${mapping}} duplicate predicate <${iri}> on <${name}> already used by <${earlier[0]}>`];
 
 			});
@@ -595,33 +594,6 @@ export function checkPredicates(shape: ResourceShape): Optional<Trace> {
 	}
 
 }
-
-/**
- * Checks that no member carries an embedded resource naming itself.
- *
- * An embedded resource has no identity of its own, so it states no identifier. A linked resource legitimately states
- * one and is left alone; a union range is inspected one branch at a time.
- *
- * This runs as a resource is validated rather than as the shape is built: at construction an id-bearing embedded range
- * reads exactly like an expanded link, whose target legitimately names itself, and the two are told apart only once a
- * value is matched against them.
- *
- * @param shape The merged shape to check
- *
- * @returns A trace of the embedded resources naming themselves, or `undefined` where none does
- */
-export function checkId(shape: ResourceShape): Optional<Trace> {
-
-	return all(...Object.entries(shape.members)
-		.flatMap(([name, member]) => member.kind === "property" ? getShapeBranches(member.shape)
-			.filter(branch => branch.kind === "resource" && getShapeId(branch) !== undefined)
-			.map(() => fail([`{id} unexpected identifier in the resource embedded under <${name}>`]))
-			: []
-		)
-	)(undefined);
-
-}
-
 
 /**
  * Reports whether a resource shape narrows an inherited one.
@@ -669,17 +641,16 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): O
 
 		// per shared member: the kind is kept, and a property narrows the one it overrides
 
-		...union([Object.keys(target.members), Object.keys(source.members)]).flatMap(name => {
+		...Object.keys(target.members).filter(name => Object.hasOwn(source.members, name)).flatMap(name => {
 
 			const declared = target.members[name];
 			const inherited = source.members[name];
 
-			return declared === undefined || inherited === undefined ? []
-				: declared.kind !== inherited.kind
-					? [() => [{ [name]: [`mismatched member kinds <${declared.kind}> vs <${inherited.kind}>`] }]]
-					: declared.kind === "property" && inherited.kind === "property"
-						? [() => fold(narrowsProperty(declared, inherited), trace => [{ [name]: trace }])]
-						: [];
+			return declared.kind !== inherited.kind
+				? [() => [{ [name]: [`mismatched member kinds <${declared.kind}> vs <${inherited.kind}>`] }]]
+				: declared.kind === "property" && inherited.kind === "property"
+					? [() => fold(narrowsProperty(declared, inherited), trace => [{ [name]: trace }])]
+					: [];
 
 		}),
 
@@ -783,11 +754,7 @@ export function narrowsProperty(target: Property, source: Property): Optional<Tr
  */
 export function mergeResource(target: ResourceShape, source: ResourceShape): ResourceShape {
 
-	const trace = narrowsResource(target, source);
-
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible resource shape override", trace);
-	}
+	reject("incompatible resource shape override", narrowsResource(target, source));
 
 	return immutable({
 
@@ -853,11 +820,7 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
  */
 export function mergeProperty(target: Property, source: Property): Property {
 
-	const trace = narrowsProperty(target, source);
-
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible member override", trace);
-	}
+	reject("incompatible member override", narrowsProperty(target, source));
 
 	const hidden = target.hidden ?? source.hidden;
 

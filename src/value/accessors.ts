@@ -27,7 +27,6 @@
 import {
 	assert,
 	type Eager,
-	error,
 	type Identifier,
 	isFunction,
 	isString,
@@ -44,8 +43,7 @@ import { decimal, integer } from "../number/index.js";
 import { getShapeTarget } from "../reference/index.js";
 import { flatten } from "../resource/assembler.js";
 import { string } from "../string/index.js";
-import { getShapeBranches } from "../union/index.js";
-import { union } from "../union/index.js";
+import { getShapeBranches, union } from "../union/index.js";
 import { type Range, type Shape, sh } from "./index.js";
 
 
@@ -153,11 +151,11 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
 
 		return resolved as Eager<S>; // ;(cast) as above
 
-	} catch ( error ) {
+	} catch ( cause ) {
 
 		shapes.delete(shape);
 
-		throw error;
+		throw cause;
 
 	}
 
@@ -295,11 +293,10 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 
 		const members = getShapeTarget(shape)?.members;
 
-		if ( members === undefined ) { return undefined; } // a branch carrying no member is stepped past
+		// a branch carrying no member is stepped past; own names alone, as a name carried over from JSON must not
+		// reach Object.prototype
 
-		// own names alone: a name carried over from JSON must not reach Object.prototype
-
-		const member = Object.hasOwn(members, segment) ? members[segment] : undefined;
+		const member = members !== undefined && Object.hasOwn(members, segment) ? members[segment] : undefined;
 
 		return member === undefined ? undefined
 			: member.kind === "id" || member.kind === "type" ? IRIRange
@@ -315,29 +312,30 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 
 		if ( isString(reached) ) { return reached; }
 
-		if ( pipe.filter(name => Transforms[name].aggregate !== false).length > 1 ) {
+		const aggregates = pipe.filter(name => Transforms[name].aggregate !== false);
+
+		if ( aggregates.length > 1 ) {
 			return "multiple aggregate transforms";
 		}
 
 		// a pipe reads a localised value through the content negotiation settles on, as ordinary text
 
-		const staged = pipe.length === 0 ? getShapeBranches(reached.shape)
-			: getShapeBranches(reached.shape).map(shape => shape.kind === "dictionary" ? string() : shape);
+		const staged = getShapeBranches(reached.shape)
+			.map(shape => pipe.length > 0 && shape.kind === "dictionary" ? string() : shape);
 
 		const surviving = staged
-			.map(shape => pipe.reduceRight(apply, shape as undefined | Shape))
+			.map(shape => pipe.reduceRight<undefined | Shape>(apply, shape))
 			.filter(shape => shape !== undefined);
 
 		if ( surviving.length === 0 ) { return "incompatible transform input"; }
 
 		const piped = pipe.length > 0;
 		const total = pipe.some(name => Transforms[name].aggregate === "total");
-		const aggregate = pipe.some(name => Transforms[name].aggregate !== false);
 
 		return {
 
 			minCount: !piped ? reached.minCount : total ? 1 : undefined,
-			maxCount: aggregate ? 1 : reached.maxCount,
+			maxCount: aggregates.length > 0 ? 1 : reached.maxCount,
 
 			shape: collect(surviving)
 
@@ -350,11 +348,9 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 	 */
 	function apply(shape: undefined | Shape, name: Transform): undefined | Shape {
 
-		if ( shape === undefined ) { return undefined; }
-
 		const transform = Transforms[name];
 
-		return accepts(transform.accepts, shape) ? produce(transform, shape) : undefined;
+		return shape !== undefined && accepts(transform.accepts, shape) ? produce(transform, shape) : undefined;
 
 	}
 
@@ -370,8 +366,7 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 		return returns === "same" ? (aggregate === "total" ? widen(shape) : shape)
 			: returns === "integer" ? integer()
 				: returns === "decimal" ? decimal()
-					: returns === "string" ? string()
-						: error<Shape>(`unsupported transform output type '${returns}'`);
+					: string();
 
 	}
 
@@ -384,8 +379,7 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 			: domain === "literal" ? isLiteral(shape)
 				: domain === "numeric" ? isNumeric(shape)
 					: domain === "string" ? isTextual(shape)
-						: domain === "temporal" ? isTemporal(shape)
-							: false;
+						: isTemporal(shape);
 
 	}
 
@@ -425,7 +419,7 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 
 		const distinct = unique(branches, equals);
 
-		return distinct.length === 1 ? distinct[0] : union(...distinct as [Shape, ...Shape[]]);
+		return distinct.length === 1 ? distinct[0] : union(distinct[0], ...distinct.slice(1));
 
 	}
 

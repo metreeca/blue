@@ -25,8 +25,9 @@
  */
 
 import { isNumber, type Optional } from "@metreeca/core";
-import { all, array, domain, gt, gte, integer, lt, lte, type Trace, type, values as contains } from "@metreeca/core/trace";
-import type { Scope } from "../value/validator.js";
+import { all, array, domain, gt, gte, integer, lt, lte, type Trace, type, type Validator, values as contains }
+	from "@metreeca/core/trace";
+import { type Scope, scoped } from "../value/validator.js";
 import { type NumberShape } from "./index.js";
 
 
@@ -45,77 +46,56 @@ import { type NumberShape } from "./index.js";
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
  */
-export function validateNumber(values: readonly unknown[], shape: NumberShape, {
-
-	scope = "state"
-
-}: {
+export const validateNumber: (values: readonly unknown[], shape: NumberShape, opts?: {
 
 	scope?: Scope
 
-} = {}): Optional<Trace> {
-
-	switch ( scope ) {
-
-		case "state":
-
-			return state(shape)(values);
-
-		case "bound":
-
-			return bound(shape)(values);
-
-		case "model":
-
-			return model(shape)(values);
-
-	}
+}) => Optional<Trace> = scoped(state, model, model); // a bound is matched by kind alone, exactly as a model is
 
 
-	function state({
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-		minExclusive,
-		maxExclusive,
-		minInclusive,
-		maxInclusive,
+/**
+ * Every constraint: a legal element of the shape's domain.
+ */
+function state({
 
-		integral,
+	minExclusive,
+	maxExclusive,
+	minInclusive,
+	maxInclusive,
 
-		in: allowed,
-		hasValue: required
+	integral,
 
-	}: NumberShape) {
+	in: allowed,
+	hasValue: required
 
-		return array(
-			type(isNumber,
-				all(
-					integral && integer(),
-					gt(minExclusive),
-					lt(maxExclusive),
-					gte(minInclusive),
-					lte(maxInclusive),
-					domain(allowed)
-				)
-			),
-			contains(required)
-		);
+}: NumberShape): Validator<readonly unknown[]> {
 
-	}
+	return array(
+		type(isNumber,
+			all(
+				integral && integer(),
+				gt(minExclusive),
+				lt(maxExclusive),
+				gte(minInclusive),
+				lte(maxInclusive),
+				domain(allowed)
+			)
+		),
+		contains(required)
+	);
 
-	function bound({}: NumberShape) {
+}
 
-		return array(
-			type(isNumber)
-		);
+/**
+ * The kind alone: a number carries no lexical discriminator, so neither a relational bound nor a retrieval placeholder
+ * is held to anything further.
+ */
+function model({}: NumberShape): Validator<readonly unknown[]> {
 
-	}
-
-	function model({}: NumberShape) {
-
-		return array(
-			type(isNumber)
-		);
-
-	}
+	return array(
+		type(isNumber)
+	);
 
 }

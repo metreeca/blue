@@ -115,7 +115,6 @@
  */
 
 import { xsd } from "@metreeca/core/datatype";
-import { TraceError } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Legal } from "../value/inference.js";
 import { assemble } from "./assembler.js";

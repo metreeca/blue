@@ -25,10 +25,10 @@
 
 import { isArray, isIdentifier, isObject } from "@metreeca/core";
 import { decodeProbe, isBinding, isBranch, isUnion } from "@metreeca/qest/template";
+import { getShapeTarget } from "./reference/index.js";
 import type { ResourceShape } from "./resource/index.js";
-import { getShapeBranches } from "./union/accessors.js";
-import { eager, effective } from "./value/accessors.js";
-import type { Range, Shape } from "./value/index.js";
+import { getShapeBranches } from "./union/index.js";
+import { effective, type Range, type Shape } from "./value/index.js";
 
 
 /**
@@ -104,49 +104,52 @@ export function enforce(value: unknown, shape: ResourceShape, {
 		const branches = getShapeBranches(range.shape);
 		const [branch] = branches;
 
-		return branches.length > 1 ? indexed(value, branches, range.maxCount === 1)
+		return branches.length > 1 ? model(value, branches, range.maxCount === 1)
 			: branch.kind === "dictionary" ? value // nothing pages a localised value
-				: range.maxCount === 1 ? nested(value, branch)
-					: isArray(value) ? [nested(value[0], branch), page(value[1])] : value;
+				: range.maxCount === 1 ? placeholder(value, branch)
+					: isArray(value) ? [placeholder(value[0], branch), page(value[1])] : value;
 
 	}
 
 	/**
 	 * Walks what a single value asks for, descending into the template behind a resource.
 	 */
-	function nested(value: unknown, branch: Shape): unknown {
+	function placeholder(value: unknown, branch: Shape): unknown {
 
-		// a union of one flattens away, so its branch map arrives here rather than through `indexed`
+		// a union of one flattens away, so its branch map arrives here rather than through `model`
 
-		return isUnion(value) ? branchmap(value, [branch])
-			: branch.kind === "resource" && isObject(value) ? template(value, branch)
-				: branch.kind === "reference" && isObject(value) ? template(value, eager(branch.target))
-					: value;
+		const target = isObject(value) ? getShapeTarget(branch) : undefined;
+
+		return isUnion(value) ? indexed(value, [branch])
+			: target !== undefined ? template(value, target)
+				: value;
 
 	}
 
 	/**
 	 * Walks what a polymorphic slot asks for, paging the set it is stated as.
 	 */
-	function indexed(value: unknown, branches: readonly Shape[], scalar: boolean): unknown {
+	function model(value: unknown, branches: readonly Shape[], scalar: boolean): unknown {
 
-		return scalar ? branchmap(value, branches)
-			: isArray(value) ? [branchmap(value[0], branches), page(value[1])] : value;
+		return scalar ? indexed(value, branches)
+			: isArray(value) ? [indexed(value[0], branches), page(value[1])] : value;
 
 	}
 
 	/**
 	 * Walks each branch of a branch map into the shape it is stated under.
 	 */
-	function branchmap(value: unknown, branches: readonly Shape[]): unknown {
+	function indexed(value: unknown, branches: readonly Shape[]): unknown {
 
 		if ( !isObject(value) ) { return value; }
 
-		return Object.fromEntries(Object.entries(value).map(([index, asked]) =>
-			isBranch(index) && Number(index) < branches.length
-				? [index, nested(asked, branches[Number(index)])]
-				: [index, asked]
-		));
+		return Object.fromEntries(Object.entries(value).map(([index, asked]) => {
+
+			const branch: undefined | Shape = isBranch(index) ? branches[Number(index)] : undefined;
+
+			return [index, branch === undefined ? asked : placeholder(asked, branch)];
+
+		}));
 
 	}
 

@@ -41,7 +41,6 @@ import { isIRI } from "@metreeca/core/resource";
 import { all, array, fail, object, type Trace } from "@metreeca/core/trace";
 import { isReference, type Reference, type Resource } from "@metreeca/qest/resource";
 import {
-	type Binding,
 	decodeProbe,
 	isAggregate,
 	isBinding,
@@ -54,16 +53,12 @@ import {
 	type Template
 } from "@metreeca/qest/template";
 import type { DictionaryShape } from "../dictionary/index.js";
-import { eager, effective } from "../value/index.js";
-import type { Scope } from "../value/validator.js";
-import { validateShape } from "../value/validator.js";
-import type { Range, Shape } from "../value/index.js";
+import { eager, effective, type Range, type Shape } from "../value/index.js";
+import { match, type Scope, validateShape } from "../value/validator.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { Property, ResourceShape } from "./index.js";
 import { getShapeBranches } from "../union/index.js";
-import { checkId } from "./assembler.js";
 import { getShapeId } from "./accessors.js";
-import { match } from "../value/validator.js";
 
 
 /**
@@ -106,44 +101,35 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 } = {}): Optional<Trace> {
 
-	const matching = values.filter(value => isObject(value));
-	const mistyped = values.length-matching.length;
-
 	return all(
 
 		// an embedded resource naming itself is told from an expanded link only here, against a value
 
 		() => checkId(shape),
 
-		(mistyped > 0)
-		&& fail([`{kind} expected <resource> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`]),
+		() => resources(values, shape, resource => all(
 
-		...matching.map((resource, index) => () => fold(
-			all(
+			// every member the shape declares, keyed by its name
 
-				// every member the shape declares, keyed by its name
+			...Object.entries(shape.members).map(([name, declared]) => () => fold(
+				declared.kind === "id" ? identifier(resource[name], shape, entry)
+					: declared.kind === "type" ? classifier(resource[name], shape)
+						: contents(resource[name], declared),
+				trace => [{ [name]: trace }]
+			)),
 
-				...Object.entries(shape.members).map(([name, declared]) => () => fold(
-					declared.kind === "id" ? identifier(resource[name], shape, entry)
-						: declared.kind === "type" ? classifier(resource[name], shape)
-							: contents(resource[name], declared),
-					trace => [{ [name]: trace }]
-				)),
+			// the shape is closed, so a field it doesn't declare is rejected
 
-				// the shape is closed, so a field it doesn't declare is rejected
+			...Object.keys(resource)
+				.filter(name => !Object.hasOwn(shape.members, name))
+				.map(name => () => [{ [name]: ["unexpected member"] }]),
 
-				...Object.keys(resource)
-					.filter(name => !Object.hasOwn(shape.members, name))
-					.map(name => () => [{ [name]: ["unexpected member"] }]),
+			// the checks the shape states on top of its members, each keyed by the name of the check
 
-				// the checks the shape states on top of its members, each keyed by the name of the check
+			...checks(resource, shape)
 
-				...checks(resource, shape)
+		)(undefined))
 
-			)(undefined),
-
-			trace => [{ [key(resource, shape, index)]: trace }]
-		))
 	)(undefined);
 
 
@@ -181,13 +167,6 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 		const whole = isLocalised(present, branches, scope);
 
-		const arity = whole ? undefined
-			: isArray(present) && present.some(element => isLocalised(element, branches, scope))
-				? ["{kind} expected a single localised value"]
-				: maxCount === 1
-					? isArray(present) ? ["{kind} expected a single value"] : undefined
-					: present !== undefined && !isArray(present) ? ["{kind} expected an array of values"] : undefined;
-
 		const bounds = whole ? undefined : all(
 			(minCount !== undefined && carried.length < minCount)
 			&& fail([`{minCount} expected at least <${minCount}> value(s)`]),
@@ -198,7 +177,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 
 		// the arity is reported first, then the values, then the cardinality
 
-		return arity
+		return (whole ? undefined : arity(present, maxCount, branches, scope))
 			?? elements(carried, resolved, captive)
 			?? bounds;
 
@@ -232,14 +211,10 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	 */
 	function admitting(value: unknown, branches: readonly Shape[]): Optional<Trace> {
 
-		const matched = branches.filter(alternative => alternative.kind === "reference"
+		return verdict(branches.filter(alternative => alternative.kind === "reference"
 			? expanded(value, alternative) === undefined
 			: validateShape([value], alternative, { scope }) === undefined
-		);
-
-		return matched.length === 0 ? ["{branches} no branch admits the value"]
-			: matched.length > 1 ? ["{branches} several branches admit the value"]
-				: undefined;
+		), "value");
 
 	}
 
@@ -248,11 +223,9 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	 */
 	function expanded(value: unknown, range: ReferenceShape): Optional<Trace> {
 
-		const next = depth === undefined ? undefined : depth-1;
-
 		return !isObject(value) ? validateShape([value], range, { scope })
 			: depth === undefined || depth > 0
-				? validateResource([value], eager(range.target), { scope, depth: next })
+				? validateResource([value], eager(range.target), { scope, depth: step(depth) })
 				: ["exceeded the maximum nesting depth"];
 
 	}
@@ -331,20 +304,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 } = {}): Optional<Trace> {
 
-	const matching = values.filter(value => isObject(value));
-	const mistyped = values.length-matching.length;
-
-	return all(
-
-		(mistyped > 0)
-		&& fail([`{kind} expected <resource> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`]),
-
-		...matching.map((value, index) => () => fold(
-			template(value, shape, depth),
-			trace => [{ [key(value, shape, index)]: trace }]
-		))
-
-	)(undefined);
+	return resources(values, shape, value => template(value, shape, depth));
 
 
 	/**
@@ -354,7 +314,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( !isObject(value) ) { return ["expected <template> value"]; }
 
-		if ( depth !== undefined && depth < 0 ) { return ["exceeded maximum nesting depth"]; }
+		if ( exhausted(depth) ) { return ["exceeded maximum nesting depth"]; }
 
 		return all(...Object.entries(value).map(([name, asked]) => () => fold(
 
@@ -393,7 +353,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	 */
 	function placeholder(value: unknown, branch: Shape, depth: Optional<number>): Optional<Trace> {
 
-		const next = depth === undefined ? depth : depth-1;
+		const next = step(depth);
 
 		switch ( branch.kind ) {
 
@@ -582,7 +542,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	 */
 	function item(value: unknown, member: Property, depth: Optional<number>): Optional<Trace> {
 
-		if ( depth !== undefined && depth < 0 ) { return ["exceeded maximum nesting depth"]; }
+		if ( exhausted(depth) ) { return ["exceeded maximum nesting depth"]; }
 
 		const branches = getShapeBranches(member.shape);
 		const [branch] = branches;
@@ -598,7 +558,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			case "reference":
 			case "resource": {
 
-				const next = depth === undefined ? depth : depth-1;
+				const next = step(depth);
 				const target = branch.kind === "reference" ? eager(branch.target) : branch;
 
 				return !isObject(value) ? placeholder(value, branch, depth)
@@ -622,11 +582,18 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( !isObject(value) ) { return ["expected <projection> value"]; }
 
-		if ( depth !== undefined && depth < 0 ) { return ["exceeded maximum nesting depth"]; }
+		if ( exhausted(depth) ) { return ["exceeded maximum nesting depth"]; }
 
-		const probes = new Map<Binding, Probe>(Object.keys(value)
+		const probes = new Map<string, Probe>(Object.keys(value)
 			.filter(isBinding)
 			.map(binding => [binding, decodeProbe(binding)])
+		);
+
+		// the identifiers a column may not bind twice, settled once for the whole table
+
+		const shared = new Set([...probes.values()]
+			.map(probe => probe.target)
+			.filter((target, index, targets) => targets.indexOf(target) !== index)
 		);
 
 		return all(...Object.entries(value).map(([binding, asked]) => () =>
@@ -636,7 +603,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		function column(binding: string, asked: unknown): Optional<Trace> {
 
-			const probe = isBinding(binding) ? probes.get(binding) : undefined;
+			const probe = probes.get(binding);
 
 			if ( probe === undefined ) { return ["expected projection binding"]; }
 
@@ -644,7 +611,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			if ( plain && probe.pipe.some(isAggregate) ) { return ["disabled aggregate transforms"]; }
 
-			if ( [...probes.values()].filter(other => other.target === probe.target).length > 1 ) {
+			if ( shared.has(probe.target) ) {
 				return [`duplicate projection identifier <${probe.target}>`];
 			}
 
@@ -677,13 +644,13 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		// a selector resolves through the values the collection holds, one step below the collection itself
 
-		const next = depth === undefined ? depth : depth-1;
+		const next = step(depth);
 
 		if ( value === undefined ) { return undefined; } // a collection stated without a selection
 
 		if ( !isObject(value) ) { return ["expected selection object"]; }
 
-		if ( next !== undefined && next < 0 ) { return ["exceeded maximum nesting depth"]; }
+		if ( exhausted(next) ) { return ["exceeded maximum nesting depth"]; }
 
 		return all(...Object.entries(value).map(([selector, asked]) => () =>
 			fold(operator(selector, asked), trace => [{ [selector]: trace }])
@@ -759,39 +726,18 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( branches.length > 1 ) {
 
-			const matched = branches.filter(branch => bound(value, [branch]) === undefined);
-
-			return matched.length === 0 ? ["{branches} no branch admits the bound"]
-				: matched.length > 1 ? ["{branches} several branches admit the bound"]
-					: undefined;
+			return verdict(branches.filter(branch => bound(value, [branch]) === undefined), "bound");
 
 		}
 
 		const [branch] = branches;
 
-		switch ( branch.kind ) {
+		// a localised value is filtered through the strings it carries
 
-			case "boolean":
-
-				return isBoolean(value) ? undefined : [`expected <${branch.kind}> value`];
-
-			case "number":
-
-				return isNumber(value) ? undefined : [`expected <${branch.kind}> value`];
-
-			case "string":
-
-				return isString(value) ? undefined : [`expected <${branch.kind}> value`];
-
-			case "dictionary": // a localised value is filtered through the strings it carries
-
-				return isString(value) ? undefined : ["expected string value"];
-
-			default:
-
-				return [`unsupported constraint for <${branch.kind}> value`];
-
-		}
+		return literal(value, branch, () => branch.kind === "dictionary"
+			? isString(value) ? undefined : ["expected string value"]
+			: [`unsupported constraint for <${branch.kind}> value`]
+		);
 
 	}
 
@@ -835,7 +781,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( branches.length > 1 ) {
 
-			return isArray(value) ? array((value: unknown) => single(value))(value) : single(value);
+			return isArray(value) ? array<unknown>(single)(value) : single(value);
 
 		}
 
@@ -883,11 +829,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			if ( value === null ) { return undefined; }
 
-			const matched = branches.filter(branch => options(value, [branch]) === undefined);
-
-			return matched.length === 0 ? ["{branches} no branch admits the option"]
-				: matched.length > 1 ? ["{branches} several branches admit the option"]
-					: undefined;
+			return verdict(branches.filter(branch => options(value, [branch]) === undefined), "option");
 
 		}
 
@@ -900,25 +842,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( value === null ) { return undefined; } // an option stated as nothing at all matches any value type
 
-		switch ( branch.kind ) {
-
-			case "boolean":
-
-				return isBoolean(value) ? undefined : [`expected <${branch.kind}> value`];
-
-			case "number":
-
-				return isNumber(value) ? undefined : [`expected <${branch.kind}> value`];
-
-			case "string":
-
-				return isString(value) ? undefined : [`expected <${branch.kind}> value`];
-
-			default:
-
-				return isReference(value) ? undefined : ["expected <reference> value"];
-
-		}
+		return literal(value, branch, () => isReference(value) ? undefined : ["expected <reference> value"]);
 
 	}
 
@@ -1005,41 +929,28 @@ export function validateResult(values: readonly unknown[], {
 
 }): Optional<Trace> {
 
-	const matching = values.filter(value => isObject(value));
-	const mistyped = values.length-matching.length;
+	return resources(values, shape, resource => all(
 
-	return all(
+		// every member asked for; a slot left empty states no expectation and is passed over
 
-		(mistyped > 0)
-		&& fail([`{kind} expected <resource> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`]),
+		...Object.keys(model)
+			.filter(name => !isVacuous(model[name]))
+			.map(name => () => fold(
+				requested(resource[name], name, model[name]),
+				trace => [{ [name]: trace }]
+			)),
 
-		...matching.map((resource, index) => () => fold(
-			all(
+		// the caller has nowhere to put a member it didn't ask for
 
-				// every member asked for; a slot left empty states no expectation and is passed over
+		...Object.keys(resource)
+			.filter(name => !Object.hasOwn(model, name))
+			.map(name => () => [{ [name]: ["unexpected member"] }]),
 
-				...Object.keys(model)
-					.filter(name => !isVacuous(model[name]))
-					.map(name => () => fold(
-						requested(resource[name], name, model[name]),
-						trace => [{ [name]: trace }]
-					)),
+		// the checks the shape states on top of its members, each keyed by the name of the check
 
-				// the caller has nowhere to put a member it didn't ask for
+		...checks(resource, shape)
 
-				...Object.keys(resource)
-					.filter(name => !Object.hasOwn(model, name))
-					.map(name => () => [{ [name]: ["unexpected member"] }]),
-
-				// the checks the shape states on top of its members, each keyed by the name of the check
-
-				...checks(resource, shape)
-
-			)(undefined),
-
-			trace => [{ [key(resource, shape, index)]: trace }]
-		))
-	)(undefined);
+	)(undefined));
 
 
 	/**
@@ -1090,20 +1001,12 @@ export function validateResult(values: readonly unknown[], {
 		// states of the other values, and the bounds count those other values alone
 
 		const whole = isLocalised(present, branches, "state");
-		const scalar = maxCount === 1;
-
-		const arity = whole ? undefined
-			: isArray(present) && present.some(element => isLocalised(element, branches, "state"))
-				? ["{kind} expected a single localised value"]
-				: scalar === isArray(present)
-					? [scalar ? "{kind} expected a single value" : "{kind} expected an array of values"]
-					: undefined;
 
 		const carried = isArray(present) ? present : [present];
 
 		// a map is matched against the range as it stands, the template narrowing the other values alone
 
-		return arity
+		return (whole ? undefined : arity(present, maxCount, branches, "state"))
 			?? (whole ? validateShape(carried, eager(range)) : elements(carried, branches, requested))
 			?? (whole ? undefined : counts(carried.length, member));
 
@@ -1155,36 +1058,32 @@ export function validateResult(values: readonly unknown[], {
 	 */
 	function elements(carried: readonly unknown[], branches: readonly Shape[], requested: unknown): Optional<Trace> {
 
-		if ( branches.length !== 1 ) {
-			return array((value: unknown) => branch(value, branches, requested))(carried);
-		}
-
 		const [only] = branches;
 
-		if ( only.kind === "reference" ) {
+		return branches.length !== 1
+
+			? array((value: unknown) => branch(value, branches, requested))(carried)
 
 			// a link comes back as the identifier naming the resource, or as the resource itself
 
-			return array((value: unknown) => isString(value)
-				? isReference(value) ? undefined : ["expected an absolute IRI"]
-				: isObject(value) ? validateResult([value], {
-					shape: eager(only.target),
-					model: nested(requested)
-				}) : ["expected an IRI or the resource itself"]
-			)(carried);
+			: only.kind === "reference"
 
-		}
+				? array((value: unknown) => isString(value)
+					? isReference(value) ? undefined : ["expected an absolute IRI"]
+					: isObject(value) ? validateResult([value], {
+						shape: eager(only.target),
+						model: nested(requested)
+					}) : ["expected an IRI or the resource itself"]
+				)(carried)
 
-		if ( only.kind === "resource" ) {
+				: only.kind === "resource"
 
-			return array((value: unknown) => isObject(value)
-				? validateResult([value], { shape: only, model: nested(requested) })
-				: ["expected a nested resource"]
-			)(carried);
+					? array((value: unknown) => isObject(value)
+						? validateResult([value], { shape: only, model: nested(requested) })
+						: ["expected a nested resource"]
+					)(carried)
 
-		}
-
-		return validateShape(carried, only);
+					: validateShape(carried, only);
 
 	}
 
@@ -1207,22 +1106,11 @@ export function validateResult(values: readonly unknown[], {
 				return all(...malformed.map(key => () => [{ [key]: ["expected a branch key"] }]))(undefined);
 			}
 
-			return single(branches.filter(admits => keys.some(key => fits(value, admits, fields[key]))));
+			return verdict(branches.filter(admits => keys.some(key => fits(value, admits, fields[key]))), "value");
 
 		}
 
-		return single(branches.filter(admits => fits(value, admits, requested)));
-
-	}
-
-	/**
-	 * Reports whether a value belongs to exactly one of the branches it was matched against.
-	 */
-	function single(matched: readonly Shape[]): Optional<Trace> {
-
-		return matched.length === 0 ? ["{branches} no branch admits the value"]
-			: matched.length > 1 ? ["{branches} several branches admit the value"]
-				: undefined;
+		return verdict(branches.filter(admits => fits(value, admits, requested)), "value");
 
 	}
 
@@ -1290,6 +1178,153 @@ export function validateResult(values: readonly unknown[], {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Checks that no member carries an embedded resource naming itself.
+ *
+ * An embedded resource has no identity of its own, so it states no identifier. A linked resource legitimately states
+ * one and is left alone; a union range is inspected one branch at a time.
+ *
+ * This runs as a resource is validated rather than as the shape is built: at construction an id-bearing embedded range
+ * reads exactly like an expanded link, whose target legitimately names itself, and the two are told apart only once a
+ * value is matched against them.
+ *
+ * @param shape The merged shape to check
+ *
+ * @returns A trace of the embedded resources naming themselves, or `undefined` where none does
+ */
+function checkId(shape: ResourceShape): Optional<Trace> {
+
+	return all(...Object.entries(shape.members)
+		.flatMap(([name, member]) => member.kind === "property" ? getShapeBranches(member.shape)
+			.filter(branch => branch.kind === "resource" && getShapeId(branch) !== undefined)
+			.map(() => fail([`{id} unexpected identifier in the resource embedded under <${name}>`]))
+			: []
+		)
+	)(undefined);
+
+}
+
+/**
+ * Holds each value to a check of its own, keyed by the resource it found fault with.
+ *
+ * @param values The values to validate
+ * @param shape The shape the values are keyed against
+ * @param check The check each resource is held to
+ *
+ * @returns A trace of the violations found, keyed by the resource stating each
+ */
+function resources(
+	values: readonly unknown[],
+	shape: ResourceShape,
+	check: (resource: Record<string, unknown>) => Optional<Trace>
+): Optional<Trace> {
+
+	const matching = values.filter(value => isObject(value));
+	const mistyped = values.length-matching.length;
+
+	return all(
+
+		(mistyped > 0)
+		&& fail([`{kind} expected <resource> values${mistyped > 1 ? ` (${mistyped}/${values.length})` : ""}`]),
+
+		...matching.map((resource, index) => () => fold(
+			check(resource),
+			trace => [{ [key(resource, shape, index)]: trace }]
+		))
+
+	)(undefined);
+
+}
+
+/**
+ * Reports whether a value, bound or option singles out exactly one of the branches it was matched against.
+ */
+function verdict(matched: readonly Shape[], subject: string): Optional<Trace> {
+
+	return matched.length === 0 ? [`{branches} no branch admits the ${subject}`]
+		: matched.length > 1 ? [`{branches} several branches admit the ${subject}`]
+			: undefined;
+
+}
+
+/**
+ * Holds the values a member carries to the form its arity calls for: a single value where it admits one, an array
+ * where it admits several, and no localised map stated beside values of other alternatives. Reached only where the
+ * member does not carry the map whole, which the caller settles beforehand.
+ */
+function arity(
+	present: unknown,
+	maxCount: Optional<number>,
+	branches: readonly Shape[],
+	scope: Scope
+): Optional<Trace> {
+
+	const scalar = maxCount === 1;
+
+	return isArray(present) && present.some(element => isLocalised(element, branches, scope))
+		? ["{kind} expected a single localised value"]
+		: present !== undefined && scalar === isArray(present)
+			? [scalar ? "{kind} expected a single value" : "{kind} expected an array of values"]
+			: undefined;
+
+}
+
+/**
+ * Holds a value to the literal branch it is matched against, deferring any other kind to the caller.
+ */
+function literal(value: unknown, branch: Shape, otherwise: () => Optional<Trace>): Optional<Trace> {
+
+	switch ( branch.kind ) {
+
+		case "boolean":
+
+			return isBoolean(value) ? undefined : [`expected <${branch.kind}> value`];
+
+		case "number":
+
+			return isNumber(value) ? undefined : [`expected <${branch.kind}> value`];
+
+		case "string":
+
+			return isString(value) ? undefined : [`expected <${branch.kind}> value`];
+
+		default:
+
+			return otherwise();
+
+	}
+
+}
+
+/**
+ * Holds the value a marker states to the single absolute IRI it must be.
+ */
+function marked(value: unknown): Optional<Trace> {
+
+	return isArray(value) ? ["{kind} expected a single value"]
+		: !isReference(value) ? ["{kind} expected an absolute IRI"]
+			: undefined;
+
+}
+
+/**
+ * Spends one step of the nesting a template or a captive member may be expanded to.
+ */
+function step(depth: Optional<number>): Optional<number> {
+
+	return depth === undefined ? undefined : depth-1;
+
+}
+
+/**
+ * Reports whether the nesting budget is spent.
+ */
+function exhausted(depth: Optional<number>): boolean {
+
+	return depth !== undefined && depth < 0;
+
+}
+
+/**
  * Reports whether a value is the whole language map a localised member carries.
  *
  * A localised value is a value set in its own right, holding its strings per tag at the arity its own shape states, so
@@ -1317,22 +1352,22 @@ function identifier(value: unknown, shape: ResourceShape, entry: undefined | Ref
 
 	const { pattern, in: allowed, hasValue: required } = shape;
 
+	const iri = isReference(value) ? value : undefined;
+
 	return value === undefined ? undefined : all(
 
-		isArray(value) ? fail(["{kind} expected a single value"])
-			: !isReference(value) ? fail(["{kind} expected an absolute IRI"])
-				: false,
+		() => marked(value),
 
-		(entry !== undefined && isReference(value) && value !== entry)
+		(entry !== undefined && iri !== undefined && iri !== entry)
 		&& fail([`{entry} mismatched entry <${entry}>`]),
 
-		(pattern !== undefined && !(isReference(value) && match(value, pattern)))
+		(pattern !== undefined && !(iri !== undefined && match(iri, pattern)))
 		&& fail([`{pattern} expected an IRI matching pattern <${pattern}>`]),
 
-		(allowed !== undefined && !(isReference(value) && allowed.includes(value)))
+		(allowed !== undefined && !(iri !== undefined && allowed.includes(iri)))
 		&& fail([`{in} expected values in [${allowed.join(", ")}]`]),
 
-		(required !== undefined && !(isReference(value) && required.every(v => v === value)))
+		(required !== undefined && !(iri !== undefined && required.every(v => v === iri)))
 		&& fail([`{hasValue} expected values to include [${required.join(", ")}]`])
 	)(undefined);
 
@@ -1345,15 +1380,15 @@ function classifier(value: unknown, shape: ResourceShape): Optional<Trace> {
 
 	const { class: declared } = shape;
 
+	const iri = isReference(value) ? value : undefined;
+
 	return value === undefined ? undefined : all(
 
-		isArray(value) ? fail(["{kind} expected a single value"])
-			: !isReference(value) ? fail(["{kind} expected an absolute IRI"])
-				: false,
+		() => marked(value),
 
 		// a class value states the class the shape declares, so a shape declaring none admits no value
 
-		(isReference(value) && value !== declared)
+		(iri !== undefined && iri !== declared)
 		&& fail([declared === undefined
 			? `{class} unexpected class without one declared`
 			: `{class} expected the declared class <${declared}>`

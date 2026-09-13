@@ -26,7 +26,7 @@
 
 import { isArray, isObject, isString, opt as fold, type Optional } from "@metreeca/core";
 import { isTag, isTagRange, matchTag, type Tag } from "@metreeca/core/language";
-import { all, array, fail, length, object, type Trace, type Validator } from "@metreeca/core/trace";
+import { all, array, fail, length, object, pass, type Trace, type Validator } from "@metreeca/core/trace";
 import type { Scope } from "../value/validator.js";
 import { type DictionaryShape } from "./index.js";
 
@@ -88,7 +88,7 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 
 	}: DictionaryShape): Validator<readonly unknown[]> {
 
-		return map(uniqueLang, isTag, "invalid tag",
+		return tagged(uniqueLang, isTag, "invalid tag",
 
 			(tag, content) => all(
 				length(minLength, maxLength),
@@ -106,13 +106,13 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 
 	function bound({ uniqueLang }: DictionaryShape): Validator<readonly unknown[]> {
 
-		return map(uniqueLang, isTag, "invalid tag", () => undefined, () => undefined);
+		return tagged(uniqueLang, isTag, "invalid tag");
 
 	}
 
 	function model({ uniqueLang }: DictionaryShape): Validator<readonly unknown[]> {
 
-		return map(uniqueLang, isTagRange, "invalid tag range", () => undefined, () => undefined);
+		return tagged(uniqueLang, isTagRange, "invalid tag range");
 
 	}
 
@@ -123,14 +123,14 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 	 * Reports a value that is not a language map as a `{kind}` violation, and a key `admits` turns down or an entry
 	 * stated at the other per-tag arity as an entry violation keyed by the key; every violation is keyed by the index
 	 * of the map carrying it in the validated set. A surviving entry is handed to `unique` or to `stacked`, according
-	 * to the arity the shape states.
+	 * to the arity the shape states; left out, either admits whatever the form itself admits.
 	 */
-	function map(
+	function tagged(
 		uniqueLang: undefined | boolean,
 		admits: (key: string) => boolean,
 		invalid: string,
-		unique: (tag: Tag, content: string) => Optional<Trace>,
-		stacked: (tag: Tag, content: readonly string[]) => Optional<Trace>
+		unique: (tag: Tag, content: string) => Optional<Trace> = () => undefined,
+		stacked: (tag: Tag, content: readonly string[]) => Optional<Trace> = () => undefined
 	): Validator<readonly unknown[]> {
 
 		return array((value: unknown) => !isObject(value) ? ["{kind} expected <dictionary> value"]
@@ -150,10 +150,10 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 
 	}
 
-	function accepts(tag: Tag, languageIn: undefined | readonly string[]) {
+	function accepts(tag: Tag, languageIn: undefined | readonly string[]): Validator<unknown> {
 
-		return languageIn !== undefined && !languageIn.some(range => matchTag(tag, range))
-			&& fail([`{languageIn} unsupported tag for allowed languages [${languageIn.join(", ")}]`]);
+		return languageIn === undefined || languageIn.some(range => matchTag(tag, range)) ? pass
+			: fail([`{languageIn} unsupported tag for allowed languages [${languageIn.join(", ")}]`]);
 
 	}
 

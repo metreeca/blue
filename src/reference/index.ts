@@ -62,8 +62,8 @@
  */
 
 import type { Lazy } from "@metreeca/core";
-import { assemble } from "./assembler.js";
 import type { ResourceShape } from "../resource/index.js";
+import { assemble } from "./assembler.js";
 
 export { getShapeTarget } from "./accessors.js";
 

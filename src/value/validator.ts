@@ -18,14 +18,15 @@
  * Value validation.
  *
  * Holds a value to what a shape admits: {@link validateShape} routes it to the validators of the shape's kind, so that
- * a caller matching a value against a shape needs not know which kind it holds, and {@link match} tests an identifier
- * against the pattern a shape admits its resources under.
+ * a caller matching a value against a shape needs not know which kind it holds, {@link scoped} states the validator of
+ * a single kind from what each strictness enforces, and {@link match} tests an identifier against the pattern a shape
+ * admits its resources under.
  *
  * @module
  */
 
 import { assert, type Optional } from "@metreeca/core";
-import { type Trace } from "@metreeca/core/trace";
+import { type Trace, type Validator } from "@metreeca/core/trace";
 import { type Reference } from "@metreeca/qest/resource";
 import { validateBoolean } from "../boolean/validator.js";
 import { validateDictionary } from "../dictionary/validator.js";
@@ -68,6 +69,34 @@ export type Scope =
 	| "state"
 	| "bound"
 	| "model"
+
+
+/**
+ * States a value validator from what each strictness enforces.
+ *
+ * Yields the single entry point a shape kind exposes from the checks each {@link Scope | strictness} enforces, so that
+ * a kind states a stored value, a relational bound and a retrieval placeholder each as the constraints it alone is
+ * held to.
+ *
+ * @typeParam S The shape the values are matched against
+ *
+ * @param state The checks a legal element of the shape's domain is held to
+ * @param bound The checks a relational bound is held to
+ * @param model The checks a retrieval placeholder is held to
+ *
+ * @returns A validator matching values against a shape at the strictness its options ask for, defaulting to `"state"`
+ */
+export function scoped<S>(
+	state: (shape: S) => Validator<readonly unknown[]>,
+	bound: (shape: S) => Validator<readonly unknown[]>,
+	model: (shape: S) => Validator<readonly unknown[]>
+): (values: readonly unknown[], shape: S, opts?: { scope?: Scope }) => Optional<Trace> {
+
+	const scopes: Readonly<Record<Scope, (shape: S) => Validator<readonly unknown[]>>> = { state, bound, model };
+
+	return (values, shape, { scope = "state" } = {}) => scopes[scope](shape)(values);
+
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

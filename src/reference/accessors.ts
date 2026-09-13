@@ -25,10 +25,9 @@
  * @module
  */
 
-import { type Lazy, map } from "@metreeca/core";
-import { eager } from "../value/accessors.js";
-import type { Shape } from "../value/index.js";
+import { type Lazy } from "@metreeca/core";
 import type { ResourceShape } from "../resource/index.js";
+import { eager, type Shape } from "../value/index.js";
 
 
 /**
@@ -47,10 +46,10 @@ import type { ResourceShape } from "../resource/index.js";
  */
 export function getShapeTarget(shape: Lazy<Shape>): undefined | ResourceShape {
 
-	return map(eager(shape), resolved =>
-		resolved.kind === "resource" ? resolved
-			: resolved.kind === "reference" ? eager(resolved.target)
-				: undefined
-	);
+	const resolved = eager(shape);
+
+	return resolved.kind === "resource" ? resolved
+		: resolved.kind === "reference" ? eager(resolved.target)
+			: undefined;
 
 }

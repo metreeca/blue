@@ -25,13 +25,13 @@
 
 import { type Optional } from "@metreeca/core";
 import { isIRI } from "@metreeca/core/resource";
-import { all, array, domain, test, type Trace, type, values as contains } from "@metreeca/core/trace";
+import { all, array, domain, pass, test, type Trace, type, type Validator, values as contains }
+	from "@metreeca/core/trace";
 import { isReference } from "@metreeca/qest/resource";
-import { eager } from "../value/accessors.js";
-import type { Scope } from "../value/validator.js";
-import type { ReferenceShape } from "./index.js";
 import type { ResourceShape } from "../resource/index.js";
-import { match } from "../value/validator.js";
+import { eager } from "../value/index.js";
+import { match, type Scope } from "../value/validator.js";
+import type { ReferenceShape } from "./index.js";
 
 
 /**
@@ -99,9 +99,7 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 
 		return array(
 			type(isReference,
-				all(
-					matches(pattern)
-				)
+				matches(pattern)
 			)
 		);
 
@@ -115,9 +113,9 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 
 	}
 
-	function matches(pattern: undefined | string) {
+	function matches(pattern: undefined | string): Validator<string> {
 
-		return pattern !== undefined && test<string>(value =>
+		return pattern === undefined ? pass : test<string>(value =>
 			match(value, pattern) || [`{format} expected IRI matching pattern <${pattern}>`]
 		);
 

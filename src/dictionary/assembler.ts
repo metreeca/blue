@@ -27,7 +27,8 @@
 
 import { type Optional } from "@metreeca/core";
 import { immutable } from "@metreeca/core/structures";
-import { all, test, type Trace, TraceError } from "@metreeca/core/trace";
+import { all, test, type Trace } from "@metreeca/core/trace";
+import { reject } from "../value/assembler.js";
 import { type DictionaryConstraints, type DictionaryShape } from "./index.js";
 
 
@@ -57,11 +58,7 @@ export function assemble<U extends undefined | boolean>(constraints: DictionaryC
 
 	}) as DictionaryShape & { readonly uniqueLang: U }; // ;(cast) the factory signature fixes the stated arity
 
-	const trace = checkDictionary(shape);
-
-	if ( trace !== undefined ) {
-		throw new TraceError("inconsistent dictionary shape constraints", trace);
-	}
+	reject("inconsistent dictionary shape constraints", checkDictionary(shape));
 
 	return shape;
 
@@ -80,7 +77,7 @@ export function assemble<U extends undefined | boolean>(constraints: DictionaryC
  *
  * @returns A trace of the inconsistencies found, or `undefined` where the constraints admit at least one value
  */
-export function checkDictionary(constraints: Partial<DictionaryShape>): Optional<Trace> {
+export function checkDictionary(constraints: DictionaryConstraints): Optional<Trace> {
 
 	return test<typeof constraints>(({ minLength, maxLength }) => {
 
@@ -106,6 +103,54 @@ export function checkDictionary(constraints: Partial<DictionaryShape>): Optional
  * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
  */
 export function narrowsDictionary(target: DictionaryShape, source: DictionaryShape): Optional<Trace> {
+
+	return narrows(target, source, merge(target, source));
+
+}
+
+/**
+ * Merges a dictionary shape with an inherited one.
+ *
+ * Yields the single shape an extending member is validated against, combining the inherited constraints with the
+ * overriding ones: length bounds accumulate, the accepted language ranges intersect, and `uniqueLang` carries through
+ * from whichever shape states it.
+ *
+ * @param target The overriding shape
+ * @param source The inherited shape
+ *
+ * @returns An immutable shape admitting the language maps both `target` and `source` admit
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
+ */
+export function mergeDictionary(target: DictionaryShape, source: DictionaryShape): DictionaryShape {
+
+	const merged = merge(target, source);
+
+	reject("incompatible dictionary shape override", narrows(target, source, merged));
+
+	return immutable({
+
+		kind: "dictionary",
+
+		...merged
+
+	});
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Reports the obstacles standing against a dictionary shape override.
+ *
+ * @param target The overriding shape
+ * @param source The inherited shape
+ * @param merged The constraints the two shapes combine into
+ *
+ * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
+ */
+function narrows(target: DictionaryShape, source: DictionaryShape, merged: DictionaryConstraints): Optional<Trace> {
 
 	const { languageIn: accepted } = source;
 
@@ -143,45 +188,10 @@ export function narrowsDictionary(target: DictionaryShape, source: DictionarySha
 				];
 
 		}),
-		() => checkDictionary(merge(target, source)) // post-merge constraint consistency
+		() => checkDictionary(merged) // post-merge constraint consistency
 	)(target);
 
 }
-
-/**
- * Merges a dictionary shape with an inherited one.
- *
- * Yields the single shape an extending member is validated against, combining the inherited constraints with the
- * overriding ones: length bounds accumulate, the accepted language ranges intersect, and `uniqueLang` carries through
- * from whichever shape states it.
- *
- * @param target The overriding shape
- * @param source The inherited shape
- *
- * @returns An immutable shape admitting the language maps both `target` and `source` admit
- *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
- */
-export function mergeDictionary(target: DictionaryShape, source: DictionaryShape): DictionaryShape {
-
-	const trace = narrowsDictionary(target, source);
-
-	if ( trace !== undefined ) {
-		throw new TraceError("incompatible dictionary shape override", trace);
-	}
-
-	return immutable({
-
-		kind: target.kind,
-
-		...merge(target, source)
-
-	});
-
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Combines the constraints of an overriding shape with the inherited ones.
