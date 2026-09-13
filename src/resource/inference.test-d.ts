@@ -29,6 +29,7 @@ import {
 	type Carried,
 	type Content,
 	type Input,
+	type Owned,
 	type Retrieved,
 	type Skippable,
 	type Slot
@@ -82,6 +83,47 @@ describe("inheritance", () => {
 		test("scalar shape → no member at all", () => {
 			expectTypeOf<Carried<StringShape>>().toEqualTypeOf<{}>();
 			expectTypeOf<Carried<ReferenceShape>>().toEqualTypeOf<{}>();
+		});
+
+	});
+
+	describe("Owned", () => {
+
+		// a member voided by an override the inherited one does not admit is kept, so that the conflict surfaces
+		// where the state is resolved rather than passing as a member the resource never declared
+
+		type CappedShape={
+
+			readonly kind: "resource",
+			readonly classes: readonly Reference[],
+			readonly parents: [ListedShape],
+
+			readonly members: {
+				readonly links: Property<ReferenceShape, undefined, 1>
+			}
+
+		}
+
+		type ListedShape={
+
+			readonly kind: "resource",
+			readonly classes: readonly Reference[],
+			readonly parents: [],
+
+			readonly members: {
+				readonly links: Property<ReferenceShape, undefined, undefined>
+			}
+
+		}
+
+		test("ResourceShape → a voided member, which no foreign filter swallows", () => {
+			expectTypeOf<keyof Carried<CappedShape>>().toEqualTypeOf<"links">();
+			expectTypeOf<keyof Owned<CappedShape>>().toEqualTypeOf<"links">();
+		});
+
+		test("ResourceShape → the voided member surfacing in either projection", () => {
+			expectTypeOf<Retrieved<CappedShape>["links"]>().toEqualTypeOf<never>();
+			expectTypeOf<Compound<CappedShape>["links"]>().toEqualTypeOf<never>();
 		});
 
 	});

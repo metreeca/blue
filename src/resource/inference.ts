@@ -117,11 +117,16 @@ export type Submitted<S extends Lazy<Shape>> =
 /**
  * Resolves the members a resource owns: every member the shape carries but a foreign one.
  *
+ * A voided member is owned like any other, so that a conflict surfaces where the state is resolved rather than the
+ * member silently dropping out as one the resource never declared.
+ *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type Owned<S extends Lazy<Shape>> = {
 
-	readonly [field in keyof Carried<S> as Carried<S>[field] extends Foreign ? never : field]: Carried<S>[field]
+	readonly [field in keyof Carried<S> as [Carried<S>[field]] extends [never] ? field
+		: Carried<S>[field] extends Foreign ? never : field
+	]: Carried<S>[field]
 
 }
 
@@ -183,7 +188,8 @@ export type Omitted<M, X = never> =
  * Resolves the value a member carries in an instance.
  *
  * Yields an IRI for an identifier, an optional IRI for a type and, for a property, the
- * {@link Slot | form its range and cardinality admit}.
+ * {@link Slot | form its range and cardinality admit}. A voided member carries no value at all, so a conflicting
+ * override reads as a member nothing satisfies.
  *
  * @typeParam M The member to resolve
  */
