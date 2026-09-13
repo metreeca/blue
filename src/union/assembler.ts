@@ -140,11 +140,17 @@ function claim(target: UnionShape, source: UnionShape): NonNullable<Optional<Tra
 
 	const inherited = getShapeBranches(source);
 
-	// the inherited branches each overriding branch narrows
+	// the inherited branches each overriding branch narrows; a branch restated unchanged, as where the same union
+	// reaches a shape along two inheritance paths, claims its own copy, never competing for the wider ones it narrows
 
-	const claims = getShapeBranches(target).map(branch =>
-		inherited.flatMap((base, index) => narrowsShape(branch, base) === undefined ? [index] : [])
-	);
+	const claims = getShapeBranches(target).map(branch => {
+
+		const restated = inherited.indexOf(branch);
+
+		return restated >= 0 ? [restated]
+			: inherited.flatMap((base, index) => narrowsShape(branch, base) === undefined ? [index] : []);
+
+	});
 
 	const exactly = array((bases: readonly number[]) =>
 		bases.length === 0 ? ["branch narrows no inherited branch"]

@@ -143,6 +143,21 @@ describe("flatten", () => {
 
 		});
 
+		it("carries a union member inherited along two paths", async () => {
+
+			function Location() { return union(string({ pattern: /^\S+$/ }), string()); }
+
+			function Owner() { return resource({ location: optional(Location()) }); }
+
+			function Left() { return resource(Owner, {}); }
+			function Right() { return resource(Owner, {}); }
+
+			const shape = resource(Left, Right, {});
+
+			expect(getProperty(shape, "location")?.shape).toMatchObject({ kind: "union" });
+
+		});
+
 		it("carries the members of a shape reached transitively", async () => {
 
 			const Base = resource({ name: required(string()) });

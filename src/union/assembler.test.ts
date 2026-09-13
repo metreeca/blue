@@ -40,6 +40,16 @@ describe("narrowsUnion", () => {
 
 	});
 
+	it("accepts itself where its branches narrow one another", async () => {
+
+		// the same union reaching a shape along two inheritance paths is merged with itself
+
+		const overlapping = union(string({ pattern: /^\S+$/ }), string());
+
+		expect(narrowsUnion(overlapping, overlapping)).toBeUndefined();
+
+	});
+
 	it("accepts a child dropping a branch", async () => {
 
 		expect(narrowsUnion(union(number()), union(string(), number()))).toBeUndefined();
@@ -123,6 +133,14 @@ describe("mergeUnion", () => {
 		);
 
 		expect(merged.branches[0]).toMatchObject({ kind: "string", minLength: 2, maxLength: 5 });
+
+	});
+
+	it("merges a union with itself keeping every branch", async () => {
+
+		const overlapping = union(string({ pattern: /^\S+$/ }), string());
+
+		expect(mergeUnion(overlapping, overlapping).branches).toEqual(overlapping.branches);
 
 	});
 
