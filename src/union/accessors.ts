@@ -17,9 +17,9 @@
 /**
  * Union shape accessors.
  *
- * Reads off a range the alternatives it admits values from, and selects the ones a given value, bound or placeholder
+ * Reads off a shape the alternatives it admits values from, and selects the ones a given value, bound or placeholder
  * fits, whether the caller needs the single branch it singles out or every branch it may be drawn from, so that a
- * caller routing a value over a range needs not tell a polymorphic range from a plain one.
+ * caller routing a value over a shape needs not tell a polymorphic shape from a plain one.
  *
  * @module
  */
@@ -32,16 +32,19 @@ import { type Scope, validateShape } from "../value/validator.js";
 
 
 /**
- * Resolves the branches a range admits values from.
+ * Resolves the branches a shape admits values from.
  *
- * Flattens a union to its branches, in the order they were stated, and takes any other range to the single branch it
- * is, so that a caller routing a value over a range needs not tell a polymorphic one from a plain one. Branches are
+ * Flattens a union to its branches, in the order they were stated, and takes any other shape to the single branch it
+ * is, so that a caller routing a value over a shape needs not tell a polymorphic one from a plain one. Branches are
  * resolved, a nested union flattened into the enclosing one, so that a caller routes each alternative without
  * flattening again.
  *
- * @param shape The range to enumerate, possibly deferred to break definition cycles
+ * @param shape The shape to enumerate, possibly deferred to break definition cycles
  *
- * @returns The branches `shape` admits values from, in the order they were stated
+ * @returns The branches `shape` admits values from, in the order they were stated, each resolved and merged where it
+ *     describes a resource
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself
  */
 export function getShapeBranches(shape: Lazy<Shape>): readonly Shape[] {
 
@@ -56,10 +59,9 @@ export function getShapeBranches(shape: Lazy<Shape>): readonly Shape[] {
 /**
  * Picks the single branch a data value belongs to.
  *
- * Routes a value being stored, or an option a filter tests membership against, to the one branch admitting it against
- * every constraint, so that a caller ingesting a value against a polymorphic range settles it on a definite branch. A
- * value admitted by several branches is ambiguous and one admitted by none unsatisfiable; both yield nothing rather
- * than a branch chosen by guesswork.
+ * Routes a value being stored to the one branch admitting it against every constraint, so that a caller ingesting a
+ * value against a polymorphic shape settles it on a definite branch. A value admitted by several branches is ambiguous
+ * and one admitted by none unsatisfiable; both yield nothing rather than a branch chosen by guesswork.
  *
  * @typeParam B The branch type, carried through from the branches supplied
  *
@@ -106,7 +108,7 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
 /**
  * Picks every branch a retrieval placeholder fits.
  *
- * Routes a placeholder to all branches it may draw from, so that a caller retrieving against a polymorphic range needs
+ * Routes a placeholder to all branches it may draw from, so that a caller retrieving against a polymorphic shape needs
  * not know which branch a value was stored on. A placeholder discriminates nothing on its own, so it may span several
  * branches and retrieve each; only one fitting no branch at all is unsatisfiable.
  *

@@ -83,12 +83,14 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  * Which branches an operation is carried out against is decided by the input the caller supplies, under the regime
  * that input belongs to:
  *
- * - a **data value**, either one being stored or an option a filter tests membership against, singles out **exactly
- *   one** branch, matched against all its constraints, as it is a legal value of the branch it selects and that branch
- *   fixes how it is stored;
+ * - a **data value** being stored singles out **exactly one** branch, matched against all its constraints, as it is a
+ *   legal value of the branch it selects and that branch fixes how it is stored;
  * - a **relational bound** singles out **exactly one** branch as well, but keys on syntactic traits alone (the value's
  *   `kind` and, where branches share it, their lexical `pattern`), as a bound filters by order and need not be a legal
  *   value of the branch it selects;
+ * - a **set-matching option** singles out **exactly one** branch as well, but keys on the value's `kind` alone, the
+ *   lexical `pattern` included among what it relaxes, as an option is tested by equality and an option outside the
+ *   domain is a legal filter matching nothing;
  * - a **retrieval placeholder** matches **at least one** branch and retrieves each branch it fits, as its value is
  *   immaterial and discriminates nothing: a literal or link placeholder matches by JSON type alone, ignoring every
  *   other constraint, a nested template by the members it asks for, which the resource branch must declare though the
@@ -103,7 +105,8 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  * > modelling contract rather than a property proved as the shape is built, so overlapping branches are accepted and
  * > an offending value is rejected only when it is matched. A union filtered by relational bounds is held to a
  * > stricter grade, as a bound is told apart by syntax alone: it admits at most one numeric and one boolean branch,
- * > and textual branches only under mutually exclusive patterns.
+ * > and textual branches only under mutually exclusive patterns. One filtered by set-matching options is held to a
+ * > stricter grade still, as an option is told apart by kind alone: it admits at most one branch of each kind.
  *
  * **Inheritance**
  *

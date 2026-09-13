@@ -77,7 +77,8 @@ type Datatyped = {
  *
  * Routes the pair to the operators of the kind they share, so that a caller holding two shapes tests the override
  * relation without knowing which kind it holds. Two shapes of different kinds never narrow one another, as an override
- * refines what a member admits and never retypes it.
+ * refines what a member admits and never retypes it; the one exception is a shape of any other kind overriding a
+ * union, which narrows it exactly where it restricts a single one of its alternatives.
  *
  * A resource carries the class it belongs to as part of its value, so every class the inherited shape declares binds
  * the resources the overriding shape admits: the override belongs to each of them, whether it states the class in its
@@ -123,7 +124,8 @@ export function narrowsShape(target: Shape, source: Shape): Optional<Trace> {
  * Merges a shape with an inherited one.
  *
  * Routes the pair to the operators of the kind they share, so that a caller holding two shapes builds the merged one
- * without knowing which kind it holds.
+ * without knowing which kind it holds. A shape of any other kind overriding a union is merged with the single
+ * alternative it restricts, the others being dropped, so the member is no longer polymorphic.
  *
  * @param target The overriding shape
  * @param source The inherited shape

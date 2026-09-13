@@ -269,9 +269,9 @@ const Numbered = resource(Entity, {
 });
 ```
 
-The merged union indexes its branches contiguously from `0`, so dropping a parent branch renumbers every later one. A
-retrieval template addressing branches by index must key off the shape it actually queries rather than assume positional
-alignment with an ancestor.
+Dropping a parent branch changes nothing a retrieval template relies on: the keys of a branch map are opaque labels
+carrying no positional meaning, so a placeholder singles out the alternative it fits by shape rather than by the
+position the branch was stated at (see [Validating Templates](#validating-templates)).
 
 ## Type Inference
 
@@ -382,21 +382,22 @@ What each kind of member may be asked for:
   target shape. A placeholder is never resolved on decoding, so any IRI reference is accepted, the empty string and
   relative forms included; reference values in selection operands, by contrast, are resolved against the base IRI and
   are absolute.
-- **Union**: the indexed form (`{"0": …, "1": …}`) alone, one placeholder per branch; a plain placeholder over a
-  union is rejected. Each branch placeholder is matched by JSON type alone and retrieves every branch it fits, so a
-  literal or reference placeholder requests all same-kind branches while a nested template discriminates the
-  resource branches its structure fits. Only a placeholder fitting no branch at all is rejected.
+- **Union**: the keyed form (`{"0": …, "1": …}`) alone, one placeholder per alternative wanted; a plain placeholder
+  over a union is rejected. Keys are opaque labels carrying no positional meaning: each placeholder is matched by JSON
+  type alone and retrieves every branch it fits, so a literal or reference placeholder requests all same-kind branches
+  while a nested template discriminates the resource branches its structure fits. Only a placeholder fitting no branch
+  at all is rejected.
 - **Localised**: a map of the tags wanted, each paired with the placeholder a matched tag comes back as, or a coalesced
   placeholder standing for the content language negotiation settles on. A coalesced placeholder carries the negotiated
   content at the member's per-tag arity: a bare string where a tag carries one, a single-element array where it carries
   several. A localised branch of a union takes the map within a projection column alone, where each branch is asked for
   under a column of its own; elsewhere it takes the coalesced placeholder.
 
-Selection operands follow their own rules: comparison bounds and set-matching options are values rather than
-placeholders, so each must single out exactly one branch, while a `~` text search is a plain string applied to every
-string branch at once. A plain-string operand over a localised member filters the negotiated content under ordinary
-textual semantics; sorting and focusing still require a single-valued key, so they accept a coalesced localised key only
-where it resolves single-valued.
+Selection operands follow their own rules: comparison bounds and set-matching options carry content rather than
+placeholders, so each must single out exactly one branch, a bound keying on kind and lexical pattern and an option on
+kind alone, while a `~` text search is a plain string applied to every string branch at once. A plain-string operand
+over a localised member filters the negotiated content under ordinary textual semantics; sorting and focusing still
+require a single-valued key, so they accept a coalesced localised key only where it resolves single-valued.
 
 Three options bound the query language a template may draw on:
 
@@ -410,30 +411,6 @@ Three options bound the query language a template may draw on:
 > By default, templates support the full query language, including aggregate transforms and nested expansion.
 > When exposing endpoints to untrusted clients, restrict query complexity as required by setting `plain`
 > to `true`, `depth` to `0` or a positive value, and/or `limit` to a maximum result set size.
-
-## Validating Values
-
-The same `validate` function checks an individual value against a value shape when `shape` is passed alone, without
-`model`:
-
-```ts
-import { validate } from "@metreeca/blue";
-import { integer } from "@metreeca/blue/number";
-
-validate(price, { shape: integer({ minInclusive: 0 }) })({
-	value: amount => {
-		// amount is typed as number
-	},
-	trace: trace => {
-		// trace describes validation violations
-	}
-});
-```
-
-Only the leaf constraints (datatype, numeric range, string length, pattern, language) are enforced against the single
-value; cardinality is not checked, as it belongs to the enclosing set shape. A union shape requires the value to match
-**exactly one** branch (`sh:xone`), as a stored value does. On success, the value is the input narrowed to
-`Instance<S>`.
 
 # SHACL Foundations
 

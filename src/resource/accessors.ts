@@ -17,9 +17,9 @@
 /**
  * Resource shape accessors.
  *
- * Reads off a range what the resources it describes are named, classified and made of, resolving a deferred shape and
- * following a link through to its target, so that a caller reaches a resource definition without walking the range
- * itself. A range pointing at no resource at all answers every accessor with nothing rather than failing.
+ * Reads off a shape what the resources it describes are named, classified and made of, resolving a deferred shape and
+ * following a link through to its target, so that a caller reaches a resource definition without walking the shape
+ * itself. A shape pointing at no resource at all answers every accessor with nothing rather than failing.
  *
  * @module
  */
@@ -32,11 +32,12 @@ import type { Members } from "./index.js";
 
 
 /**
- * Resolves the class the resources a range describes belong to.
+ * Resolves the class the resources a shape describes belong to.
  *
- * @param shape The range to resolve, possibly deferred to break definition cycles
+ * @param shape The shape to resolve, possibly deferred to break definition cycles
  *
- * @returns The class the target shape declares, or `undefined` where it declares none
+ * @returns The class the target shape declares, or `undefined` where it declares none or `shape` points at no
+ *     resource
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
  *     target that doesn't narrow the one the link it is reached through overrides
@@ -48,11 +49,12 @@ export function getShapeClass(shape: Lazy<Shape>): undefined | Reference {
 }
 
 /**
- * Resolves the classes the resources a range describes belong to on top of their own.
+ * Resolves the classes the resources a shape describes belong to on top of their own.
  *
- * @param shape The range to resolve, possibly deferred to break definition cycles
+ * @param shape The shape to resolve, possibly deferred to break definition cycles
  *
- * @returns The classes the target shape inherits, or `undefined` where it extends nothing stating one
+ * @returns The classes the target shape inherits, empty where it extends nothing stating one, or `undefined` where
+ *     `shape` points at no resource
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
  *     target that doesn't narrow the one the link it is reached through overrides
@@ -64,11 +66,12 @@ export function getShapeClasses(shape: Lazy<Shape>): undefined | readonly Refere
 }
 
 /**
- * Resolves the name of the member naming the resources a range describes.
+ * Resolves the name of the member naming the resources a shape describes.
  *
- * @param shape The range to resolve, possibly deferred to break definition cycles
+ * @param shape The shape to resolve, possibly deferred to break definition cycles
  *
- * @returns The name the identifier is stated under, or `undefined` where the target states none
+ * @returns The name the identifier is stated under, or `undefined` where the target states none or `shape` points at
+ *     no resource
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
  *     target that doesn't narrow the one the link it is reached through overrides
@@ -80,11 +83,12 @@ export function getShapeId(shape: Lazy<Shape>): undefined | Identifier {
 }
 
 /**
- * Resolves the name of the member typing the resources a range describes.
+ * Resolves the name of the member typing the resources a shape describes.
  *
- * @param shape The range to resolve, possibly deferred to break definition cycles
+ * @param shape The shape to resolve, possibly deferred to break definition cycles
  *
- * @returns The name the class is stated under, or `undefined` where the target states none
+ * @returns The name the class is stated under, or `undefined` where the target states none or `shape` points at no
+ *     resource
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
  *     target that doesn't narrow the one the link it is reached through overrides
@@ -96,11 +100,11 @@ export function getShapeType(shape: Lazy<Shape>): undefined | Identifier {
 }
 
 /**
- * Resolves the members the resources a range describes carry.
+ * Resolves the members the resources a shape describes carry.
  *
- * @param shape The range to resolve, possibly deferred to break definition cycles
+ * @param shape The shape to resolve, possibly deferred to break definition cycles
  *
- * @returns The members of the target shape, or no member at all where the range points at no resource
+ * @returns The members of the target shape, or no member at all where `shape` points at no resource
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
  *     target that doesn't narrow the one the link it is reached through overrides

@@ -553,8 +553,10 @@ export type Type = {
  * {@link ResourceConstraints.class | class} the inherited range declares, whether stated in its own right or
  * inherited, so that a value of the narrowed member is a value of the inherited one, class included.
  *
- * A child overriding a {@link union!UnionShape | polymorphic} range narrows it to the single alternative it restricts,
- * restating no wrapper of its own; one restricting none, or several, is rejected as ambiguous.
+ * A child overriding a {@link union!UnionShape | polymorphic} range either narrows it to the single alternative it
+ * restricts, restating no wrapper of its own, or states a union of its own whose every branch narrows a distinct
+ * inherited alternative, dropping the ones left unclaimed; a branch restricting none, or several, is rejected as
+ * ambiguous.
  *
  * **Cross-field validation**
  *
