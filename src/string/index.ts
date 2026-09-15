@@ -74,6 +74,12 @@
  * `xsd:dateTime` rather than the more specific `xsd:dateTimeStamp` for compatibility with SPARQL temporal functions,
  * which are defined over `xsd:dateTime`
  *
+ * > [!NOTE]
+ * > The temporal shorthands check the lexical form only: every field is bounded to its legal range and a timezone
+ * > offset to the ±14:00 range XSD admits, but fields are not cross-checked. As a limitation of that check, a day is
+ * > bounded to 31 whatever month it falls in, so a date the calendar does not carry, like `2026-02-31`, is admitted:
+ * > whoever needs a real date checks the day against the month.
+ *
  * **Compatibility**
  *
  * | JSON          | XSD                         | JavaScript                    |
@@ -157,6 +163,52 @@ const IRIPatterns: Readonly<Record<Variant, RegExp>> = {
 	relative: /^\S+$/
 
 };
+
+
+/**
+ * Admits a four-digit calendar year, as the XSD `yearFrag` production does for the years the shorthands cover.
+ */
+const YearFrag = "\\d{4}";
+
+/**
+ * Admits a calendar month, as the XSD `monthFrag` production does.
+ */
+const MonthFrag = "(?:0[1-9]|1[0-2])";
+
+/**
+ * Admits a calendar day, as the XSD `dayFrag` production does, irrespective of the length of the month it falls in.
+ */
+const DayFrag = "(?:0[1-9]|[12]\\d|3[01])";
+
+/**
+ * Admits an hour of the day, as the XSD `hourFrag` production does.
+ */
+const HourFrag = "(?:[01]\\d|2[0-3])";
+
+/**
+ * Admits a minute of the hour, as the XSD `minuteFrag` production does.
+ */
+const MinuteFrag = "[0-5]\\d";
+
+/**
+ * Admits a second of the minute, optionally fractional, as the XSD `secondFrag` production does.
+ */
+const SecondFrag = "[0-5]\\d(?:\\.\\d+)?";
+
+/**
+ * Admits the `24:00:00` end-of-day form, as the XSD `endOfDayFrag` production does.
+ */
+const EndOfDayFrag = "24:00:00(?:\\.0+)?";
+
+/**
+ * Admits a timezone offset bounded to the ±14:00 range, as the XSD `timezoneFrag` production does.
+ */
+const TimezoneFrag = `(?:Z|[+-](?:(?:0\\d|1[0-3]):${MinuteFrag}|14:00))`;
+
+/**
+ * Admits a time of day, as the lexical space of `xsd:time` does before its optional timezone.
+ */
+const TimeFrag = `(?:${HourFrag}:${MinuteFrag}:${SecondFrag}|${EndOfDayFrag})`;
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -477,7 +529,11 @@ export function phone<const C extends StringValueConstraints = {}>(constraints?:
  * Fixes the datatype to `xsd:string`. IRIs generalise URIs (RFC 3986) and URLs by admitting the full Unicode character
  * set beyond ASCII; the {@link Variant | variant} states which subset of the IRI hierarchy is accepted:
  * `hierarchical` (URLs/IRLs with authority), `absolute` (scheme-based URIs/IRIs), `internal` (absolute or
- * root-relative), or `relative` (any valid reference).
+ * root-relative), or `relative` (any valid reference, the default).
+ *
+ * As a limitation, variants are told apart by their scheme and leading slashes rather than parsed against the full
+ * RFC 3987 grammar: `relative` admits any whitespace-free sequence, and the stricter variants check the prefix alone,
+ * leaving the rest of the reference unvalidated.
  *
  * @typeParam C The stated constraints
  *
@@ -492,11 +548,6 @@ export function phone<const C extends StringValueConstraints = {}>(constraints?:
  */
 export function iri<const C extends StringValueConstraints & {
 
-	/**
-	 * The subset of the IRI hierarchy admitted.
-	 *
-	 * @defaultValue `"relative"`
-	 */
 	readonly variant?: Variant
 
 } = {}>(constraints?: C): StringShape<Legal<C, string>> {
@@ -518,7 +569,8 @@ export function iri<const C extends StringValueConstraints & {
  * Creates a shape for hierarchical URL values.
  *
  * Fixes the datatype to `xsd:string` and admits only URLs with a scheme and an authority component (for example,
- * `https://example.net/path`), as {@link iri} does with `variant: "hierarchical"`.
+ * `https://example.net/path`), as {@link iri} does with `variant: "hierarchical"` and under the same limitation: the
+ * scheme and the leading slashes are checked, the rest of the URL is not.
  *
  * @typeParam C The stated constraints
  *
@@ -583,7 +635,8 @@ export function tag<const C extends StringValueConstraints = {}>(constraints?: C
 /**
  * Creates a shape for ISO 8601 year values (YYYY).
  *
- * Fixes the datatype to `xsd:gYear` and admits an optional timezone indicator (`Z` for UTC or a ±hh:mm offset).
+ * Fixes the datatype to `xsd:gYear` and admits an optional timezone indicator (`Z` for UTC or a ±hh:mm offset bounded
+ * to the ±14:00 range).
  *
  * @typeParam C The stated constraints
  *
@@ -604,7 +657,7 @@ export function year<const C extends StringValueConstraints = {}>(constraints?: 
 	return assemble<Legal<C, string>>({
 
 		datatype: xsd.gYear,
-		pattern: /^\d{4}(?:Z|[+-]\d{2}:\d{2})?$/,
+		pattern: `^${YearFrag}${TimezoneFrag}?$`,
 
 		...constraints
 
@@ -615,7 +668,9 @@ export function year<const C extends StringValueConstraints = {}>(constraints?: 
 /**
  * Creates a shape for ISO 8601 calendar date values (YYYY-MM-DD).
  *
- * Fixes the datatype to `xsd:date`.
+ * Fixes the datatype to `xsd:date` and bounds the month, the day and the optional timezone offset to their legal
+ * ranges. As a limitation of the lexical check, a day is bounded to 31 whatever month it falls in, so `2026-02-31` is
+ * admitted: callers needing a date the calendar carries check the day against the month themselves.
  *
  * @typeParam C The stated constraints
  *
@@ -632,7 +687,7 @@ export function date<const C extends StringValueConstraints = {}>(constraints?: 
 	return assemble<Legal<C, string>>({
 
 		datatype: xsd.date,
-		pattern: /^\d{4}-\d{2}-\d{2}(?:Z|[+-]\d{2}:\d{2})?$/,
+		pattern: `^${YearFrag}-${MonthFrag}-${DayFrag}${TimezoneFrag}?$`,
 
 		...constraints
 
@@ -643,7 +698,9 @@ export function date<const C extends StringValueConstraints = {}>(constraints?: 
 /**
  * Creates a shape for ISO 8601 time of day values (hh:mm:ss).
  *
- * Fixes the datatype to `xsd:time`.
+ * Fixes the datatype to `xsd:time` and bounds each field and the optional timezone offset to its legal range, with
+ * seconds optionally fractional. The `24:00:00` end-of-day form XSD defines is admitted, carrying no fraction beyond
+ * zeroes.
  *
  * @typeParam C The stated constraints
  *
@@ -660,7 +717,7 @@ export function time<const C extends StringValueConstraints = {}>(constraints?: 
 	return assemble<Legal<C, string>>({
 
 		datatype: xsd.time,
-		pattern: /^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
+		pattern: `^${TimeFrag}${TimezoneFrag}?$`,
 
 		...constraints
 
@@ -671,7 +728,8 @@ export function time<const C extends StringValueConstraints = {}>(constraints?: 
 /**
  * Creates a shape for ISO 8601 date and time values (YYYY-MM-DDThh:mm:ss).
  *
- * Fixes the datatype to `xsd:dateTime`.
+ * Fixes the datatype to `xsd:dateTime` and bounds each field and the optional timezone offset to its legal range,
+ * under the same end-of-day rule as {@link time} and the same day limitation as {@link date}.
  *
  * @typeParam C The stated constraints
  *
@@ -689,7 +747,7 @@ export function instant<const C extends StringValueConstraints = {}>(constraints
 	return assemble<Legal<C, string>>({
 
 		datatype: xsd.dateTime,
-		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
+		pattern: `^${YearFrag}-${MonthFrag}-${DayFrag}T${TimeFrag}${TimezoneFrag}?$`,
 
 		...constraints
 
@@ -700,9 +758,11 @@ export function instant<const C extends StringValueConstraints = {}>(constraints
 /**
  * Creates a shape for UTC timestamp values with millisecond precision (YYYY-MM-DDThh:mm:ss.sssZ).
  *
- * Requires exactly 3 fractional second digits and the UTC timezone (`Z` only). Fixes the datatype to `xsd:dateTime`
- * rather than the more specific `xsd:dateTimeStamp`, so values stay compatible with SPARQL temporal functions, which
- * are defined over `xsd:dateTime`.
+ * Requires exactly 3 fractional second digits and the UTC timezone (`Z` only), bounding each field to its legal range
+ * under the same day limitation as {@link date}; unlike {@link instant}, it admits no `24:00:00` end-of-day form, so a
+ * timestamp always states a time of day. Fixes the datatype to `xsd:dateTime` rather than the more specific
+ * `xsd:dateTimeStamp`, so values stay compatible with SPARQL temporal functions, which are defined over
+ * `xsd:dateTime`.
  *
  * @typeParam C The stated constraints
  *
@@ -719,7 +779,7 @@ export function timestamp<const C extends StringValueConstraints = {}>(constrain
 	return assemble<Legal<C, string>>({
 
 		datatype: xsd.dateTime,
-		pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+		pattern: `^${YearFrag}-${MonthFrag}-${DayFrag}T${HourFrag}:${MinuteFrag}:[0-5]\\d\\.\\d{3}Z$`,
 
 		...constraints
 
@@ -730,7 +790,9 @@ export function timestamp<const C extends StringValueConstraints = {}>(constrain
 /**
  * Creates a shape for ISO 8601 duration values ([-]PnYnMnDTnHnMnS).
  *
- * Fixes the datatype to `xsd:duration`.
+ * Fixes the datatype to `xsd:duration` and requires at least one component, so that neither `P` nor a `T` designator
+ * carrying no time component is admitted. Components are stated in descending order of magnitude, and only seconds
+ * take a fraction.
  *
  * @typeParam C The stated constraints
  *
@@ -747,7 +809,7 @@ export function duration<const C extends StringValueConstraints = {}>(constraint
 	return assemble<Legal<C, string>>({
 
 		datatype: xsd.duration,
-		pattern: /^-?P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/,
+		pattern: /^-?P(?!$)(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?!$)(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/,
 
 		...constraints
 

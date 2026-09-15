@@ -469,16 +469,155 @@ describe("factories", () => {
 	});
 
 
-	describe.each<[string, () => StringShape, string, string]>([
-		["year", year, "^\\d{4}(?:Z|[+-]\\d{2}:\\d{2})?$", xsd.gYear],
-		["date", date, "^\\d{4}-\\d{2}-\\d{2}(?:Z|[+-]\\d{2}:\\d{2})?$", xsd.date],
-		["time", time, "^\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$", xsd.time],
-		["instant", instant,
-			"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?$", xsd.dateTime],
-		["timestamp", timestamp, "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$", xsd.dateTime],
-		["duration", duration,
-			"^-?P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$", xsd.duration]
-	])("%s", (_label, factory, expectedPattern, expectedDatatype) => {
+	describe.each<{
+		label: string,
+		factory: () => StringShape,
+		datatype: StringShape["datatype"],
+		accepted: readonly string[],
+		rejected: readonly string[]
+	}>([
+
+		{
+			label: "year",
+			factory: year,
+			datatype: xsd.gYear,
+			accepted: [
+				"2026", // bare year
+				"0001", // leading zeroes
+				"2026Z", // UTC designator
+				"2026+01:00", // eastern offset
+				"2026-05:00", // western offset
+				"2026+14:00" // maximum offset
+			],
+			rejected: [
+				"202", // too few digits
+				"20260", // too many digits
+				"2026+15:00", // offset beyond the maximum
+				"2026+14:30", // maximum offset with non-zero minutes
+				"2026+99:99", // nonsensical offset
+				"2026-1:00", // unpadded offset hour
+				"2026z" // lowercase UTC designator
+			]
+		},
+
+		{
+			label: "date",
+			factory: date,
+			datatype: xsd.date,
+			accepted: [
+				"2026-01-01", // first day of the year
+				"2026-12-31", // last day of the year
+				"2026-06-15Z", // UTC designator
+				"2026-06-15-05:00", // western offset
+				"2026-06-15+14:00" // maximum offset
+			],
+			rejected: [
+				"2026-00-15", // month below the range
+				"2026-13-15", // month above the range
+				"2026-06-00", // day below the range
+				"2026-06-32", // day above the range
+				"2026-6-15", // unpadded month
+				"2026-06-5", // unpadded day
+				"20260615", // missing separators
+				"2026-06-15+15:00" // offset beyond the maximum
+			]
+		},
+
+		{
+			label: "time",
+			factory: time,
+			datatype: xsd.time,
+			accepted: [
+				"00:00:00", // start of day
+				"23:59:59", // last second of day
+				"24:00:00", // end of day
+				"24:00:00.0", // end of day with zero fraction
+				"12:30:45.123", // fractional seconds
+				"12:30:45Z", // UTC designator
+				"12:30:45-05:30", // western offset
+				"12:30:45+14:00" // maximum offset
+			],
+			rejected: [
+				"25:00:00", // hour above the range
+				"12:60:00", // minute above the range
+				"12:30:60", // second above the range
+				"99:99:99", // nonsensical fields
+				"24:00:01", // second past the end of day
+				"24:30:00", // minute past the end of day
+				"24:00:00.123", // end of day with non-zero fraction
+				"1:30:45", // unpadded hour
+				"12:30", // missing seconds
+				"12:30:45.", // empty fraction
+				"12:30:45+15:00" // offset beyond the maximum
+			]
+		},
+
+		{
+			label: "instant",
+			factory: instant,
+			datatype: xsd.dateTime,
+			accepted: [
+				"2026-06-15T12:30:45", // bare instant
+				"2026-06-15T24:00:00", // end of day
+				"2026-06-15T12:30:45.123Z", // fractional seconds in UTC
+				"2026-06-15T12:30:45+02:00" // eastern offset
+			],
+			rejected: [
+				"2026-13-15T12:30:45", // month above the range
+				"2026-06-32T12:30:45", // day above the range
+				"2026-06-15T25:00:00", // hour above the range
+				"2026-06-15T12:60:45", // minute above the range
+				"2026-06-15 12:30:45", // space in place of the date/time separator
+				"2026-06-15", // missing time of day
+				"2026-06-15T12:30:45+15:00" // offset beyond the maximum
+			]
+		},
+
+		{
+			label: "timestamp",
+			factory: timestamp,
+			datatype: xsd.dateTime,
+			accepted: [
+				"2026-06-15T00:00:00.000Z", // start of day
+				"2026-06-15T23:59:59.999Z", // last millisecond of day
+				"2026-06-15T12:30:45.123Z" // arbitrary instant
+			],
+			rejected: [
+				"2026-06-15T24:00:00.000Z", // end of day
+				"2026-06-15T25:00:00.000Z", // hour above the range
+				"2026-06-15T12:30:60.000Z", // second above the range
+				"2026-06-15T12:30:45Z", // missing fraction
+				"2026-06-15T12:30:45.12Z", // sub-millisecond precision
+				"2026-06-15T12:30:45.123+00:00" // zero offset in place of the UTC designator
+			]
+		},
+
+		{
+			label: "duration",
+			factory: duration,
+			datatype: xsd.duration,
+			accepted: [
+				"P1Y", // single date component
+				"P1Y2M3DT4H5M6S", // every component
+				"PT1S", // single time component
+				"PT0.5S", // fractional seconds
+				"-P1D" // negative duration
+			],
+			rejected: [
+				"P", // no components
+				"PT", // designator with no time components
+				"-P", // negative duration with no components
+				"1Y", // missing designator
+				"P1S", // time component outside the time part
+				"PT1Y", // date component inside the time part
+				"P1D2Y", // components out of order
+				"P1.5D" // fractional date component
+			]
+		}
+
+	])("$label", ({ factory, datatype, accepted, rejected }) => {
+
+		const matches = (value: string) => new RegExp(factory().pattern ?? "").test(value);
 
 		it("returns a shape with kind 'string'", async () => {
 
@@ -486,15 +625,31 @@ describe("factories", () => {
 
 		});
 
-		it("returns a shape with expected pattern", async () => {
+		it("sets the matching xsd datatype", async () => {
 
-			expect(factory().pattern).toBe(expectedPattern);
+			expect(factory().datatype).toBe(datatype);
 
 		});
 
-		it("sets the matching xsd datatype", async () => {
+		it.each(accepted)("accepts %s", async value => {
 
-			expect(factory().datatype).toBe(expectedDatatype);
+			expect(matches(value)).toBe(true);
+
+		});
+
+		it.each(rejected)("rejects %s", async value => {
+
+			expect(matches(value)).toBe(false);
+
+		});
+
+	});
+
+	describe("date", () => {
+
+		it("admits a day the calendar does not carry", async () => {
+
+			expect(new RegExp(date().pattern ?? "").test("2026-02-31")).toBe(true);
 
 		});
 
