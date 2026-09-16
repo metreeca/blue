@@ -44,6 +44,26 @@ describe("factories", () => {
 
 			});
 
+			it("carries the enumerated value", async () => {
+
+				expect(boolean({ in: false }).in).toBe(false);
+				expect(boolean({ in: true }).in).toBe(true);
+
+			});
+
+			it("leaves the domain open where no value is enumerated", async () => {
+
+				expect(boolean().in).toBeUndefined();
+
+			});
+
+			it("reads a bare value as the enumerated one", async () => {
+
+				expect(boolean(false)).toEqual(boolean({ in: false }));
+				expect(boolean(true)).toEqual(boolean({ in: true }));
+
+			});
+
 		});
 
 	});

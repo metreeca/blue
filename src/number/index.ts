@@ -73,6 +73,7 @@
  * const age = integer({ minInclusive: 0 });                     // arbitrary-precision integer
  * const price = decimal({ minInclusive: 0 });                   // arbitrary-precision decimal
  * const die = number({ in: [1, 2, 3, 4, 5, 6] });               // enumeration-constrained
+ * const coin = number(0, 1);                                    // the same, stated as bare values
  * ```
  *
  * > [!NOTE]
@@ -114,6 +115,7 @@
  *     Datatypes}
  */
 
+import { isNumber } from "@metreeca/core";
 import { xsd } from "@metreeca/core/datatype";
 import type { Reference } from "@metreeca/qest/resource";
 import type { Legal } from "../value/inference.js";
@@ -281,9 +283,10 @@ export type NumberRangeConstraints<V extends number = number> = {
 	/**
 	 * Allowed values (closed enumeration).
 	 *
-	 * When specified, values must be members of this list. Empty arrays are ignored. Closing the domain also narrows
-	 * the value the shape describes to the listed values, wherever they are stated precisely enough to be told apart;
-	 * a list whose values are only known to be numbers leaves it as the whole numeric domain.
+	 * When specified, values must be members of this list. Empty arrays are ignored; the {@link number} factory takes
+	 * the list as bare arguments too. Closing the domain also narrows the value the shape describes to the listed
+	 * values, wherever they are stated precisely enough to be told apart; a list whose values are only known to be
+	 * numbers leaves it as the whole numeric domain.
 	 *
 	 * **Inheritance** — child may only drop allowed values.
 	 *
@@ -324,9 +327,30 @@ export type NumberRangeConstraints<V extends number = number> = {
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  */
-export function number<const C extends NumberConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>> {
+export function number<const C extends NumberConstraints = {}>(constraints?: C): NumberShape<Legal<C, number>>;
 
-	return assemble<Legal<C, number>>({ ...constraints });
+/**
+ * Creates a number shape admitting an enumerated set of values.
+ *
+ * Reads bare numbers as the enumeration closing the domain to them, so that a set of admitted values is stated as
+ * `number(1, 2, 3)` rather than as `number({ in: [1, 2, 3] })`.
+ *
+ * @typeParam V The values the shape admits
+ *
+ * @param values The admitted values
+ *
+ * @returns An immutable shape admitting `values` alone
+ */
+export function number<const V extends readonly number[]>(...values: V): NumberShape<V[number]>;
+
+/**
+ * Creates a number shape.
+ */
+export function number(...args: readonly (number | NumberConstraints)[]): NumberShape {
+
+	const [head]=args;
+
+	return assemble<number>(isNumber(head) ? { in: args.filter(isNumber) } : { ...head });
 
 }
 

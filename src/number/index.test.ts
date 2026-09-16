@@ -72,6 +72,13 @@ describe("factories", () => {
 
 			});
 
+			it("reads bare values as the enumerated ones", async () => {
+
+				expect(number(1)).toEqual(number({ in: [1] }));
+				expect(number(1, 2, 3)).toEqual(number({ in: [1, 2, 3] }));
+
+			});
+
 			describe("combined", () => {
 
 				it("accepts multiple constraints", async () => {

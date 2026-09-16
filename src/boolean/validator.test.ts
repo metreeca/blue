@@ -48,11 +48,37 @@ describe("validateBoolean", () => {
 		["state", "state"],
 		["bound", "bound"],
 		["model", "model"]
-	])("enforces the kind alone at the %s scope", async (_label, scope) => {
+	])("enforces the kind at the %s scope", async (_label, scope) => {
 
 		expect(validateBoolean([true], boolean(), { scope })).toBeUndefined();
 		expect(validateBoolean([42], boolean(), { scope }))
 			.toEqual([{ "0": ["{type} expected <boolean> value"] }]);
+
+	});
+
+	describe("in", () => {
+
+		it("accepts the enumerated value", async () => {
+
+			expect(validateBoolean([true, true], boolean({ in: true }))).toBeUndefined();
+
+		});
+
+		it("keys a domain violation by element", async () => {
+
+			expect(validateBoolean([true, false], boolean({ in: false })))
+				.toEqual([{ "0": ["{domain} expected value in [false]"] }]);
+
+		});
+
+		it.each<[string, Scope]>([
+			["bound", "bound"],
+			["model", "model"]
+		])("leaves the enumeration unenforced at the %s scope", async (_label, scope) => {
+
+			expect(validateBoolean([true], boolean({ in: false }), { scope })).toBeUndefined();
+
+		});
 
 	});
 

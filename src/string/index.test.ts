@@ -58,6 +58,13 @@ describe("factories", () => {
 
 			});
 
+			it("reads bare values as the enumerated ones", async () => {
+
+				expect(string("active")).toEqual(string({ in: ["active"] }));
+				expect(string("active", "closed")).toEqual(string({ in: ["active", "closed"] }));
+
+			});
+
 		});
 
 		describe("constraints", () => {

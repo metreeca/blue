@@ -18,6 +18,7 @@ import { describe, expectTypeOf, test } from "vitest";
 import { type Instance, type Compound } from "../value/index.js";
 import { byte, decimal, double, float, int, integer, long, type NumberShape, number, short } from "./index.js";
 import { multiple, optional, required, resource } from "../resource/index.js";
+import { union } from "../union/index.js";
 
 
 describe("number", () => {
@@ -67,6 +68,32 @@ describe("number", () => {
 		const shape=number({ in: [1, 2] });
 
 		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<1 | 2>();
+
+	});
+
+	test("bare value → admitted value", () => {
+
+		const shape=number(1);
+
+		expectTypeOf(shape).toEqualTypeOf<NumberShape<1>>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<1>();
+
+	});
+
+	test("bare values → admitted values", () => {
+
+		const shape=number(1, 2, 3);
+
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<1 | 2 | 3>();
+
+	});
+
+	test("unenumerated bare values → number", () => {
+
+		const values: readonly number[]=[1, 2];
+		const shape=number(...values);
+
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<number>();
 
 	});
 
@@ -167,6 +194,34 @@ describe("members", () => {
 		const Rated=resource(Product, { rating: required(integer({ in: [1, 2] })) });
 
 		expectTypeOf<Instance<typeof Rated>["rating"]>().toEqualTypeOf<1 | 2>();
+
+	});
+
+});
+
+describe("tagged unions", () => {
+
+	const Reading=union(
+		resource({ scale: required(integer({ in: [0] })), celsius: required(number()) }),
+		resource({ scale: required(integer({ in: [1] })), fahrenheit: required(number()) })
+	);
+
+	type Value=Instance<typeof Reading>
+
+	test("tags each alternative with the value it admits", () => {
+
+		expectTypeOf<Value["scale"]>().toEqualTypeOf<0 | 1>();
+
+	});
+
+	test("singles out an alternative by its tag", () => {
+
+		expectTypeOf<Extract<Value, { scale: 1 }>>().toEqualTypeOf<{
+
+			readonly scale: 1,
+			readonly fahrenheit: number
+
+		}>();
 
 	});
 

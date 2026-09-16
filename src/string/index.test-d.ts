@@ -17,6 +17,7 @@
 import { describe, expectTypeOf, test } from "vitest";
 import { type Instance, type Compound } from "../value/index.js";
 import { multiple, optional, required, resource } from "../resource/index.js";
+import { union } from "../union/index.js";
 import {
 	date,
 	duration,
@@ -103,6 +104,32 @@ describe("string", () => {
 		const shape=string({ in: ["active", "closed"] });
 
 		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<"active" | "closed">();
+
+	});
+
+	test("bare value → admitted value", () => {
+
+		const shape=string("active");
+
+		expectTypeOf(shape).toEqualTypeOf<StringShape<"active">>();
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<"active">();
+
+	});
+
+	test("bare values → admitted values", () => {
+
+		const shape=string("active", "closed");
+
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<"active" | "closed">();
+
+	});
+
+	test("unenumerated bare values → string", () => {
+
+		const values: readonly string[]=["active", "closed"];
+		const shape=string(...values);
+
+		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<string>();
 
 	});
 
@@ -211,6 +238,34 @@ describe("members", () => {
 		const Open=resource(Ticket, { status: required(string({ in: ["open"] })) });
 
 		expectTypeOf<Instance<typeof Open>["status"]>().toEqualTypeOf<"open">();
+
+	});
+
+});
+
+describe("tagged unions", () => {
+
+	const Ticket=union(
+		resource({ status: required(string({ in: ["open"] })), opened: required(instant()) }),
+		resource({ status: required(string({ in: ["closed"] })), closed: required(instant()) })
+	);
+
+	type Value=Instance<typeof Ticket>
+
+	test("tags each alternative with the value it admits", () => {
+
+		expectTypeOf<Value["status"]>().toEqualTypeOf<"open" | "closed">();
+
+	});
+
+	test("singles out an alternative by its tag", () => {
+
+		expectTypeOf<Extract<Value, { status: "closed" }>>().toEqualTypeOf<{
+
+			readonly status: "closed",
+			readonly closed: string
+
+		}>();
 
 	});
 

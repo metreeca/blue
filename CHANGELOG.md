@@ -7,8 +7,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unpublished](https://github.com/metreeca/blue/compare/v0.10.0...HEAD)
 
+### Added
+
+- Close a boolean shape to a single truth value with the `in` enumeration `BooleanConstraints` states, so that a
+  member may tag the alternatives of a union: the value the shape describes is narrowed to the enumerated one, and an
+  extension admitting the other value is rejected as the shape is built
+
 ### Changed
 
+- Read the bare values `boolean()`, `number()` and `string()` accept as the `in` enumeration closing the domain to
+  them, in place of the prototype model they stated: `boolean(true)`, `number(1, 2, 3)` and `string("open", "closed")`
+  take the admitted values as leading arguments
 - Describe a value with a plain declarative shape, dropping the `model` field every shape carried: a shape is stated
   as an object literal, carrying no representative value and no JSON-incompatible content, while the value it
   describes is resolved at the type level by `Instance`, as a resource is retrieved, and by `Compound`, as one is
@@ -47,7 +56,6 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Range` a property states and by the `Instance` and `Compound` value resolvers (#22)
 - Remove `ReferenceConstraints`: `reference()` states its target alone, the link flags being declared on the property
   (#27)
-- Remove `BooleanConstraints`: the kind alone closes the domain to two values
 - Remove the `computed` property constraint
 - Remove the exported `defaultNamespace`: member predicates unqualified by a stated or inherited `space` resolve
   against the `app` namespace of `@metreeca/core/resource`

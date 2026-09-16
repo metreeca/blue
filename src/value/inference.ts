@@ -45,7 +45,7 @@ import type { Shape } from "./index.js";
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type Plain<S extends Lazy<Shape>> =
-	Eager<S> extends BooleanShape ? boolean
+	Eager<S> extends BooleanShape<infer V> ? V
 		: Eager<S> extends NumberShape<infer V> ? V
 			: Eager<S> extends StringShape<infer V> ? V
 				: Eager<S> extends infer D extends DictionaryShape ? Tagged<D>
@@ -55,9 +55,9 @@ export type Plain<S extends Lazy<Shape>> =
 /**
  * Resolves the legal values under a set of constraints.
  *
- * Yields the enumerated values where the constraints close the domain to a list, and the whole domain otherwise, so
- * that a value read from an enumerated shape is typed by the values it may actually take. An empty list closes
- * nothing, and neither does a list whose values are stated too loosely to be told apart.
+ * Yields the enumerated values where the constraints close the domain, whether to a list or to a single value, and the
+ * whole domain otherwise, so that a value read from an enumerated shape is typed by the values it may actually take. An
+ * empty list closes nothing, and neither does an enumeration whose values are stated too loosely to be told apart.
  *
  * @typeParam C The stated constraints
  * @typeParam D The domain the values are drawn from
@@ -65,4 +65,5 @@ export type Plain<S extends Lazy<Shape>> =
 export type Legal<C, D> =
 	C extends { readonly in: infer V extends readonly D[] }
 		? [V[number]] extends [never] ? D : V[number]
-		: D
+		: C extends { readonly in: infer V extends D } ? V
+			: D

@@ -95,6 +95,7 @@
  * const name = string({ minLength: 1, maxLength: 100 });      // length-constrained
  * const code = string({ pattern: /^[A-Z]{3}-\d{4}$/ });       // pattern-constrained
  * const status = string({ in: ["active", "inactive"] });      // enumeration-constrained
+ * const state = string("open", "closed");                     // the same, stated as bare values
  * ```
  *
  * > [!NOTE]
@@ -144,6 +145,7 @@
  *     Datatypes}
  */
 
+import { isString } from "@metreeca/core";
 import { xsd } from "@metreeca/core/datatype";
 import { TagPattern } from "@metreeca/core/language";
 import type { Variant } from "@metreeca/core/resource";
@@ -358,9 +360,10 @@ export type StringValueConstraints<V extends string = string> = {
 	/**
 	 * Allowed values (closed enumeration).
 	 *
-	 * When specified, values must be members of this list. Empty arrays are ignored. Closing the domain also narrows
-	 * the value the shape describes to the listed values, wherever they are stated precisely enough to be told apart;
-	 * a list whose values are only known to be strings leaves it as the whole textual domain.
+	 * When specified, values must be members of this list. Empty arrays are ignored; the {@link string} factory takes
+	 * the list as bare arguments too. Closing the domain also narrows the value the shape describes to the listed
+	 * values, wherever they are stated precisely enough to be told apart; a list whose values are only known to be
+	 * strings leaves it as the whole textual domain.
 	 *
 	 * **Inheritance** — child may only drop allowed values.
 	 *
@@ -401,9 +404,30 @@ export type StringValueConstraints<V extends string = string> = {
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated constraints contradict one another
  */
-export function string<const C extends StringConstraints = {}>(constraints?: C): StringShape<Legal<C, string>> {
+export function string<const C extends StringConstraints = {}>(constraints?: C): StringShape<Legal<C, string>>;
 
-	return assemble<Legal<C, string>>({ ...constraints });
+/**
+ * Creates a string shape admitting an enumerated set of values.
+ *
+ * Reads bare strings as the enumeration closing the domain to them, so that a set of admitted values is stated as
+ * `string("open", "closed")` rather than as `string({ in: ["open", "closed"] })`.
+ *
+ * @typeParam V The values the shape admits
+ *
+ * @param values The admitted values
+ *
+ * @returns An immutable shape admitting `values` alone
+ */
+export function string<const V extends readonly string[]>(...values: V): StringShape<V[number]>;
+
+/**
+ * Creates a string shape.
+ */
+export function string(...args: readonly (string | StringConstraints)[]): StringShape {
+
+	const [head]=args;
+
+	return assemble<string>(isString(head) ? { in: args.filter(isString) } : { ...head });
 
 }
 

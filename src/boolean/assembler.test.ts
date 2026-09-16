@@ -28,6 +28,31 @@ describe("narrowsBoolean", () => {
 
 	});
 
+	it("accepts a child closing an open inherited domain", async () => {
+
+		expect(narrowsBoolean(boolean({ in: true }), boolean())).toBeUndefined();
+
+	});
+
+	it("accepts a child leaving an inherited enumeration to carry through", async () => {
+
+		expect(narrowsBoolean(boolean(), boolean({ in: true }))).toBeUndefined();
+
+	});
+
+	it("accepts a child restating the inherited value", async () => {
+
+		expect(narrowsBoolean(boolean({ in: false }), boolean({ in: false }))).toBeUndefined();
+
+	});
+
+	it("returns trace for a child admitting the other value", async () => {
+
+		expect(narrowsBoolean(boolean({ in: true }), boolean({ in: false })))
+			.toContainEqual(expect.stringContaining("{in}"));
+
+	});
+
 });
 
 describe("mergeBoolean", () => {
@@ -46,9 +71,37 @@ describe("mergeBoolean", () => {
 
 	});
 
-	it("carries nothing beyond the kind", async () => {
+	it("leaves the domain open where neither shape enumerates a value", async () => {
 
-		expect(Object.keys(mergeBoolean(boolean(), boolean())).sort()).toEqual(["kind"]);
+		expect(mergeBoolean(boolean(), boolean()).in).toBeUndefined();
+
+	});
+
+	describe("in", () => {
+
+		it("inherits source in when target has none", async () => {
+
+			expect(mergeBoolean(boolean(), boolean({ in: false })).in).toBe(false);
+
+		});
+
+		it("keeps target in when source has none", async () => {
+
+			expect(mergeBoolean(boolean({ in: false }), boolean()).in).toBe(false);
+
+		});
+
+		it("keeps the value both shapes state", async () => {
+
+			expect(mergeBoolean(boolean({ in: true }), boolean({ in: true })).in).toBe(true);
+
+		});
+
+		it("rejects a target admitting the other value", async () => {
+
+			expect(() => mergeBoolean(boolean({ in: true }), boolean({ in: false }))).toThrow(RangeError);
+
+		});
 
 	});
 

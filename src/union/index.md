@@ -79,10 +79,11 @@ A state value drives persistence and MUST single out **exactly one** branch (`sh
 membership** against **all** shape constraints, so the value is a legal member of the branch it selects. It keys first
 on **storage class**: the value's literal datatype or node kind separates a string branch from the nodes and tells
 differently-typed branches apart. Where branches share a storage class, a finer value-borne trait must separate them: a
-string `pattern`, a numeric `integral` flag, a reference's target-identifier pattern, or, for nodes, the branch's own
-structure (class and required members). A value matching no branch is **unsatisfiable** and a value matching several is
-**ambiguous**, and both are rejected. In a multi-valued union each value is matched independently, so the property may
-span several branches with one branch fixed per value.
+string `pattern`, a numeric `integral` flag, an `in` enumeration admitting values the sibling branches exclude, a
+reference's target-identifier pattern, or, for nodes, the branch's own structure (class and required members) together
+with the values those members are closed to, as when a boolean tag fixes one branch per truth value. A value matching
+no branch is **unsatisfiable** and a value matching several is **ambiguous**, and both are rejected. In a multi-valued
+union each value is matched independently, so the property may span several branches with one branch fixed per value.
 
 Branch shapes may share or omit members, so a partial value can fit several branches at once. Blue does not try to prove
 the branches distinguishable when the shape is built: in general, `pattern` and IRI disjointness are undecidable.
