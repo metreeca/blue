@@ -46,16 +46,17 @@ npm install @metreeca/blue
 >
 > This section introduces essential concepts; for complete coverage, see the API reference:
 >
-> | Module                         | Description                                |
-> |--------------------------------|--------------------------------------------|
-> | [@metreeca/blue]               | Linked data validation API                 |
-> | [@metreeca/blue/value]         | Composite shapes and cardinality factories |
-> | [@metreeca/blue/boolean]       | Boolean shape and factories                |
-> | [@metreeca/blue/number]        | Numeric shape and factories                |
-> | [@metreeca/blue/string]        | Textual shape and factories                |
-> | [@metreeca/blue/dictionary]    | Dictionary shape and factories             |
-> | [@metreeca/blue/reference]     | Reference shape and factories              |
-> | [@metreeca/blue/resource]      | Resource shape and factories               |
+> | Module                       | Description                           |
+> |------------------------------|---------------------------------------|
+> | [@metreeca/blue]             | Linked data validation                |
+> | [@metreeca/blue/value]       | Value shape types and operations      |
+> | [@metreeca/blue/boolean]     | Boolean shape types and operations    |
+> | [@metreeca/blue/number]      | Number shape types and operations     |
+> | [@metreeca/blue/string]      | String shape types and operations     |
+> | [@metreeca/blue/dictionary]  | Dictionary shape types and operations |
+> | [@metreeca/blue/reference]   | Reference shape types and operations  |
+> | [@metreeca/blue/resource]    | Resource shape types and operations   |
+> | [@metreeca/blue/union]       | Union shape types and operations      |
 
 [@metreeca/blue]: https://metreeca.github.io/blue/modules/index.html
 
@@ -73,19 +74,21 @@ npm install @metreeca/blue
 
 [@metreeca/blue/resource]: https://metreeca.github.io/blue/modules/resource.html
 
+[@metreeca/blue/union]: https://metreeca.github.io/blue/modules/union.html
+
 
 ## Defining Schemas
 
 Schemas describe the expected structure of a resource using shape factories:
 
 ```ts
-import { multiple, optional, required, union } from "@metreeca/blue/value";
+import { union } from "@metreeca/blue/union";
 import { boolean } from "@metreeca/blue/boolean";
 import { number } from "@metreeca/blue/number";
 import { string, url } from "@metreeca/blue/string";
 import { dictionary } from "@metreeca/blue/dictionary";
 import { reference } from "@metreeca/blue/reference";
-import { id, resource, type } from "@metreeca/blue/resource";
+import { id, multiple, optional, required, resource, type } from "@metreeca/blue/resource";
 
 function Thing() {
 	return resource({
@@ -95,7 +98,7 @@ function Thing() {
 }
 
 function Product() {
-	return resource({ extends: Thing }, {
+	return resource(Thing, {
 		name: required(dictionary()),
 		description: optional(dictionary()),
 		price: required(number({ minInclusive: 0 })),
@@ -114,7 +117,7 @@ function Rating() {
 }
 
 function Vendor() {
-	return resource({ extends: Thing }, {
+	return resource(Thing, {
 		name: required(string()),
 		website: required(url()),
 		address: optional(union(
@@ -127,31 +130,47 @@ function Vendor() {
 ```
 
 Shape factories like `string()`, `number()`, `boolean()`, `dictionary()`, and `reference()` define the expected value
-type and optional constraints for each property. Cardinality helpers wrap shape factories to control how many values are
-expected and to determine the inferred TypeScript type:
+type and optional constraints for each property. Cardinality factories wrap a shape into a property, controlling how
+many values are expected and determining the inferred TypeScript type:
 
-| Factory         | Cardinality | TypeScript Type             |
-|-----------------|-------------|-----------------------------|
-| `required(s)`   | 1..1        | `V`                         |
-| `optional(s)`   | 0..1        | `undefined \| V`            |
-| `repeatable(s)` | 1..*        | `readonly V[]`              |
-| `multiple(s)`   | 0..*        | `undefined \| readonly V[]` |
+| Factory                                     | Cardinality | TypeScript Type             |
+|---------------------------------------------|-------------|-----------------------------|
+| `required(s)`                               | 1..1        | `V`                         |
+| `optional(s)`                               | 0..1        | `undefined \| V`            |
+| `nonempty(s)`                               | 1..*        | `readonly [V, ...V[]]`      |
+| `multiple(s)`                               | 0..*        | `undefined \| readonly V[]` |
+| `property(s, { minCount: l, maxCount: u })` | l..u        | as `l` and `u` imply        |
 
-Cardinalities admitting absence also relax their entry to an optional key, so a value literal spells out only the
-entries it actually carries; reading an omitted entry still yields `undefined`.
+An upper bound of 1 yields the bare value and any other an array, non-empty where at least one value is required.
+`property()` follows the same rules, so bounds beyond the four named cardinalities are typed exactly as their
+counterparts are.
 
-Resource entries link to other resources in two ways. A `reference()` wrapper links to a **standalone resource**, an
+A `dictionary()` range stands apart: a localised property carries its language map whole, never in an array, so it is
+typed as the bare map at every cardinality. Where a dictionary sits in a union beside other branches, the property is
+typed as either the map or the array those branches imply, since a resource carries one or the other and never both,
+and the bounds count the other branches alone.
+
+Each factory takes the constraints the property carries beyond its cardinality, such as IRI mappings, labels,
+ownership flags, or a `hidden` flag withholding it from default serialisation, as a trailing argument:
+`required(string(), { forward: schema })`. The `id()` and `type()` markers take the same `hidden` flag.
+
+Cardinalities admitting absence also relax their key to an optional one, so a value literal spells out only the
+members it actually carries; reading an omitted member still yields `undefined`.
+
+Resource members link to other resources in two ways. A `reference()` wrapper links to a **standalone resource**, an
 independently identified and managed entity like `Vendor`. A direct shape inclusion defines an **embedded resource**, a
 nested object with no independent identity, created and managed together with its parent like `Rating`.
 
-Properties that accept multiple types are modelled as unions of positional variants. Matching splits by regime: a stored
-**value** must single out **exactly one** variant (`sh:xone`), tested against all constraints, and is rejected when it
-fits several (ambiguous) or none (unsatisfiable); a retrieval **placeholder** is tested by JSON type alone and must fit
-**at least one** variant (`sh:or`), may fit several, and is rejected only when it fits none (see
-[Validating Templates](#validating-templates)). A multi-valued property matches each of its values independently. At
-runtime, values are stored directly with no variant wrapping. Each variant is a literal, reference, or resource shape; a
-localised `dictionary()` is a whole-property type and is never a union variant, so `union()` rejects a dictionary shape.
-Either of the following representations is accepted at the same `address` position:
+Properties accepting values of more than one type are modelled as unions of positional branches. Matching splits by
+regime: a stored **value** must single out **exactly one** branch (`sh:xone`), tested against all constraints, and is
+rejected when it fits several (ambiguous) or none (unsatisfiable); a relational **bound** must likewise single out
+exactly one, but keys on syntactic traits alone, as it need not be a legal value; a retrieval **placeholder** is tested
+by JSON type alone and must fit **at least one** branch (`sh:or`), may fit several, and is rejected only when it fits
+none (see [Validating Templates](#validating-templates)). A multi-valued property matches each of its values
+independently, and values are stored as they stand with no branch wrapping.
+
+Branches are expected to be **disjoint**: overlapping ones are accepted as the shape is built, and an ambiguous value is
+rejected only when it is matched. Either of the following representations is accepted at the same `address` position:
 
 ```json
 { "address": "12 Harbour Street, Copenhagen" }
@@ -168,10 +187,10 @@ Either of the following representations is accepted at the same `address` positi
 
 ## Extending Schemas
 
-Use `extends` to inherit entries and constraints from a parent shape. Local entries augment the parent and may override
-inherited ones, but only by *narrowing*: overrides may restrict inherited constraints, never relax them. Cardinality
-narrows monotonically (`required` may override `optional`, but not the reverse), per-kind constraints intersect, and the
-override is rejected at the call site when the child relaxes the parent.
+Declare parent shapes first to inherit their members and constraints. Local members augment
+the parent and may override inherited ones, but only by *narrowing*: an override restricts what it inherits and never
+relaxes it. Cardinality narrows monotonically (`required` may override `optional`, but not the reverse), per-kind
+constraints intersect, and the override is rejected at the call site when the child relaxes the parent.
 
 ```ts
 const NamedThing = resource({
@@ -179,26 +198,30 @@ const NamedThing = resource({
     name: required(string({ minLength: 1 }))
 });
 
-const Vendor = resource({ extends: NamedThing }, {
+const Vendor = resource(NamedThing, {
     name: required(string({ minLength: 3, maxLength: 80 })), // narrows minLength
     rating: optional(number({ minInclusive: 0, maxInclusive: 5 }))
 });
 ```
 
-### Refining nested targets
+### Refining Nested Targets
 
-A slot holding a nested resource or a `reference(...)` is refined by re-pointing it at a shape that extends the
+A member holding a nested resource or a `reference(...)` is refined by re-pointing it at a shape that extends the
 inherited target. The refining shape declares only what it adds or narrows: it reaches the inherited definition through
-its own `extends`, so the parent definition is never restated. A target that doesn't extend the inherited one, the
-inherited target's own parent included, is rejected at the call site.
+its own parents, so the parent definition is never restated. A `reference(...)` target that doesn't extend the
+inherited one, the inherited target's own parent included, is rejected at the call site; a target deferred to break a
+definition cycle is held to the same rule once its definition stands, so shapes reaching themselves or each other may
+be re-pointed just as well.
 
 ```ts
-const Organization = resource({ class: "https://schema.org/Organization" }, {
+const Organization = resource({
+    class: "https://schema.org/Organization"
+}, {
     id: id(),
     name: required(string())
 });
 
-const University = resource({ extends: Organization, class: "https://ec2u.eu/University" }, {
+const University = resource(Organization, { class: "https://ec2u.eu/University" }, {
     country: required(string())
 });
 
@@ -208,71 +231,76 @@ const Unit = resource({
     host: required(Organization)               // embedded target
 });
 
-const ResearchUnit = resource({ extends: Unit }, {
+const ResearchUnit = resource(Unit, {
     unitOf: required(reference(University)),   // re-pointed at the extending target
     host: required(University)
 });
 ```
 
-Extending the inherited target is what makes the refinement legal for an embedded slot: a nested resource value must
-carry every `class` the inherited target declares, so a standalone shape that merely repeats its entries is rejected.
+Extending the inherited target is what makes the refinement legal for an embedded member: a nested resource value must
+belong to every `class` the inherited target declares, whether the refining shape states it in its own right or
+inherits it, so a standalone shape that merely repeats the inherited members is rejected.
 
-### Narrowing union slots
+### Narrowing Union Members
 
-When the parent declares a `union(...)` slot, an extending shape may narrow it in two forms:
+When the parent declares a `union(...)` member, an extending shape may narrow it in two forms:
 
-- **Single-variant narrowing** — the child supplies a non-union value shape that narrows exactly one of the parent's
-  variants (matched by `kind`, by `datatype` / `pattern` / `integral` for literals, by the variant's target shape or one
-  extending it for `reference`, or by a subtype `class` for `resource`). The merged slot becomes a bare value shape;
-  consumers see the variant's plain model rather than the indexed-record form.
-- **Union subsetting** — the child supplies a smaller `union(...)`; each child variant narrows a distinct parent variant
-  (an injective pairing), the paired variants are merged, and unpaired parent variants are dropped. A parent variant
-  that no child variant can single out, such as one of two variants whose targets are the same shape or one extending
-  the other, cannot be narrowed individually.
+- **Single-branch narrowing**: the child supplies a non-union shape that narrows exactly one of the parent's branches.
+  The merged member becomes a bare value shape, no longer polymorphic.
+- **Branch subsetting**: the child supplies a smaller `union(...)`; each child branch narrows a distinct parent branch
+  (an injective pairing), the paired branches are merged, and unpaired parent branches are dropped.
+
+A child branch narrowing no parent branch, several, or one already claimed by another child branch is rejected at the
+call site.
 
 ```ts
 const Entity = resource({
 	code: required(union(string(), number()))
 });
 
-// Form 1 — narrows the slot to a bare string
-const Vendor = resource({ extends: Entity }, {
-	code: required(string({ model: "ABC", pattern: "^[A-Z]" }))
+// Form 1 — narrows the member to a bare string
+const Vendor = resource(Entity, {
+	code: required(string({ pattern: /^[A-Z]/ }))
 });
 
-// Form 2 — keeps the union but drops the string variant wholesale
-const Numbered = resource({ extends: Entity }, {
+// Form 2 — keeps the union but drops the string branch wholesale
+const Numbered = resource(Entity, {
 	code: required(union(number({ minInclusive: 0 })))
 });
 ```
 
-The merged union's `model` re-indexes contiguously from `0`: dropping a parent variant renumbers every later variant.
-Consumers must key off the shape's own `model`, not assume positional alignment with an ancestor.
+Dropping a parent branch changes nothing a retrieval template relies on: the keys of a branch map are opaque labels
+carrying no positional meaning, so a placeholder singles out the alternative it fits by shape rather than by the
+position the branch was stated at (see [Validating Templates](#validating-templates)).
 
 ## Type Inference
 
-Schemas double as TypeScript type definitions. The `State` utility extracts the runtime state value type matching a
-shape's template; pair it with `Schema` whenever the template form itself is needed:
+Schemas double as TypeScript type definitions. `Instance` yields the value a resource carries as it is held and
+retrieved:
 
 ```ts
-import { type State } from "@metreeca/blue/value";
+import { type Instance } from "@metreeca/blue/value";
 
-type ProductType = State<typeof Product>;
+type ProductType = Instance<typeof Product>;
 
 // {
-//     id: Reference,
-//     type: Reference,
-//     name: Dictionary,
-//     description?: undefined | Dictionary,
-//     price: number,
-//     inStock: boolean,
-//     tags?: undefined | readonly string[],
-//     rating?: undefined | { average: number, reviews: number },
-//     vendor: Reference
+//     readonly id: Reference,
+//     readonly type?: undefined | Reference,
+//     readonly name: { readonly [tag: Tag]: readonly string[] },
+//     readonly description?: undefined | { readonly [tag: Tag]: readonly string[] },
+//     readonly price: number,
+//     readonly inStock: boolean,
+//     readonly tags?: undefined | readonly string[],
+//     readonly rating?: undefined | { readonly average: number, readonly reviews: number },
+//     readonly vendor: Reference
 // }
 ```
 
-Entries admitting absence are optional keys: a value may either set them to `undefined` or leave them out.
+`Compound` yields the value a writer may submit instead: the identifier is optional, as a resource yet to be created has
+none to state, captive targets may be inlined alongside their identifiers, and `foreign` members are left out, as the
+resources they point at carry the link.
+
+Members admitting absence are optional keys: a value may either set them to `undefined` or leave them out.
 
 No separate interface needed: the schema is the type definition.
 
@@ -286,7 +314,7 @@ import { validate } from "@metreeca/blue";
 
 validate(data, { shape: Product })({
 	value: product => {
-		// product is typed as State<typeof Product>
+		// product is typed as Instance<typeof Product>
 	},
 	trace: trace => {
 		// trace describes validation violations
@@ -295,15 +323,19 @@ validate(data, { shape: Product })({
 ```
 
 All constraints are enforced, including type, cardinality, closed-shape checks, and custom validators. Unknown and
-missing entries are both rejected. On success, the value is an immutable copy validated against a verified and flattened
-copy of the shape. The function is idempotent on a specific shape: re-validation against the same shape trusts the
-previous result without repeating the validation process.
+missing members are both rejected. On success, the value comes back typed as the shape describes it. Validation is
+idempotent on a given shape: re-validating the same value on the same terms reads the earlier verdict off the value
+rather than walking it again, so a caller may validate defensively wherever it is unsure.
+
+Two further options bound what a resource may carry: `entry` names the identifier the resource is expected to be named
+by, and `depth` caps the nesting a captive member may be expanded to, with `0` refusing every expansion while still
+admitting the identifier naming the resource.
 
 ## Validating Projections
 
 When the projection template is not bonded to the shape (typically at API boundaries where `shape` defines the
 admissible surface and the projection arrives per request), pass `model` as a separate template argument. The result is
-narrowed to `Instance<T>`, where `T` is inferred from `model`:
+narrowed to the members the template asked for:
 
 ```ts
 import { validate } from "@metreeca/blue";
@@ -320,9 +352,10 @@ validate(response, { shape: Product, model })({
 });
 ```
 
-Only the projected keys are checked: constraints on keys absent from `model` are not enforced, so unrequested required
-fields do not trigger `minCount` violations. Reference-shape slots additionally accept an expanded nested resource,
-validated against the linked target shape narrowed by the nested projection in `model`.
+Only the requested members are checked: constraints on members absent from `model` are not enforced, so an unrequested
+required member triggers no `minCount` violation. A member the template didn't ask for is rejected all the same, as the
+caller has nowhere to put it. A reference member additionally accepts an expanded nested resource, validated against the
+target shape narrowed by the nested projection in `model`.
 
 ## Validating Templates
 
@@ -338,60 +371,46 @@ validate(data, { model: true, shape: Product, depth: 0 });
 validate(data, { model: true, shape: Product, limit: 100 });
 ```
 
-Type and structural constraints are enforced; value constraints are skipped as query values are placeholders. Missing
-entries are accepted as not requested; explicit `undefined` entries are equivalent and mark optional template or
-projection slots elided at construction time. Where a property specifies a reference shape, the query may be either an
-IRI reference placeholder, retrieving only the identifier, or a nested template validated against the target shape. A
-reference placeholder is never resolved on decoding, so it accepts any IRI reference (the empty string, a root-relative
-or relative reference, or an absolute IRI); reference values in selection operands, by contrast, are resolved against
-the base IRI and absolute. A union-typed property is addressed only through the indexed form (`{"0": ..., "1": ...}`),
-one placeholder per branch; a plain placeholder over it is rejected. Each branch placeholder is matched by JSON type
-alone, its value immaterial: it need not be legal, matches every type-compatible branch (so a literal or reference
-placeholder retrieves all same-kind branches, while a nested template discriminates the resource branches its structure
-fits), and is rejected only when it matches no branch. Selection operands (comparison bounds and set-matching options)
-are values, not placeholders, so they take the exactly-one rule; a `~` text search is a plain string applied to every
-string branch at once. Projection cells over a localised property carry a complete localised value whose
-per-language-tag shape is pinned to the property's per-tag cardinality (a single string for single-string-per-tag, a
-singleton array for array-per-tag); the localised value is assembled once per row rather than fanned out per tag.
+A template describes what to retrieve rather than what is held, so type and structural constraints are enforced while
+value constraints are left alone: a placeholder stands for a value and need not be a legal one. A missing member is
+accepted as not requested, and an explicit `undefined` member reads the same way, marking one elided at construction
+time.
 
-A localised property additionally coalesces under language negotiation, at its per-tag cardinality: its template slot
-also accepts a coalesced placeholder for the negotiated value (a bare string for single-string-per-tag, a single-element
-string array for array-per-tag), and a selection may constrain it with a plain-string operand (comparison, text search,
-or option) matched existentially over the coalesced value set under ordinary string semantics. Sorting and focusing
-still require a single-valued key, so they accept a coalesced localised key only where it resolves single-valued.
+What each kind of member may be asked for:
 
-The `plain`, `depth`, and `limit` options bound the accepted query language: `plain` rejects aggregate transforms
-(`count`, `sum`, `min`, `max`, `avg`); `depth` caps nested template expansion and property path length; `limit` caps the
-`#` pagination constraint and is injected as a default when missing.
+- **Reference**: either an IRI placeholder, retrieving the identifier alone, or a nested template validated against the
+  target shape. A placeholder is never resolved on decoding, so any IRI reference is accepted, the empty string and
+  relative forms included; reference values in selection operands, by contrast, are resolved against the base IRI and
+  are absolute.
+- **Union**: the keyed form (`{"0": …, "1": …}`) alone, one placeholder per alternative wanted; a plain placeholder
+  over a union is rejected. Keys are opaque labels carrying no positional meaning: each placeholder is matched by JSON
+  type alone and retrieves every branch it fits, so a literal or reference placeholder requests all same-kind branches
+  while a nested template discriminates the resource branches its structure fits. Only a placeholder fitting no branch
+  at all is rejected.
+- **Localised**: a map of the tags wanted, each paired with the placeholder a matched tag comes back as, or a coalesced
+  placeholder standing for the content language negotiation settles on. A coalesced placeholder carries the negotiated
+  content at the member's per-tag arity: a bare string where a tag carries one, a single-element array where it carries
+  several. A localised branch of a union takes the map within a projection column alone, where each branch is asked for
+  under a column of its own; elsewhere it takes the coalesced placeholder.
+
+Selection operands follow their own rules: comparison bounds and set-matching options carry content rather than
+placeholders, so each must single out exactly one branch, a bound keying on kind and lexical pattern and an option on
+kind alone, while a `~` text search is a plain string applied to every string branch at once. A plain-string operand
+over a localised member filters the negotiated content under ordinary textual semantics; sorting and focusing still
+require a single-valued key, so they accept a coalesced localised key only where it resolves single-valued.
+
+Three options bound the query language a template may draw on:
+
+- **`plain`**: rejects the aggregate transforms combining several values into one (`count`, `sum`, `min`, `max`, `avg`)
+- **`depth`**: caps nested template expansion and property path length
+- **`limit`**: caps the `#` pagination constraint, and is injected as a default where a collection states none; `0`,
+  like omitting it, leaves the page to the client
 
 > [!CAUTION]
 >
 > By default, templates support the full query language, including aggregate transforms and nested expansion.
 > When exposing endpoints to untrusted clients, restrict query complexity as required by setting `plain`
 > to `true`, `depth` to `0` or a positive value, and/or `limit` to a maximum result set size.
-
-## Validating Values
-
-The same `validate` function checks an individual value against a value shape when `shape` is passed alone, without
-`model`:
-
-```ts
-import { validate } from "@metreeca/blue";
-import { integer } from "@metreeca/blue/number";
-
-validate(price, { shape: integer({ minInclusive: 0 }) })({
-	value: amount => {
-		// amount is typed as number
-	},
-	trace: trace => {
-		// trace describes validation violations
-	}
-});
-```
-
-Only the leaf constraints (datatype, numeric range, string length, pattern, language) are enforced against the single
-value; cardinality is not checked, as it belongs to the enclosing set shape. A union shape requires the value to match
-**exactly one** variant (`sh:xone`), as a state value does. On success, the value is the input narrowed to `State<S>`.
 
 # SHACL Foundations
 
@@ -417,14 +436,14 @@ This controlled subset is specified by:
 - [value constraints](https://www.w3.org/TR/shacl/#core-components-others) (`sh:in`, `sh:hasValue`) for enumerations and
   required values
 - [logical constraints](https://www.w3.org/TR/shacl/#core-components-logical) limited to `sh:xone` typed unions on
-  entries, matched exactly-one on write and relaxed to at-least-one (`sh:or`) on read; the `sh:not`, `sh:and`, and
+  members, matched exactly-one on write and relaxed to at-least-one (`sh:or`) on read; the `sh:not`, `sh:and`, and
   `sh:or` shape combinators are not supported for authoring
 - [closed shapes](https://www.w3.org/TR/shacl/#ClosedConstraintComponent) enforced by default on all resource shapes;
-  unknown entries are always rejected
+  unknown properties are always rejected
 
 [Property pair constraints](https://www.w3.org/TR/shacl/#core-components-property-pairs) and
 [property paths](https://www.w3.org/TR/shacl/#property-paths) are not supported; cross-property logic can be implemented
-via custom [validators](https://metreeca.github.io/blue/modules/index.html).
+via custom [validators](https://metreeca.github.io/blue/modules/resource.html).
 
 # Support
 

@@ -36,7 +36,7 @@ description: Development guidelines and conventions for the @metreeca/blue packa
 # Data Model
 
 **CRITICAL: `Template` keys are property identifiers, never bindings.** A `Template` (`{ [Identifier]: Placeholders }`)
-retrieves a resource: its keys are plain property names, validated against `shape.entries` by `validateResult`.
+retrieves a resource: its keys are plain property names, validated against `shape.members` by `validateResult`.
 Projection bindings (`"alias=year:released"`) key a `Projection`, and selection operators (`"<price"`, `"#"`) key a
 `Selection`; both appear only inside a collection `Query` and are decoded through `decodeProbe()` / `effective()` by
 `validateTemplate`, not by `validateResult`.
@@ -44,13 +44,16 @@ Projection bindings (`"alias=year:released"`) key a `Projection`, and selection 
 **Three validation regimes.** Union matching (a non-union is a degenerate single-variant union) runs in three regimes,
 mirroring qest §3.1/§5.2/§5.4 and named by the `Scope` type (`state | bound | model`):
 
-- **state** (`sh:xone`) — a data value (a resource instance on ingress; a selection **option**, keyed by the `?`, `!`,
-  or sort-focus `+` operators) MUST match **exactly one** variant against **all** constraints. It is a legal value
-  fixing the branch that drives storage; no match is unsatisfiable, several is ambiguous, both rejected.
+- **state** (`sh:xone`) — a data value (a resource instance on ingress) MUST match **exactly one** variant against
+  **all** constraints. It is a legal value fixing the branch that drives storage; no match is unsatisfiable, several is
+  ambiguous, both rejected.
 - **bound** (`sh:xone`, relaxed) — a relational **bound** (`<`, `>`, `<=`, `>=`) MUST match **exactly one** variant but
   need not be a legal element value: it skips the value-domain magnitude constraints and keys on the syntactic
   discriminators (`kind`, and `pattern` for literals) alone, so it requires the union's literal branches to be
-  **literally disjoint**.
+  **literally disjoint**. A selection **option**, keyed by the `?`, `!`, or sort-focus `+` operators, is matched by
+  equality rather than by order and is relaxed further still: it keys on `kind` alone, `pattern` included among what it
+  relaxes, so it requires the variants to be **kind-disjoint**. A localised variant takes its options as strings, stated
+  plainly or grouped in a tag-keyed map, at whatever arity the filter lists.
 - **model** (`sh:or`) — a retrieval placeholder MUST match **at least one** variant by **JSON type alone**, ignoring
   every other constraint. Its value is immaterial and need not be legal; it may match several (retrieving each) and is
   rejected only when it matches none.

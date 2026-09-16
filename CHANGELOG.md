@@ -9,12 +9,51 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Describe a value with a plain declarative shape, dropping the `model` field every shape carried: a shape is stated
+  as an object literal, carrying no representative value and no JSON-incompatible content, while the value it
+  describes is resolved at the type level by `Instance`, as a resource is retrieved, and by `Compound`, as one is
+  submitted (#22)
+- Declare link ownership and lifecycle once per slot: `foreign` and `captive` move from the reference shape to
+  `PropertyConstraints`, alongside `forward` and `reverse`, so they can no longer differ across the branches of a
+  union on the same property (#27)
+- Carry the value set of a `Property` as a `range` field, a `Range` stating `shape`, `minCount` and `maxCount`, in
+  place of the three flat fields on the member: `member.range.shape` replaces `member.shape`, a path resolved through
+  a member yields a range of the same form, and `property()` folds the bounds it is given into the range rather than
+  restating them on the member; the member factories keep their flat signatures
 - Accept an inherited reference re-pointed at a target extending the inherited target: an extending shape refines what
   a reference admits by naming the narrower target alone, with the merged entry keeping that target; any other target
   is rejected
 - Accept a plain string for `name` and `description` on `ResourceConstraints` and `PropertyConstraints` as a shorthand
   for the English-only case — expanded to `{ en: <value> }` on the built shape, where both fields remain localised
   dictionaries
+- State the cardinality factories on the `resource` module, alongside the members they qualify, renaming `repeatable()`
+  to `nonempty()`: `required()`, `optional()`, `multiple()` and `nonempty()` build a `Property` rather than a set shape
+  of their own
+- State the `Shape` union, the `Range` type and the `sh` SHACL namespace on the `value` module, which the package index
+  no longer restates
+- Name the alternatives of a union branches throughout: `UnionBranches` replaces `Variants`, and `getShapeBranches()`,
+  `getStateBranch()`, `getBoundBranch()` and `getModelBranches()` replace `getShapeVariants()`, `getStateVariant()`,
+  `getBoundVariant()` and `getModelVariants()`
+- Take the shapes a resource extends as leading arguments of `resource()`, ahead of its constraints and members
+- Rename the `ResourceConstraints.namespace` constraint to `space`
+- Serve each shape kind from a module of its own, splitting shape types, assembly, validation and inference into
+  separate units; the published entry points are unchanged (`@metreeca/blue`, `@metreeca/blue/value`,
+  `@metreeca/blue/boolean`, …)
+
+### Removed
+
+- Remove the `model()` helper and the types serving the stored model — `Schema`, `Prototype`, `Boxed`, `State`,
+  `Resolved`, `Bounds`, `ValueShape`, `ValuesShape`, `RangeShape`, `SetShape` and `SetFactory` — superseded by the
+  `Range` a property states and by the `Instance` and `Compound` value resolvers (#22)
+- Remove `ReferenceConstraints`: `reference()` states its target alone, the link flags being declared on the property
+  (#27)
+- Remove `BooleanConstraints`: the kind alone closes the domain to two values
+- Remove the `computed` property constraint
+- Remove the exported `defaultNamespace`: member predicates unqualified by a stated or inherited `space` resolve
+  against the `app` namespace of `@metreeca/core/resource`
+- Remove the type-level inference machinery from the published surface — `Composition`, `Content`, `Declared`, `Entry`,
+  `Inheritance`, `Intersected`, `Merged`, `Narrowings`, `Override`, `Prototype`, `Relaxed` and `Slot` are no longer
+  exported, the surviving ones serving shape and value resolution from modules of their own
 
 ## [0.10.0](https://github.com/metreeca/blue/compare/v0.9.1...v0.10.0) - 2026-09-09
 

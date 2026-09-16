@@ -1,0 +1,115 @@
+/*
+ * Copyright © 2025-2026 Metreeca srl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import type { Reference } from "@metreeca/qest/resource";
+import { describe, expectTypeOf, test } from "vitest";
+import { type Instance, type Compound } from "../value/index.js";
+import { type NumberShape } from "../number/index.js";
+import { reference, type ReferenceShape } from "../reference/index.js";
+import { id, type Id, multiple, type Property, required, resource } from "../resource/index.js";
+import { string, type StringShape } from "../string/index.js";
+import { union, type UnionShape } from "./index.js";
+
+
+type LinkShape={
+
+	readonly kind: "resource",
+	readonly classes: readonly Reference[],
+	readonly parents: [],
+
+	readonly members: {
+		readonly id: Id,
+		readonly label: Property<StringShape, 1, 1>
+	}
+
+}
+
+
+describe("union values", () => {
+
+	test("retrieves the value of every branch", () => {
+		expectTypeOf<Instance<UnionShape<[StringShape, ReferenceShape]>>>().toEqualTypeOf<string | Reference>();
+	});
+
+	test("retrieves a resource branch as the instance it describes", () => {
+		expectTypeOf<Instance<UnionShape<[StringShape, LinkShape]>>>().toEqualTypeOf<string | Instance<LinkShape>>();
+	});
+
+	test("retrieves a lazy branch as the value of the shape it returns", () => {
+		expectTypeOf<Instance<UnionShape<[() => LinkShape]>>>().toEqualTypeOf<Instance<LinkShape>>();
+	});
+
+	test("retrieves a narrowed branch as the values it enumerates", () => {
+		expectTypeOf<Instance<UnionShape<[StringShape<"home" | "work">, NumberShape]>>>()
+			.toEqualTypeOf<"home" | "work" | number>();
+	});
+
+	test("flattens a nested union into the values of its leaves", () => {
+		expectTypeOf<Instance<UnionShape<[StringShape, UnionShape<[NumberShape, ReferenceShape]>]>>>()
+			.toEqualTypeOf<string | number | Reference>();
+	});
+
+	test("flattens a nested union deferred to break definition cycles", () => {
+		expectTypeOf<Instance<UnionShape<[StringShape, () => UnionShape<[NumberShape, LinkShape]>]>>>()
+			.toEqualTypeOf<string | number | Instance<LinkShape>>();
+	});
+
+	test("submits the payload of every branch", () => {
+		expectTypeOf<Compound<UnionShape<[StringShape, LinkShape]>>>().toEqualTypeOf<string | Compound<LinkShape>>();
+	});
+
+	test("submits a nested union as the payloads of its leaves", () => {
+		expectTypeOf<Compound<UnionShape<[StringShape, UnionShape<[NumberShape, LinkShape]>]>>>()
+			.toEqualTypeOf<string | number | Compound<LinkShape>>();
+	});
+
+	test("submits a resource branch in its submitted form rather than its retrieved one", () => {
+		expectTypeOf<Compound<UnionShape<[LinkShape]>>>().not.toEqualTypeOf<Instance<UnionShape<[LinkShape]>>>();
+	});
+
+});
+
+describe("union ranges", () => {
+
+	function target() {
+		return resource({ id: id(), label: required(string()) });
+	}
+
+	const shape=resource({
+
+		id: id(),
+
+		location: required(union(string(), reference(target))),
+		locations: multiple(union(string(), reference(target)))
+
+	});
+
+	type Retrieved=Instance<typeof shape>
+	type Submitted=Compound<typeof shape>
+
+	test("carries a union-valued member as the value of every branch", () => {
+		expectTypeOf<Retrieved["location"]>().toEqualTypeOf<string | Reference>();
+	});
+
+	test("repeats a union-valued member as an array of the values of every branch", () => {
+		expectTypeOf<Retrieved["locations"]>().toEqualTypeOf<undefined | readonly (string | Reference)[]>();
+	});
+
+	test("submits a union-valued member as it is retrieved", () => {
+		expectTypeOf<Submitted["location"]>().toEqualTypeOf<Retrieved["location"]>();
+	});
+
+});

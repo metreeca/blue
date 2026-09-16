@@ -1,0 +1,56 @@
+/*
+ * Copyright © 2025-2026 Metreeca srl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+/**
+ * Reference shape accessors.
+ *
+ * Reads off a shape the resource shape it reaches, crossing a link and taking a resource to itself, so that a caller
+ * needs not tell a link from a resource carried inline. Crossing a link whose target was deferred to break a
+ * definition cycle is where a re-pointed target is held to the one it overrides.
+ *
+ * @module
+ */
+
+import { type Lazy } from "@metreeca/core";
+import type { ResourceShape } from "../resource/index.js";
+import { eager, type Shape } from "../value/index.js";
+
+
+/**
+ * Resolves the resource shape a shape points at.
+ *
+ * Crosses a reference to the shape it points at and takes a resource shape to itself, so that a caller reaching for
+ * the members behind a shape needs not tell a link from a resource carried inline. A shape describing a plain or
+ * localised value, or a union, points at no resource and yields nothing.
+ *
+ * @param shape The shape to resolve, possibly deferred to break definition cycles
+ *
+ * @returns The resource shape `shape` points at, merged with the shapes it extends, or `undefined` where it points at
+ *     none
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or the target is
+ *     deferred and the definition it states doesn't narrow the target of the link it overrides
+ */
+export function getShapeTarget(shape: Lazy<Shape>): undefined | ResourceShape {
+
+	const resolved = eager(shape);
+
+	return resolved.kind === "resource" ? resolved
+		: resolved.kind === "reference" ? eager(resolved.target)
+			: undefined;
+
+}
