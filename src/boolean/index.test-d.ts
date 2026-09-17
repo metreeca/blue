@@ -18,7 +18,7 @@ import { describe, expectTypeOf, test } from "vitest";
 import { multiple, optional, required, resource } from "../resource/index.js";
 import { string } from "../string/index.js";
 import { union } from "../union/index.js";
-import { type Compound, type Instance } from "../value/index.js";
+import { type Instance } from "../value/index.js";
 import { type BooleanShape, boolean } from "./index.js";
 
 
@@ -102,10 +102,6 @@ describe("members", () => {
 		expectTypeOf<Instance<typeof Product>["featured"]>().toEqualTypeOf<undefined | true>();
 		expectTypeOf<Instance<typeof Product>["flags"]>().toEqualTypeOf<undefined | readonly false[]>();
 
-	});
-
-	test("carries the admitted value into a submission", () => {
-		expectTypeOf<Compound<typeof Product>["featured"]>().toEqualTypeOf<undefined | true>();
 	});
 
 	test("carries the admitted value through inheritance", () => {

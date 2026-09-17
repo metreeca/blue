@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import type { Lazy, Optional } from "@metreeca/core";
+import type { Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Compound, type Shape } from "../value/index.js";
+import { type Shape } from "../value/index.js";
 import { type ReferenceShape } from "../reference/index.js";
 import { type StringShape } from "../string/index.js";
 import { type Id, type Property, type ResourceShape, type Type } from "./index.js";
@@ -28,8 +28,6 @@ import {
 	type Arity,
 	type Carried,
 	type Content,
-	type Input,
-	type Owned,
 	type Retrieved,
 	type Skippable,
 	type Slot
@@ -87,7 +85,7 @@ describe("inheritance", () => {
 
 	});
 
-	describe("Owned", () => {
+	describe("voided overrides", () => {
 
 		// a member voided by an override the inherited one does not admit is kept, so that the conflict surfaces
 		// where the state is resolved rather than passing as a member the resource never declared
@@ -116,14 +114,12 @@ describe("inheritance", () => {
 
 		}
 
-		test("ResourceShape → a voided member, which no foreign filter swallows", () => {
+		test("ResourceShape → a voided member, kept rather than dropped", () => {
 			expectTypeOf<keyof Carried<CappedShape>>().toEqualTypeOf<"links">();
-			expectTypeOf<keyof Owned<CappedShape>>().toEqualTypeOf<"links">();
 		});
 
-		test("ResourceShape → the voided member surfacing in either projection", () => {
+		test("ResourceShape → the voided member surfacing as no value at all", () => {
 			expectTypeOf<Retrieved<CappedShape>["links"]>().toEqualTypeOf<never>();
-			expectTypeOf<Compound<CappedShape>["links"]>().toEqualTypeOf<never>();
 		});
 
 	});
@@ -304,50 +300,6 @@ describe("members", () => {
 
 		test("no value at all for a range standing for any kind", () => {
 			expectTypeOf<Slot<Shape, 1, 1>>().toEqualTypeOf<never>();
-		});
-
-	});
-
-	describe("Input", () => {
-
-		type Captive<R extends Lazy<Shape>, L extends Optional<number>, U extends Optional<number>> =
-			Property<R, L, U> & { readonly captive: true }
-
-		test("Id → its reference type", () => {
-			expectTypeOf<Input<Id>>().toEqualTypeOf<Reference>();
-		});
-
-		test("Type → its optional reference type", () => {
-			expectTypeOf<Input<Type>>().toEqualTypeOf<Optional<Reference>>();
-		});
-
-		test("Property → the state of its range, as the retrieved value does", () => {
-			expectTypeOf<Input<Property<StringShape, 1, 1>>>()
-				.toEqualTypeOf<Content<Property<StringShape, 1, 1>>>();
-		});
-
-		test("Property → an IRI for a reference range the submitter does not hold captive", () => {
-			expectTypeOf<Input<Property<ReferenceShape<LabelShape>, 1, 1>>>()
-				.toEqualTypeOf<Reference>();
-		});
-
-		test("Property → an IRI or an inline proposal for a captive reference range", () => {
-			expectTypeOf<Input<Captive<ReferenceShape<LabelShape>, 1, 1>>>()
-				.toEqualTypeOf<Reference | Compound<LabelShape>>();
-		});
-
-		test("Property → inline proposals at every cardinality", () => {
-			expectTypeOf<Input<Captive<ReferenceShape<LabelShape>, undefined, undefined>>>()
-				.toEqualTypeOf<undefined | readonly (Reference | Compound<LabelShape>)[]>();
-		});
-
-		test("Property → the state of a captive range that points at nothing", () => {
-			expectTypeOf<Input<Captive<StringShape, 1, 1>>>().toEqualTypeOf<string>();
-		});
-
-		test("distributes over a member union", () => {
-			expectTypeOf<Input<Id | Property<StringShape, 1, 1>>>()
-				.toEqualTypeOf<Reference | string>();
 		});
 
 	});

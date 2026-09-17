@@ -19,10 +19,10 @@ import type { Reference, Resource } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
 import { type BooleanShape } from "../boolean/index.js";
 import { type DictionaryShape } from "../dictionary/index.js";
-import { reference, type ReferenceShape } from "../reference/index.js";
-import { id, multiple, type Property, required, resource, type ResourceShape } from "../resource/index.js";
-import { string, type StringShape } from "../string/index.js";
-import { type Compound, type Instance, type Range } from "./index.js";
+import { type ReferenceShape } from "../reference/index.js";
+import { type Property, type ResourceShape } from "../resource/index.js";
+import { type StringShape } from "../string/index.js";
+import { type Instance, type Range } from "./index.js";
 
 
 type LabelShape={
@@ -127,91 +127,6 @@ describe("Instance", () => {
 	test("rejects a non-shape", () => {
 		// @ts-expect-error - string is not a shape
 		expectTypeOf<Instance<string>>().toBeNever();
-	});
-
-});
-
-describe("Compound", () => {
-
-	function target() {
-		return resource({ id: id(), label: required(string()) });
-	}
-
-	const shape=resource({
-
-		id: id(),
-
-		plain: required(string()),
-		linked: required(reference(target)),
-		owned: required(reference(target), { captive: true }),
-		many: multiple(reference(target), { captive: true }),
-
-		borrowed: required(reference(target), { foreign: true })
-
-	});
-
-	type Submitted=Compound<typeof shape>
-
-	test("carries a plain member as the state does", () => {
-		expectTypeOf<Submitted["plain"]>().toEqualTypeOf<string>();
-	});
-
-	test("carries a plain reference as an IRI", () => {
-		expectTypeOf<Submitted["linked"]>().toEqualTypeOf<Reference>();
-	});
-
-	test("admits a captive target inline alongside its IRI", () => {
-		expectTypeOf<Submitted["owned"]>().toEqualTypeOf<Reference | Compound<ReturnType<typeof target>>>();
-	});
-
-	test("takes a captive target in either form", () => {
-		expectTypeOf<Reference>().toExtend<Submitted["owned"]>();
-		expectTypeOf<{ readonly label: string }>().toExtend<Submitted["owned"]>();
-	});
-
-	test("admits captive targets inline at every cardinality", () => {
-		expectTypeOf<Submitted["many"]>()
-			.toEqualTypeOf<undefined | readonly (Reference | Compound<ReturnType<typeof target>>)[]>();
-	});
-
-	test("takes captive targets in either form within a single set", () => {
-		expectTypeOf<readonly [Reference, { readonly label: string }]>()
-			.toExtend<NonNullable<Submitted["many"]>>();
-	});
-
-	test("takes a plain reference in reference form alone", () => {
-		expectTypeOf<Reference>().toExtend<Submitted["linked"]>();
-		expectTypeOf<{ readonly label: string }>().not.toExtend<Submitted["linked"]>();
-	});
-
-	test("proposes a captive target in its own right", () => {
-		expectTypeOf<Compound<ReturnType<typeof target>>["label"]>().toEqualTypeOf<string>();
-	});
-
-	test("leaves an identifier optional", () => {
-		expectTypeOf<Submitted>().toExtend<{ id?: Reference }>();
-		expectTypeOf<undefined>().toExtend<Submitted["id"]>();
-	});
-
-	test("leaves a member optional where it may be left out", () => {
-		expectTypeOf<{}>().toExtend<Pick<Submitted, "many">>();
-		expectTypeOf<{}>().not.toExtend<Pick<Submitted, "plain">>();
-	});
-
-	test("omits a foreign member", () => {
-		expectTypeOf<keyof Submitted>().toEqualTypeOf<
-			"id" | "plain" | "linked" | "owned" | "many"
-		>();
-	});
-
-	test("resolves a scalar shape as the state does", () => {
-		expectTypeOf<Compound<StringShape>>().toEqualTypeOf<string>();
-		expectTypeOf<Compound<ReferenceShape>>().toEqualTypeOf<Reference>();
-	});
-
-	test("resolves a localised shape as the state does", () => {
-		expectTypeOf<Compound<DictionaryShape>>().toEqualTypeOf<Plural>();
-		expectTypeOf<Compound<UniqueShape>>().toEqualTypeOf<Singular>();
 	});
 
 });

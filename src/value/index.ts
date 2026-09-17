@@ -46,13 +46,11 @@
  *
  * **The value a shape describes**
  *
- * The type of a value is derived from the shape describing it, so that the two cannot drift: {@link Instance} for a
- * value as it is held and retrieved, {@link Compound} for one as it is submitted, with the resources it holds captive
- * inlined alongside their identifiers.
+ * The type of a value is derived from the shape describing it, so that the two cannot drift: {@link Instance} yields
+ * the value the shape admits, as a resource is held and retrieved.
  *
  * ```typescript
- * type Item = Instance<typeof Product>;   // { readonly id: Reference, readonly name: string, … }
- * type Draft = Compound<typeof Product>;  // the same, with the identifier optional and captives inlined
+ * type Item = Instance<typeof Product>;  // { readonly id: Reference, readonly name: string, … }
  * ```
  *
  * **Resolving what a shape reaches**
@@ -78,7 +76,7 @@ import type { DictionaryShape } from "../dictionary/index.js";
 import type { NumberShape } from "../number/index.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { ResourceShape } from "../resource/index.js";
-import type { Retrieved, Submitted } from "../resource/inference.js";
+import type { Retrieved } from "../resource/inference.js";
 import type { StringShape } from "../string/index.js";
 import type { UnionShape } from "../union/index.js";
 import type { Branch } from "../union/inference.js";
@@ -104,8 +102,8 @@ export const sh: Namespace = createNamespace("http://www.w3.org/ns/shacl#");
  *
  * Describes a plain value, a localised one, a reference to a resource, a resource in its own right or a value drawn
  * from one of several alternatives; a resource shape names the members its instances carry and may extend other
- * resource shapes. The type of the value a shape describes is derived from the shape itself, as {@link Instance} or
- * {@link Compound}, so that the two cannot drift.
+ * resource shapes. The type of the value a shape describes is derived from the shape itself, as {@link Instance}, so
+ * that the two cannot drift.
  */
 export type Shape =
 	| BooleanShape
@@ -193,27 +191,5 @@ export type Instance<S extends Lazy<Shape>> =
 		: Eager<S> extends infer E extends Shape
 			? E extends ResourceShape ? Retrieved<E>
 				: E extends UnionShape ? Instance<Branch<E>>
-					: Plain<E>
-			: never
-
-/**
- * Resolves the value a shape describes, with captive resources inlined.
- *
- * Yields the {@link Instance} type of the shape, with the differences captivity brings: a captive reference admits its
- * target either as a {@link @metreeca/qest!Reference | Reference} or as the resource itself, nested in turn as a
- * compound, so that a resource and the ones it holds captive travel as a single value; the identifier is left
- * optional, as a resource yet to be created has none to state; and a
- * {@link resource!PropertyConstraints.foreign | foreign} member is left out altogether, as the resources it points at
- * carry the link rather than the compound. A plain value, holding nothing captive, reads exactly as an instance does.
- *
- * @typeParam S The describing shape, possibly deferred to break definition cycles
- *
- * @opaque
- */
-export type Compound<S extends Lazy<Shape>> =
-	Shape extends Eager<S> ? never
-		: Eager<S> extends infer E extends Shape
-			? E extends ResourceShape ? Submitted<E>
-				: E extends UnionShape ? Compound<Branch<E>>
 					: Plain<E>
 			: never

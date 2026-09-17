@@ -15,7 +15,7 @@
  */
 
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Compound } from "../value/index.js";
+import { type Instance } from "../value/index.js";
 import { multiple, optional, required, resource } from "../resource/index.js";
 import { union } from "../union/index.js";
 import {
@@ -227,10 +227,6 @@ describe("members", () => {
 		expectTypeOf<Instance<typeof Ticket>["labels"]>().toEqualTypeOf<undefined | readonly ("en" | "it")[]>();
 		expectTypeOf<Instance<typeof Ticket>["opened"]>().toEqualTypeOf<undefined | string>();
 
-	});
-
-	test("carries the admitted values into a submission", () => {
-		expectTypeOf<Compound<typeof Ticket>["status"]>().toEqualTypeOf<undefined | "open" | "closed">();
 	});
 
 	test("carries the admitted values through inheritance", () => {

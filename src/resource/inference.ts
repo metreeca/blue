@@ -17,18 +17,16 @@
 /**
  * Resource type inference.
  *
- * Resolves the value a resource shape describes: `Retrieved` for the state a stored resource carries and `Submitted`
- * for the one a writer may state, each mapping the members the shape declares and the ones it inherits to the form
- * their range and cardinality admit.
+ * Resolves the state a resource carries, merging the members a shape declares over the ones it inherits and mapping
+ * each to the form its range and cardinality admit, so that a resource type and the shape describing it cannot drift.
  *
  * @module
  */
 
 import type { Eager, Lazy, Optional } from "@metreeca/core";
 import type { Reference } from "@metreeca/qest/resource";
-import type { Compound, Instance, Shape } from "../value/index.js";
+import type { Instance, Shape } from "../value/index.js";
 import type { DictionaryShape } from "../dictionary/index.js";
-import type { ReferenceShape } from "../reference/index.js";
 import type { UnionShape } from "../union/index.js";
 import type { Id, Parents, Property, PropertyBounds, ResourceShape, Type } from "./index.js";
 
@@ -70,7 +68,7 @@ export type Inherited<P extends Parents> =
  *
  * @typeParam M The members to settle
  */
-type Settled<M> = {
+export type Settled<M> = {
 
 	readonly [field in keyof M]: M[field] extends { readonly range: never } ? never : M[field]
 
@@ -119,42 +117,6 @@ export type Outline<M> =
 export type Retrieved<S extends Lazy<Shape>> =
 	Loose<Carried<S>> extends infer M ? { readonly [field in keyof M]: Content<M[field]> } : never
 
-/**
- * Resolves the value a resource carries with the ones it holds captive inlined.
- *
- * Maps the members the resource owns to their input, leaving optional the ones a writer may leave out: the
- * identifier, as the system fills it in, and the ones the resource may do without.
- *
- * @typeParam S The describing shape, possibly deferred to break definition cycles
- */
-export type Submitted<S extends Lazy<Shape>> =
-	Loose<Owned<S>, Id> extends infer M ? { readonly [field in keyof M]: Input<M[field]> } : never
-
-/**
- * Resolves the members a resource owns: every member the shape carries but a foreign one.
- *
- * A voided member is owned like any other, so that a conflict surfaces where the state is resolved rather than the
- * member silently dropping out as one the resource never declared.
- *
- * @typeParam S The describing shape, possibly deferred to break definition cycles
- */
-export type Owned<S extends Lazy<Shape>> = Carried<S> extends infer C ? {
-
-	readonly [field in keyof C as [C[field]] extends [never] ? field
-		: C[field] extends Foreign ? never : field
-	]: C[field]
-
-} : never
-
-/**
- * A member a submission does not accept, as the resources it points at own it.
- */
-export type Foreign = {
-
-	readonly foreign: true
-
-}
-
 
 /**
  * Marks optional the members a resource may leave out.
@@ -187,12 +149,12 @@ export type Joined<T> = {
 /**
  * Checks whether a member may be left out of a resource.
  *
- * Yields `true` for a type, for a member of the kinds a transfer names and for a property whose lower bound is
+ * Yields `true` for a type, for a member named as additionally optional and for a property whose lower bound is
  * skippable, so that a resource states only the members it is bound to carry. A voided member is never left out, so
  * that a conflict surfaces where the state is resolved.
  *
  * @typeParam M The member to check
- * @typeParam X The members a transfer lets out on top of the ones any resource may leave out
+ * @typeParam X The members left out on top of the ones any resource may leave out
  */
 export type Omitted<M, X = never> =
 	[M] extends [never] ? false
@@ -214,19 +176,6 @@ export type Content<M> =
 		: M extends Type ? Optional<Reference>
 			: M extends Property<infer R, infer L, infer U> ? Slot<R, L, U>
 				: never
-
-/**
- * Resolves the value a member carries in a compound.
- *
- * Admits a captive target inline alongside its IRI and otherwise carries what the member carries in an instance, as
- * a scalar has nothing to hold captive.
- *
- * @typeParam M The member to resolve
- */
-export type Input<M> =
-	M extends { readonly captive: true } & Property<Lazy<ReferenceShape<infer T>>, infer L, infer U>
-		? Arity<Reference | Compound<T>, L, U>
-		: Content<M>
 
 
 //// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
@@ -258,7 +207,7 @@ export type Slot<R extends Lazy<Shape>, L extends Optional<number>, U extends Op
  *
  * @typeParam R The range describing the values, possibly deferred to break definition cycles
  */
-type Variant<R extends Lazy<Shape>> =
+export type Variant<R extends Lazy<Shape>> =
 	Shape extends Eager<R> ? never
 		: Eager<R> extends infer E extends Shape
 			? E extends UnionShape<infer B> ? Eager<B[number]> : E
@@ -269,7 +218,7 @@ type Variant<R extends Lazy<Shape>> =
  *
  * @typeParam R The range describing the values, possibly deferred to break definition cycles
  */
-type Localised<R extends Lazy<Shape>> =
+export type Localised<R extends Lazy<Shape>> =
 	Extract<Variant<R>, DictionaryShape>
 
 /**
@@ -277,7 +226,7 @@ type Localised<R extends Lazy<Shape>> =
  *
  * @typeParam R The range describing the values, possibly deferred to break definition cycles
  */
-type Valued<R extends Lazy<Shape>> =
+export type Valued<R extends Lazy<Shape>> =
 	Exclude<Variant<R>, DictionaryShape>
 
 /**

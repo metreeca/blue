@@ -20,8 +20,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   take the admitted values as leading arguments
 - Describe a value with a plain declarative shape, dropping the `model` field every shape carried: a shape is stated
   as an object literal, carrying no representative value and no JSON-incompatible content, while the value it
-  describes is resolved at the type level by `Instance`, as a resource is retrieved, and by `Compound`, as one is
-  submitted (#22)
+  describes is resolved at the type level by `Instance` (#22)
 - Declare link ownership and lifecycle once per slot: `foreign` and `captive` move from the reference shape to
   `PropertyConstraints`, alongside `forward` and `reverse`, so they can no longer differ across the branches of a
   union on the same property (#27)
@@ -53,7 +52,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Remove the `model()` helper and the types serving the stored model — `Schema`, `Prototype`, `Boxed`, `State`,
   `Resolved`, `Bounds`, `ValueShape`, `ValuesShape`, `RangeShape`, `SetShape` and `SetFactory` — superseded by the
-  `Range` a property states and by the `Instance` and `Compound` value resolvers (#22)
+  `Range` a property states and by the `Instance` value resolver (#22)
 - Remove `ReferenceConstraints`: `reference()` states its target alone, the link flags being declared on the property
   (#27)
 - Remove the `computed` property constraint

@@ -18,7 +18,7 @@ import { assert } from "@metreeca/core";
 import { isTagRange, type Tag } from "@metreeca/core/language";
 import { describe, expectTypeOf, test } from "vitest";
 import { dictionary, type DictionaryShape } from "./index.js";
-import { type Compound, type Instance } from "../value/index.js";
+import { type Instance } from "../value/index.js";
 import { multiple, optional, required, resource } from "../resource/index.js";
 
 
@@ -117,10 +117,6 @@ describe("members", () => {
 		expectTypeOf<Instance<typeof Article>["keywords"]>()
 			.toEqualTypeOf<undefined | { readonly [tag: Tag]: readonly string[] }>();
 
-	});
-
-	test("carries the per-tag arity into a submission", () => {
-		expectTypeOf<Compound<typeof Article>["title"]>().toEqualTypeOf<{ readonly [tag: Tag]: string }>();
 	});
 
 	test("carries the per-tag arity through inheritance", () => {

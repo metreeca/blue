@@ -39,8 +39,8 @@ import type { Shape } from "./index.js";
  *
  * Yields a boolean, a number or a string, narrowed to the values the shape enumerates where it does, a
  * tag-keyed map for a dictionary shape, carrying its content at the arity the shape states as unique, and a
- * {@link Reference} to the target for a reference shape. A plain value carries no members, so it reads the same
- * whether or not captive resources are inlined; neither a resource shape nor a union shape describes a plain value.
+ * {@link Reference} to the target for a reference shape. A plain value carries no members: neither a resource shape
+ * nor a union shape describes one.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */

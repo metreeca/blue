@@ -296,10 +296,6 @@ type ProductType = Instance<typeof Product>;
 // }
 ```
 
-`Compound` yields the value a writer may submit instead: the identifier is optional, as a resource yet to be created has
-none to state, captive targets may be inlined alongside their identifiers, and `foreign` members are left out, as the
-resources they point at carry the link.
-
 Members admitting absence are optional keys: a value may either set them to `undefined` or leave them out.
 
 No separate interface needed: the schema is the type definition.

@@ -16,7 +16,7 @@
 
 import type { Reference } from "@metreeca/qest/resource";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Compound } from "../value/index.js";
+import { type Instance } from "../value/index.js";
 import { type NumberShape } from "../number/index.js";
 import { reference, type ReferenceShape } from "../reference/index.js";
 import { id, type Id, multiple, type Property, required, resource } from "../resource/index.js";
@@ -67,19 +67,6 @@ describe("union values", () => {
 			.toEqualTypeOf<string | number | Instance<LinkShape>>();
 	});
 
-	test("submits the payload of every branch", () => {
-		expectTypeOf<Compound<UnionShape<[StringShape, LinkShape]>>>().toEqualTypeOf<string | Compound<LinkShape>>();
-	});
-
-	test("submits a nested union as the payloads of its leaves", () => {
-		expectTypeOf<Compound<UnionShape<[StringShape, UnionShape<[NumberShape, LinkShape]>]>>>()
-			.toEqualTypeOf<string | number | Compound<LinkShape>>();
-	});
-
-	test("submits a resource branch in its submitted form rather than its retrieved one", () => {
-		expectTypeOf<Compound<UnionShape<[LinkShape]>>>().not.toEqualTypeOf<Instance<UnionShape<[LinkShape]>>>();
-	});
-
 });
 
 describe("union ranges", () => {
@@ -98,7 +85,6 @@ describe("union ranges", () => {
 	});
 
 	type Retrieved=Instance<typeof shape>
-	type Submitted=Compound<typeof shape>
 
 	test("carries a union-valued member as the value of every branch", () => {
 		expectTypeOf<Retrieved["location"]>().toEqualTypeOf<string | Reference>();
@@ -106,10 +92,6 @@ describe("union ranges", () => {
 
 	test("repeats a union-valued member as an array of the values of every branch", () => {
 		expectTypeOf<Retrieved["locations"]>().toEqualTypeOf<undefined | readonly (string | Reference)[]>();
-	});
-
-	test("submits a union-valued member as it is retrieved", () => {
-		expectTypeOf<Submitted["location"]>().toEqualTypeOf<Retrieved["location"]>();
 	});
 
 });
