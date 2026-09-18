@@ -67,7 +67,7 @@ describe("validateReference", () => {
 			constraints: { pattern: "/users/{id}" } as const,
 			valid: ["app:/users/123"],
 			invalid: ["app:/products/123"],
-			error: [{ "0": [expect.stringContaining("{format}")] }]
+			error: [{ "0": [expect.stringContaining("{pattern}")] }]
 		},
 
 		{
@@ -111,7 +111,7 @@ describe("validateReference", () => {
 
 			expect(validateReference(["app:/users/123"], shape)).toBeUndefined();
 			expect(validateReference(["app:/products/123"], shape))
-				.toEqual([{ "0": [expect.stringContaining("{format}")] }]);
+				.toEqual([{ "0": [expect.stringContaining("{pattern}")] }]);
 
 		});
 
@@ -174,7 +174,7 @@ describe("validateReference", () => {
 
 			expect(validateReference(["app:/products/999"], reference(target({ pattern: "/users/{id}" })), {
 				scope: "bound"
-			})).toEqual([{ "0": [expect.stringContaining("{format}")] }]);
+			})).toEqual([{ "0": [expect.stringContaining("{pattern}")] }]);
 
 		});
 

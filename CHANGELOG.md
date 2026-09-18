@@ -27,8 +27,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reaches every alternative coming back as a value, a nested template the ones naming a resource, and a map of tag
   ranges the localised ones; a union of literals is retrieved without a branch map, and its literal disjointness no
   longer buys anything at retrieval (#27)
-- Refuse a constraint where the shape gives nothing to narrow: a member admitting a single value has no collection,
-  and a localised member is filtered by its own tag ranges (#27)
+- Refuse a constraint where the shape gives nothing to narrow: a member admitting a single value has no collection, a
+  localised member is filtered by its own tag ranges, and a union branch or a projection column stands for one value
+  alone, the constraints narrowing a collection riding on the entry hosting it. The refused constraint is keyed by the
+  operator stating it, while what the slot asks for is held to the shape all the same, so one pass reports both (#27)
+- Bind a projection column whose path takes no step to the item the collection holds as it stands: a link is asked for
+  as the identifier naming its target or expanded through a nested template, while an embedded resource, naming no
+  identifier to come back as, is refused (#27)
+- Key a lexical pattern violation under `{pattern}` in place of `{format}` on string and reference values, naming the
+  facet at fault as every other violation does
 - Resolve the result of a template-narrowed validation from the shape and the template together, the template-driven
   inference having been withdrawn upstream: the value comes back keyed down to the members the template named, nested
   templates included, with cardinality and optionality off the shape. A polymorphic member and a projection column

@@ -122,7 +122,7 @@ function format(pattern: undefined | string): Validator<string> {
 	} else {
 
 		const regex = new RegExp(pattern);
-		const mismatched = [`{format} expected string matching </${pattern}/>`];
+		const mismatched = [`{pattern} expected string matching </${pattern}/>`];
 
 		return test(value => regex.test(value) || mismatched);
 

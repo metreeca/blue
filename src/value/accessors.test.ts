@@ -911,9 +911,11 @@ describe("effective", () => {
 
 		const Inner = resource({ label: optional(string()), value: required(integer()) });
 
-		it("opens on the resource it points at", async () => {
+		// a path taking no step reaches the link itself, which comes back as the identifier naming its target
 
-			expect(range(effective(reference(Inner), probe([]))).shape).toBe(Inner);
+		it("stands as itself where the path names no member", async () => {
+
+			expect(range(effective(reference(Inner), probe([]))).shape).toEqual(reference(Inner));
 
 		});
 

@@ -24,9 +24,17 @@
  */
 
 import { type Optional } from "@metreeca/core";
-import { isIRI } from "@metreeca/core/resource";
-import { all, array, domain, pass, test, type Trace, type, type Validator, values as contains }
-	from "@metreeca/core/trace";
+import {
+	all,
+	array,
+	domain,
+	pass,
+	test,
+	type Trace,
+	type,
+	type Validator,
+	values as contains
+} from "@metreeca/core/trace";
 import { isAtomic } from "@metreeca/qest/model";
 import { isReference } from "@metreeca/qest/state";
 import type { ResourceShape } from "../resource/index.js";
@@ -117,7 +125,7 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 	function matches(pattern: undefined | string): Validator<string> {
 
 		return pattern === undefined ? pass : test<string>(value =>
-			match(value, pattern) || [`{format} expected IRI matching pattern <${pattern}>`]
+			match(value, pattern) || [`{pattern} expected IRI matching pattern <${pattern}>`]
 		);
 
 	}

@@ -186,6 +186,9 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
  * only where none carries it. The members naming and typing a resource are reached as a scalar IRI, so a path may end
  * on one but never step past it. A localised member is likewise terminal.
  *
+ * A path taking no step reaches the shape it starts from, as it stands: a link stays a link, reached as the identifier
+ * naming its target unless a template expands it, and is crossed only by a step that actually names a member.
+ *
  * **What a pipe yields**
  *
  * A pipe applies its transforms to whatever the path reached, dropping an alternative the transforms cannot act on:
@@ -229,8 +232,9 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 	/**
 	 * Seeds one branch per alternative the shape opens with.
 	 *
-	 * A union opens one branch per alternative and a link opens on the resource it points at, each at unit
-	 * cardinality; a range already resolved opens one branch per alternative, carrying the bounds it accumulated.
+	 * A union opens one branch per alternative, at unit cardinality; a range already resolved opens one branch per
+	 * alternative, carrying the bounds it accumulated. A link opens as itself, each step crossing it to the resource
+	 * it points at as it resolves the member it names, so a path taking no step is left holding the link.
 	 */
 	function expand(shape: Lazy<Shape | Range>): readonly Range<Shape>[] {
 
@@ -248,11 +252,7 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 
 		}
 
-		const branches = resolved.kind === "reference"
-			? [eager(resolved.target)]
-			: getShapeBranches(resolved);
-
-		return branches.map(branch => ({ minCount: 1, maxCount: 1, shape: branch }));
+		return getShapeBranches(resolved).map(branch => ({ minCount: 1, maxCount: 1, shape: branch }));
 
 	}
 

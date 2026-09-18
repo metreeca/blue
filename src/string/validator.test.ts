@@ -107,7 +107,7 @@ describe("validateString", () => {
 		it("still enforces the pattern for a bound", async () => {
 
 			expect(validateString(["A1"], string({ pattern: "^[a-z]*$" }), { scope: "bound" }))
-				.toEqual([{ "0": ["{format} expected string matching </^[a-z]*$/>"] }]);
+				.toEqual([{ "0": ["{pattern} expected string matching </^[a-z]*$/>"] }]);
 
 		});
 
@@ -230,14 +230,14 @@ describe("validateString", () => {
 		it("returns keyed trace for strings not matching pattern", async () => {
 
 			expect(validateString(["Hello123"], string({ pattern: /^[a-z]+$/ })))
-				.toEqual([{ "0": [expect.stringContaining("{format}")] }]);
+				.toEqual([{ "0": [expect.stringContaining("{pattern}")] }]);
 
 		});
 
 		it("returns keyed trace for empty string when pattern requires content", async () => {
 
 			expect(validateString([""], string({ pattern: /^[a-z]+$/ })))
-				.toEqual([{ "0": [expect.stringContaining("{format}")] }]);
+				.toEqual([{ "0": [expect.stringContaining("{pattern}")] }]);
 
 		});
 
@@ -253,7 +253,7 @@ describe("validateString", () => {
 
 			expect(validateString(["invalid-email"], string({
 				pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-			}))).toEqual([{ "0": [expect.stringContaining("{format}")] }]);
+			}))).toEqual([{ "0": [expect.stringContaining("{pattern}")] }]);
 
 		});
 
@@ -262,8 +262,8 @@ describe("validateString", () => {
 			const shape = string({ pattern: /^ABC$/ });
 
 			expect(validateString(["ABC"], shape)).toBeUndefined();
-			expect(validateString(["ABCD"], shape)).toEqual([{ "0": [expect.stringContaining("{format}")] }]);
-			expect(validateString(["0ABC"], shape)).toEqual([{ "0": [expect.stringContaining("{format}")] }]);
+			expect(validateString(["ABCD"], shape)).toEqual([{ "0": [expect.stringContaining("{pattern}")] }]);
+			expect(validateString(["0ABC"], shape)).toEqual([{ "0": [expect.stringContaining("{pattern}")] }]);
 
 		});
 
@@ -383,7 +383,7 @@ describe("validateString", () => {
 			expect(validateString(["Hello123"], string({
 				maxLength: 10,
 				pattern: /^[a-z]+$/
-			}))).toEqual([{ "0": [expect.stringContaining("{format}")] }]);
+			}))).toEqual([{ "0": [expect.stringContaining("{pattern}")] }]);
 
 		});
 

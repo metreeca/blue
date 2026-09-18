@@ -254,8 +254,11 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  * notation, so a member admitting several values is asked for exactly as one admitting a single value is, except that
  * its slot may carry the constraints filtering, ordering and paging the collection alongside the keys retrieving it.
  * A member admitting one value has no collection to narrow and a localised member is filtered by its own tag ranges:
- * both refuse a constraint. Where a localised branch is one alternative among others, the map of ranges is taken
- * within a projection column alone, the coalesced text being what it comes back as elsewhere.
+ * both refuse a constraint, as does a branch of a polymorphic member, which stands for one value alone, the
+ * constraints narrowing a collection riding on the slot hosting the alternatives. A refused constraint is reported
+ * under the key stating it and leaves what the slot asks for held to the shape all the same, so one pass reports both.
+ * Where a localised branch is one alternative among others, the map of ranges is taken within a projection column
+ * alone, the coalesced text being what it comes back as elsewhere.
  *
  * **What a constraint may test against**
  *
@@ -269,8 +272,13 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  *
  * A collection may be asked for as a table rather than as resources, each column bound to a path through the shape and
  * to the transforms reducing it. A binding naming a path the shape cannot resolve is reported, as is one repeating an
- * identifier another column already binds. Where a projection groups the collection, every ordering and focus key must
- * name a grouping key or reduce to an aggregate, as nothing else ranks a group.
+ * identifier another column already binds. A binding whose path takes no step reaches the item the collection holds as
+ * it stands, so a link is asked for as the identifier naming its target or expanded through a nested template, while an
+ * embedded resource, naming no identifier to come back as, is refused. Where a projection groups the collection, every
+ * ordering and focus key must name a grouping key or reduce to an aggregate, as nothing else ranks a group.
+ *
+ * A column holds one value per row, so it supplies no collection to narrow and refuses a constraint of its own; a
+ * collection reached below it, through a nested template, carries its constraints as any other collection does.
  *
  * @param values The templates to validate
  * @param shape The shape the templates are matched against
@@ -335,6 +343,9 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	 * reaches, and every other key retrieves part of its values. Cardinality is not stated by the notation, so what
 	 * refuses a constraint is the shape: a member admitting one value has no collection to narrow, and a localised
 	 * member is filtered by its own tag ranges.
+	 *
+	 * The two partitions are faulted independently, so a slot refusing a constraint is still held to what it asks
+	 * for and one pass reports both.
 	 */
 	function slot(value: unknown, member: Property, depth: Optional<number>): Optional<Trace> {
 
@@ -346,31 +357,71 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		const localised = branches.length === 1 && branch.kind === "dictionary";
 		const single = member.range.maxCount === 1 || localised;
 
-		const entries = Object.entries(value);
-
-		const constraints = entries.filter(([key]) => isSelector(key));
-		const contents = Object.fromEntries(entries.filter(([key]) => !isSelector(key)));
-
 		return single
 
-			? constraints.length > 0
+			? unconstrained(value, localised
+					? "unexpected constraint on a localised member"
+					: "unexpected constraint on a single-valued member",
+				contents => model(contents, member.range, depth)
+			)
 
-				? all(...constraints.map(([selector]) => () => [{
-					[selector]: [localised
-						? "unexpected constraint on a localised member"
-						: "unexpected constraint on a single-valued member"
-					]
-				}]))(undefined)
+			: collection(value);
 
-				: model(value, member.range, depth)
+
+		/**
+		 * Validates what a collection asks for, its constraints narrowing the values its other keys retrieve.
+		 */
+		function collection(value: Record<string, unknown>): Optional<Trace> {
+
+			const entries = Object.entries(value);
+
+			const constraints = entries.filter(([key]) => isSelector(key));
+			const contents = Object.fromEntries(entries.filter(([key]) => !isSelector(key)));
 
 			// element keys and constraint operators are disjoint, so the two traces merge into one
 
-			: all(
+			return all(
 				() => item(contents, member, depth),
 				() => filters(constraints, member, depth),
 				() => grouped(contents, constraints)
 			)(undefined);
+
+		}
+
+	}
+
+	/**
+	 * Validates what a placeholder asks for, the constraints it may not state set apart from it.
+	 *
+	 * A placeholder standing for one value supplies no collection to narrow, so every constraint key it carries is
+	 * refused, keyed by the offending key. The two partitions are faulted independently, so what the placeholder
+	 * asks for is validated all the same and one pass reports both.
+	 *
+	 * @param value The placeholder to partition
+	 * @param refused The violation reported for each constraint the placeholder may not state
+	 * @param retrieval Validates what the placeholder asks for, once its constraints are set apart
+	 */
+	function unconstrained(
+		value: unknown,
+		refused: string,
+		retrieval: (contents: unknown) => Optional<Trace>
+	): Optional<Trace> {
+
+		const entries = isObject(value) ? Object.entries(value) : [];
+
+		const constraints = entries.filter(([key]) => isSelector(key));
+
+		const contents = isObject(value)
+			? Object.fromEntries(entries.filter(([key]) => !isSelector(key)))
+			: value;
+
+		return all(
+
+			() => retrieval(contents),
+
+			...constraints.map(([selector]) => () => [{ [selector]: [refused] }])
+
+		)(undefined);
 
 	}
 
@@ -432,6 +483,9 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 	/**
 	 * Validates what a polymorphic slot asks for, one branch at a time under the index of the branch.
+	 *
+	 * A branch carries one value, so it states no constraint of its own: the ones narrowing a collection ride on the
+	 * entry hosting the union, and a constraint stated on a branch is refused there.
 	 */
 	function indexed(
 		value: unknown,
@@ -444,14 +498,28 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		return all(...Object.entries(value).map(([index, asked]) => () => fold(
 
-			branches.some(branch => branch.kind === "dictionary"
-				? locale(asked, branch, local) === undefined
-				: placeholder(asked, branch, depth) === undefined
-			) ? undefined : ["{branches} no branch admits the placeholder"],
+			variant(asked),
 
 			trace => [{ [index]: trace }]
 
 		)))(undefined);
+
+
+		/**
+		 * Validates what one branch asks for, the constraints it may not state set apart from it.
+		 */
+		function variant(asked: unknown): Optional<Trace> {
+
+			return unconstrained(asked, "unexpected constraint on a union branch", contents =>
+
+				branches.some(branch => branch.kind === "dictionary"
+					? locale(contents, branch, local) === undefined
+					: placeholder(contents, branch, depth) === undefined
+				) ? undefined : ["{branches} no branch admits the placeholder"]
+
+			);
+
+		}
 
 	}
 
@@ -542,9 +610,12 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 				const next = step(depth);
 				const target = branch.kind === "reference" ? eager(branch.target) : branch;
 
+				// a template descends into the resource, while a column resolves against the item as it stands, so
+				// an empty path leaves a link a link, asked for as the identifier naming its target
+
 				return isAtomic(value) ? placeholder(value, branch, depth)
 					: Object.keys(value).every(isIdentifier) ? template(value, target, next)
-						: projection(value, target, next);
+						: projection(value, branch, next);
 
 			}
 
@@ -558,8 +629,15 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 	/**
 	 * Validates a table of paths bound to the columns a collection is asked for.
+	 *
+	 * @param shape The item the columns resolve their paths against, a link left unresolved so that a path taking
+	 *     no step reaches it as the identifier naming its target
+	 *
+	 * @remarks A column holds one value per row, so it supplies no collection to narrow: a constraint stated on the
+	 *     placeholder a column asks for is refused, while a collection reached below it, through a nested template,
+	 *     carries its own constraints as any other collection does.
 	 */
-	function projection(value: unknown, shape: ResourceShape, depth: Optional<number>): Optional<Trace> {
+	function projection(value: unknown, shape: Shape, depth: Optional<number>): Optional<Trace> {
 
 		if ( !isObject(value) ) { return ["expected <projection> value"]; }
 
@@ -602,10 +680,14 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			if ( isString(range) ) { return [range]; } // the path the shape cannot resolve
 
-			// a column holds one value per row, so it never asks for a collection
+			// a column holds one value per row, so it neither asks for a collection nor narrows one; a collection
+			// reached below it, through a nested template, carries its own constraints as any other does
 
 			return isArray(asked) ? ["unexpected array in projection value"]
-				: model(asked, range, depth, true);
+
+				: unconstrained(asked, "unexpected constraint in a projection column",
+					contents => model(contents, range, depth, true)
+				);
 
 		}
 

@@ -1017,6 +1017,23 @@ describe("validateTemplate", () => {
 
 		});
 
+		it("keys the violation by the constraint a single-valued member refuses", async () => {
+
+			expect(at(validateTemplate([{ name: { "#": 10 } }], Product), "0", "name", "#")).toBeDefined();
+
+		});
+
+		// the refused constraint and what the slot asks for are separate faults, reported in one pass
+
+		it("holds a single-valued member to what it asks for beside the constraint it refuses", async () => {
+
+			const trace = validateTemplate([{ name: { "#": 10, bogus: {} } }], Product);
+
+			expect(at(trace, "0", "name", "#")).toBeDefined();
+			expect(at(trace, "0", "name", "0")).toBeDefined();
+
+		});
+
 	});
 
 	describe("linked resources", () => {
@@ -1128,6 +1145,43 @@ describe("validateTemplate", () => {
 
 		});
 
+		it("reports a constraint stated on a localised member admitting several maps", async () => {
+
+			const shape = resource({ labels: multiple(dictionary({ uniqueLang: true })) });
+
+			expect(validateTemplate([{ labels: { en: {}, "#": 10 } }], shape)).toBeDefined();
+
+		});
+
+		it("keys the violation by the constraint a localised member refuses", async () => {
+
+			expect(at(validateTemplate([{ label: { en: {}, "#": 10 } }], Product), "0", "label", "#")).toBeDefined();
+
+		});
+
+		it("holds a localised member to the tags it asks for beside the constraint it refuses", async () => {
+
+			const trace = validateTemplate([{ label: { "not a range": {}, "#": 10 } }], Product);
+
+			expect(at(trace, "0", "label", "#")).toBeDefined();
+			expect(at(trace, "0", "label", "not a range")).toBeDefined();
+
+		});
+
+		// a tag range is also a valid member name, so the object form is classified by what the member declares
+
+		it("reads the same object as tag ranges or as member names, following the member", async () => {
+
+			const tagged = resource({
+				label: optional(dictionary()),
+				vendor: optional(reference(resource({ en: optional(string()) })))
+			});
+
+			expect(validateTemplate([{ label: { en: {} } }], tagged)).toBeUndefined();
+			expect(validateTemplate([{ vendor: { en: {} } }], tagged)).toBeUndefined();
+
+		});
+
 	});
 
 	describe("polymorphic members", () => {
@@ -1163,6 +1217,81 @@ describe("validateTemplate", () => {
 		it("accepts a branch map carrying the constraints of its collection", async () => {
 
 			expect(validateTemplate([{ values: { "0": { name: {} }, "#": 10 } }], shape)).toBeUndefined();
+
+		});
+
+		describe("constraints refused by a branch", () => {
+
+			const items = resource({ items: multiple(reference(resource({ value: optional(union(A, B)) }))) });
+
+			// a branch carries one value, so the constraints narrowing a collection ride on the entry hosting the union
+
+			it.each<[string, string]>([
+				["a collection slot", "values"],
+				["a single-valued slot", "value"]
+			])("keys a constraint stated on a branch of %s", async (_label, member) => {
+
+				const trace = validateTemplate([{ [member]: { "0": { name: {}, "#": 10 } } }], shape);
+
+				expect(at(trace, "0", member, "0", "#")).toContainEqual(expect.stringContaining("constraint"));
+
+			});
+
+			it("keys a constraint stated on a branch under a projection column", async () => {
+
+				const trace = validateTemplate([{ items: { "x=value": { "0": { name: {}, "#": 10 } } } }], items);
+
+				expect(at(trace, "0", "items", "x=value", "0", "#"))
+					.toContainEqual(expect.stringContaining("constraint"));
+
+			});
+
+			it("holds a branch to what it asks for beside the constraint it refuses", async () => {
+
+				const trace = validateTemplate([{ values: { "0": { unknown: {}, "#": 10 } } }], shape);
+
+				expect(at(trace, "0", "values", "0", "#")).toContainEqual(expect.stringContaining("constraint"));
+				expect(at(trace, "0", "values", "0")).toContainEqual(expect.stringContaining("branch"));
+
+			});
+
+		});
+
+		describe("localised alternatives", () => {
+
+			const Plain = resource({ name: optional(string()) }); // carries no member a tag range could name
+
+			const localised = resource({
+				value: optional(union(dictionary(), reference(Plain))),
+				values: multiple(union(string(), dictionary())),
+				items: multiple(reference(resource({ value: optional(union(dictionary(), reference(Plain))) })))
+			});
+
+			// a tag map and a nested template share the object form, so a member declaring both is addressed by key
+
+			it("reports the object form on a member declaring a text and a nested-resource variant", async () => {
+
+				expect(validateTemplate([{ value: { en: {} } }], localised)).toBeDefined();
+				expect(validateTemplate([{ value: { "0": {} } }], localised)).toBeUndefined();
+
+			});
+
+			// a branch carries one value, and a tag map has nowhere to sit among the values the other branches carry
+
+			it("takes the tags of a localised alternative within a projection column alone", async () => {
+
+				expect(validateTemplate([{ value: { "0": { en: {} } } }], localised)).toBeDefined();
+				expect(validateTemplate([{ items: { "x=value": { "0": { en: {} } } } }], localised)).toBeUndefined();
+
+			});
+
+			// the text variant folds into the values of the others, leaving a collection to narrow
+
+			it("accepts the constraints of a collection mixing text with values of other kinds", async () => {
+
+				expect(validateTemplate([{ values: { "#": 10 } }], localised)).toBeUndefined();
+
+			});
 
 		});
 
@@ -1219,6 +1348,63 @@ describe("validateTemplate", () => {
 			const shape = resource({ items: multiple(reference(resource({ notes: optional(dictionary()) }))) });
 
 			expect(validateTemplate([{ items: { "n=notes": { "*": {} } } }], shape)).toBeUndefined();
+
+		});
+
+		describe("constraints refused by a column", () => {
+
+			const Vendor = resource({ code: optional(string()) });
+
+			const shape = resource({
+				items: multiple(reference(resource({
+					name: optional(string()),
+					tags: multiple(string()),
+					notes: optional(dictionary()),
+					vendor: optional(reference(Vendor))
+				})))
+			});
+
+			// a column holds one value per row, so it supplies no collection to narrow
+
+			it.each<[string, unknown]>([
+				["an atomic column", { "x=name": { "#": 10 } }],
+				["a nested-template column", { "x=vendor": { "#": 10 } }],
+				["a localised column", { "x=notes": { en: {}, "#": 10 } }],
+				["a column over a multi-valued path", { "x=tags": { "#": 10 } }]
+			])("reports a constraint stated on %s", async (_label, columns) => {
+
+				expect(validateTemplate([{ items: columns }], shape)).toBeDefined();
+
+			});
+
+			it("keys the violation by the constraint the column refuses", async () => {
+
+				const trace = validateTemplate([{ items: { "x=name": { "#": 10 } } }], shape);
+
+				expect(at(trace, "0", "items", "x=name", "#"))
+					.toContainEqual(expect.stringContaining("constraint"));
+
+			});
+
+			it("holds a column to what it asks for beside the constraint it refuses", async () => {
+
+				const trace = validateTemplate([{ items: { "x=notes": { "not a range": {}, "#": 10 } } }], shape);
+
+				expect(at(trace, "0", "items", "x=notes", "#"))
+					.toContainEqual(expect.stringContaining("constraint"));
+
+				expect(at(trace, "0", "items", "x=notes", "not a range"))
+					.toContainEqual(expect.stringContaining("range"));
+
+			});
+
+			// the column carries one value, while a collection it reaches below is narrowed as any other is
+
+			it("leaves a collection reached below a column alone", async () => {
+
+				expect(validateTemplate([{ items: { "x=vendor": { code: {} } } }], shape)).toBeUndefined();
+
+			});
 
 		});
 
@@ -1758,11 +1944,23 @@ describe("validateTemplate", () => {
 
 		});
 
-		it("refuses a column naming no member and combining nothing", async () => {
+		it("binds a column naming no member to the item itself", async () => {
 
-			// the column reaches the resource itself, which a placeholder never stands for
+			// an empty path takes no step, so the column reaches the link the collection holds, asked for as the
+			// identifier naming its target or expanded through a template
 
-			expect(validateTemplate([{ items: { "value=": {} } }], shape)).toBeDefined();
+			expect(validateTemplate([{ items: { "value=": {} } }], shape)).toBeUndefined();
+			expect(validateTemplate([{ items: { "value=": { name: {} } } }], shape)).toBeUndefined();
+
+		});
+
+		it("refuses a column naming no member over an embedded resource", async () => {
+
+			// an embedded resource names no identifier to come back as
+
+			const embedded = resource({ items: multiple(resource({ name: optional(string()) })) });
+
+			expect(validateTemplate([{ items: { "value=": {} } }], embedded)).toBeDefined();
 
 		});
 

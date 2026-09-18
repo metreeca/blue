@@ -138,6 +138,11 @@ unmatched by every alternative are skipped at retrieval, contributing no values.
 belonging to one disjoint branch, determines which requested branch actually returns. A union whose branches all come
 back as values needs no keyed form at all: the atomic placeholder addresses the property directly and retrieves each.
 
+An alternative stands for one value, so it states **no constraint of its own**: the ones filtering, ordering and paging
+a collection ride on the entry hosting the alternatives, and one stated under a branch key is rejected. A **projection
+column** answers to the same rule, holding one value per row; a collection reached below it, through a nested template,
+carries its constraints as any other collection does.
+
 Because the placeholder never discriminates, the model needs no disjointness guarantee and imposes no legality on its
 values: a read is well-formed as long as the store could hold a compatible value on some matched branch. Literal
 disjointness therefore buys nothing at retrieval, where it once told same-kind placeholders apart; it is required by
