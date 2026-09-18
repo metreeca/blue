@@ -28,6 +28,10 @@
  * > inference overhaul, which takes `Model<S>` and `Delivery<S, M>` into the value module.
  *
  * @module
+ *
+ * @document ./_inference.md
+ *
+ * @see [Retrieval Inference — Bridge](./_inference.md)
  */
 
 import type { Eager, Lazy } from "@metreeca/core";
