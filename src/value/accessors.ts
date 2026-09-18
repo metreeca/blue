@@ -19,7 +19,7 @@
  *
  * Reads what a shape reaches, so that a caller needs not walk it: a definition deferred to break a cycle is resolved
  * to the shape it states, with inheritance already merged, and a path and transform pipe to the range their values are
- * drawn from, which is what types a projection binding or a selection operand.
+ * drawn from, which is what types a projection binding or a constraint operand.
  *
  * @module
  */
@@ -37,7 +37,7 @@ import { unique } from "@metreeca/core/arrays";
 import { xsd } from "@metreeca/core/datatype";
 import { equals, immutable } from "@metreeca/core/structures";
 import { type Issue, TraceError } from "@metreeca/core/trace";
-import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/template";
+import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/model";
 
 import { decimal, integer } from "../number/index.js";
 import { getShapeTarget } from "../reference/index.js";
@@ -175,7 +175,7 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
  * Resolves the values a probe reaches.
  *
  * Yields the range a {@link Probe | probe} resolves to against a shape: the shapes its values may be drawn from and
- * how many of them it reaches, so that a caller may type a projection binding or a selection operand without walking
+ * how many of them it reaches, so that a caller may type a projection binding or a constraint operand without walking
  * the shape itself. A path stepping through several alternatives reaches each in turn, and the range it yields
  * envelopes them all; discrimination to the single branch a value belongs to is settled separately, against the value.
  *

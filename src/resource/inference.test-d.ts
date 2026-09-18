@@ -15,7 +15,7 @@
  */
 
 import type { Optional } from "@metreeca/core";
-import type { Reference, Resource } from "@metreeca/qest/resource";
+import type { Reference, Resource } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
 import { type Shape } from "../value/index.js";
 import { type ReferenceShape } from "../reference/index.js";

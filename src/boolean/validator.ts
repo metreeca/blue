@@ -25,6 +25,7 @@
  */
 
 import { isBoolean, type Optional } from "@metreeca/core";
+import { isAtomic } from "@metreeca/qest/model";
 import { array, pass, type Trace, type, type Validator } from "@metreeca/core/trace";
 import { type Scope, scoped } from "../value/validator.js";
 import type { BooleanShape } from "./index.js";
@@ -40,7 +41,7 @@ import type { BooleanShape } from "./index.js";
  * @param shape The shape the values are matched against
  * @param opts Validation options
  * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A boolean carries
- *     no lexical discriminator, so `"bound"` matches by kind alone, exactly as `"model"` does
+ *     no lexical discriminator, so `"bound"` matches by kind alone; `"model"` admits the atomic placeholder
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
  */
@@ -48,7 +49,7 @@ export const validateBoolean: (values: readonly unknown[], shape: BooleanShape, 
 
 	scope?: Scope
 
-}) => Optional<Trace> = scoped(state, model, model); // a bound is matched by kind alone, exactly as a model is
+}) => Optional<Trace> = scoped(state, bound, model);
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -71,13 +72,23 @@ function state({
 }
 
 /**
- * The kind alone: a boolean carries no lexical discriminator, so neither a relational bound nor a retrieval
- * placeholder is held to anything further.
+ * The kind alone: a boolean carries no lexical discriminator, so a relational bound is held to nothing further.
+ */
+function bound({}: BooleanShape): Validator<readonly unknown[]> {
+
+	return array(
+		type(isBoolean)
+	);
+
+}
+
+/**
+ * The form alone: a retrieval placeholder asks for the value as it stands and carries none of its own.
  */
 function model({}: BooleanShape): Validator<readonly unknown[]> {
 
 	return array(
-		type(isBoolean)
+		type(isAtomic)
 	);
 
 }

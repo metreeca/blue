@@ -24,7 +24,7 @@
  */
 
 import type { Eager, Lazy } from "@metreeca/core";
-import type { Reference } from "@metreeca/qest/resource";
+import type { Reference } from "@metreeca/qest/state";
 import type { BooleanShape } from "../boolean/index.js";
 import type { Tagged } from "../dictionary/inference.js";
 import type { DictionaryShape } from "../dictionary/index.js";

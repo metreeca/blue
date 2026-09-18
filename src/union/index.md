@@ -22,9 +22,12 @@ not a legal element value: it skips the value-domain constraints and keys on the
 `pattern` where literal branches share a kind) alone, so it requires the union's literal branches to be literally
 disjoint.
 
-A **model** placeholder carries no content and MUST match **at least one** branch (`sh:or`), tested **by kind alone**
-and ignoring every other constraint: its value is immaterial and need not be legal, and it MAY match several branches,
-retrieving each while discriminating nothing on its own.
+A **model** placeholder carries no content and MUST match **at least one** branch (`sh:or`), tested **by form alone**
+and ignoring every constraint: it states which values are wanted and no longer what they are, so it MAY match several
+branches, retrieving each while discriminating nothing on its own. Three forms are told apart, and each reaches the
+branches coming back under it: the **atomic** placeholder `{}` asks for the value as it stands and reaches every
+branch but an embedded resource, which states no identifier to come back as; a **nested template** reaches the
+branches naming a resource; a map of **tag ranges** reaches the localised branches.
 
 Every regime rejects a value matching **no** branch as **unsatisfiable**; only a regime required to single out a branch
 rejects one matching several, as **ambiguous**. Deletion stands outside the rule, carrying no value to match and
@@ -99,39 +102,51 @@ literal branch of each such kind, and string branches may coexist only when thei
 (`date` versus `gYear`, never `date` versus an unconstrained `string`). It is stronger than the disjointness a state
 value needs, which may also lean on value-domain traits such as an `integral` flag or disjoint `in` sets; a value
 carrying no legal-membership guarantee and matched by syntactic form alone, such as a relational bound (see
-*Selection operands*, below), requires it.
+*Constraint operands*, below), requires it.
 
-## Model — at least one branch, by kind (`sh:or`)
+## Model — at least one branch, by form (`sh:or`)
 
 A retrieval model addresses a union through two kinds of slot, matched by different rules: the **retrieval templates**
-that project the property, and, inside a collection query, the **operands** of a selection that filter it.
+that project the property, and, on a collection, the **operands** of the constraints that filter it.
 
 ### Retrieval templates
 
-A model placeholder MUST match **at least one** branch (`sh:or`), but no more is required. Matching tests **kind (type
-compatibility) alone** and ignores every other constraint: a literal placeholder matches every branch of its processing
-kind, a reference placeholder every reference branch, and a template placeholder every resource branch declaring the
-members it asks for, reached either directly or across a reference branch pointing at that resource. A template states
-what to bring back rather than what is held, so it is held to the declared members but **not to their presence**: a
-template asking for part of a resource matches it all the same. The placeholder's value is **immaterial** and need not
-be a legal value of any branch, so it selects nothing on its own; it only names, by kind, the branches to project. A
-placeholder matching several branches retrieves each; one matching **no** branch is **unsatisfiable** and rejected,
+A model placeholder MUST match **at least one** branch (`sh:or`), but no more is required. Matching tests **form
+alone** and ignores every constraint, the placeholder carrying no value of its own to test:
+
+- the **atomic** placeholder `{}` asks for the value as it stands, so it matches every branch coming back as one: a
+  literal, a reference, as the identifier naming its target, and a localised map, coalesced under the request's
+  language priority. An embedded resource states no identifier to come back as and is reached through a template
+  alone.
+- a **nested template** matches every resource branch declaring the members it asks for, reached either directly or
+  across a reference branch pointing at that resource. A template states what to bring back rather than what is held,
+  so it is held to the declared members but **not to their presence**: a template asking for part of a resource
+  matches it all the same.
+- a map of **tag ranges** matches the localised branches alone, asking for their text tag by tag. A map has nowhere
+  to sit among the values the sibling branches carry, so a localised branch takes it within a **projection column**
+  alone, where each branch is asked for under a column of its own; elsewhere the branch comes back coalesced, through
+  the atomic placeholder.
+
+A placeholder matching several branches retrieves each; one matching **no** branch is **unsatisfiable** and rejected,
 exactly as a state value is.
 
 The keyed union form supplies one alternative placeholder per branch, keyed by opaque non-negative integer strings that
 carry no positional meaning. Each alternative is matched independently, so several alternatives may resolve to
-overlapping branches and each still retrieves. A literal or reference alternative does not tell same-kind branches apart
-and so requests all of them; a template alternative's structure discriminates the resource branches it fits. Branches
-left unmatched by every alternative are skipped at retrieval, contributing no values. At read time the stored value,
-belonging to one disjoint branch, determines which requested branch actually returns.
+overlapping branches and each still retrieves. An atomic alternative does not tell same-kind branches apart and so
+requests all of them; a template alternative's structure discriminates the resource branches it fits. Branches left
+unmatched by every alternative are skipped at retrieval, contributing no values. At read time the stored value,
+belonging to one disjoint branch, determines which requested branch actually returns. A union whose branches all come
+back as values needs no keyed form at all: the atomic placeholder addresses the property directly and retrieves each.
 
 Because the placeholder never discriminates, the model needs no disjointness guarantee and imposes no legality on its
-values: a read is well-formed as long as the store could hold a compatible value on some matched branch.
+values: a read is well-formed as long as the store could hold a compatible value on some matched branch. Literal
+disjointness therefore buys nothing at retrieval, where it once told same-kind placeholders apart; it is required by
+the constraint operands alone.
 
-### Selection operands and text search
+### Constraint operands and text search
 
-A retrieval selection is part of the model, but two of its slots carry content rather than placeholders, and match by
-their own rules.
+The constraints narrowing a collection are part of the model, but two of their operands carry content rather than
+placeholders, and match by their own rules.
 
 A relational **bound** must single out **exactly one** branch, since a processor needs a single branch to convert the
 value against, but it is **not** a legal element value: a comparison filters by order, so `>= 8` over a
@@ -166,8 +181,8 @@ existentially, and the non-string branches simply do not support it.
 A probe (path plus pipe) flattens every union its path crosses into one effective union range. Probes appear only in
 retrieval, but the range still meets **both** regimes, according to the probe's role:
 
-- a **projection binding** carries a placeholder, matched by the model rule: at least one branch, by kind;
-- a **selection operator** carries an option or a bound, both by the relaxed rule: exactly one branch, by `kind` and,
+- a **projection binding** carries a placeholder, matched by the model rule: at least one branch, by form;
+- a **constraint operator** carries an option or a bound, both by the relaxed rule: exactly one branch, by `kind` and,
   for a bound alone, by `pattern`.
 
 Either input matches the flattened range exactly as it would a root union, so traversal needs no per-crossing reasoning:

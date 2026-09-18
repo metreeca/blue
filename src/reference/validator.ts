@@ -27,7 +27,8 @@ import { type Optional } from "@metreeca/core";
 import { isIRI } from "@metreeca/core/resource";
 import { all, array, domain, pass, test, type Trace, type, type Validator, values as contains }
 	from "@metreeca/core/trace";
-import { isReference } from "@metreeca/qest/resource";
+import { isAtomic } from "@metreeca/qest/model";
+import { isReference } from "@metreeca/qest/state";
 import type { ResourceShape } from "../resource/index.js";
 import { eager } from "../value/index.js";
 import { match, type Scope } from "../value/validator.js";
@@ -47,8 +48,8 @@ import type { ReferenceShape } from "./index.js";
  * @param opts Validation options
  * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A `"bound"` keeps
  *     the target's IRI `pattern`, the syntactic discriminator, and skips its value-domain constraints; a `"model"`
- *     skips every target constraint and admits any IRI reference, relative and empty forms included, as a placeholder
- *     names nothing yet
+ *     skips every target constraint and admits the atomic placeholder alone, a link left unexpanded coming back as the
+ *     IRI naming its target
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
  */
@@ -108,7 +109,7 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 	function model({}: ResourceShape) {
 
 		return array(
-			type(isIRI)
+			type(isAtomic)
 		);
 
 	}

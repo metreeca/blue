@@ -47,10 +47,12 @@
  * **The value a shape describes**
  *
  * The type of a value is derived from the shape describing it, so that the two cannot drift: {@link Instance} yields
- * the value the shape admits, as a resource is held and retrieved.
+ * the value the shape admits, as a resource is held and retrieved, and {@link Delivery} narrows it to the members a
+ * retrieval template asked for, so a caller reads back its own request rather than everything the shape declares.
  *
  * ```typescript
- * type Item = Instance<typeof Product>;  // { readonly id: Reference, readonly name: string, … }
+ * type Item = Instance<typeof Product>;                        // { readonly id: Reference, readonly name: string, … }
+ * type Read = Delivery<typeof Product, { name: {} }>;          // { readonly name: string }
  * ```
  *
  * **Resolving what a shape reaches**
@@ -59,7 +61,7 @@
  * inheritance merged and handing back the same value on every later reach.
  *
  * {@link effective} resolves the {@link Range} a path and transform pipe reach through a shape or range, so that a
- * caller may type a projection column or a selection operand without walking the shape itself: it steps across the
+ * caller may type a projection column or a constraint operand without walking the shape itself: it steps across the
  * members of the resources it reaches, crossing a link to the resource it points at and entering each alternative of
  * a union in turn, and answers with an issue where the path names a member no alternative carries or the pipe cannot
  * act on what the path reached.
@@ -83,6 +85,8 @@ import type { Branch } from "../union/inference.js";
 import type { Plain } from "./inference.js";
 
 export { eager, effective } from "./accessors.js";
+
+export type { Delivery } from "./_inference.js";
 
 
 /**

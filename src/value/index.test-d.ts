@@ -15,7 +15,7 @@
  */
 
 import type { Tag } from "@metreeca/core/language";
-import type { Reference, Resource } from "@metreeca/qest/resource";
+import type { Reference, Resource } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
 import { type BooleanShape } from "../boolean/index.js";
 import { type DictionaryShape } from "../dictionary/index.js";

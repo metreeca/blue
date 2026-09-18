@@ -117,7 +117,7 @@
 
 import { isNumber } from "@metreeca/core";
 import { xsd } from "@metreeca/core/datatype";
-import type { Reference } from "@metreeca/qest/resource";
+import type { Reference } from "@metreeca/qest/state";
 import type { Legal } from "../value/inference.js";
 import { assemble } from "./assembler.js";
 

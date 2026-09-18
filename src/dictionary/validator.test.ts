@@ -395,8 +395,7 @@ describe("validateDictionary", () => {
 	});
 
 	describe.each<[string, Scope]>([
-		["bound", "bound"],
-		["model", "model"]
+		["bound", "bound"]
 	])("%s scope", (_label, scope) => {
 
 		it("skips the value-domain constraints", async () => {
@@ -434,20 +433,52 @@ describe("validateDictionary", () => {
 	describe("model scope", () => {
 
 		const unique = dictionary({ uniqueLang: true });
+		const stacked = dictionary({ uniqueLang: false });
 
-		// a placeholder names the language ranges wanted rather than the tags they match, the wildcard included
+		// a localised member is asked for either coalesced, as the atomic placeholder, or structurally, as a map
+		// naming the language ranges wanted rather than the tags they match, the wildcard included
 
-		it("admits the tag ranges a placeholder names", async () => {
+		it("admits the atomic placeholder, whatever the per-tag arity", async () => {
 
-			expect(validateDictionary([{ "*": "" }], unique, { scope: "model" })).toBeUndefined();
-			expect(validateDictionary([{ en: "" }], unique, { scope: "model" })).toBeUndefined();
+			expect(validateDictionary([{}], unique, { scope: "model" })).toBeUndefined();
+			expect(validateDictionary([{}], stacked, { scope: "model" })).toBeUndefined();
+
+		});
+
+		it.each<[string, unknown]>([
+			["the wildcard", { "*": {} }],
+			["a plain range", { en: {} }],
+			["several ranges", { en: {}, fr: {} }]
+		])("admits a map naming %s", async (_label, placeholder) => {
+
+			expect(validateDictionary([placeholder], unique, { scope: "model" })).toBeUndefined();
+			expect(validateDictionary([placeholder], stacked, { scope: "model" })).toBeUndefined();
 
 		});
 
 		it("reports a key that is not a tag range", async () => {
 
-			expect(at(validateDictionary([{ "de-*": "" }], unique, { scope: "model" }), "de-*"))
+			expect(at(validateDictionary([{ "de-*": {} }], unique, { scope: "model" }), "de-*"))
 				.toEqual(["invalid tag range"]);
+
+		});
+
+		// per-tag arity follows the shape, so a map entry states nothing beyond the value it asks for
+
+		it("reports an entry asking for more than the value", async () => {
+
+			expect(at(validateDictionary([{ en: "" }], unique, { scope: "model" }), "en"))
+				.toEqual(["{type} expected <Atomic> value"]);
+
+		});
+
+		it.each<[string, readonly unknown[]]>([
+			["a string", [""]],
+			["a singleton string tuple", [[""]]]
+		])("rejects %s placeholder", async (_label, values) => {
+
+			expect(validateDictionary(values, unique, { scope: "model" }))
+				.toEqual([{ "0": ["{kind} expected <Atomic> or <Locale> placeholder"] }]);
 
 		});
 

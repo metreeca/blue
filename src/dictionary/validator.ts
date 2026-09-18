@@ -27,6 +27,7 @@
 import { isArray, isObject, isString, opt as fold, type Optional } from "@metreeca/core";
 import { isTag, isTagRange, matchTag, type Tag } from "@metreeca/core/language";
 import { all, array, fail, length, object, pass, type Trace, type Validator } from "@metreeca/core/trace";
+import { isAtomic } from "@metreeca/qest/model";
 import type { Scope } from "../value/validator.js";
 import { type DictionaryShape } from "./index.js";
 
@@ -44,9 +45,9 @@ import { type DictionaryShape } from "./index.js";
  * @param shape The shape the values are matched against
  * @param opts Validation options
  * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A language map
- *     carries no lexical discriminator, so `"bound"` matches by form alone, exactly as `"model"` does. A `"model"`
- *     placeholder names the language ranges wanted rather than the tags they match, the `*` wildcard included, so it
- *     is keyed by range where a value is keyed by tag
+ *     carries no lexical discriminator, so `"bound"` matches by form alone. A `"model"` placeholder asks for the text
+ *     either coalesced, as the atomic placeholder, or per tag, as a map naming the language ranges wanted rather than
+ *     the tags they match, the `*` wildcard included, so it is keyed by range where a value is keyed by tag
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
  */
@@ -110,9 +111,23 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 
 	}
 
-	function model({ uniqueLang }: DictionaryShape): Validator<readonly unknown[]> {
+	/**
+	 * The form alone: a localised member is asked for coalesced, as the atomic placeholder, or structurally, as a map
+	 * naming the tag ranges wanted. Per-tag arity follows the shape, so a map entry asks for the value and no more.
+	 */
+	function model({}: DictionaryShape): Validator<readonly unknown[]> {
 
-		return tagged(uniqueLang, isTagRange, "invalid tag range");
+		return array((value: unknown) => isAtomic(value) ? undefined
+
+			: !isObject(value) ? ["{kind} expected <Atomic> or <Locale> placeholder"]
+
+				: object(([range, asked]: readonly [string, unknown]) =>
+					!isTagRange(range) ? [{ [range]: ["invalid tag range"] }]
+						: isAtomic(asked) ? undefined
+							: [{ [range]: ["{type} expected <Atomic> value"] }]
+				)(value)
+
+		);
 
 	}
 

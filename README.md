@@ -165,7 +165,7 @@ Properties accepting values of more than one type are modelled as unions of posi
 regime: a stored **value** must single out **exactly one** branch (`sh:xone`), tested against all constraints, and is
 rejected when it fits several (ambiguous) or none (unsatisfiable); a relational **bound** must likewise single out
 exactly one, but keys on syntactic traits alone, as it need not be a legal value; a retrieval **placeholder** is tested
-by JSON type alone and must fit **at least one** branch (`sh:or`), may fit several, and is rejected only when it fits
+by form alone and must fit **at least one** branch (`sh:or`), may fit several, and is rejected only when it fits
 none (see [Validating Templates](#validating-templates)). A multi-valued property matches each of its values
 independently, and values are stored as they stand with no branch wrapping.
 
@@ -300,6 +300,24 @@ Members admitting absence are optional keys: a value may either set them to `und
 
 No separate interface needed: the schema is the type definition.
 
+`Delivery` narrows that value to the members a retrieval template asked for, so a caller reads back its own request
+rather than everything the schema declares:
+
+```ts
+import { type Delivery } from "@metreeca/blue/value";
+
+type ProductSummary = Delivery<typeof Product, { id: {}, price: {} }>;
+
+// {
+//     readonly id: Reference,
+//     readonly price: number
+// }
+```
+
+The template states which values are wanted and no longer what they are, so depth, cardinality and optionality all come
+from the schema. A member the template leaves out, or states as `undefined`, is left out of the result; a polymorphic
+member and a projection column come back as wide as the schema describes them.
+
 ## Validating Resources
 
 The overloaded `validate` function checks a value against a schema and returns a
@@ -330,17 +348,17 @@ admitting the identifier naming the resource.
 ## Validating Projections
 
 When the projection template is not bonded to the shape (typically at API boundaries where `shape` defines the
-admissible surface and the projection arrives per request), pass `model` as a separate template argument. The result is
-narrowed to the members the template asked for:
+admissible surface and the projection arrives per request), pass `model` as a separate template argument. Only the
+members the template asked for are checked, and the result is narrowed to them:
 
 ```ts
 import { validate } from "@metreeca/blue";
 
-const model = { id: "", name: "" }; // projection requested by the caller
+const model = { id: {}, name: {} }; // projection requested by the caller
 
 validate(response, { shape: Product, model })({
 	value: product => {
-		// product is typed as { readonly id: Reference; readonly name: string }
+		// product is typed as Delivery<typeof Product, typeof model>
 	},
 	trace: trace => {
 		// trace describes validation violations
@@ -348,15 +366,15 @@ validate(response, { shape: Product, model })({
 });
 ```
 
-Only the requested members are checked: constraints on members absent from `model` are not enforced, so an unrequested
-required member triggers no `minCount` violation. A member the template didn't ask for is rejected all the same, as the
-caller has nowhere to put it. A reference member additionally accepts an expanded nested resource, validated against the
-target shape narrowed by the nested projection in `model`.
+Constraints on members absent from `model` are not enforced, so an unrequested required member triggers no `minCount`
+violation. A member the template didn't ask for is rejected all the same, as the caller has nowhere to put it. A
+reference member additionally accepts an expanded nested resource, validated against the target shape narrowed by the
+nested projection in `model`.
 
 ## Validating Templates
 
 The same `validate` function validates retrieval
-[templates](https://metreeca.github.io/qest/types/template.Template.html) when the `model` option is set to `true`:
+[templates](https://metreeca.github.io/qest/types/model.Template.html) when the `model` option is set to `true`:
 
 ```ts
 import { validate } from "@metreeca/blue";
@@ -367,29 +385,45 @@ validate(data, { model: true, shape: Product, depth: 0 });
 validate(data, { model: true, shape: Product, limit: 100 });
 ```
 
-A template describes what to retrieve rather than what is held, so type and structural constraints are enforced while
-value constraints are left alone: a placeholder stands for a value and need not be a legal one. A missing member is
-accepted as not requested, and an explicit `undefined` member reads the same way, marking one elided at construction
-time.
+A template describes what to retrieve rather than what is held, so what it is held to is asking for something the shape
+can give: value constraints are left alone, a placeholder carrying no value of its own. A missing member is accepted as
+not requested, and an explicit `undefined` member reads the same way, marking one elided at construction time.
+
+Every leaf is the atomic placeholder `{}`, and a collection is the entry naming it, carrying the constraints that
+filter, sort and page it alongside the keys retrieving its values:
+
+```ts
+const template = {
+
+	id: {},                            // the value as it stands
+	vendor: { name: {} },              // a linked resource, expanded
+
+	items: { name: {}, ">=price": 50, "#": 25 },  // a collection, per-item keys and constraints together
+	title: { "*": {} }                 // a localised property, by tag range
+
+};
+```
+
+Cardinality is not stated by the notation, so what refuses a constraint is the shape: a member admitting one value has
+no collection to narrow, and a localised member is filtered by its own tag ranges.
 
 What each kind of member may be asked for:
 
-- **Reference**: either an IRI placeholder, retrieving the identifier alone, or a nested template validated against the
-  target shape. A placeholder is never resolved on decoding, so any IRI reference is accepted, the empty string and
-  relative forms included; reference values in selection operands, by contrast, are resolved against the base IRI and
-  are absolute.
-- **Union**: the keyed form (`{"0": …, "1": …}`) alone, one placeholder per alternative wanted; a plain placeholder
-  over a union is rejected. Keys are opaque labels carrying no positional meaning: each placeholder is matched by JSON
-  type alone and retrieves every branch it fits, so a literal or reference placeholder requests all same-kind branches
-  while a nested template discriminates the resource branches its structure fits. Only a placeholder fitting no branch
-  at all is rejected.
-- **Localised**: a map of the tags wanted, each paired with the placeholder a matched tag comes back as, or a coalesced
-  placeholder standing for the content language negotiation settles on. A coalesced placeholder carries the negotiated
-  content at the member's per-tag arity: a bare string where a tag carries one, a single-element array where it carries
-  several. A localised branch of a union takes the map within a projection column alone, where each branch is asked for
-  under a column of its own; elsewhere it takes the coalesced placeholder.
+- **Reference**: either the atomic placeholder, retrieving the identifier naming the target, or a nested template
+  validated against the target shape. An embedded resource, naming no identifier to come back as, is reached through a
+  template alone.
+- **Union**: the keyed form (`{"0": …, "1": …}`), one placeholder per alternative wanted, where the alternatives
+  want different shapes; where one shape serves them all, the atomic placeholder addresses the property directly.
+  Keys are opaque labels carrying no positional meaning: each placeholder is matched by form alone and retrieves
+  every branch it fits, so the atomic placeholder requests every branch coming back as a value while a nested
+  template discriminates the resource branches its structure fits. Only a placeholder fitting no branch at all is
+  rejected.
+- **Localised**: a map of the tag ranges wanted, each asking for the value a matched tag carries, or the atomic
+  placeholder, standing for the content language negotiation settles on. Per-tag arity follows the shape rather than
+  the template. A localised branch of a union takes the map within a projection column alone, where each branch is
+  asked for under a column of its own; elsewhere it comes back coalesced.
 
-Selection operands follow their own rules: comparison bounds and set-matching options carry content rather than
+Constraint operands follow their own rules: comparison bounds and set-matching options carry content rather than
 placeholders, so each must single out exactly one branch, a bound keying on kind and lexical pattern and an option on
 kind alone, while a `~` text search is a plain string applied to every string branch at once. A plain-string operand
 over a localised member filters the negotiated content under ordinary textual semantics; sorting and focusing still

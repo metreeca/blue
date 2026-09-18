@@ -37,27 +37,24 @@ import {
 	type Optional
 } from "@metreeca/core";
 import { isTag, isTagRange } from "@metreeca/core/language";
-import { isIRI } from "@metreeca/core/resource";
 import { all, array, fail, object, type Trace } from "@metreeca/core/trace";
-import { isReference, type Reference, type Resource } from "@metreeca/qest/resource";
+import { isReference, type Reference, type Resource } from "@metreeca/qest/state";
 import {
 	decodeProbe,
 	isAggregate,
+	isAtomic,
 	isBinding,
-	isBranch,
-	isQuery,
 	isSelector,
 	isTemplate,
-	isVacuous,
 	type Probe,
 	type Template
-} from "@metreeca/qest/template";
+} from "@metreeca/qest/model";
 import type { DictionaryShape } from "../dictionary/index.js";
 import { eager, effective, type Range, type Shape } from "../value/index.js";
 import { match, type Scope, validateShape } from "../value/validator.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { Property, ResourceShape } from "./index.js";
-import { getShapeBranches } from "../union/index.js";
+import { getShapeBranches, isBranchKey } from "../union/index.js";
 import { getShapeId } from "./accessors.js";
 
 
@@ -246,21 +243,21 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  *
  * Reports each slot of a template that asks for something the shape cannot give, keyed by the member it asks under, so
  * that a caller may tell which part of a request will not be served before it is issued. A template describes what to
- * retrieve rather than what is held, so the value-domain constraints are left alone: a placeholder stands for a value
- * and need not be a legal one.
+ * retrieve rather than what is held, so the value-domain constraints are left alone: a placeholder carries no value of
+ * its own, and is held to asking for something the shape can give rather than to being a legal value of it.
  *
  * **What a slot may ask for**
  *
- * A member admitting a single value is asked for as a placeholder: a literal standing for its type, an identifier
- * standing for a link, or a nested template standing for the resource behind it. A member admitting several is asked
- * for as a collection: the template for one of them, optionally followed by the selection filtering, ordering and
- * paging the set. A polymorphic member is asked for one branch at a time, under the index of the branch. A localised
- * member is asked for as a map of the language ranges wanted, each paired with the placeholder a matched tag comes
- * back as, or as a plain placeholder standing for the text content negotiation settles on, at the arity a tag carries:
- * a string where a tag carries one, a singleton tuple where it stacks several. Where a localised branch is one
- * alternative among others, the map is taken within a projection column alone.
+ * Every slot is one object, and the keys it carries say what it asks for: the atomic placeholder `{}` asks for the
+ * value as it stands, a nested template for the resource behind a link, a map of language ranges for localised text
+ * tag by tag, and a branch map for a polymorphic member one alternative at a time. Cardinality is not stated by the
+ * notation, so a member admitting several values is asked for exactly as one admitting a single value is, except that
+ * its slot may carry the constraints filtering, ordering and paging the collection alongside the keys retrieving it.
+ * A member admitting one value has no collection to narrow and a localised member is filtered by its own tag ranges:
+ * both refuse a constraint. Where a localised branch is one alternative among others, the map of ranges is taken
+ * within a projection column alone, the coalesced text being what it comes back as elsewhere.
  *
- * **What a selection may test against**
+ * **What a constraint may test against**
  *
  * A membership filter tests the options it lists by equality, so an option is held to the type of the member alone and
  * need not be a legal value of it. A localised member is filtered through the text it carries: either plainly, as the
@@ -323,7 +320,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 					: !Object.hasOwn(shape.members, name) ? ["unknown property path"]
 						: shape.members[name].kind === "property"
 							? slot(asked, shape.members[name], depth)
-							: isIRI(asked) ? undefined : ["expected <IRI> value"], // the id/type members
+							: isAtomic(asked) ? undefined : ["expected <Atomic> placeholder"], // the id/type members
 
 			trace => [{ [name]: trace }]
 
@@ -332,19 +329,48 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	}
 
 	/**
-	 * Validates what a slot asks for, as a single value or as a collection.
+	 * Validates what a slot asks for, retrieval keys and collection constraints together.
+	 *
+	 * A slot is one object partitioning its keys by what they are: a constraint narrows the collection the slot
+	 * reaches, and every other key retrieves part of its values. Cardinality is not stated by the notation, so what
+	 * refuses a constraint is the shape: a member admitting one value has no collection to narrow, and a localised
+	 * member is filtered by its own tag ranges.
 	 */
 	function slot(value: unknown, member: Property, depth: Optional<number>): Optional<Trace> {
+
+		if ( !isObject(value) ) { return ["expected <placeholder> value"]; }
 
 		const branches = getShapeBranches(member.range.shape);
 		const [branch] = branches;
 
-		// a localised member carries one map whatever its bounds admit, so it is asked for as a placeholder and
-		// never as a collection
+		const localised = branches.length === 1 && branch.kind === "dictionary";
+		const single = member.range.maxCount === 1 || localised;
 
-		return member.range.maxCount === 1 || branches.length === 1 && branch.kind === "dictionary"
-			? model(value, member.range, depth)
-			: collection(value, member, depth);
+		const entries = Object.entries(value);
+
+		const constraints = entries.filter(([key]) => isSelector(key));
+		const contents = Object.fromEntries(entries.filter(([key]) => !isSelector(key)));
+
+		return single
+
+			? constraints.length > 0
+
+				? all(...constraints.map(([selector]) => () => [{
+					[selector]: [localised
+						? "unexpected constraint on a localised member"
+						: "unexpected constraint on a single-valued member"
+					]
+				}]))(undefined)
+
+				: model(value, member.range, depth)
+
+			// element keys and constraint operators are disjoint, so the two traces merge into one
+
+			: all(
+				() => item(contents, member, depth),
+				() => filters(constraints, member, depth),
+				() => grouped(contents, constraints)
+			)(undefined);
 
 	}
 
@@ -357,15 +383,17 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		switch ( branch.kind ) {
 
-			case "reference":
+			case "reference": // a link comes back as the identifier naming its target, or as the resource itself
 
-				return isObject(value)
-					? template(value, eager(branch.target), next)
-					: validateShape([value], branch, { scope: "model" });
+				return isAtomic(value)
+					? validateShape([value], branch, { scope: "model" })
+					: template(value, eager(branch.target), next);
 
-			case "resource":
+			case "resource": // an embedded resource states no identifier to come back as
 
-				return template(value, branch, next);
+				return isAtomic(value)
+					? ["expected <template> placeholder"]
+					: template(value, branch, next);
 
 			default:
 
@@ -387,7 +415,16 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		const branches = getShapeBranches(range.shape);
 		const [branch] = branches;
 
-		return branches.length > 1 ? indexed(value, branches, depth, local)
+		return branches.length > 1
+
+			// the atomic placeholder asks for the value as it stands, so it reaches every alternative coming back
+			// as one and needs no branch of its own
+
+			? isAtomic(value)
+				? branches.some(alternative => alternative.kind !== "resource") ? undefined
+					: ["{branches} no branch comes back as a value"]
+				: indexed(value, branches, depth, local)
+
 			: branch.kind === "dictionary" ? locale(value, branch, true)
 				: placeholder(value, branch, depth);
 
@@ -403,7 +440,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		local: boolean
 	): Optional<Trace> {
 
-		if ( !isObject(value, (_, key) => isBranch(key)) ) { return ["expected union variant map"]; }
+		if ( !isObject(value, (_, key) => isBranchKey(key)) ) { return ["expected union variant map"]; }
 
 		return all(...Object.entries(value).map(([index, asked]) => () => fold(
 
@@ -421,10 +458,10 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	/**
 	 * Validates what a localised slot asks for.
 	 *
-	 * The tags wanted are stated as the keys of a map, as language ranges rather than as the tags they match, each
-	 * paired with the placeholder fixing how many strings a matched tag carries. Stated as that placeholder alone,
-	 * without the map, the slot asks instead for the text content negotiation settles on, at the same arity: a string
-	 * where a tag carries one, a singleton tuple where it stacks several, a mismatch being refused either way.
+	 * The text is asked for either coalesced, through the atomic placeholder, which comes back as the string content
+	 * negotiation settles on, or structurally, as a map keyed by the tag ranges wanted rather than by the tags they
+	 * match. Per-tag arity follows the shape, so a range asks for the value and states nothing about how many strings
+	 * a matched tag carries.
 	 *
 	 * @param value The placeholder the slot states
 	 * @param shape The localised shape the slot reaches
@@ -433,88 +470,36 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	 */
 	function locale(value: unknown, shape: DictionaryShape, structural: boolean): Optional<Trace> {
 
-		return isObject(value) && !isArray(value)
-
-			? structural ? tagged(value, shape) : ["expected <string> placeholder"]
-
-			: coalesced(value, shape);
+		return isAtomic(value) ? undefined
+			: !structural ? ["expected <Atomic> placeholder"]
+				: !isObject(value) ? ["{kind} expected <Atomic> or <Locale> placeholder"]
+					: tagged(value, shape);
 
 	}
 
 	/**
-	 * Validates the tags a localised slot wants, each paired with the placeholder a matched tag comes back as.
+	 * Validates the tags a localised slot wants, each asking for the value a matched tag carries.
 	 */
-	function tagged(value: Record<string, unknown>, shape: DictionaryShape): Optional<Trace> {
+	function tagged(value: Record<string, unknown>, {}: DictionaryShape): Optional<Trace> {
 
 		return object(([range, asked]: readonly [string, unknown]) =>
 			!isTagRange(range) ? [{ [range]: ["invalid tag range"] }]
-				: fold(coalesced(asked, shape), trace => [{ [range]: trace }])
+				: isAtomic(asked) ? undefined
+					: [{ [range]: ["{type} expected <Atomic> value"] }]
 		)(value);
-
-	}
-
-	/**
-	 * Validates the placeholder standing for the text content negotiation settles on, at the arity a tag carries.
-	 */
-	function coalesced(value: unknown, { uniqueLang }: DictionaryShape): Optional<Trace> {
-
-		return uniqueLang === true
-			? isString(value) ? undefined : ["expected string value"]
-			: isArray(value, [isString]) ? undefined : ["expected singleton string tuple"];
-
-	}
-
-	/**
-	 * Validates what a collection slot asks for: the template for one value, and the selection over the set.
-	 */
-	function collection(value: unknown, member: Property, depth: Optional<number>): Optional<Trace> {
-
-		if ( !isArray(value) || value.length < 1 || value.length > 2 ) {
-			return ["expected collection tuple <[element, selection?]>"];
-		}
-
-		const [asked, filtering] = value;
-
-		const element = item(asked, member, depth);
-		const selection = filters(filtering, member, depth);
-
-		// the grouped-ordering cross-check reads both slots, so it runs only once each stands on its own, reporting
-		// every offending sort key under the selector stating it
-
-		const grouping = filtering !== undefined && element === undefined && selection === undefined
-			? grouped(asked, filtering)
-			: undefined;
-
-		// element keys and selection operators are disjoint, so the slot traces merge into one: a keyed trace
-		// spreads its own keys and an atomic one is filed under the position it was stated at
-
-		return all(
-			() => positional(element, "0"),
-			() => positional(selection, "1"),
-			() => grouping
-		)(undefined);
-
-
-		function positional(trace: Optional<Trace>, index: string): Optional<Trace> {
-			return trace === undefined ? undefined
-				: trace.every(item => isString(item)) ? [{ [index]: trace }]
-					: trace;
-		}
 
 	}
 
 	/**
 	 * Validates that every ordering ranks a grouped collection by something the grouping leaves standing.
 	 */
-	function grouped(element: unknown, selection: unknown): Optional<Trace> {
-
-		if ( !isObject(selection) ) { return undefined; }
+	function grouped(element: unknown, constraints: readonly (readonly [string, unknown])[]): Optional<Trace> {
 
 		const aggregate = (probe: Probe): boolean => probe.pipe.some(isAggregate);
 		const signature = (probe: Probe): string => `${probe.path.join(".")}|${probe.pipe.join(":")}`;
 
 		const bindings = isObject(element) ? Object.keys(element).filter(isBinding).map(decodeProbe) : [];
-		const selectors = Object.keys(selection).map((selector): [string, Probe] => [selector, decodeProbe(selector)]);
+		const selectors = constraints.map(([selector]): [string, Probe] => [selector, decodeProbe(selector)]);
 
 		// the projection alone fixes the grouping: a combining column groups the collection, and the columns left
 		// standing are then the keys it is grouped by; a combining selector reduces one group rather than forming it
@@ -540,20 +525,16 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	/**
 	 * Validates what a collection asks for one of its values as: a template, or a table of bound paths.
 	 */
-	function item(value: unknown, member: Property, depth: Optional<number>): Optional<Trace> {
+	function item(value: Record<string, unknown>, member: Property, depth: Optional<number>): Optional<Trace> {
 
 		if ( exhausted(depth) ) { return ["exceeded maximum nesting depth"]; }
 
 		const branches = getShapeBranches(member.range.shape);
 		const [branch] = branches;
 
-		if ( branches.length > 1 ) { return indexed(value, branches, depth, false); }
+		if ( branches.length > 1 ) { return model(value, member.range, depth); }
 
 		switch ( branch.kind ) {
-
-			case "dictionary":
-
-				return ["unexpected <dictionary> element"];
 
 			case "reference":
 			case "resource": {
@@ -561,7 +542,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 				const next = step(depth);
 				const target = branch.kind === "reference" ? eager(branch.target) : branch;
 
-				return !isObject(value) ? placeholder(value, branch, depth)
+				return isAtomic(value) ? placeholder(value, branch, depth)
 					: Object.keys(value).every(isIdentifier) ? template(value, target, next)
 						: projection(value, target, next);
 
@@ -621,16 +602,9 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			if ( isString(range) ) { return [range]; } // the path the shape cannot resolve
 
-			const branches = getShapeBranches(range.shape);
+			// a column holds one value per row, so it never asks for a collection
 
-			// the placeholder a localised column reduces to is the one array a column admits; any other array
-			// asks for a collection, which a column is not
-
-			const localised = branches.length === 1
-				&& branches[0].kind === "dictionary"
-				&& branches[0].uniqueLang !== true;
-
-			return isArray(asked) && !localised ? ["unexpected array in projection value"]
+			return isArray(asked) ? ["unexpected array in projection value"]
 				: model(asked, range, depth, true);
 
 		}
@@ -638,28 +612,30 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	}
 
 	/**
-	 * Validates the selection filtering, ordering and paging a collection.
+	 * Validates the constraints filtering, ordering and paging a collection.
 	 */
-	function filters(value: unknown, member: Property, depth: Optional<number>): Optional<Trace> {
+	function filters(
+		constraints: readonly (readonly [string, unknown])[],
+		member: Property,
+		depth: Optional<number>
+	): Optional<Trace> {
 
 		// a selector resolves through the values the collection holds, one step below the collection itself
 
 		const next = step(depth);
 
-		if ( value === undefined ) { return undefined; } // a collection stated without a selection
-
-		if ( !isObject(value) ) { return ["expected selection object"]; }
+		if ( constraints.length === 0 ) { return undefined; } // a collection stated without constraints
 
 		if ( exhausted(next) ) { return ["exceeded maximum nesting depth"]; }
 
-		return all(...Object.entries(value).map(([selector, asked]) => () =>
+		return all(...constraints.map(([selector, asked]) => () =>
 			fold(operator(selector, asked), trace => [{ [selector]: trace }])
 		))(undefined);
 
 
 		function operator(selector: string, asked: unknown): Optional<Trace> {
 
-			if ( !isSelector(selector) ) { return ["expected selection operator"]; }
+			if ( !isSelector(selector) ) { return ["expected constraint operator"]; }
 
 			const probe = decodeProbe(selector);
 
@@ -709,7 +685,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 				default:
 
-					return ["expected selection operator"];
+					return ["expected constraint operator"];
 
 			}
 
@@ -899,11 +875,11 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
  * terms. The surface is closed the other way too: a member the resource states but the template didn't ask for is
  * rejected, as the caller has no place to put it.
  *
- * A member reaching a resource comes back either as the identifier naming it or as the resource itself, and is held
- * to whatever the nested template asked for. A localised member comes back in the form its template asked for: the map
- * it named tags under, whole and never in an array, or, where it asked with a plain placeholder, the text content
- * negotiation settled on, at the arity a tag carries and held to the lengths the shape states rather than to the
- * bounds counting the values of the other alternatives.
+ * A member reaching a resource comes back as the resource itself where a nested template asked for it, and as the
+ * identifier naming it where the atomic placeholder did; either way it is held to what was asked. A localised member
+ * comes back in the form its template asked for: the map it named tag ranges under, whole and never in an array, or,
+ * where the atomic placeholder asked for it, the text content negotiation settled on, at the arity the shape states
+ * per tag and held to the lengths it bounds rather than to the counts of the other alternatives.
  *
  * @param values The retrieved resources to validate
  * @param opts Validation options
@@ -931,10 +907,9 @@ export function validateResult(values: readonly unknown[], {
 
 	return resources(values, shape, resource => all(
 
-		// every member asked for; a slot left empty states no expectation and is passed over
+		// every member asked for; a key present in the template always asks for something
 
 		...Object.keys(model)
-			.filter(name => !isVacuous(model[name]))
 			.map(name => () => fold(
 				requested(resource[name], name, model[name]),
 				trace => [{ [name]: trace }]
@@ -986,8 +961,8 @@ export function validateResult(values: readonly unknown[], {
 
 		}
 
-		// a localised member asked for by a plain placeholder comes back as the text negotiation settled on rather
-		// than as the map, at the arity a tag carries
+		// a localised member asked for by the atomic placeholder comes back as the text negotiation settled on rather
+		// than as the map, at the arity the shape states per tag
 
 		const negotiated = branches
 			.flatMap(branch => branch.kind === "dictionary" ? [branch] : [])
@@ -1015,17 +990,18 @@ export function validateResult(values: readonly unknown[], {
 	/**
 	 * Reports whether a placeholder asked a localised shape for the text negotiation settles on.
 	 *
-	 * A plain placeholder stands for that text at the arity a tag carries, which is how a localised member is asked for
-	 * where the tags are not wanted; the tags are stated as a map instead.
+	 * The atomic placeholder stands for that text, which is how a localised member is asked for where the tags are not
+	 * wanted; the tags are stated as a map of language ranges instead. The arity the text comes back at follows the
+	 * shape rather than the placeholder.
 	 */
-	function plain(requested: unknown, { uniqueLang }: DictionaryShape): boolean {
+	function plain(requested: unknown, {}: DictionaryShape): boolean {
 
-		return uniqueLang === true ? isString(requested) : isArray(requested, [isString]);
+		return isAtomic(requested);
 
 	}
 
 	/**
-	 * Validates the text a localised member came back with, where a plain placeholder asked for it.
+	 * Validates the text a localised member came back with, where the atomic placeholder asked for it.
 	 *
 	 * Holds the text to the lengths the shape bounds; the language constraint is keyed on the tags it was negotiated
 	 * from, which it comes back without. Where a tag stacks several strings the text comes back as the array of them,
@@ -1100,7 +1076,7 @@ export function validateResult(values: readonly unknown[], {
 
 		if ( indexed ) {
 
-			const malformed = keys.filter(key => !isBranch(key));
+			const malformed = keys.filter(key => !isBranchKey(key));
 
 			if ( malformed.length > 0 ) {
 				return all(...malformed.map(key => () => [{ [key]: ["expected a branch key"] }]))(undefined);
@@ -1133,11 +1109,10 @@ export function validateResult(values: readonly unknown[], {
 					? validateShape([value], admits) === undefined
 					: elements([value], [admits], requested) === undefined;
 
-			default: // a plain branch is singled out only where both the value and the placeholder fit it
+			default: // the atomic placeholder tells no literal branch from another, so the value alone singles one out
 
-				return !isObject(requested)
-					&& validateShape([value], admits) === undefined
-					&& validateShape([requested], admits, { scope: "model" }) === undefined;
+				return isAtomic(requested)
+					&& validateShape([value], admits) === undefined;
 
 		}
 
@@ -1161,12 +1136,15 @@ export function validateResult(values: readonly unknown[], {
 	/**
 	 * Resolves the template a nested resource was requested through.
 	 *
-	 * A collection states its per-item template first, and a placeholder asking for the identifier alone states no
-	 * nested template at all, so every member the resource comes back with is unasked for.
+	 * A collection carries its constraints alongside the keys retrieving its values, so the per-item template is the
+	 * node less the constraints; the atomic placeholder states no nested template at all, so every member the
+	 * resource comes back with is unasked for.
 	 */
 	function nested(requested: unknown): Template {
 
-		const element = isQuery(requested) ? requested[0] : requested;
+		const element = isObject(requested)
+			? Object.fromEntries(Object.entries(requested).filter(([key]) => !isSelector(key)))
+			: requested;
 
 		return isTemplate(element) ? element : {};
 

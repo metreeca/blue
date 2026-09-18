@@ -27,7 +27,7 @@
 
 import { assert, type Optional } from "@metreeca/core";
 import { type Trace, type Validator } from "@metreeca/core/trace";
-import { type Reference } from "@metreeca/qest/resource";
+import { type Reference } from "@metreeca/qest/state";
 import { validateBoolean } from "../boolean/validator.js";
 import { validateDictionary } from "../dictionary/validator.js";
 import { validateNumber } from "../number/validator.js";
@@ -61,7 +61,10 @@ const PatternFormat = new RegExp("^"
  * - `"state"` enforces **every** constraint: the value must be a legal element of the shape's domain.
  * - `"bound"` keeps the syntactic discriminators (`kind`, and a literal branch's `pattern`) but skips the value-domain
  *   magnitude constraints, so a relational bound lying outside the domain still matches by form alone.
- * - `"model"` matches by `kind` alone, ignoring every other constraint, so a retrieval placeholder need not be legal.
+ * - `"model"` matches by **form** alone, ignoring every constraint: a retrieval placeholder carries no value of its
+ *   own, so it is held to asking for something the shape can give rather than to being a legal value of it. A literal
+ *   or a link admits the atomic placeholder, a localised map admits it too, coalesced, or a map of the tag ranges
+ *   wanted.
  *
  * @see [Unions — Design](../union/index.md)
  */

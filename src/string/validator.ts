@@ -24,6 +24,7 @@
  */
 
 import { isString, type Optional } from "@metreeca/core";
+import { isAtomic } from "@metreeca/qest/model";
 import { all, array, domain, length, pass, test, type Trace, type, type Validator, values as contains }
 	from "@metreeca/core/trace";
 import { type Scope, scoped } from "../value/validator.js";
@@ -99,12 +100,12 @@ function bound({
 }
 
 /**
- * The kind alone: a retrieval placeholder need not be a legal value.
+ * The form alone: a retrieval placeholder asks for the value as it stands and carries none of its own.
  */
 function model({}: StringShape): Validator<readonly unknown[]> {
 
 	return array(
-		type(isString)
+		type(isAtomic)
 	);
 
 }

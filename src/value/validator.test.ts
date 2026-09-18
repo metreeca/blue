@@ -67,7 +67,7 @@ describe("validateShape", () => {
 		const shape = integer({ minInclusive: 10 });
 
 		expect(validateShape([0], shape)).toBeDefined();
-		expect(validateShape([0], shape, { scope: "model" })).toBeUndefined();
+		expect(validateShape([{}], shape, { scope: "model" })).toBeUndefined();
 
 	});
 

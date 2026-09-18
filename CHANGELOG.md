@@ -12,9 +12,27 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Close a boolean shape to a single truth value with the `in` enumeration `BooleanConstraints` states, so that a
   member may tag the alternatives of a union: the value the shape describes is narrowed to the enumerated one, and an
   extension admitting the other value is rejected as the shape is built
+- Add the `isBranchKey` accessor, telling the keys of a branch map from the member names and constraint operators
+  sharing the key space with them (#27)
+- Add the `Delivery` resolver on the `value` module, yielding the value a retrieval hands back: the shape-driven
+  instance keyed down to the members the template named, nested templates included (#27)
 
 ### Changed
 
+- Align with the reworked `@metreeca/qest` retrieval model: every retrieval leaf is the atomic placeholder `{}`, a
+  collection carries its constraints on the entry naming it in place of an `[element, selection]` tuple, and per-tag
+  arity follows the shape rather than the placeholder. A violation under a collection is keyed by the member or the
+  operator at fault, the `"0"` and `"1"` tuple positions being retired (#27)
+- Match a retrieval placeholder by **form** rather than by JSON type at the `model` scope: the atomic placeholder
+  reaches every alternative coming back as a value, a nested template the ones naming a resource, and a map of tag
+  ranges the localised ones; a union of literals is retrieved without a branch map, and its literal disjointness no
+  longer buys anything at retrieval (#27)
+- Refuse a constraint where the shape gives nothing to narrow: a member admitting a single value has no collection,
+  and a localised member is filtered by its own tag ranges (#27)
+- Resolve the result of a template-narrowed validation from the shape and the template together, the template-driven
+  inference having been withdrawn upstream: the value comes back keyed down to the members the template named, nested
+  templates included, with cardinality and optionality off the shape. A polymorphic member and a projection column
+  come back as the shape describes them until the inference overhaul lands (#27)
 - Read the bare values `boolean()`, `number()` and `string()` accept as the `in` enumeration closing the domain to
   them, in place of the prototype model they stated: `boolean(true)`, `number(1, 2, 3)` and `string("open", "closed")`
   take the admitted values as leading arguments

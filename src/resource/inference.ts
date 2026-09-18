@@ -24,7 +24,7 @@
  */
 
 import type { Eager, Lazy, Optional } from "@metreeca/core";
-import type { Reference } from "@metreeca/qest/resource";
+import type { Reference } from "@metreeca/qest/state";
 import type { Instance, Shape } from "../value/index.js";
 import type { DictionaryShape } from "../dictionary/index.js";
 import type { UnionShape } from "../union/index.js";

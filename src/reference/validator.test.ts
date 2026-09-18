@@ -121,34 +121,33 @@ describe("validateReference", () => {
 
 		it("skips the target value constraints for a placeholder", async () => {
 
-			expect(validateReference(["app:/products/999"], reference(target({ pattern: "/users/{id}" })), {
+			expect(validateReference([{}], reference(target({ pattern: "/users/{id}" })), {
 				scope: "model"
 			})).toBeUndefined();
 
-			expect(validateReference(["app:/users/99"], reference(target({ in: ["app:/users/1"] })), {
+			expect(validateReference([{}], reference(target({ in: ["app:/users/1"] })), {
 				scope: "model"
 			})).toBeUndefined();
 
 		});
 
-		// a reference placeholder matches the full IRI-reference production: the empty string together with the
-		// relative, root-relative, and absolute forms, not the absolute-only instance form
+		// a link left unexpanded is asked for by the atomic placeholder, which comes back as the IRI naming the
+		// target; a template crossing the link is routed against the target rather than against the link itself
+
+		it("accepts the atomic placeholder", async () => {
+
+			expect(validateReference([{}], reference(target()), { scope: "model" })).toBeUndefined();
+
+		});
 
 		it.each<[string, readonly unknown[]]>([
-			["an absolute IRI", ["app:/vendors/1"]],
-			["a root-relative IRI", ["/vendors/"]],
-			["a relative IRI", ["vendors/1"]],
-			["the empty string", [""]]
-		])("accepts %s placeholder", async (_label, values) => {
+			["an IRI", ["app:/vendors/1"]],
+			["the empty string", [""]],
+			["a tag range map", [{ "*": {} }]]
+		])("rejects %s placeholder", async (_label, values) => {
 
-			expect(validateReference(values, reference(target()), { scope: "model" })).toBeUndefined();
-
-		});
-
-		it("still rejects a placeholder of the wrong kind", async () => {
-
-			expect(validateReference([42], reference(target()), { scope: "model" }))
-				.toEqual([{ "0": ["{type} expected <IRI> value"] }]);
+			expect(validateReference(values, reference(target()), { scope: "model" }))
+				.toEqual([{ "0": ["{type} expected <Atomic> value"] }]);
 
 		});
 

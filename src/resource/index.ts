@@ -156,7 +156,7 @@
 import type { Identifier, Lazy, Optional } from "@metreeca/core";
 import type { Namespace } from "@metreeca/core/resource";
 import { type Validator } from "@metreeca/core/trace";
-import type { Dictionary, Reference, Resource } from "@metreeca/qest/resource";
+import type { Dictionary, Reference, Resource } from "@metreeca/qest/state";
 import type { Range, Shape } from "../value/index.js";
 import { assemble, declare } from "./assembler.js";
 import type { Declared, Unbounded } from "./inference.js";

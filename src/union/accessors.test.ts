@@ -28,7 +28,7 @@ import {
 	type ResourceShape
 } from "../resource/index.js";
 import { string } from "../string/index.js";
-import { getBoundBranch, getModelBranches, getShapeBranches, getStateBranch } from "./accessors.js";
+import { getBoundBranch, getModelBranches, getShapeBranches, getStateBranch, isBranchKey } from "./accessors.js";
 import { union } from "./index.js";
 
 
@@ -150,35 +150,82 @@ describe("getBoundBranch", () => {
 
 });
 
+describe("isBranchKey", () => {
+
+	it.each<[string, string]>([
+		["the first branch", "0"],
+		["a later branch", "7"],
+		["a branch beyond the ones declared", "42"]
+	])("admits the key labelling %s", async (_label, key) => {
+
+		expect(isBranchKey(key)).toBe(true);
+
+	});
+
+	it.each<[string, string]>([
+		["a member name", "name"],
+		["a negative index", "-1"],
+		["a fraction", "1.5"],
+		["a padded index", "01"],
+		["the empty key", ""]
+	])("refuses %s", async (_label, key) => {
+
+		expect(isBranchKey(key)).toBe(false);
+
+	});
+
+});
+
 describe("getModelBranches", () => {
 
-	it("picks every branch a placeholder fits", async () => {
+	// the atomic placeholder asks for the value as it stands, so it carries nothing to tell literal branches apart
+	// and retrieves each of them
+
+	it("picks every branch the atomic placeholder fits", async () => {
 
 		const branches = [string({ minLength: 1 }), string({ maxLength: 9 })];
 
-		expect(getModelBranches("", branches)).toEqual(branches);
+		expect(getModelBranches({}, branches)).toEqual(branches);
 
 	});
 
-	it("picks the single branch a placeholder of that type fits", async () => {
+	it("picks every literal branch, whatever their types", async () => {
 
 		const branches = [string(), number()];
 
-		expect(getModelBranches(42, branches)).toEqual([branches[1]]);
+		expect(getModelBranches({}, branches)).toEqual(branches);
 
 	});
 
-	it("picks nothing for a placeholder fitting no branch", async () => {
-
-		expect(getModelBranches(true, [string(), number()])).toBeUndefined();
-
-	});
-
-	it("fits a reference branch by its identifier", async () => {
+	it("fits a reference branch, which comes back as the identifier naming its target", async () => {
 
 		const branches = [reference(target()), string()];
 
-		expect(getModelBranches("app:/vendors/1", branches)).toEqual(branches);
+		expect(getModelBranches({}, branches)).toEqual(branches);
+
+	});
+
+	it("fits a localised branch, which comes back coalesced", async () => {
+
+		const map = dictionary({ uniqueLang: true });
+		const branches = [string(), map];
+
+		expect(getModelBranches({}, branches)).toEqual(branches);
+
+	});
+
+	// an embedded resource carries no identifier to come back as, so it is reached through a template alone
+
+	it("picks nothing where the atomic placeholder reaches an embedded resource alone", async () => {
+
+		expect(getModelBranches({}, [resource({ name: optional(string()) })])).toBeUndefined();
+
+	});
+
+	it("picks nothing for a placeholder carrying a value of its own", async () => {
+
+		expect(getModelBranches("", [string(), number()])).toBeUndefined();
+		expect(getModelBranches(42, [string(), number()])).toBeUndefined();
 
 	});
 
@@ -186,7 +233,7 @@ describe("getModelBranches", () => {
 
 		const map = dictionary({ uniqueLang: true });
 
-		expect(getModelBranches({ "*": "" }, [string(), map])).toEqual([map]);
+		expect(getModelBranches({ "*": {} }, [string(), map])).toEqual([map]);
 
 	});
 
@@ -201,13 +248,13 @@ describe("getModelBranches", () => {
 
 			const link = reference(Vendor);
 
-			expect(getModelBranches({ name: "" }, [number(), link])).toEqual([link]);
+			expect(getModelBranches({ name: {} }, [number(), link])).toEqual([link]);
 
 		});
 
 		it("fits an embedded resource branch", async () => {
 
-			expect(getModelBranches({ name: "" }, [number(), Vendor])).toEqual([Vendor]);
+			expect(getModelBranches({ name: {} }, [number(), Vendor])).toEqual([Vendor]);
 
 		});
 
@@ -215,13 +262,13 @@ describe("getModelBranches", () => {
 
 			const link = reference(Vendor);
 
-			expect(getModelBranches({ name: "" }, [link, Vendor])).toEqual([link, Vendor]);
+			expect(getModelBranches({ name: {} }, [link, Vendor])).toEqual([link, Vendor]);
 
 		});
 
 		it("fits nothing where no branch names a resource", async () => {
 
-			expect(getModelBranches({ name: "" }, [string(), number()])).toBeUndefined();
+			expect(getModelBranches({ name: {} }, [string(), number()])).toBeUndefined();
 
 		});
 
@@ -229,7 +276,7 @@ describe("getModelBranches", () => {
 
 			const link = reference(Vendor);
 
-			expect(getModelBranches({ nope: "" }, [number(), link])).toBeUndefined();
+			expect(getModelBranches({ nope: {} }, [number(), link])).toBeUndefined();
 
 		});
 
@@ -239,7 +286,7 @@ describe("getModelBranches", () => {
 
 		it("fits an embedded resource branch asked for in part", async () => {
 
-			expect(getModelBranches({ city: "" }, [string(), Postal])).toEqual([Postal]);
+			expect(getModelBranches({ city: {} }, [string(), Postal])).toEqual([Postal]);
 
 		});
 
@@ -247,7 +294,7 @@ describe("getModelBranches", () => {
 
 			const link = reference(Postal);
 
-			expect(getModelBranches({ city: "" }, [string(), link])).toEqual([link]);
+			expect(getModelBranches({ city: {} }, [string(), link])).toEqual([link]);
 
 		});
 

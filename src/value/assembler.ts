@@ -28,7 +28,7 @@
 import { type Optional } from "@metreeca/core";
 import { union } from "@metreeca/core/arrays";
 import { all, test, type Trace, TraceError, type Validator } from "@metreeca/core/trace";
-import type { Reference } from "@metreeca/qest/resource";
+import type { Reference } from "@metreeca/qest/state";
 import { mergeBoolean, narrowsBoolean } from "../boolean/assembler.js";
 import { mergeDictionary, narrowsDictionary } from "../dictionary/assembler.js";
 import { mergeNumber, narrowsNumber } from "../number/assembler.js";

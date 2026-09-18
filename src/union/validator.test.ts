@@ -65,7 +65,7 @@ describe("validateUnion", () => {
 
 		const overlapping = union(string({ minLength: 1 }), string({ maxLength: 9 }));
 
-		expect(validateUnion(["hello"], overlapping, { scope: "model" })).toBeUndefined();
+		expect(validateUnion([{}], overlapping, { scope: "model" })).toBeUndefined();
 
 	});
 

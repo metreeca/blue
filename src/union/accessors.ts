@@ -19,12 +19,15 @@
  *
  * Reads off a shape the alternatives it admits values from, and selects the ones a given value, bound or placeholder
  * fits, whether the caller needs the single branch it singles out or every branch it may be drawn from, so that a
- * caller routing a value over a shape needs not tell a polymorphic shape from a plain one.
+ * caller routing a value over a shape needs not tell a polymorphic shape from a plain one. Tells apart, too, the keys
+ * addressing an alternative from the member names and constraint operators sharing the key space with them, so that a
+ * caller walking a retrieval node knows what each of its entries states.
  *
  * @module
  */
 
-import { isObject, type Lazy } from "@metreeca/core";
+import { type Lazy } from "@metreeca/core";
+import { isAtomic, isUnion } from "@metreeca/qest/model";
 import { getShapeTarget } from "../reference/index.js";
 import { validateTemplate } from "../resource/validator.js";
 import { eager, type Shape } from "../value/index.js";
@@ -109,14 +112,16 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
  * Picks every branch a retrieval placeholder fits.
  *
  * Routes a placeholder to all branches it may draw from, so that a caller retrieving against a polymorphic shape needs
- * not know which branch a value was stored on. A placeholder discriminates nothing on its own, so it may span several
- * branches and retrieve each; only one fitting no branch at all is unsatisfiable.
+ * not know which branch a value was stored on. A placeholder carries no value to tell branches apart, so it may span
+ * several and retrieve each; only one fitting no branch at all is unsatisfiable.
  *
- * A placeholder standing for a literal or a link fits by JSON type alone, its value immaterial. A nested template fits
- * by the members it asks for instead, so that a branch naming a resource is reached either way it may be asked for: by
- * the identifier naming it, or by a template crossing the link to the resource it points at. A template states what to
- * bring back rather than what is held, so it is held to the members the resource declares but not to their presence:
- * leaving one out routes the template all the same.
+ * Routing goes by form. The atomic placeholder asks for the value as it stands, so it fits every branch coming back as
+ * one: a literal, a link, as the identifier naming its target, and a localised map, coalesced under the request's
+ * language priority; an embedded resource states no identifier to come back as, so it is reached through a template
+ * alone. A nested template fits the branches naming a resource, by the members it asks for, so that a link is reached
+ * either way it may be asked for. A template states what to bring back rather than what is held, so it is held to the
+ * members the resource declares but not to their presence: leaving one out routes the template all the same. A map of
+ * tag ranges fits the localised branches alone.
  *
  * @typeParam B The branch type, carried through from the branches supplied
  *
@@ -131,17 +136,41 @@ export function getModelBranches<B extends Shape>(model: unknown, branches: read
 
 	const matched = branches.filter(branch => {
 
-		// a template crosses a link, standing for the resource it points at rather than for the link itself
+		const target = getShapeTarget(branch);
 
-		const target = isObject(model) ? getShapeTarget(branch) : undefined;
+		return isAtomic(model)
 
-		return target !== undefined
-			? validateTemplate([model], target) === undefined
-			: validateShape([model], branch, { scope: "model" }) === undefined;
+			// an embedded resource states no identifier to come back as, so it is reached through a template alone
+
+			? branch.kind !== "resource" && validateShape([model], branch, { scope: "model" }) === undefined
+
+			// a template crosses a link, standing for the resource it points at rather than for the link itself
+
+			: target !== undefined ? validateTemplate([model], target) === undefined
+				: validateShape([model], branch, { scope: "model" }) === undefined;
 
 	});
 
 	return matched.length > 0 ? matched : undefined;
+
+}
+
+/**
+ * Checks whether a key labels a branch of a union.
+ *
+ * Tells the keys of a branch map from the member names and constraint operators sharing the key space with them, so
+ * that a caller walking a retrieval node knows which entries address an alternative. A branch key is an opaque
+ * non-negative integer string carrying no positional meaning: it labels an alternative without naming which.
+ *
+ * @param key The key to check
+ *
+ * @returns `true` where `key` labels a branch
+ *
+ * @see [Unions — Design](./index.md)
+ */
+export function isBranchKey(key: string): boolean {
+
+	return isUnion({ [key]: {} });
 
 }
 

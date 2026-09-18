@@ -46,13 +46,21 @@ describe("validateBoolean", () => {
 
 	it.each<[string, Scope]>([
 		["state", "state"],
-		["bound", "bound"],
-		["model", "model"]
+		["bound", "bound"]
 	])("enforces the kind at the %s scope", async (_label, scope) => {
 
 		expect(validateBoolean([true], boolean(), { scope })).toBeUndefined();
 		expect(validateBoolean([42], boolean(), { scope }))
 			.toEqual([{ "0": ["{type} expected <boolean> value"] }]);
+
+	});
+
+	it("admits the atomic placeholder at the model scope", async () => {
+
+		expect(validateBoolean([{}], boolean(), { scope: "model" })).toBeUndefined();
+
+		expect(validateBoolean([true], boolean(), { scope: "model" }))
+			.toEqual([{ "0": ["{type} expected <Atomic> value"] }]);
 
 	});
 
@@ -71,12 +79,15 @@ describe("validateBoolean", () => {
 
 		});
 
-		it.each<[string, Scope]>([
-			["bound", "bound"],
-			["model", "model"]
-		])("leaves the enumeration unenforced at the %s scope", async (_label, scope) => {
+		it("leaves the enumeration unenforced at the bound scope", async () => {
 
-			expect(validateBoolean([true], boolean({ in: false }), { scope })).toBeUndefined();
+			expect(validateBoolean([true], boolean({ in: false }), { scope: "bound" })).toBeUndefined();
+
+		});
+
+		it("leaves the enumeration unenforced at the model scope", async () => {
+
+			expect(validateBoolean([{}], boolean({ in: false }), { scope: "model" })).toBeUndefined();
 
 		});
 

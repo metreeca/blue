@@ -17,7 +17,7 @@
 
 import { isString } from "@metreeca/core";
 import { type Issue } from "@metreeca/core/trace";
-import type { Probe, Transform } from "@metreeca/qest/template";
+import type { Probe, Transform } from "@metreeca/qest/model";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
 import { dictionary } from "../dictionary/index.js";

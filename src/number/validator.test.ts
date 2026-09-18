@@ -66,19 +66,19 @@ describe("validateNumber", () => {
 
 	describe("placeholder mode", () => {
 
-		it("skips value-domain constraints for a placeholder", async () => {
+		it("admits the atomic placeholder whatever the shape constrains", async () => {
 
-			expect(validateNumber([500], number({ maxInclusive: 100 }), { scope: "model" })).toBeUndefined();
-			expect(validateNumber([-1], number({ minInclusive: 0 }), { scope: "model" })).toBeUndefined();
-			expect(validateNumber([5], number({ in: [1, 2, 3] }), { scope: "model" })).toBeUndefined();
-			expect(validateNumber([1.5], number({ integral: true }), { scope: "model" })).toBeUndefined();
+			expect(validateNumber([{}], number({ maxInclusive: 100 }), { scope: "model" })).toBeUndefined();
+			expect(validateNumber([{}], number({ minInclusive: 0 }), { scope: "model" })).toBeUndefined();
+			expect(validateNumber([{}], number({ in: [1, 2, 3] }), { scope: "model" })).toBeUndefined();
+			expect(validateNumber([{}], number({ integral: true }), { scope: "model" })).toBeUndefined();
 
 		});
 
-		it("still rejects a placeholder of the wrong kind", async () => {
+		it("rejects a placeholder carrying a value of its own", async () => {
 
-			expect(validateNumber(["nope"], number(), { scope: "model" }))
-				.toEqual([{ "0": ["{type} expected <number> value"] }]);
+			expect(validateNumber([42], number(), { scope: "model" }))
+				.toEqual([{ "0": ["{type} expected <Atomic> value"] }]);
 
 		});
 

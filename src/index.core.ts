@@ -23,11 +23,11 @@
  * @module
  */
 
-import { isArray, isIdentifier, isObject } from "@metreeca/core";
-import { decodeProbe, isBinding, isBranch, isUnion } from "@metreeca/qest/template";
+import { isIdentifier, isObject } from "@metreeca/core";
+import { decodeProbe, isBinding, isUnion } from "@metreeca/qest/model";
 import { getShapeTarget } from "./reference/index.js";
 import type { ResourceShape } from "./resource/index.js";
-import { getShapeBranches } from "./union/index.js";
+import { getShapeBranches, isBranchKey } from "./union/index.js";
 import { effective, type Range, type Shape } from "./value/index.js";
 
 
@@ -43,7 +43,8 @@ import { effective, type Range, type Shape } from "./value/index.js";
  *
  * A collection left unpaged is given the largest page the service serves, so that a client omitting `#` is handed a
  * bounded set rather than the whole of it. A collection already stating a page of its own is left alone, as is a
- * single-valued or localised slot, which nothing pages.
+ * single-valued or localised slot, which nothing pages, and a projection column, which holds one value per row and so
+ * reaches no collection of its own.
  *
  * The template is expected to have been validated against the shape: a malformed one is returned as it stands rather
  * than reported.
@@ -90,7 +91,7 @@ export function enforce(value: unknown, shape: ResourceShape, {
 
 			// a path the shape cannot resolve leaves the slot as it stands
 
-			return [name, isObject(range) ? slot(asked, range) : asked];
+			return [name, isObject(range) ? slot(asked, range, !isBinding(name)) : asked];
 
 		}));
 
@@ -98,16 +99,23 @@ export function enforce(value: unknown, shape: ResourceShape, {
 
 	/**
 	 * Walks what a slot asks for, under the cardinality and the form the shape gives it.
+	 *
+	 * @param value The slot to walk
+	 * @param range The range the shape gives the slot
+	 * @param paged Whether the slot reaches a collection of its own, which a projection column never does, holding
+	 *     one value per row
 	 */
-	function slot(value: unknown, range: Range): unknown {
+	function slot(value: unknown, range: Range, paged: boolean): unknown {
 
 		const branches = getShapeBranches(range.shape);
 		const [branch] = branches;
 
-		return branches.length > 1 ? model(value, branches, range.maxCount === 1)
+		const collection = paged && range.maxCount !== 1;
+
+		return branches.length > 1 ? model(value, branches, collection)
 			: branch.kind === "dictionary" ? value // nothing pages a localised value
-				: range.maxCount === 1 ? placeholder(value, branch)
-					: isArray(value) ? [placeholder(value[0], branch), page(value[1])] : value;
+				: collection ? page(placeholder(value, branch))
+					: placeholder(value, branch);
 
 	}
 
@@ -127,12 +135,11 @@ export function enforce(value: unknown, shape: ResourceShape, {
 	}
 
 	/**
-	 * Walks what a polymorphic slot asks for, paging the set it is stated as.
+	 * Walks what a polymorphic slot asks for, paging the collection it reaches.
 	 */
-	function model(value: unknown, branches: readonly Shape[], scalar: boolean): unknown {
+	function model(value: unknown, branches: readonly Shape[], collection: boolean): unknown {
 
-		return scalar ? indexed(value, branches)
-			: isArray(value) ? [indexed(value[0], branches), page(value[1])] : value;
+		return collection ? page(indexed(value, branches)) : indexed(value, branches);
 
 	}
 
@@ -145,7 +152,7 @@ export function enforce(value: unknown, shape: ResourceShape, {
 
 		return Object.fromEntries(Object.entries(value).map(([index, asked]) => {
 
-			const branch: undefined | Shape = isBranch(index) ? branches[Number(index)] : undefined;
+			const branch: undefined | Shape = isBranchKey(index) ? branches[Number(index)] : undefined;
 
 			return [index, branch === undefined ? asked : placeholder(asked, branch)];
 
@@ -154,13 +161,13 @@ export function enforce(value: unknown, shape: ResourceShape, {
 	}
 
 	/**
-	 * Holds a selection to the largest page the service serves, leaving a stated one alone.
+	 * Holds a collection to the largest page the service serves, leaving a stated one alone.
 	 */
-	function page(selection: unknown): object {
+	function page(node: unknown): unknown {
 
-		return isObject(selection)
-			? "#" in selection ? selection : { ...selection, "#": limit }
-			: { "#": limit };
+		return !isObject(node) ? node // a malformed slot is left as it stands
+			: "#" in node ? node
+				: { ...node, "#": limit };
 
 	}
 

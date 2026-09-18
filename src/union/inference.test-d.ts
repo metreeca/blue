@@ -15,7 +15,7 @@
  */
 
 
-import type { Reference } from "@metreeca/qest/resource";
+import type { Reference } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
 import { type ReferenceShape } from "../reference/index.js";
 import { type Id, type Property } from "../resource/index.js";

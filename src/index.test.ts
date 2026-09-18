@@ -266,14 +266,14 @@ describe("validate", () => {
 
 			const retrieved = { id: "app:/products/1", name: "Widget" };
 
-			expect(value(validate(retrieved, { shape: Product, model: { id: "", name: "" } })))
+			expect(value(validate(retrieved, { shape: Product, model: { id: {}, name: {} } })))
 				.toEqual(retrieved);
 
 		});
 
 		it("leaves a member the template didn't ask for unchecked", async () => {
 
-			expect(value(validate({ id: "app:/products/1" }, { shape: Product, model: { id: "" } })))
+			expect(value(validate({ id: "app:/products/1" }, { shape: Product, model: { id: {} } })))
 				.toEqual({ id: "app:/products/1" });
 
 		});
@@ -282,14 +282,14 @@ describe("validate", () => {
 
 			expect(trace(validate({ id: "app:/products/1", name: "Widget" }, {
 				shape: Product,
-				model: { id: "" }
+				model: { id: {} }
 			}))).toBeDefined();
 
 		});
 
 		it("holds a member the template asked for to the shape", async () => {
 
-			expect(trace(validate({ name: 42 }, { shape: Product, model: { name: "" } }))).toBeDefined();
+			expect(trace(validate({ name: 42 }, { shape: Product, model: { name: {} } }))).toBeDefined();
 
 		});
 
@@ -299,7 +299,7 @@ describe("validate", () => {
 
 			expect(trace(validate(retrieved, {
 				shape: Product,
-				model: { id: "" },
+				model: { id: {} },
 				entry: "app:/products/2"
 			}))).toBeDefined();
 
@@ -309,7 +309,7 @@ describe("validate", () => {
 
 			const shape = resource({ name: required(string()), size: required(integer()) });
 
-			expect(value(validate({ size: 42 }, { shape, model: { size: 0 } })))
+			expect(value(validate({ size: 42 }, { shape, model: { size: {} } })))
 				.toEqual({ size: 42 });
 
 		});
@@ -322,7 +322,7 @@ describe("validate", () => {
 				c: required(integer())
 			});
 
-			expect(value(validate({ c: 42 }, { shape, model: { c: 0 } })))
+			expect(value(validate({ c: 42 }, { shape, model: { c: {} } })))
 				.toEqual({ c: 42 });
 
 		});
@@ -331,7 +331,7 @@ describe("validate", () => {
 
 			const retrieved = { vendor: "app:/vendors/1" };
 
-			expect(value(validate(retrieved, { shape: Product, model: { vendor: "" } })))
+			expect(value(validate(retrieved, { shape: Product, model: { vendor: {} } })))
 				.toEqual(retrieved);
 
 		});
@@ -340,7 +340,7 @@ describe("validate", () => {
 
 			const retrieved = { vendor: { id: "app:/vendors/1", name: "Acme" } };
 
-			expect(value(validate(retrieved, { shape: Product, model: { vendor: { id: "", name: "" } } })))
+			expect(value(validate(retrieved, { shape: Product, model: { vendor: { id: {}, name: {} } } })))
 				.toEqual(retrieved);
 
 		});
@@ -349,7 +349,7 @@ describe("validate", () => {
 
 			expect(trace(validate({ vendor: { id: "app:/vendors/1", name: "Acme" } }, {
 				shape: Product,
-				model: { vendor: { id: "" } }
+				model: { vendor: { id: {} } }
 			}))).toBeDefined();
 
 		});
@@ -358,7 +358,7 @@ describe("validate", () => {
 
 			expect(trace(validate({ vendor: { name: 42 } }, {
 				shape: Product,
-				model: { vendor: { name: "" } }
+				model: { vendor: { name: {} } }
 			}))).toBeDefined();
 
 		});
@@ -369,7 +369,7 @@ describe("validate", () => {
 
 			const validated = value(validate({ name: "Widget" }, {
 				shape: Product,
-				model: { name: "" }
+				model: { name: {} }
 			})) as Record<string, unknown>;
 
 			expect(() => { validated["name"] = "Gadget"; }).toThrow();
@@ -378,17 +378,17 @@ describe("validate", () => {
 
 		it("settles a second validation on the same template off the first", async () => {
 
-			const validated = value(validate({ name: "Widget" }, { shape: Product, model: { name: "" } }));
+			const validated = value(validate({ name: "Widget" }, { shape: Product, model: { name: {} } }));
 
-			expect(value(validate(validated, { shape: Product, model: { name: "" } }))).toBe(validated);
+			expect(value(validate(validated, { shape: Product, model: { name: {} } }))).toBe(validated);
 
 		});
 
 		it("validates again where another template is asked about", async () => {
 
-			const validated = value(validate({ name: "Widget" }, { shape: Product, model: { name: "" } }));
+			const validated = value(validate({ name: "Widget" }, { shape: Product, model: { name: {} } }));
 
-			expect(trace(validate(validated, { shape: Product, model: { size: 0 } }))).toBeDefined();
+			expect(trace(validate(validated, { shape: Product, model: { size: {} } }))).toBeDefined();
 
 		});
 
@@ -401,8 +401,8 @@ describe("validate", () => {
 			const Inner = resource({ id: id(), tags: multiple(string()) });
 			const shape = resource({ items: multiple(reference(Inner)) });
 
-			expect(value(validate({ items: [{ tags: [""] }] }, { shape, model: true, limit: 10 })))
-				.toEqual({ items: [{ tags: ["", { "#": 10 }] }, { "#": 10 }] });
+			expect(value(validate({ items: { tags: {} } }, { shape, model: true, limit: 10 })))
+				.toEqual({ items: { tags: { "#": 10 }, "#": 10 } });
 
 		});
 
@@ -412,8 +412,8 @@ describe("validate", () => {
 			const B = resource({ id: id(), tags: multiple(string()) });
 			const shape = resource({ items: multiple(union(A, B)) });
 
-			expect(value(validate({ items: [{ "1": { tags: [""] } }] }, { shape, model: true, limit: 10 })))
-				.toEqual({ items: [{ "1": { tags: ["", { "#": 10 }] } }, { "#": 10 }] });
+			expect(value(validate({ items: { "1": { tags: {} } } }, { shape, model: true, limit: 10 })))
+				.toEqual({ items: { "1": { tags: { "#": 10 } }, "#": 10 } });
 
 		});
 
@@ -421,15 +421,15 @@ describe("validate", () => {
 
 			const shape = resource({ items: multiple(reference(Product)) });
 
-			expect(value(validate({ items: [{ "n=name": "" }] }, { shape, model: true, limit: 10 })))
-				.toEqual({ items: [{ "n=name": "" }, { "#": 10 }] });
+			expect(value(validate({ items: { "n=name": {} } }, { shape, model: true, limit: 10 })))
+				.toEqual({ items: { "n=name": {}, "#": 10 } });
 
 		});
 
 		it("leaves a single value alone, which nothing pages", async () => {
 
-			expect(value(validate({ name: "", vendor: { name: "" } }, { shape: Product, model: true, limit: 10 })))
-				.toEqual({ name: "", vendor: { name: "" } });
+			expect(value(validate({ name: {}, vendor: { name: {} } }, { shape: Product, model: true, limit: 10 })))
+				.toEqual({ name: {}, vendor: { name: {} } });
 
 		});
 
@@ -437,15 +437,15 @@ describe("validate", () => {
 
 			const shape = resource({ label: optional(dictionary({ uniqueLang: true })) });
 
-			expect(value(validate({ label: { en: "" } }, { shape, model: true, limit: 10 })))
-				.toEqual({ label: { en: "" } });
+			expect(value(validate({ label: { en: {} } }, { shape, model: true, limit: 10 })))
+				.toEqual({ label: { en: {} } });
 
 		});
 
 		it("leaves the template alone where the page is left to the caller", async () => {
 
-			expect(value(validate({ tags: [""] }, { shape: Product, model: true, limit: 0 })))
-				.toEqual({ tags: [""] });
+			expect(value(validate({ tags: {} }, { shape: Product, model: true, limit: 0 })))
+				.toEqual({ tags: {} });
 
 		});
 
@@ -455,14 +455,14 @@ describe("validate", () => {
 
 		it("hands back the template the shape can serve", async () => {
 
-			expect(value(validate({ id: "", name: "" }, { shape: Product, model: true })))
-				.toEqual({ id: "", name: "" });
+			expect(value(validate({ id: {}, name: {} }, { shape: Product, model: true })))
+				.toEqual({ id: {}, name: {} });
 
 		});
 
 		it("reports a slot naming a member the shape doesn't declare", async () => {
 
-			expect(trace(validate({ unknown: "" }, { shape: Product, model: true }))).toBeDefined();
+			expect(trace(validate({ unknown: {} }, { shape: Product, model: true }))).toBeDefined();
 
 		});
 
@@ -470,14 +470,14 @@ describe("validate", () => {
 
 			const shape = resource({ size: optional(integer({ minInclusive: 10 })) });
 
-			expect(value(validate({ size: 0 }, { shape, model: true }))).toEqual({ size: 0 });
+			expect(value(validate({ size: {} }, { shape, model: true }))).toEqual({ size: {} });
 
 		});
 
 		it("refuses the transforms combining values where asked to", async () => {
 
 			const shape = resource({ items: multiple(reference(Product)) });
-			const template = { items: [{ "n=count:name": 0 }] };
+			const template = { items: { "n=count:name": {} } };
 
 			expect(value(validate(template, { shape, model: true }))).toBeDefined();
 			expect(trace(validate(template, { shape, model: true, plain: true }))).toBeDefined();
@@ -486,32 +486,32 @@ describe("validate", () => {
 
 		it("caps the nesting a template may ask for", async () => {
 
-			expect(value(validate({ vendor: "app:/vendors/1" }, { shape: Product, model: true, depth: 0 })))
-				.toEqual({ vendor: "app:/vendors/1" });
+			expect(value(validate({ vendor: {} }, { shape: Product, model: true, depth: 0 })))
+				.toEqual({ vendor: {} });
 
-			expect(trace(validate({ vendor: { name: "" } }, { shape: Product, model: true, depth: 0 })))
+			expect(trace(validate({ vendor: { name: {} } }, { shape: Product, model: true, depth: 0 })))
 				.toBeDefined();
 
 		});
 
 		it("refuses a page larger than the one served", async () => {
 
-			expect(trace(validate({ tags: ["", { "#": 100 }] }, { shape: Product, model: true, limit: 10 })))
+			expect(trace(validate({ tags: { "#": 100 } }, { shape: Product, model: true, limit: 10 })))
 				.toBeDefined();
 
 		});
 
 		it("holds a collection asking for no page to the one served", async () => {
 
-			expect(value(validate({ tags: [""] }, { shape: Product, model: true, limit: 10 })))
-				.toEqual({ tags: ["", { "#": 10 }] });
+			expect(value(validate({ tags: {} }, { shape: Product, model: true, limit: 10 })))
+				.toEqual({ tags: { "#": 10 } });
 
 		});
 
 		it("leaves a page the template asked for alone", async () => {
 
-			expect(value(validate({ tags: ["", { "#": 5 }] }, { shape: Product, model: true, limit: 10 })))
-				.toEqual({ tags: ["", { "#": 5 }] });
+			expect(value(validate({ tags: { "#": 5 } }, { shape: Product, model: true, limit: 10 })))
+				.toEqual({ tags: { "#": 5 } });
 
 		});
 
@@ -519,7 +519,7 @@ describe("validate", () => {
 
 			// ;(cast) the relay hands back an unknown, which this test writes through on purpose
 
-			const validated = value(validate({ name: "" }, { shape: Product, model: true })) as Record<string, unknown>;
+			const validated = value(validate({ name: {} }, { shape: Product, model: true })) as Record<string, unknown>;
 
 			expect(() => { validated["name"] = [true]; }).toThrow();
 
@@ -527,7 +527,7 @@ describe("validate", () => {
 
 		it("hands back a template stated apart from the one it was given", async () => {
 
-			const stated = { name: "" };
+			const stated = { name: {} };
 
 			expect(value(validate(stated, { shape: Product, model: true }))).not.toBe(stated);
 			expect(value(validate(stated, { shape: Product, model: true }))).toEqual(stated);
@@ -536,7 +536,7 @@ describe("validate", () => {
 
 		it("settles a second validation on the same terms off the first", async () => {
 
-			const validated = value(validate({ name: "" }, { shape: Product, model: true }));
+			const validated = value(validate({ name: {} }, { shape: Product, model: true }));
 
 			expect(value(validate(validated, { shape: Product, model: true }))).toBe(validated);
 
@@ -544,7 +544,7 @@ describe("validate", () => {
 
 		it("settles a second validation where the page served loosened", async () => {
 
-			const validated = value(validate({ tags: [""] }, { shape: Product, model: true, limit: 10 }));
+			const validated = value(validate({ tags: {} }, { shape: Product, model: true, limit: 10 }));
 
 			expect(value(validate(validated, { shape: Product, model: true, limit: 100 }))).toBe(validated);
 
@@ -552,7 +552,7 @@ describe("validate", () => {
 
 		it("validates again where the page served tightened", async () => {
 
-			const validated = value(validate({ tags: [""] }, { shape: Product, model: true, limit: 100 }));
+			const validated = value(validate({ tags: {} }, { shape: Product, model: true, limit: 100 }));
 
 			expect(trace(validate(validated, { shape: Product, model: true, limit: 10 }))).toBeDefined();
 
@@ -560,7 +560,7 @@ describe("validate", () => {
 
 		it("validates again where the nesting allowed tightened", async () => {
 
-			const validated = value(validate({ vendor: { name: "" } }, { shape: Product, model: true, depth: 1 }));
+			const validated = value(validate({ vendor: { name: {} } }, { shape: Product, model: true, depth: 1 }));
 
 			expect(trace(validate(validated, { shape: Product, model: true, depth: 0 }))).toBeDefined();
 
@@ -568,7 +568,7 @@ describe("validate", () => {
 
 		it("validates again where the terms tightened", async () => {
 
-			const validated = value(validate({ name: "" }, { shape: Product, model: true }));
+			const validated = value(validate({ name: {} }, { shape: Product, model: true }));
 
 			expect(value(validate(validated, { shape: Product, model: true, plain: true }))).not.toBe(validated);
 
@@ -578,9 +578,9 @@ describe("validate", () => {
 
 			// a nested template stands for the resource behind a link, which the link itself never admits
 
-			const validated = value(validate({ vendor: { name: "" } }, { shape: Product, model: true }));
+			const validated = value(validate({ vendor: { name: {} } }, { shape: Product, model: true }));
 
-			expect(validated).toEqual({ vendor: { name: "" } });
+			expect(validated).toEqual({ vendor: { name: {} } });
 			expect(trace(validate(validated, { shape: Product }))).toBeDefined();
 
 		});
@@ -606,15 +606,15 @@ describe("enforce", () => {
 
 	it("leaves the template alone where no page is served", async () => {
 
-		expect(enforce({ tags: [""] }, Product)).toEqual({ tags: [""] });
-		expect(enforce({ tags: [""] }, Product, { limit: 0 })).toEqual({ tags: [""] });
+		expect(enforce({ tags: {} }, Product)).toEqual({ tags: {} });
+		expect(enforce({ tags: {} }, Product, { limit: 0 })).toEqual({ tags: {} });
 
 	});
 
 	it("leaves a malformed template alone", async () => {
 
 		expect(enforce(42, Product, { limit })).toBe(42);
-		expect(enforce({ unknown: "" }, Product, { limit })).toEqual({ unknown: "" });
+		expect(enforce({ unknown: {} }, Product, { limit })).toEqual({ unknown: {} });
 
 	});
 
@@ -622,27 +622,27 @@ describe("enforce", () => {
 
 		it("leaves a placeholder alone", async () => {
 
-			expect(enforce({ name: "", size: 0 }, Product, { limit })).toEqual({ name: "", size: 0 });
+			expect(enforce({ name: {}, size: {} }, Product, { limit })).toEqual({ name: {}, size: {} });
 
 		});
 
-		it("leaves an identifier standing for a link alone", async () => {
+		it("leaves a link left unexpanded alone", async () => {
 
-			expect(enforce({ vendor: "app:/vendors/1" }, Product, { limit }))
-				.toEqual({ vendor: "app:/vendors/1" });
+			expect(enforce({ vendor: {} }, Product, { limit }))
+				.toEqual({ vendor: {} });
 
 		});
 
 		it("leaves a localised value alone", async () => {
 
-			expect(enforce({ label: { en: "" } }, Product, { limit })).toEqual({ label: { en: "" } });
+			expect(enforce({ label: { en: {} } }, Product, { limit })).toEqual({ label: { en: {} } });
 
 		});
 
 		it("descends into the template behind a link", async () => {
 
-			expect(enforce({ vendor: { tags: [""] } }, Product, { limit }))
-				.toEqual({ vendor: { tags: ["", { "#": limit }] } });
+			expect(enforce({ vendor: { tags: {} } }, Product, { limit }))
+				.toEqual({ vendor: { tags: { "#": limit } } });
 
 		});
 
@@ -652,35 +652,35 @@ describe("enforce", () => {
 
 		it("pages a collection of placeholders", async () => {
 
-			expect(enforce({ tags: [""] }, Product, { limit })).toEqual({ tags: ["", { "#": limit }] });
+			expect(enforce({ tags: {} }, Product, { limit })).toEqual({ tags: { "#": limit } });
 
 		});
 
 		it("pages a collection of templates", async () => {
 
-			expect(enforce({ vendors: [{ name: "" }] }, Product, { limit }))
-				.toEqual({ vendors: [{ name: "" }, { "#": limit }] });
+			expect(enforce({ vendors: { name: {} } }, Product, { limit }))
+				.toEqual({ vendors: { name: {}, "#": limit } });
 
 		});
 
 		it("leaves a page the client stated alone", async () => {
 
-			expect(enforce({ tags: ["", { "#": 25 }] }, Product, { limit }))
-				.toEqual({ tags: ["", { "#": 25 }] });
+			expect(enforce({ tags: { "#": 25 } }, Product, { limit }))
+				.toEqual({ tags: { "#": 25 } });
 
 		});
 
-		it("keeps the rest of a selection the client stated", async () => {
+		it("keeps the rest of the constraints the client stated", async () => {
 
-			expect(enforce({ tags: ["", { "~": "wid" }] }, Product, { limit }))
-				.toEqual({ tags: ["", { "~": "wid", "#": limit }] });
+			expect(enforce({ tags: { "~": "wid" } }, Product, { limit }))
+				.toEqual({ tags: { "~": "wid", "#": limit } });
 
 		});
 
 		it("pages a collection nested within a paged one", async () => {
 
-			expect(enforce({ vendors: [{ tags: [""] }, { "#": 25 }] }, Product, { limit }))
-				.toEqual({ vendors: [{ tags: ["", { "#": limit }] }, { "#": 25 }] });
+			expect(enforce({ vendors: { tags: {}, "#": 25 } }, Product, { limit }))
+				.toEqual({ vendors: { tags: { "#": limit }, "#": 25 } });
 
 		});
 
@@ -688,7 +688,7 @@ describe("enforce", () => {
 
 			const shape = resource({ labels: multiple(dictionary({ uniqueLang: true })) });
 
-			expect(enforce({ labels: { en: "" } }, shape, { limit })).toEqual({ labels: { en: "" } });
+			expect(enforce({ labels: { en: {} } }, shape, { limit })).toEqual({ labels: { en: {} } });
 
 		});
 
@@ -706,22 +706,22 @@ describe("enforce", () => {
 
 		it("descends into each branch of a single value", async () => {
 
-			expect(enforce({ value: { "0": { name: "" }, "1": { tags: [""] } } }, shape, { limit }))
-				.toEqual({ value: { "0": { name: "" }, "1": { tags: ["", { "#": limit }] } } });
+			expect(enforce({ value: { "0": { name: {} }, "1": { tags: {} } } }, shape, { limit }))
+				.toEqual({ value: { "0": { name: {} }, "1": { tags: { "#": limit } } } });
 
 		});
 
 		it("pages a collection stated as a branch map", async () => {
 
-			expect(enforce({ values: [{ "1": { tags: [""] } }] }, shape, { limit }))
-				.toEqual({ values: [{ "1": { tags: ["", { "#": limit }] } }, { "#": limit }] });
+			expect(enforce({ values: { "1": { tags: {} } } }, shape, { limit }))
+				.toEqual({ values: { "1": { tags: { "#": limit } }, "#": limit } });
 
 		});
 
 		it("leaves a branch the union doesn't declare alone", async () => {
 
-			expect(enforce({ value: { "7": { name: "" } } }, shape, { limit }))
-				.toEqual({ value: { "7": { name: "" } } });
+			expect(enforce({ value: { "7": { name: {} } } }, shape, { limit }))
+				.toEqual({ value: { "7": { name: {} } } });
 
 		});
 
@@ -731,8 +731,8 @@ describe("enforce", () => {
 
 		it("pages a collection asked for under a column", async () => {
 
-			expect(enforce({ vendors: [{ "t=tags": [""] }] }, Product, { limit }))
-				.toEqual({ vendors: [{ "t=tags": ["", { "#": limit }] }, { "#": limit }] });
+			expect(enforce({ vendors: { "t=tags": {} } }, Product, { limit }))
+				.toEqual({ vendors: { "t=tags": {}, "#": limit } });
 
 		});
 

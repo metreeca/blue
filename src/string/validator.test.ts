@@ -66,19 +66,26 @@ describe("validateString", () => {
 
 	describe("placeholder mode", () => {
 
-		it("skips value-domain constraints for a placeholder", async () => {
+		it("admits the atomic placeholder whatever the shape constrains", async () => {
 
-			expect(validateString(["ab"], string({ minLength: 3 }), { scope: "model" })).toBeUndefined();
-			expect(validateString(["abcdef"], string({ maxLength: 3 }), { scope: "model" })).toBeUndefined();
-			expect(validateString(["A1"], string({ pattern: "^[a-z]*$" }), { scope: "model" })).toBeUndefined();
-			expect(validateString(["x"], string({ in: ["a", "b"] }), { scope: "model" })).toBeUndefined();
+			expect(validateString([{}], string({ minLength: 3 }), { scope: "model" })).toBeUndefined();
+			expect(validateString([{}], string({ maxLength: 3 }), { scope: "model" })).toBeUndefined();
+			expect(validateString([{}], string({ pattern: "^[a-z]*$" }), { scope: "model" })).toBeUndefined();
+			expect(validateString([{}], string({ in: ["a", "b"] }), { scope: "model" })).toBeUndefined();
 
 		});
 
-		it("still rejects a placeholder of the wrong kind", async () => {
+		it("rejects a placeholder carrying a value of its own", async () => {
 
-			expect(validateString([42], string(), { scope: "model" }))
-				.toEqual([{ "0": ["{type} expected <string> value"] }]);
+			expect(validateString(["x"], string(), { scope: "model" }))
+				.toEqual([{ "0": ["{type} expected <Atomic> value"] }]);
+
+		});
+
+		it("rejects a placeholder asking for anything beyond the value", async () => {
+
+			expect(validateString([{ "*": {} }], string(), { scope: "model" }))
+				.toEqual([{ "0": ["{type} expected <Atomic> value"] }]);
 
 		});
 

@@ -16,7 +16,7 @@
 
 import { createNamespace } from "@metreeca/core/resource";
 import { TraceError, type Validator } from "@metreeca/core/trace";
-import type { Resource } from "@metreeca/qest/resource";
+import type { Resource } from "@metreeca/qest/state";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
 import { number } from "../number/index.js";

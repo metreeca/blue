@@ -54,6 +54,8 @@
  * the single branch it is, so that a caller routing a value needs not tell a polymorphic shape from a plain one.
  * {@link getStateBranch} settles the one branch a stored value belongs to, {@link getBoundBranch} the one a relational
  * bound filters against, and {@link getModelBranches} every branch a retrieval placeholder may draw from.
+ * {@link isBranchKey} tells the keys addressing an alternative from the member names and constraint operators sharing
+ * the key space with them.
  *
  * @module
  *
@@ -68,7 +70,7 @@ import type { Lazy } from "@metreeca/core";
 import type { Shape } from "../value/index.js";
 import { assemble } from "./assembler.js";
 
-export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } from "./accessors.js";
+export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches, isBranchKey } from "./accessors.js";
 
 
 /**
@@ -91,10 +93,11 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  * - a **set-matching option** singles out **exactly one** branch as well, but keys on the value's `kind` alone, the
  *   lexical `pattern` included among what it relaxes, as an option is tested by equality and an option outside the
  *   domain is a legal filter matching nothing;
- * - a **retrieval placeholder** matches **at least one** branch and retrieves each branch it fits, as its value is
- *   immaterial and discriminates nothing: a literal or link placeholder matches by JSON type alone, ignoring every
- *   other constraint, a nested template by the members it asks for, which the resource branch must declare though the
- *   template needs not ask for them all.
+ * - a **retrieval placeholder** matches **at least one** branch and retrieves each branch it fits, as it carries no
+ *   value of its own and discriminates nothing: the atomic placeholder matches by form alone, ignoring every
+ *   constraint, and so reaches every branch coming back as a value, an embedded resource excepted, as it names no
+ *   identifier to come back as; a nested template matches by the members it asks for, which the resource branch must
+ *   declare though the template needs not ask for them all; a map of tag ranges matches the localised branches alone.
  *
  * An input matching no branch is rejected as unsatisfiable, and one required to single out a branch but matching
  * several is rejected as ambiguous. A text search singles out no branch at all: it filters every textual branch
