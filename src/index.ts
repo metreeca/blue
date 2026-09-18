@@ -72,7 +72,7 @@
 
 import { type Lazy, map, type Optional } from "@metreeca/core";
 import { createRelay, type Relay } from "@metreeca/core/relay";
-import { equals, seal } from "@metreeca/core/structures";
+import { equals, seal } from "@metreeca/core/values";
 import { type Trace } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/state";
 import type { Template } from "@metreeca/qest/model";

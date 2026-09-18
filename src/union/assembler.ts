@@ -25,7 +25,7 @@
  */
 
 import { isFunction, type Optional } from "@metreeca/core";
-import { immutable } from "@metreeca/core/structures";
+import { immutable } from "@metreeca/core/values";
 import { array, type Trace } from "@metreeca/core/trace";
 import { mergeShape, narrowsShape, reject } from "../value/assembler.js";
 import { getShapeBranches } from "./accessors.js";

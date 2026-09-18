@@ -38,7 +38,7 @@ import {
 import { unique, union } from "@metreeca/core/arrays";
 import { app, isIRI, type Namespace } from "@metreeca/core/resource";
 import { dedent, tidy } from "@metreeca/core/strings";
-import { equals, immutable, seal } from "@metreeca/core/structures";
+import { equals, immutable, seal } from "@metreeca/core/values";
 import { all, fail, test, type Trace } from "@metreeca/core/trace";
 import { type Dictionary, type Reference } from "@metreeca/qest/state";
 import { eager } from "../value/accessors.js";
