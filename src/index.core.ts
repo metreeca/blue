@@ -81,19 +81,30 @@ export function enforce(value: unknown, shape: ResourceShape, {
 
 		return Object.fromEntries(Object.entries(value).map(([name, asked]) => {
 
-			// a projection column carries its own path, while a plain member names the single step it is
-
-			const probe = isBinding(name) ? decodeProbe(name)
-				: isIdentifier(name) ? { target: name, pipe: [], path: [name] }
-					: undefined;
-
-			const range = probe && effective(shape, probe);
+			const range = resolve(shape, name);
 
 			// a path the shape cannot resolve leaves the slot as it stands
 
-			return [name, isObject(range) ? slot(asked, range, !isBinding(name)) : asked];
+			return [name, range !== undefined ? slot(asked, range, !isBinding(name)) : asked];
 
 		}));
+
+	}
+
+	/**
+	 * Resolves a template key to the range the shape gives it, if the shape declares it.
+	 */
+	function resolve(shape: ResourceShape, name: string): undefined | Range {
+
+		// a projection column carries its own path, while a plain member names the single step it is
+
+		const probe = isBinding(name) ? decodeProbe(name)
+			: isIdentifier(name) ? { target: name, pipe: [], path: [name] }
+				: undefined;
+
+		const range = probe && effective(shape, probe);
+
+		return isObject(range) ? range : undefined;
 
 	}
 
@@ -144,19 +155,32 @@ export function enforce(value: unknown, shape: ResourceShape, {
 	}
 
 	/**
-	 * Walks each branch of a branch map into the shape it is stated under.
+	 * Walks each alternative of a branch map under every branch it fits, its opaque key naming none.
 	 */
 	function indexed(value: unknown, branches: readonly Shape[]): unknown {
 
 		if ( !isObject(value) ) { return value; }
 
-		return Object.fromEntries(Object.entries(value).map(([index, asked]) => {
+		return Object.fromEntries(Object.entries(value).map(([key, asked]) => [key, isBranch(key)
+			? branches
+				.filter(branch => fits(asked, branch))
+				.reduce((walked, branch) => placeholder(walked, branch), asked)
+			: asked
+		]));
 
-			const branch: undefined | Shape = isBranch(index) ? branches[Number(index)] : undefined;
+	}
 
-			return [index, branch === undefined ? asked : placeholder(asked, branch)];
+	/**
+	 * Checks whether an alternative fits a branch by form alone.
+	 *
+	 * A template fits only the resources declaring every member it asks for.
+	 */
+	function fits(asked: unknown, branch: Shape): boolean {
 
-		}));
+		const target = getShapeTarget(branch);
+
+		return target === undefined || !isObject(asked)
+			|| Object.keys(asked).every(name => resolve(target, name) !== undefined);
 
 	}
 
