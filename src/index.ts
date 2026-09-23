@@ -76,7 +76,7 @@ import { equals, seal } from "@metreeca/core/values";
 import { type Trace } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/state";
 import type { Template } from "@metreeca/qest/model";
-import type { Delivery } from "./value/_inference.js";
+import type { Delivery } from "./value/index.js";
 import { enforce } from "./index.core.js";
 import type { ResourceShape } from "./resource/index.js";
 import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
