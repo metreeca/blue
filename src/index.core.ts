@@ -24,10 +24,10 @@
  */
 
 import { isIdentifier, isObject } from "@metreeca/core";
-import { decodeProbe, isBinding, isUnion } from "@metreeca/qest/model";
+import { decodeProbe, isBinding, isBranch, isUnion } from "@metreeca/qest/model";
 import { getShapeTarget } from "./reference/index.js";
 import type { ResourceShape } from "./resource/index.js";
-import { getShapeBranches, isBranchKey } from "./union/index.js";
+import { getShapeBranches } from "./union/index.js";
 import { effective, type Range, type Shape } from "./value/index.js";
 
 
@@ -152,7 +152,7 @@ export function enforce(value: unknown, shape: ResourceShape, {
 
 		return Object.fromEntries(Object.entries(value).map(([index, asked]) => {
 
-			const branch: undefined | Shape = isBranchKey(index) ? branches[Number(index)] : undefined;
+			const branch: undefined | Shape = isBranch(index) ? branches[Number(index)] : undefined;
 
 			return [index, branch === undefined ? asked : placeholder(asked, branch)];
 

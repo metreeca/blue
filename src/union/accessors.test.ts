@@ -28,7 +28,7 @@ import {
 	type ResourceShape
 } from "../resource/index.js";
 import { string } from "../string/index.js";
-import { getBoundBranch, getModelBranches, getShapeBranches, getStateBranch, isBranchKey } from "./accessors.js";
+import { getBoundBranch, getModelBranches, getShapeBranches, getStateBranch } from "./accessors.js";
 import { union } from "./index.js";
 
 
@@ -145,32 +145,6 @@ describe("getBoundBranch", () => {
 	it("picks nothing for a bound filtering several branches", async () => {
 
 		expect(getBoundBranch("hello", [string(), string()])).toBeUndefined();
-
-	});
-
-});
-
-describe("isBranchKey", () => {
-
-	it.each<[string, string]>([
-		["the first branch", "0"],
-		["a later branch", "7"],
-		["a branch beyond the ones declared", "42"]
-	])("admits the key labelling %s", async (_label, key) => {
-
-		expect(isBranchKey(key)).toBe(true);
-
-	});
-
-	it.each<[string, string]>([
-		["a member name", "name"],
-		["a negative index", "-1"],
-		["a fraction", "1.5"],
-		["a padded index", "01"],
-		["the empty key", ""]
-	])("refuses %s", async (_label, key) => {
-
-		expect(isBranchKey(key)).toBe(false);
 
 	});
 

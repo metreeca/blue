@@ -19,15 +19,13 @@
  *
  * Reads off a shape the alternatives it admits values from, and selects the ones a given value, bound or placeholder
  * fits, whether the caller needs the single branch it singles out or every branch it may be drawn from, so that a
- * caller routing a value over a shape needs not tell a polymorphic shape from a plain one. Tells apart, too, the keys
- * addressing an alternative from the member names and constraint operators sharing the key space with them, so that a
- * caller walking a retrieval node knows what each of its entries states.
+ * caller routing a value over a shape needs not tell a polymorphic shape from a plain one.
  *
  * @module
  */
 
 import { type Lazy } from "@metreeca/core";
-import { isAtomic, isUnion } from "@metreeca/qest/model";
+import { isAtomic } from "@metreeca/qest/model";
 import { getShapeTarget } from "../reference/index.js";
 import { validateTemplate } from "../resource/validator.js";
 import { eager, type Shape } from "../value/index.js";
@@ -152,25 +150,6 @@ export function getModelBranches<B extends Shape>(model: unknown, branches: read
 	});
 
 	return matched.length > 0 ? matched : undefined;
-
-}
-
-/**
- * Checks whether a key labels a branch of a union.
- *
- * Tells the keys of a branch map from the member names and constraint operators sharing the key space with them, so
- * that a caller walking a retrieval node knows which entries address an alternative. A branch key is an opaque
- * non-negative integer string carrying no positional meaning: it labels an alternative without naming which.
- *
- * @param key The key to check
- *
- * @returns `true` where `key` labels a branch
- *
- * @see [Unions — Design](./index.md)
- */
-export function isBranchKey(key: string): boolean {
-
-	return isUnion({ [key]: {} });
 
 }
 

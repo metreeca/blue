@@ -54,8 +54,6 @@
  * the single branch it is, so that a caller routing a value needs not tell a polymorphic shape from a plain one.
  * {@link getStateBranch} settles the one branch a stored value belongs to, {@link getBoundBranch} the one a relational
  * bound filters against, and {@link getModelBranches} every branch a retrieval placeholder may draw from.
- * {@link isBranchKey} tells the keys addressing an alternative from the member names and constraint operators sharing
- * the key space with them.
  *
  * @module
  *
@@ -70,7 +68,7 @@ import type { Lazy } from "@metreeca/core";
 import type { Shape } from "../value/index.js";
 import { assemble } from "./assembler.js";
 
-export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches, isBranchKey } from "./accessors.js";
+export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } from "./accessors.js";
 
 
 /**

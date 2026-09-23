@@ -44,6 +44,7 @@ import {
 	isAggregate,
 	isAtomic,
 	isBinding,
+	isBranch,
 	isSelector,
 	isTemplate,
 	type Probe,
@@ -54,7 +55,7 @@ import { eager, effective, type Range, type Shape } from "../value/index.js";
 import { match, type Scope, validateShape } from "../value/validator.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { Property, ResourceShape } from "./index.js";
-import { getShapeBranches, isBranchKey } from "../union/index.js";
+import { getShapeBranches } from "../union/index.js";
 import { getShapeId } from "./accessors.js";
 
 
@@ -494,7 +495,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		local: boolean
 	): Optional<Trace> {
 
-		if ( !isObject(value, (_, key) => isBranchKey(key)) ) { return ["expected union variant map"]; }
+		if ( !isObject(value, (_, key) => isBranch(key)) ) { return ["expected union variant map"]; }
 
 		return all(...Object.entries(value).map(([index, asked]) => () => fold(
 
@@ -1158,7 +1159,7 @@ export function validateResult(values: readonly unknown[], {
 
 		if ( indexed ) {
 
-			const malformed = keys.filter(key => !isBranchKey(key));
+			const malformed = keys.filter(key => !isBranch(key));
 
 			if ( malformed.length > 0 ) {
 				return all(...malformed.map(key => () => [{ [key]: ["expected a branch key"] }]))(undefined);
