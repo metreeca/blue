@@ -109,6 +109,13 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  * > and textual branches only under mutually exclusive patterns. One filtered by set-matching options is held to a
  * > stricter grade still, as an option is told apart by kind alone: it admits at most one branch of each kind.
  *
+ * > [!IMPORTANT]
+ * > Branches describing or linking to resources are expected to be **coherent**: a member name several of them
+ * > declare denotes the same property throughout the union, agreeing on its kind, its `forward` and `reverse`
+ * > predicates and its `captive` and `foreign` flags, while its range, cardinality and value domain may differ.
+ * > Branches may be deferred, so coherence is checked as the branches are first resolved rather than as the union is
+ * > built, and an incoherent union is rejected there.
+ *
  * **Inheritance**
  *
  * Where a {@link resource!ResourceShape} extends the shapes it lists as `parents`, union-valued members are merged

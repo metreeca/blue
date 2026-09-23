@@ -214,7 +214,8 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, leaving the
  *     shape it states undefined, or where it states a target that doesn't narrow the one the link it is reached
- *     through overrides
+ *     through overrides, or where a union the path crosses declares a shared member name inconsistently across its
+ *     branches
  * @throws {@link !TypeError TypeError} Where `probe` is not a well-formed probe
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}

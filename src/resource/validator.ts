@@ -295,7 +295,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  * @returns A trace of the violations found, or `undefined` where every template asks for what the shape can give
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where `shape` reaches itself through a cycle no deferred
- *     shape breaks
+ *     shape breaks, or where a union it reaches declares a shared member name inconsistently across its branches
  */
 export function validateTemplate(values: readonly unknown[], shape: ResourceShape, {
 

@@ -57,7 +57,7 @@ import { effective, type Range, type Shape } from "./value/index.js";
  * @returns A template structurally equivalent to `value`, rewritten where a policy requires it
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where `shape` reaches itself through a cycle no deferred
- *     shape breaks
+ *     shape breaks, or where a union it reaches declares a shared member name inconsistently across its branches
  */
 export function enforce(value: unknown, shape: ResourceShape, {
 

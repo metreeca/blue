@@ -428,19 +428,6 @@ describe("effective", () => {
 
 		});
 
-		it("reaches the navigable alternative where a sibling ends on an identifier", async () => {
-
-			const shape = resource({
-				value: required(union(
-					reference(resource({ name: id() })),
-					resource({ name: required(resource({ x: required(string()) })) })
-				))
-			});
-
-			expect(range(effective(shape, probe(["value", "name", "x"]))).shape).toEqual(string());
-
-		});
-
 		it("reports the same shape once where alternatives converge on it", async () => {
 
 			const Person = resource({ id: id(), name: required(string()) });

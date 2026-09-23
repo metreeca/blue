@@ -24,13 +24,27 @@
  * @module
  */
 
-import { type Lazy } from "@metreeca/core";
+import { type Lazy, type Optional } from "@metreeca/core";
+import { type Trace } from "@metreeca/core/trace";
 import { isAtomic } from "@metreeca/qest/model";
 import { getShapeTarget } from "../reference/index.js";
+import type { Member } from "../resource/index.js";
 import { validateTemplate } from "../resource/validator.js";
+import { reject } from "../value/assembler.js";
 import { eager, type Shape } from "../value/index.js";
 import { type Scope, validateShape } from "../value/validator.js";
+import type { UnionShape } from "./index.js";
 
+
+/**
+ * The branches of each union already resolved and found coherent.
+ *
+ * Keyed by the union stating them, so that coherence is checked once per union rather than on every reach.
+ */
+const unions = new WeakMap<UnionShape, readonly Shape[]>();
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Resolves the branches a shape admits values from.
@@ -40,19 +54,28 @@ import { type Scope, validateShape } from "../value/validator.js";
  * resolved, a nested union flattened into the enclosing one, so that a caller routes each alternative without
  * flattening again.
  *
+ * Resolution also holds the union to coherence: a member name declared by several of the resources its branches
+ * describe or link to must denote the same property throughout, so that a caller may resolve it once rather than per
+ * branch. The declarations must agree on the member kind, on the `forward` and `reverse` predicates the name is
+ * mapped to, and on the `captive` and `foreign` flags; they may differ in range, cardinality and value domain, which
+ * merge into the range a path crossing the union reaches.
+ *
  * @param shape The shape to enumerate, possibly deferred to break definition cycles
  *
  * @returns The branches `shape` admits values from, in the order they were stated, each resolved and merged where it
  *     describes a resource
  *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or where the
+ *     branches declare a shared member name inconsistently
+ *
+ * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design § 3.2 Union Constraints}
  */
 export function getShapeBranches(shape: Lazy<Shape>): readonly Shape[] {
 
 	const resolved = eager(shape);
 
 	return resolved.kind === "union"
-		? resolved.branches.flatMap(branch => getShapeBranches(branch))
+		? unions.get(resolved) ?? settle(resolved)
 		: [resolved];
 
 }
@@ -73,7 +96,7 @@ export function getShapeBranches(shape: Lazy<Shape>): readonly Shape[] {
  *
  * @see [Unions — Design](./index.md)
  */
-export function getStateBranch<B extends Shape>(state: unknown, branches: readonly B[]): undefined | B {
+export function getStateBranch<B extends Shape>(state: unknown, branches: readonly B[]): Optional<B> {
 
 	const matched = matching(state, branches, "state");
 
@@ -98,7 +121,7 @@ export function getStateBranch<B extends Shape>(state: unknown, branches: readon
  *
  * @see [Unions — Design](./index.md)
  */
-export function getBoundBranch<B extends Shape>(bound: unknown, branches: readonly B[]): undefined | B {
+export function getBoundBranch<B extends Shape>(bound: unknown, branches: readonly B[]): Optional<B> {
 
 	const matched = matching(bound, branches, "bound");
 
@@ -130,7 +153,7 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
  *
  * @see [Unions — Design](./index.md)
  */
-export function getModelBranches<B extends Shape>(model: unknown, branches: readonly B[]): undefined | readonly B[] {
+export function getModelBranches<B extends Shape>(model: unknown, branches: readonly B[]): Optional<readonly B[]> {
 
 	const matched = branches.filter(branch => {
 
@@ -170,5 +193,76 @@ export function getModelBranches<B extends Shape>(model: unknown, branches: read
 export function matching<B extends Shape>(value: unknown, branches: readonly B[], scope: Scope): readonly B[] {
 
 	return branches.filter(branch => validateShape([value], branch, { scope }) === undefined);
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the branches of a union and holds them to coherence.
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the branches declare a shared member name
+ *     inconsistently
+ */
+function settle(union: UnionShape): readonly Shape[] {
+
+	const branches = union.branches.flatMap(branch => getShapeBranches(branch));
+
+	reject("incoherent union shape", checkCoherence(branches));
+
+	unions.set(union, branches);
+
+	return branches;
+
+}
+
+/**
+ * Checks that the member names shared by the resources a set of branches describe or link to denote the same property.
+ *
+ * @returns A trace of the attributes each shared name is declared with inconsistently, or `undefined` where every
+ *     shared name agrees throughout
+ */
+function checkCoherence(branches: readonly Shape[]): Optional<Trace> {
+
+	const declarations = branches
+		.map(branch => getShapeTarget(branch))
+		.filter(target => target !== undefined)
+		.flatMap(target => Object.entries(target.members));
+
+	const names = [...new Set(declarations.map(([name]) => name))];
+
+	const issues = names.flatMap(name => {
+
+		const [first, ...rest] = declarations
+			.filter(([declared]) => declared === name)
+			.map(([, member]) => identity(member));
+
+		const conflicts = first
+			.filter(([, value], index) => rest.some(other => other[index][1] !== value))
+			.map(([attribute]) => `inconsistent <${attribute}> across branches`);
+
+		return conflicts.length === 0 ? [] : [{ [name]: conflicts }];
+
+	});
+
+	return issues.length === 0 ? undefined : issues;
+
+}
+
+/**
+ * Lists the attributes fixing the property a member denotes, in a fixed order, unstated flags taken as `false`.
+ */
+function identity(member: Member): readonly (readonly [string, unknown])[] {
+
+	const property = member.kind === "property" ? member : undefined;
+
+	return [
+		["kind", member.kind],
+		["forward", property?.forward],
+		["reverse", property?.reverse],
+		["captive", property?.captive ?? false],
+		["foreign", property?.foreign ?? false]
+	];
 
 }

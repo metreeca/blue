@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
+import { createNamespace } from "@metreeca/core/resource";
+import { TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
 import { dictionary } from "../dictionary/index.js";
 import { number } from "../number/index.js";
 import { reference } from "../reference/index.js";
 import {
+	id,
+	type Member,
+	multiple,
 	optional,
 	type Parents,
 	required,
@@ -82,6 +87,95 @@ describe("getShapeBranches", () => {
 		const flag = boolean();
 
 		expect(getShapeBranches(union(text, union(count, flag)))).toEqual([text, count, flag]);
+
+	});
+
+	describe("coherence", () => {
+
+		const Vendor = target();
+
+		it.each<[string, Member, Member]>([
+			["ranges", required(string()), required(number())],
+			["cardinalities", required(string()), multiple(string())],
+			["value domains", required(string({ minLength: 1 })), required(string({ maxLength: 9 }))]
+		])("accepts a shared member differing in %s", async (_, one, other) => {
+
+			const shape = union(resource({ shared: one }), resource({ shared: other }));
+
+			expect(getShapeBranches(shape)).toHaveLength(2);
+
+		});
+
+		it("accepts member names declared by a single branch", async () => {
+
+			const shape = union(resource({ one: required(string()) }), resource({ other: required(number()) }));
+
+			expect(getShapeBranches(shape)).toHaveLength(2);
+
+		});
+
+		it("ignores branches describing no resource", async () => {
+
+			const shape = union(string(), resource({ shared: required(string()) }));
+
+			expect(getShapeBranches(shape)).toHaveLength(2);
+
+		});
+
+		it.each<[string, Member, Member]>([
+			["kinds", id(), required(string())],
+			[
+				"forward predicates",
+				required(string(), { forward: "https://schema.org/name" }),
+				required(string(), { forward: "https://schema.org/alternateName" })
+			],
+			[
+				"reverse predicates",
+				multiple(reference(Vendor), { reverse: "https://schema.org/seller" }),
+				multiple(reference(Vendor), { reverse: "https://schema.org/vendor" })
+			],
+			["captive flags", multiple(reference(Vendor), { captive: true }), multiple(reference(Vendor))],
+			["foreign flags", multiple(reference(Vendor), { foreign: true }), multiple(reference(Vendor))]
+		])("rejects a shared member differing in %s", async (_, one, other) => {
+
+			const shape = union(resource({ shared: one }), resource({ shared: other }));
+
+			expect(() => getShapeBranches(shape)).toThrow(TraceError);
+
+		});
+
+		it("rejects a shared member mapped against different spaces", async () => {
+
+			const shape = union(
+				resource({ space: createNamespace("https://schema.org/") }, { shared: required(string()) }),
+				resource({ space: createNamespace("https://example.net/") }, { shared: required(string()) })
+			);
+
+			expect(() => getShapeBranches(shape)).toThrow(TraceError);
+
+		});
+
+		it("rejects incoherent link targets", async () => {
+
+			const shape = union(
+				reference(resource({ shared: required(string(), { forward: "https://schema.org/name" }) })),
+				reference(resource({ shared: required(string(), { forward: "https://schema.org/alternateName" }) }))
+			);
+
+			expect(() => getShapeBranches(shape)).toThrow(TraceError);
+
+		});
+
+		it("rejects an incoherent deferred branch as it is resolved", async () => {
+
+			const One = resource({ shared: required(string(), { forward: "https://schema.org/name" }) });
+			const Other = resource({ shared: required(string(), { forward: "https://schema.org/alternateName" }) });
+
+			const shape = union(One, () => Other);
+
+			expect(() => getShapeBranches(shape)).toThrow(TraceError);
+
+		});
 
 	});
 
