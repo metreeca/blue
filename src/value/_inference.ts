@@ -50,9 +50,9 @@ import type { Shape } from "./index.js";
  * cardinality and optionality come from the shape, the template stating which values are wanted and no longer what
  * they are.
  *
- * A member the template leaves out, or states as the absent marker `undefined`, is left out of the result. A
- * polymorphic member and a projection column are handed back as the shape describes them, the alternatives a branch
- * map names and the value an expression computes being resolved by the inference overhaul rather than here.
+ * A member the template leaves out is left out of the result. A polymorphic member and a projection column are handed
+ * back as the shape describes them, the alternatives a branch map names and the value an expression computes being
+ * resolved by the inference overhaul rather than here.
  *
  * @typeParam S The shape the retrieval was stated against, possibly deferred to break definition cycles
  * @typeParam M The template that asked for it
@@ -71,7 +71,7 @@ export type Delivery<S extends Lazy<ResourceShape>, M> =
  * Keeps the members a template named.
  *
  * Yields the members of `C` a plain key of `M` names, so that the result is keyed by the request rather than by the
- * shape; a key stating the absent marker `undefined` names nothing.
+ * shape.
  *
  * @typeParam C The members the shape carries
  * @typeParam M The template narrowing them
@@ -86,7 +86,7 @@ type Asked<C, M> = {
  * Resolves the members a template asks for.
  *
  * Yields the plain identifiers a template states, leaving out the constraint operators and projection bindings sharing
- * the key space with them, and the keys stating the absent marker `undefined`.
+ * the key space with them.
  *
  * @typeParam M The template to read
  */
@@ -94,8 +94,7 @@ type Wanted<M> = keyof {
 
 	readonly [field in keyof M as field extends `${Operator}${string}` ? never
 		: field extends `${string}=${string}` ? never
-			: undefined extends M[field] ? never
-				: field
+			: field
 	]: M[field]
 
 }

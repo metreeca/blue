@@ -124,13 +124,6 @@ describe("Delivery", () => {
 
 	});
 
-	it("leaves a slot stated as nothing at all out", async () => {
-
-		expectTypeOf<Delivery<typeof Product, { name: {}, size: undefined }>>()
-			.toEqualTypeOf<{ readonly name: string }>();
-
-	});
-
 	// what the provisional bridge does not narrow falls back to what the shape describes
 
 	it("falls back to the shape for a polymorphic member", async () => {

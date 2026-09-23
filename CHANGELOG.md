@@ -40,6 +40,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   inference having been withdrawn upstream: the value comes back keyed down to the members the template named, nested
   templates included, with cardinality and optionality off the shape. A polymorphic member and a projection column
   come back as the shape describes them until the inference overhaul lands (#27)
+- Refuse a template member or a projection column stated as `undefined`, in line with `@metreeca/qest` dropping the
+  absent marker from retrieval models: an entry left out is omitted from the map rather than set to `undefined`
 - Read the bare values `boolean()`, `number()` and `string()` accept as the `in` enumeration closing the domain to
   them, in place of the prototype model they stated: `boolean(true)`, `number(1, 2, 3)` and `string("open", "closed")`
   take the admitted values as leading arguments

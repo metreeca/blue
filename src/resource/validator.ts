@@ -251,10 +251,11 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  *
  * Every slot is one object, and the keys it carries say what it asks for: the atomic placeholder `{}` asks for the
  * value as it stands, a nested template for the resource behind a link, a map of language ranges for localised text
- * tag by tag, and a branch map for a polymorphic member one alternative at a time. Cardinality is not stated by the
- * notation, so a member admitting several values is asked for exactly as one admitting a single value is, except that
- * its slot may carry the constraints filtering, ordering and paging the collection alongside the keys retrieving it.
- * A member admitting one value has no collection to narrow and a localised member is filtered by its own tag ranges:
+ * tag by tag, and a branch map for a polymorphic member one alternative at a time. A member that is not wanted is left
+ * out of the template: a slot stated as `undefined` is refused, as is any other slot that isn't an object. Cardinality
+ * is not stated by the notation, so a member admitting several values is asked for exactly as one admitting a single
+ * value is, except that its slot may carry the constraints filtering, ordering and paging the collection alongside the
+ * keys retrieving it. A member admitting one value has no collection to narrow and a localised member is filtered by its own tag ranges:
  * both refuse a constraint, as does a branch of a polymorphic member, which stands for one value alone, the
  * constraints narrowing a collection riding on the slot hosting the alternatives. A refused constraint is reported
  * under the key stating it and leaves what the slot asks for held to the shape all the same, so one pass reports both.
@@ -325,11 +326,10 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 		return all(...Object.entries(value).map(([name, asked]) => () => fold(
 
 			!isIdentifier(name) ? ["expected property identifier"]
-				: asked === undefined ? undefined
-					: !Object.hasOwn(shape.members, name) ? ["unknown property path"]
-						: shape.members[name].kind === "property"
-							? slot(asked, shape.members[name], depth)
-							: isAtomic(asked) ? undefined : ["expected <Atomic> placeholder"], // the id/type members
+				: !Object.hasOwn(shape.members, name) ? ["unknown property path"]
+					: shape.members[name].kind === "property"
+						? slot(asked, shape.members[name], depth)
+						: isAtomic(asked) ? undefined : ["expected <Atomic> placeholder"], // the id/type members
 
 			trace => [{ [name]: trace }]
 
@@ -674,8 +674,6 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			if ( shared.has(probe.target) ) {
 				return [`duplicate projection identifier <${probe.target}>`];
 			}
-
-			if ( asked === undefined ) { return undefined; }
 
 			const range = effective(shape, probe);
 

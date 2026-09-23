@@ -920,9 +920,9 @@ describe("validateTemplate", () => {
 
 	describe("members", () => {
 
-		it("leaves a slot asking for nothing unchecked", async () => {
+		it("reports a slot stated as undefined", async () => {
 
-			expect(validateTemplate([{ name: undefined }], Product)).toBeUndefined();
+			expect(validateTemplate([{ name: undefined }], Product)).toBeDefined();
 
 		});
 
@@ -1925,9 +1925,9 @@ describe("validateTemplate", () => {
 
 		});
 
-		it("admits a column asking for nothing in particular", async () => {
+		it("refuses a column stated as undefined", async () => {
 
-			expect(validateTemplate([{ items: { "n=name": undefined } }], shape)).toBeUndefined();
+			expect(validateTemplate([{ items: { "n=name": undefined } }], shape)).toBeDefined();
 
 		});
 
@@ -2209,9 +2209,9 @@ describe("validateTemplate", () => {
 
 		});
 
-		it("admits a slot asked for as nothing at all", async () => {
+		it("refuses slots stated as undefined", async () => {
 
-			expect(validateTemplate([{ name: undefined, tags: undefined }], Product)).toBeUndefined();
+			expect(validateTemplate([{ name: undefined, tags: undefined }], Product)).toBeDefined();
 
 		});
 
