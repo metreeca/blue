@@ -26,7 +26,7 @@
  */
 
 import { type Optional } from "@metreeca/core";
-import { immutable } from "@metreeca/core/structures";
+import { immutable } from "@metreeca/core/values";
 import { all, test, type Trace } from "@metreeca/core/trace";
 import { reject } from "../value/assembler.js";
 import { type DictionaryConstraints, type DictionaryShape } from "./index.js";

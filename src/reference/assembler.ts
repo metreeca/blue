@@ -25,7 +25,7 @@
  */
 
 import { isFunction, type Lazy, type Optional } from "@metreeca/core";
-import { equals, immutable } from "@metreeca/core/structures";
+import { equals, immutable } from "@metreeca/core/values";
 import { type Trace } from "@metreeca/core/trace";
 import type { ResourceShape } from "../resource/index.js";
 import { reject } from "../value/assembler.js";

@@ -26,7 +26,7 @@
  */
 
 import { type Optional } from "@metreeca/core";
-import { immutable } from "@metreeca/core/structures";
+import { immutable } from "@metreeca/core/values";
 import { all, test, type Trace } from "@metreeca/core/trace";
 import { checkDomain, intersect, narrowsDatatype, narrowsDomain, reject, unite } from "../value/assembler.js";
 import { type NumberConstraints, type NumberShape } from "./index.js";

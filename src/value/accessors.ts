@@ -35,7 +35,7 @@ import {
 } from "@metreeca/core";
 import { unique } from "@metreeca/core/arrays";
 import { xsd } from "@metreeca/core/datatype";
-import { equals, immutable } from "@metreeca/core/structures";
+import { equals, immutable } from "@metreeca/core/values";
 import { type Issue, TraceError } from "@metreeca/core/trace";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/model";
 
