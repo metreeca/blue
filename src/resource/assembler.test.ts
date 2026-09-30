@@ -409,50 +409,6 @@ describe("flatten", () => {
 
 		});
 
-		describe("virtual", () => {
-
-			it("inherits what the extended shape states", async () => {
-
-				const Base = resource({ virtual: true }, {});
-
-				expect(resource(Base, {}).virtual).toBe(true);
-
-			});
-
-			it("takes the value the extending shape states", async () => {
-
-				const Base = resource({ virtual: true }, {});
-
-				expect(resource(Base, { virtual: false }, {}).virtual).toBe(false);
-
-			});
-
-			it("states none where nothing states one", async () => {
-
-				expect(resource({}).virtual).toBeUndefined();
-
-			});
-
-			it("rejects extended shapes disagreeing", async () => {
-
-				const One = resource({ virtual: true }, {});
-				const Other = resource({ virtual: false }, {});
-
-				expect(() => resource(One, Other, {})).toThrow(TraceError);
-
-			});
-
-			it("admits extended shapes disagreeing where the extending shape states a value", async () => {
-
-				const One = resource({ virtual: true }, {});
-				const Other = resource({ virtual: false }, {});
-
-				expect(() => resource(One, Other, { virtual: true }, {})).not.toThrow();
-
-			});
-
-		});
-
 		describe("hidden", () => {
 
 			it("inherits what the extended shape states", async () => {
@@ -682,7 +638,7 @@ describe("checkParents", () => {
 
 	it("returns undefined where a single shape is extended", async () => {
 
-		const shape = resource(One, { virtual: true }, {});
+		const shape = resource(One, { space: schema }, {});
 
 		expect(checkParents(shape, [One])).toBeUndefined();
 
@@ -690,19 +646,10 @@ describe("checkParents", () => {
 
 	it("returns undefined where the extended shapes agree", async () => {
 
-		const first = resource({ virtual: true, space: schema }, { name: required(string()) });
-		const second = resource({ virtual: true, space: schema }, { code: required(string()) });
+		const first = resource({ space: schema }, { name: required(string()) });
+		const second = resource({ space: schema }, { code: required(string()) });
 
 		expect(checkParents(resource(first, second, {}), [first, second])).toBeUndefined();
-
-	});
-
-	it("reports extended shapes disagreeing on what a resource is", async () => {
-
-		const virtual = resource({ virtual: true }, { name: required(string()) });
-
-		expect(checkParents(resource({}), [virtual, Other]))
-			.toContainEqual(expect.stringContaining("{virtual}"));
 
 	});
 
@@ -718,10 +665,11 @@ describe("checkParents", () => {
 
 	it("returns undefined where the extending shape settles the disagreement", async () => {
 
-		const virtual = resource({ virtual: true }, { name: required(string()) });
-		const settled = resource({ virtual: false }, {});
+		const here = resource({ space: schema }, { name: required(string()) });
+		const there = resource({ space: createNamespace("https://example.net/") }, { code: required(string()) });
+		const settled = resource({ space: schema }, {});
 
-		expect(checkParents(settled, [virtual, Other])).toBeUndefined();
+		expect(checkParents(settled, [here, there])).toBeUndefined();
 
 	});
 

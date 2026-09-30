@@ -81,6 +81,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Remove `ReferenceConstraints`: `reference()` states its target alone, the link flags being declared on the property
   (#27)
 - Remove the `computed` property constraint
+- Remove the `virtual` resource constraint (#25)
 - Remove the exported `defaultNamespace`: member predicates unqualified by a stated or inherited `space` resolve
   against the `app` namespace of `@metreeca/core/resource`
 - Remove the type-level inference machinery from the published surface — `Composition`, `Content`, `Declared`, `Entry`,

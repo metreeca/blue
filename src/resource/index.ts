@@ -188,7 +188,6 @@ export {
  * | `kind`        | Cannot be overridden                                                             |
  * | `name`        | Always from the child; not inherited                                             |
  * | `description` | Always from the child; not inherited                                             |
- * | `virtual`     | Inherited; conflicting parents without a child override are reported as an error |
  * | `space`       | Inherited; conflicting parents without a child override are reported as an error |
  * | `class`       | Always from the child; not inherited                                             |
  * | `classes`     | Computed from the `class` of the shapes extended; never stated                   |
@@ -271,19 +270,6 @@ export type ResourceShape<
  * @see {@link https://www.w3.org/TR/shacl/#node-shapes SHACL § 2.2 Node Shapes}
  */
 export type ResourceConstraints = {
-
-	/**
-	 * Whether the resources a shape describes are computed rather than held.
-	 *
-	 * Tells a caller that a resource is at least partly derived on the way out, so that it is not expected to be found
-	 * as it stands in the store holding the others.
-	 *
-	 * **Inheritance** — inherited; conflicting parents without a child override are reported as an error.
-	 *
-	 * @defaultValue `undefined` (held as it stands)
-	 */
-	readonly virtual?: boolean; // !!! remove
-
 
 	/**
 	 * Human-readable name for the shape.

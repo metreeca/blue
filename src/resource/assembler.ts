@@ -464,8 +464,8 @@ export function checkBounds(bounds: Partial<PropertyBounds>): Optional<Trace> {
  *
  * Reports the inherited fields the extended shapes disagree on and the extending shape states no value for, so that a
  * shape reaching the same field along two paths never resolves it by declaration order. The fields held to this rule
- * are `virtual` and `space` on the resource, and `hidden` on each of its properties; a marker carries its own `hidden`
- * from the declaration that states it and conflicts on none.
+ * are `space` on the resource and `hidden` on each of its properties; a marker carries its own `hidden` from the
+ * declaration that states it and conflicts on none.
  *
  * @param shape The extending shape
  * @param parents The extended shapes, already merged
@@ -476,16 +476,10 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 
 	if ( parents.length < 2 ) { return undefined; }
 
-	const virtual = shape.virtual !== undefined ? undefined
-		: conflict(parents.map(parent => parent.virtual));
-
 	const space = shape.space !== undefined ? undefined
 		: conflict(parents.map(parent => parent.space?.[""]));
 
 	return all(
-
-		virtual !== undefined
-		&& fail([`{virtual} conflicting inherited values <${virtual[0]}> vs <${virtual[1]}> without an override`]),
 
 		space !== undefined
 		&& fail([`{space} conflicting inherited values <${space[0]}> vs <${space[1]}> without an override`]),
@@ -767,7 +761,6 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 		name: target.name,
 		description: target.description,
 
-		virtual: target.virtual ?? source.virtual,
 		space: target.space ?? source.space,
 
 		class: target.class,
