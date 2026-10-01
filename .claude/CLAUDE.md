@@ -64,6 +64,8 @@ mirroring qest §3.1/§5.2/§5.4 and named by the `Scope` type (`state | bound |
   identifier, excepted), a nested `Template` the variants naming a resource, a `Locale` map the localised ones. It
   carries no value to discriminate with, so it may match several (retrieving each) and is rejected only when it matches
   none. A localised variant takes its tag ranges within a projection column alone, coming back coalesced elsewhere.
+  An object whose keys each name a member of a nested-resource variant is read as a `Template` and never as a `Locale`
+  map, which it is read as otherwise (qest §5.5).
 
 A `~` text search is neither regime: a plain search string applied to every string branch at once. See
 `src/union/index.md` for the design rationale.
