@@ -2102,6 +2102,99 @@ describe("validateTemplate", () => {
 
 		});
 
+		describe("an object alternative over a localised and a nested-resource variant", () => {
+
+			// a tag range may also be a member name, so the object form is settled against the shape: a template where
+			// every key names a member of a nested resource, a map of tag ranges otherwise, never both
+
+			const Box = resource({ en: optional(resource({ code: optional(string()) })) });
+
+			const boxed = resource({
+				items: multiple(reference(resource({ of: optional(union(dictionary(), Box)) })))
+			});
+
+			it("reads an object naming members alone as a template", async () => {
+
+				expect(validateTemplate([{ items: { "x=of": { "0": { en: { code: {} } } } } }], boxed)).toBeUndefined();
+
+			});
+
+			it("refuses a template read the nested resource rejects, never falling back to tag ranges", async () => {
+
+				expect(validateTemplate([{ items: { "x=of": { "0": { en: {} } } } }], boxed)).toBeDefined();
+
+			});
+
+			it("reads an object naming any key no member declares as tag ranges", async () => {
+
+				expect(validateTemplate([{ items: { "x=of": { "0": { fr: {} } } } }], boxed)).toBeUndefined();
+				expect(validateTemplate([{ items: { "x=of": { "0": { en: {}, fr: {} } } } }], boxed)).toBeUndefined();
+
+			});
+
+		});
+
+		describe("a template alternative spanning several nested-resource variants", () => {
+
+			// each variant retrieves the members it declares, so a template may ask for members of different variants,
+			// as long as every member it asks for is declared by some variant
+
+			const Place = resource({ latitude: optional(number()) });
+			const Postal = resource({ street: optional(string()) });
+
+			const spanning = resource({
+				items: multiple(reference(resource({ at: optional(union(dictionary(), Place, Postal)) })))
+			});
+
+			it("admits members declared by different variants", async () => {
+
+				expect(validateTemplate([{ items: { "x=at": { "0": { latitude: {}, street: {} } } } }], spanning))
+					.toBeUndefined();
+
+			});
+
+			it("refuses a member no variant declares", async () => {
+
+				// nine letters, so not read as a tag range either
+
+				expect(validateTemplate([{ items: { "x=at": { "0": { latitude: {}, elevation: {} } } } }], spanning))
+					.toBeDefined();
+
+			});
+
+		});
+
+		describe("a template alternative asking for a member several nested-resource variants declare", () => {
+
+			// a member declared by several variants may take a different shape in each, so its placeholder spans them,
+			// and is refused only where it fits none
+
+			const Named = resource({ name: optional(string()), age: optional(number()) });
+			const Linked = resource({ name: optional(reference(resource({ code: optional(string()) }))) });
+			const Boxed = resource({ street: optional(resource({ code: optional(string()) })) });
+
+			const shared = resource({
+				items: multiple(reference(resource({ at: optional(union(Named, Linked, Boxed)) })))
+			});
+
+			it("admits a placeholder fitting any of the shapes the member is declared with", async () => {
+
+				expect(validateTemplate([{ items: { "x=at": { "0": { name: {} } } } }], shared)).toBeUndefined();
+				expect(validateTemplate([{ items: { "x=at": { "0": { name: { code: {} } } } } }], shared)).toBeUndefined();
+				expect(validateTemplate([{ items: { "x=at": { "0": { name: { code: {} }, age: {} } } } }], shared))
+					.toBeUndefined();
+
+			});
+
+			it("refuses a placeholder fitting none of the shapes the member is declared with", async () => {
+
+				expect(validateTemplate([{ items: { "x=at": { "0": { name: { nope: {} } } } } }], shared)).toBeDefined();
+				expect(validateTemplate([{ items: { "x=at": { "0": { age: {}, street: {} } } } }], shared)).toBeDefined();
+
+			});
+
+		});
+
 		it("admits a collection stated as a branch map", async () => {
 
 			expect(validateTemplate([{ values: { "0": { name: {} } } }], shape)).toBeUndefined();

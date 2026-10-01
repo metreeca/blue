@@ -24,11 +24,11 @@
  * @module
  */
 
-import { type Lazy, type Optional } from "@metreeca/core";
+import { isObject, type Lazy, opt, type Optional } from "@metreeca/core";
 import { type Trace } from "@metreeca/core/trace";
 import { isAtomic } from "@metreeca/qest/model";
 import { getShapeTarget } from "../reference/index.js";
-import type { Member } from "../resource/index.js";
+import type { Member, ResourceShape } from "../resource/index.js";
 import { validateTemplate } from "../resource/validator.js";
 import { reject } from "../value/assembler.js";
 import { eager, type Shape } from "../value/index.js";
@@ -132,7 +132,7 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
 /**
  * Picks every branch a retrieval placeholder fits.
  *
- * Routes a placeholder to all branches it may draw from, so that a caller retrieving against a polymorphic shape needs
+ * Routes a placeholder to all branches it may draw from, so that a caller retrieving against a polymorphic shape need
  * not know which branch a value was stored on. A placeholder carries no value to tell branches apart, so it may span
  * several and retrieve each; only one fitting no branch at all is unsatisfiable.
  *
@@ -143,6 +143,15 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
  * either way it may be asked for. A template states what to bring back rather than what is held, so it is held to the
  * members the resource declares but not to their presence: leaving one out routes the template all the same. A map of
  * tag ranges fits the localised branches alone.
+ *
+ * A template may span several resource branches. Each branch admitting at least one of the members asked for is
+ * picked, and answers the members it admits. A member several branches declare may take a different shape in each,
+ * and what is asked for it need fit only one of them. The template is rejected only if some member it asks for fits no
+ * branch.
+ *
+ * A tag range may also be a member name, so an object is read one way only. It is a template if each of its keys names
+ * a member of a resource branch, reached directly or through a link, and a map of tag ranges otherwise. A template
+ * never reaches the localised branches, even if the resource branches reject it.
  *
  * @typeParam B The branch type, carried through from the branches supplied
  *
@@ -155,6 +164,9 @@ export function getBoundBranch<B extends Shape>(bound: unknown, branches: readon
  */
 export function getModelBranches<B extends Shape>(model: unknown, branches: readonly B[]): Optional<readonly B[]> {
 
+	const template = isTemplateModel(model, branches);
+	const members = isObject(model) ? Object.entries(model) : [];
+
 	const matched = branches.filter(branch => {
 
 		const target = getShapeTarget(branch);
@@ -165,14 +177,47 @@ export function getModelBranches<B extends Shape>(model: unknown, branches: read
 
 			? branch.kind !== "resource" && validateShape([model], branch, { scope: "model" }) === undefined
 
-			// a template crosses a link, standing for the resource it points at rather than for the link itself
+			// a template crosses a link, standing for the resource it points at rather than for the link itself, and
+			// may span several resources, each answering the members whose placeholders it admits
 
-			: target !== undefined ? validateTemplate([model], target) === undefined
-				: validateShape([model], branch, { scope: "model" }) === undefined;
+			: target !== undefined ? template && members.some(([name, asked]) => answers(target, name, asked))
+
+				// an object read as a template never asks for tag ranges
+
+				: (branch.kind !== "dictionary" || !template)
+				&& validateShape([model], branch, { scope: "model" }) === undefined;
 
 	});
 
-	return matched.length > 0 ? matched : undefined;
+	// a member several resources declare may take a different shape in each, so its placeholder is held to fit one of
+	// them rather than all
+
+	const answered = !template || members.every(([name, asked]) => matched.some(branch =>
+		opt(getShapeTarget(branch), target => answers(target, name, asked), false)
+	));
+
+	return answered && matched.length > 0 ? matched : undefined;
+
+}
+
+/**
+ * Tells whether a placeholder object asks for a nested resource rather than for tag ranges.
+ *
+ * A tag range may also be a member name, so the object form alone does not tell a template from a map of tag ranges.
+ * The branches settle it: an object is a template if each of its keys names a member of a resource branch, reached
+ * directly or through a link, and a map of tag ranges otherwise. A map of tag ranges whose ranges all name such members
+ * therefore cannot be asked for.
+ *
+ * @param model The placeholder to read
+ * @param branches The branches the placeholder is matched against
+ *
+ * @returns `true` if `model` is an object to be read as a template; `false` otherwise
+ */
+export function isTemplateModel(model: unknown, branches: readonly Shape[]): boolean {
+
+	const names = new Set(branches.flatMap(branch => Object.keys(getShapeTarget(branch)?.members ?? {})));
+
+	return !isAtomic(model) && isObject(model) && Object.keys(model).every(key => names.has(key));
 
 }
 
@@ -198,6 +243,15 @@ export function matching<B extends Shape>(value: unknown, branches: readonly B[]
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Tells whether a resource admits what a template asks for one of its members.
+ */
+function answers(target: ResourceShape, name: string, asked: unknown): boolean {
+
+	return validateTemplate([{ [name]: asked }], target) === undefined;
+
+}
 
 /**
  * Resolves the branches of a union and holds them to coherence.

@@ -431,9 +431,12 @@ What each kind of member may be asked for:
 - **Union**: the keyed form (`{"0": …, "1": …}`), one placeholder per alternative wanted, where the alternatives
   want different shapes; where one shape serves them all, the atomic placeholder addresses the property directly.
   Keys are opaque labels carrying no positional meaning: each placeholder is matched by form alone and retrieves
-  every branch it fits, so the atomic placeholder requests every branch coming back as a value while a nested
-  template discriminates the resource branches its structure fits. Only a placeholder fitting no branch at all is
-  rejected.
+  every branch it fits. The atomic placeholder requests every branch coming back as a value. A nested template reaches
+  every resource branch admitting at least one of the members it asks for, so it may span several, each answering the
+  members it admits. A member several branches declare may take a different shape in each, and what is asked for it
+  need fit only one of them. Only a placeholder fitting no branch at all is rejected. A tag range may also be a
+  member name, so an object whose keys each name a member of a resource branch is read as a template, and any other
+  object as a map of tag ranges.
 - **Localised**: a map of the tag ranges wanted, each asking for the value a matched tag carries, or the atomic
   placeholder, standing for the content language negotiation settles on. Per-tag arity follows the shape rather than
   the template. A localised branch of a union takes the map within a projection column alone, where each branch is

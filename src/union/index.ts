@@ -94,8 +94,12 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  * - a **retrieval placeholder** matches **at least one** branch and retrieves each branch it fits, as it carries no
  *   value of its own and discriminates nothing: the atomic placeholder matches by form alone, ignoring every
  *   constraint, and so reaches every branch coming back as a value, an embedded resource excepted, as it names no
- *   identifier to come back as; a nested template matches by the members it asks for, which the resource branch must
- *   declare though the template needs not ask for them all; a map of tag ranges matches the localised branches alone.
+ *   identifier to come back as; a nested template matches every resource branch admitting at least one of the
+ *   members it asks for, and may thus span several, each answering the members it admits; a map of tag ranges
+ *   matches the localised branches alone. A template need not ask for every member a branch declares, but each member
+ *   it asks for must fit at least one branch, which may declare that member with a shape of its own. A tag range may
+ *   also be a member name, so an object whose keys each name a member of a resource branch is read as a template, and
+ *   any other object as a map of tag ranges.
  *
  * An input matching no branch is rejected as unsatisfiable, and one required to single out a branch but matching
  * several is rejected as ambiguous. A text search singles out no branch at all: it filters every textual branch

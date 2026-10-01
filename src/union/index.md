@@ -27,7 +27,9 @@ and ignoring every constraint: it states which values are wanted and no longer w
 branches, retrieving each while discriminating nothing on its own. Three forms are told apart, and each reaches the
 branches coming back under it: the **atomic** placeholder `{}` asks for the value as it stands and reaches every
 branch but an embedded resource, which states no identifier to come back as; a **nested template** reaches the
-branches naming a resource; a map of **tag ranges** reaches the localised branches.
+branches naming a resource; a map of **tag ranges** reaches the localised branches. A tag range may also be a member
+name, so an object is read as a template where each of its keys names a member of a resource branch, and as a map of
+tag ranges otherwise, never as both.
 
 Every regime rejects a value matching **no** branch as **unsatisfiable**; only a regime required to single out a branch
 rejects one matching several, as **ambiguous**. Deletion stands outside the rule, carrying no value to match and
@@ -118,14 +120,23 @@ alone** and ignores every constraint, the placeholder carrying no value of its o
   literal, a reference, as the identifier naming its target, and a localised map, coalesced under the request's
   language priority. An embedded resource states no identifier to come back as and is reached through a template
   alone.
-- a **nested template** matches every resource branch declaring the members it asks for, reached either directly or
-  across a reference branch pointing at that resource. A template states what to bring back rather than what is held,
-  so it is held to the declared members but **not to their presence**: a template asking for part of a resource
-  matches it all the same.
+- a **nested template** matches every resource branch admitting at least one of the members it asks for, reached
+  either directly or across a reference branch pointing at that resource. A template may thus **span** several
+  resource branches, each answering the members it admits. A member several branches declare may take a different
+  shape in each, and what is asked for it need fit only one of them. The template is rejected only if some member it
+  asks for fits no branch. A template states what to bring back rather than what is held, so it is held to the
+  declared members but **not to their presence**: a template asking for part of a resource matches it all the same.
 - a map of **tag ranges** matches the localised branches alone, asking for their text tag by tag. A map has nowhere
   to sit among the values the sibling branches carry, so a localised branch takes it within a **projection column**
   alone, where each branch is asked for under a column of its own; elsewhere the branch comes back coalesced, through
   the atomic placeholder.
+
+A nested template and a map of tag ranges share the object form, and a tag range such as `en` may also be a member
+name, so the shape settles which one an object is. An object whose keys each name a member of a resource branch,
+reached directly or across a reference, is read as a **template** and never reaches the localised branches. Any other
+object is read as a map of **tag ranges**. If the resource branches reject an object read as a template, the
+placeholder is unsatisfiable: it is not read again as tag ranges. A map of tag ranges whose ranges all name such
+members therefore cannot be asked for on that union.
 
 A placeholder matching several branches retrieves each; one matching **no** branch is **unsatisfiable** and rejected,
 exactly as a state value is.

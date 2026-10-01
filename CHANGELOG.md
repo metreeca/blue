@@ -7,6 +7,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased](https://github.com/metreeca/blue/compare/v0.11.0...HEAD)
 
+### Fixed
+
+- Read an object placeholder over a union of localised and nested-resource branches one way only, as `@metreeca/qest`
+  requires: as a template where each of its keys names a member of a resource branch, and as a map of tag ranges
+  otherwise. `getModelBranches` no longer routes such a template to the localised branches, and a keyed union
+  alternative rejected as a template is no longer accepted as a map of tag ranges
+- Let a template over a union span several resource branches, as `@metreeca/qest` allows: `getModelBranches` and
+  template validation now match every branch admitting what the template asks for any of its members, and reject the
+  template only where what it asks for a member is admitted by no branch; a member several branches declare may take a
+  different shape in each, and what is asked for it need fit only one of them
+
 ## [0.11.0](https://github.com/metreeca/blue/compare/v0.10.0...v0.11.0) - 2026-10-01
 
 ### Added

@@ -56,6 +56,8 @@ import { match, type Scope, validateShape } from "../value/validator.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { Property, ResourceShape } from "./index.js";
 import { getShapeBranches } from "../union/index.js";
+import { isTemplateModel } from "../union/accessors.js";
+import { getShapeTarget } from "../reference/index.js";
 import { getShapeId } from "./accessors.js";
 
 
@@ -255,12 +257,17 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  * out of the template: a slot stated as `undefined` is refused, as is any other slot that isn't an object. Cardinality
  * is not stated by the notation, so a member admitting several values is asked for exactly as one admitting a single
  * value is, except that its slot may carry the constraints filtering, ordering and paging the collection alongside the
- * keys retrieving it. A member admitting one value has no collection to narrow and a localised member is filtered by its own tag ranges:
- * both refuse a constraint, as does a branch of a polymorphic member, which stands for one value alone, the
- * constraints narrowing a collection riding on the slot hosting the alternatives. A refused constraint is reported
- * under the key stating it and leaves what the slot asks for held to the shape all the same, so one pass reports both.
- * Where a localised branch is one alternative among others, the map of ranges is taken within a projection column
- * alone, the coalesced text being what it comes back as elsewhere.
+ * keys retrieving it. A member admitting one value has no collection to narrow and a localised member is filtered by
+ * its own tag ranges: both refuse a constraint, as does a branch of a polymorphic member, which stands for one value
+ * alone, the constraints narrowing a collection riding on the slot hosting the alternatives. A refused constraint is
+ * reported under the key stating it and leaves what the slot asks for held to the shape all the same, so one pass
+ * reports both.
+ *
+ * Within a branch map, a template may ask for members declared by different resource branches. A member several of
+ * them declare may take a different shape in each, and what is asked for it need fit only one of them. Where a
+ * localised branch is one alternative among others, the map of ranges is taken within a projection column alone, the
+ * coalesced text being what it comes back as elsewhere. A tag range may also be a member name, so an object whose keys
+ * each name a member of a resource branch is read as a template, and any other object as a map of tag ranges.
  *
  * **What a constraint may test against**
  *
@@ -508,17 +515,45 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		/**
 		 * Validates what one branch asks for, the constraints it may not state set apart from it.
+		 *
+		 * A tag range may also be a member name, so an object is read one way only. It is a template if each of its
+		 * keys names a member of a resource branch, and a map of tag ranges otherwise. An object read as a template is
+		 * matched against the resource branches alone: if they reject it, it is not read again as tag ranges. It may
+		 * span several resource branches, and what is asked for each member is admitted if any branch declaring that
+		 * member admits it.
 		 */
 		function variant(asked: unknown): Optional<Trace> {
 
 			return unconstrained(asked, "unexpected constraint on a union branch", contents =>
 
-				branches.some(branch => branch.kind === "dictionary"
-					? locale(contents, branch, local) === undefined
-					: placeholder(contents, branch, depth) === undefined
-				) ? undefined : ["{branches} no branch admits the placeholder"]
+				// an object read as a template never asks for tag ranges
+
+				isTemplateModel(contents, branches) && isObject(contents)
+					? all(...Object.entries(contents).map(([name, nested]) => () => member(name, nested)))(undefined)
+					: branches.some(branch => branch.kind === "dictionary"
+						? locale(contents, branch, local) === undefined
+						: placeholder(contents, branch, depth) === undefined
+					) ? undefined : ["{branches} no branch admits the placeholder"]
 
 			);
+
+		}
+
+		/**
+		 * Validates what a template spanning the resource branches asks for one member, against every branch declaring
+		 * it.
+		 */
+		function member(name: string, asked: unknown): Optional<Trace> {
+
+			const traces = branches
+				.filter(branch => Object.hasOwn(getShapeTarget(branch)?.members ?? {}, name))
+				.map(branch => placeholder({ [name]: asked }, branch, depth));
+
+			// a single declaration has its own trace to tell what it refuses
+
+			return traces.some(trace => trace === undefined) ? undefined
+				: traces.length === 1 ? traces[0]
+					: [{ [name]: ["{branches} no branch admits the placeholder"] }];
 
 		}
 

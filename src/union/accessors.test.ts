@@ -368,4 +368,103 @@ describe("getModelBranches", () => {
 
 	});
 
+	describe("an object over a localised and a nested-resource branch", () => {
+
+		// a tag range may also be a member name, so the object form is settled against the shape: a template where
+		// every key names a member of a nested resource, a map of tag ranges otherwise, never both
+
+		const map = dictionary({ uniqueLang: true });
+		const link = reference(resource({ name: optional(string()), en: optional(string()) }));
+
+		it("reads an object naming members alone as a template", async () => {
+
+			expect(getModelBranches({ name: {} }, [map, link])).toEqual([link]);
+
+		});
+
+		it("reads a member name that is also a tag range as a template", async () => {
+
+			expect(getModelBranches({ en: {} }, [map, link])).toEqual([link]);
+
+		});
+
+		it("reads an object naming any key no member declares as tag ranges", async () => {
+
+			expect(getModelBranches({ fr: {} }, [map, link])).toEqual([map]);
+			expect(getModelBranches({ "*": {} }, [map, link])).toEqual([map]);
+			expect(getModelBranches({ en: {}, fr: {} }, [map, link])).toEqual([map]);
+
+		});
+
+		it("picks nothing for a template read the nested resource rejects", async () => {
+
+			const Box = resource({ en: optional(resource({ code: optional(string()) })) });
+
+			expect(getModelBranches({ en: {} }, [map, Box])).toBeUndefined();
+
+		});
+
+	});
+
+	describe("a template spanning several resource branches", () => {
+
+		// a template may ask for members declared by different resource branches, each branch retrieving those it
+		// declares, as long as every member it asks for is declared by some branch
+
+		const map = dictionary();
+		const Place = resource({ latitude: optional(number()) });
+		const Postal = resource({ street: optional(string()) });
+
+		it("picks every branch declaring any member it asks for", async () => {
+
+			expect(getModelBranches({ latitude: {}, street: {} }, [Place, Postal])).toEqual([Place, Postal]);
+
+		});
+
+		it("picks the declaring branches alone, never the localised ones", async () => {
+
+			expect(getModelBranches({ latitude: {}, street: {} }, [map, Place, Postal])).toEqual([Place, Postal]);
+			expect(getModelBranches({ latitude: {} }, [map, Place, Postal])).toEqual([Place]);
+
+		});
+
+		it("picks nothing where a member it asks for is declared by no branch", async () => {
+
+			expect(getModelBranches({ latitude: {}, nope: {} }, [Place, Postal])).toBeUndefined();
+
+		});
+
+	});
+
+	describe("a template asking for a member several resource branches declare", () => {
+
+		// a member declared by several branches may take a different shape in each, so its placeholder spans them,
+		// each branch answering the members whose placeholders it admits
+
+		const Named = resource({ name: optional(string()), age: optional(number()) });
+		const Linked = resource({ name: optional(reference(resource({ code: optional(string()) }))) });
+		const Boxed = resource({ street: optional(resource({ code: optional(string()) })) });
+
+		it("picks every branch admitting the member's placeholder", async () => {
+
+			expect(getModelBranches({ name: {} }, [Named, Linked])).toEqual([Named, Linked]);
+			expect(getModelBranches({ name: { code: {} } }, [Named, Linked])).toEqual([Linked]);
+
+		});
+
+		it("picks a branch admitting some member even where it rejects another", async () => {
+
+			expect(getModelBranches({ name: { code: {} }, age: {} }, [Named, Linked])).toEqual([Named, Linked]);
+
+		});
+
+		it("picks nothing where a member's placeholder fits no branch declaring it", async () => {
+
+			expect(getModelBranches({ name: { nope: {} } }, [Named, Linked])).toBeUndefined();
+			expect(getModelBranches({ age: {}, street: {} }, [Named, Boxed])).toBeUndefined();
+
+		});
+
+	});
+
 });
