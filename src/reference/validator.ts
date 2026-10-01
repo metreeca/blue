@@ -54,9 +54,8 @@ import type { ReferenceShape } from "./index.js";
  * @param values The values to validate
  * @param shape The shape the values are matched against
  * @param opts Validation options
- * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A `"bound"` keeps
- *     the target's IRI `pattern`, the syntactic discriminator, and skips its value-domain constraints; a `"model"`
- *     skips every target constraint and admits the atomic placeholder alone, a link left unexpanded coming back as the
+ * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A `"model"` skips
+ *     every target constraint and admits the atomic placeholder alone, a link left unexpanded coming back as the
  *     IRI naming its target
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
@@ -79,10 +78,6 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 
 			return state(target)(values);
 
-		case "bound":
-
-			return bound(target)(values);
-
 		case "model":
 
 			return model(target)(values);
@@ -100,16 +95,6 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 				)
 			),
 			contains(required)
-		);
-
-	}
-
-	function bound({ pattern }: ResourceShape) {
-
-		return array(
-			type(isReference,
-				matches(pattern)
-			)
 		);
 
 	}

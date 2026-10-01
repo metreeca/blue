@@ -44,10 +44,9 @@ import { type DictionaryShape } from "./index.js";
  * @param values The values to validate
  * @param shape The shape the values are matched against
  * @param opts Validation options
- * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A language map
- *     carries no lexical discriminator, so `"bound"` matches by form alone. A `"model"` placeholder asks for the text
- *     either coalesced, as the atomic placeholder, or per tag, as a map naming the language ranges wanted rather than
- *     the tags they match, the `*` wildcard included, so it is keyed by range where a value is keyed by tag
+ * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A `"model"`
+ *     placeholder asks for the text either coalesced, as the atomic placeholder, or per tag, as a map of the language
+ *     ranges wanted. The map is keyed by range, the `*` wildcard included, where a value is keyed by tag
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
  */
@@ -66,10 +65,6 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 		case "state":
 
 			return state(shape)(values);
-
-		case "bound":
-
-			return bound(shape)(values);
 
 		case "model":
 
@@ -102,12 +97,6 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 			)(content)
 
 		);
-
-	}
-
-	function bound({ uniqueLang }: DictionaryShape): Validator<readonly unknown[]> {
-
-		return tagged(uniqueLang, isTag, "invalid tag");
 
 	}
 

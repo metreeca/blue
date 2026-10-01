@@ -153,43 +153,8 @@ describe("validateReference", () => {
 
 	});
 
-	describe("bound scope", () => {
-
-		// the bound scope keeps the target IRI pattern, the syntactic discriminator, and drops the value-domain
-		// constraints
-
-		it("skips the target value-domain constraints for a bound", async () => {
-
-			expect(validateReference(["app:/users/99"], reference(target({ in: ["app:/users/1"] })), {
-				scope: "bound"
-			})).toBeUndefined();
-
-			expect(validateReference(["app:/users/2"], reference(target({ hasValue: ["app:/users/1"] })), {
-				scope: "bound"
-			})).toBeUndefined();
-
-		});
-
-		it("still enforces the target pattern for a bound", async () => {
-
-			expect(validateReference(["app:/products/999"], reference(target({ pattern: "/users/{id}" })), {
-				scope: "bound"
-			})).toEqual([{ "0": [expect.stringContaining("{pattern}")] }]);
-
-		});
-
-		it("still rejects a bound of the wrong kind", async () => {
-
-			expect(validateReference([42], reference(target()), { scope: "bound" }))
-				.toEqual([{ "0": ["{type} expected <Reference> value"] }]);
-
-		});
-
-	});
-
 	describe.each<[string, Scope]>([
 		["state", "state"],
-		["bound", "bound"],
 		["model", "model"]
 	])("%s scope", (_label, scope) => {
 

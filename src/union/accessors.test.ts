@@ -33,7 +33,7 @@ import {
 	type ResourceShape
 } from "../resource/index.js";
 import { string } from "../string/index.js";
-import { getBoundBranch, getModelBranches, getShapeBranches, getStateBranch } from "./accessors.js";
+import { getBoundBranch, getModelBranches, getOptionBranch, getShapeBranches, getStateBranch } from "./accessors.js";
 import { union } from "./index.js";
 
 
@@ -239,6 +239,96 @@ describe("getBoundBranch", () => {
 	it("picks nothing for a bound filtering several branches", async () => {
 
 		expect(getBoundBranch("hello", [string(), string()])).toBeUndefined();
+
+	});
+
+	it("tells string branches apart by pattern", async () => {
+
+		const branches = [string({ pattern: "^a" }), string({ pattern: "^b" })];
+
+		expect(getBoundBranch("bravo", branches)).toBe(branches[1]);
+
+	});
+
+	it("picks a localised branch for a plain string bound", async () => {
+
+		const branches = [number(), dictionary()];
+
+		expect(getBoundBranch("M", branches)).toBe(branches[1]);
+
+	});
+
+	it("picks nothing for a plain string bound over a string and a localised branch", async () => {
+
+		expect(getBoundBranch("M", [string(), dictionary()])).toBeUndefined();
+
+	});
+
+	it("picks nothing for a bound over branches nothing orders", async () => {
+
+		expect(getBoundBranch("https://example.com/x", [reference(target())])).toBeUndefined();
+		expect(getBoundBranch({}, [target()])).toBeUndefined();
+
+	});
+
+});
+
+describe("getOptionBranch", () => {
+
+	it("picks the branch an option is tested against", async () => {
+
+		const branches = [string(), number(), reference(target())];
+
+		expect(getOptionBranch("hello", branches)).toBe(branches[0]);
+		expect(getOptionBranch(42, branches)).toBe(branches[1]);
+
+	});
+
+	it("picks a link branch for an IRI option", async () => {
+
+		const branches = [number(), reference(target())];
+
+		expect(getOptionBranch("https://example.com/x", branches)).toBe(branches[1]);
+
+	});
+
+	it("picks a branch for an option outside its value domain", async () => {
+
+		const branches = [string({ pattern: "^a$", in: ["a"] })];
+
+		expect(getOptionBranch("zulu", branches)).toBe(branches[0]);
+
+	});
+
+	it("picks a localised branch for a plain string or a tag map option", async () => {
+
+		const branches = [number(), dictionary()];
+
+		expect(getOptionBranch("M", branches)).toBe(branches[1]);
+		expect(getOptionBranch({ en: ["M", "L"] }, branches)).toBe(branches[1]);
+
+	});
+
+	it("picks nothing for an option fitting no branch", async () => {
+
+		expect(getOptionBranch(true, [string(), number()])).toBeUndefined();
+		expect(getOptionBranch({ "123": "M" }, [dictionary()])).toBeUndefined();
+
+	});
+
+	it("picks nothing for an option fitting several branches", async () => {
+
+		expect(getOptionBranch("alpha", [string({ pattern: "^a" }), string({ pattern: "^b" })])).toBeUndefined();
+		expect(getOptionBranch("M", [string(), dictionary()])).toBeUndefined();
+
+	});
+
+	it("picks the only branch for an option stated as nothing at all", async () => {
+
+		const branches = [number()];
+
+		expect(getOptionBranch(null, branches)).toBe(branches[0]);
+		expect(getOptionBranch(null, [string(), number()])).toBeUndefined();
 
 	});
 

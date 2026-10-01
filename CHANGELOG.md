@@ -7,7 +7,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.12.0](https://github.com/metreeca/blue/compare/v0.11.0...HEAD)
 
+### Added
+
+- Add `getOptionBranch` on the `union` module: picks the single branch a `?`, `!` or `+` option is tested against,
+  following the rule template validation accepts options by, so every option in a validated template routes to a
+  branch
+
 ### Changed
+
+- Hold relational bounds to one rule across template validation and `getBoundBranch`, so every bound in a validated
+  template routes to a branch: a localised branch takes a plain string bound, a string branch holds the bound to its
+  pattern even where it is the only branch, and links and embedded resources take no bound
 
 - Align with `@metreeca/qest` 0.12: on a member ranging over resources, `validateResource` now treats a record with no
   content at any depth, such as `{}` or `{ detail: {} }`, as a value left unstated, so it no longer satisfies a

@@ -50,10 +50,10 @@
  *
  * **Reading the alternatives off a shape**
  *
- * {@link getShapeBranches} lists the alternatives a shape admits values from, taking a shape that is not a union to
- * the single branch it is, so that a caller routing a value needs not tell a polymorphic shape from a plain one.
- * {@link getStateBranch} settles the one branch a stored value belongs to, {@link getBoundBranch} the one a relational
- * bound filters against, and {@link getModelBranches} every branch a retrieval placeholder may draw from.
+ * The accessors list the alternatives a shape admits values from, treating a shape that is not a union as a single
+ * branch, so a caller handles polymorphic and plain shapes alike. They also pick the branches an input is matched
+ * against: the one branch a stored value, a relational bound or a set-matching option singles out, and every branch a
+ * retrieval placeholder may draw from.
  *
  * @module
  *
@@ -68,7 +68,7 @@ import type { Lazy } from "@metreeca/core";
 import type { Shape } from "../value/index.js";
 import { assemble } from "./assembler.js";
 
-export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } from "./accessors.js";
+export { getShapeBranches, getStateBranch, getBoundBranch, getOptionBranch, getModelBranches } from "./accessors.js";
 
 
 /**
@@ -87,10 +87,11 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  *   legal value of the branch it selects and that branch fixes how it is stored;
  * - a **relational bound** singles out **exactly one** branch as well, but keys on syntactic traits alone (the value's
  *   `kind` and, where branches share it, their lexical `pattern`), as a bound filters by order and need not be a legal
- *   value of the branch it selects;
- * - a **set-matching option** singles out **exactly one** branch as well, but keys on the value's `kind` alone, the
- *   lexical `pattern` included among what it relaxes, as an option is tested by equality and an option outside the
- *   domain is a legal filter matching nothing;
+ *   value of the branch it selects. A localised branch takes a plain string bound, and links and embedded resources
+ *   take none;
+ * - a **set-matching option** singles out **exactly one** branch as well, but keys on the value's `kind` alone and
+ *   ignores any lexical `pattern`, as an option is tested by equality and an option outside the domain is a legal
+ *   filter matching nothing. A localised branch takes a plain string option or a map of options keyed by language tag;
  * - a **retrieval placeholder** matches **at least one** branch and retrieves each branch it fits, as it carries no
  *   value of its own and discriminates nothing: the atomic placeholder matches by form alone, ignoring every
  *   constraint, and so reaches every branch coming back as a value, an embedded resource excepted, as it names no
@@ -110,8 +111,9 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } fr
  * > modelling contract rather than a property proved as the shape is built, so overlapping branches are accepted and
  * > an offending value is rejected only when it is matched. A union filtered by relational bounds is held to a
  * > stricter grade, as a bound is told apart by syntax alone: it admits at most one numeric and one boolean branch,
- * > and textual branches only under mutually exclusive patterns. One filtered by set-matching options is held to a
- * > stricter grade still, as an option is told apart by kind alone: it admits at most one branch of each kind.
+ * > and string branches only under mutually exclusive patterns. One filtered by set-matching options is held to a
+ * > stricter grade still, as an option is told apart by kind alone: it admits at most one branch of each kind. Under
+ * > either grade, a plain string over a string branch and a localised one is ambiguous.
  *
  * > [!IMPORTANT]
  * > Branches describing or linking to resources are expected to be **coherent**: a member name several of them

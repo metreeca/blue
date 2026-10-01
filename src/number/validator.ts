@@ -19,7 +19,7 @@
  * Number value validation.
  *
  * Holds a value to what a number shape admits and reports everything wrong with it at once, keyed by the facet at
- * fault, at the strictness the caller asks for: a stored value, a relational bound, or a retrieval placeholder.
+ * fault, at the strictness the caller asks for: a stored value or a retrieval placeholder.
  *
  * @module
  */
@@ -42,8 +42,8 @@ import { type NumberShape } from "./index.js";
  * @param values The values to validate
  * @param shape The shape the values are matched against
  * @param opts Validation options
- * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A number carries
- *     no lexical discriminator, so `"bound"` matches by kind alone; `"model"` admits the atomic placeholder
+ * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. `"model"` admits
+ *     the atomic placeholder
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
  */
@@ -51,7 +51,7 @@ export const validateNumber: (values: readonly unknown[], shape: NumberShape, op
 
 	scope?: Scope
 
-}) => Optional<Trace> = scoped(state, bound, model);
+}) => Optional<Trace> = scoped(state, model);
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -85,17 +85,6 @@ function state({
 			)
 		),
 		contains(required)
-	);
-
-}
-
-/**
- * The kind alone: a number carries no lexical discriminator, so a relational bound is held to nothing further.
- */
-function bound({}: NumberShape): Validator<readonly unknown[]> {
-
-	return array(
-		type(isNumber)
 	);
 
 }

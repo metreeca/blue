@@ -19,7 +19,7 @@
  * Boolean value validation.
  *
  * Holds a value to what a boolean shape admits and reports everything wrong with it at once, keyed by the facet at
- * fault, at the strictness the caller asks for: a stored value, a relational bound, or a retrieval placeholder.
+ * fault, at the strictness the caller asks for: a stored value or a retrieval placeholder.
  *
  * @module
  */
@@ -40,8 +40,8 @@ import type { BooleanShape } from "./index.js";
  * @param values The values to validate
  * @param shape The shape the values are matched against
  * @param opts Validation options
- * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. A boolean carries
- *     no lexical discriminator, so `"bound"` matches by kind alone; `"model"` admits the atomic placeholder
+ * @param opts.scope The {@link Scope | strictness} the shape is enforced at, defaulting to `"state"`. `"model"` admits
+ *     the atomic placeholder
  *
  * @returns A trace of the violations found, or `undefined` where every value matches `shape`
  */
@@ -49,7 +49,7 @@ export const validateBoolean: (values: readonly unknown[], shape: BooleanShape, 
 
 	scope?: Scope
 
-}) => Optional<Trace> = scoped(state, bound, model);
+}) => Optional<Trace> = scoped(state, model);
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -67,17 +67,6 @@ function state({
 		type(isBoolean,
 			domain(allowed)
 		)
-	);
-
-}
-
-/**
- * The kind alone: a boolean carries no lexical discriminator, so a relational bound is held to nothing further.
- */
-function bound({}: BooleanShape): Validator<readonly unknown[]> {
-
-	return array(
-		type(isBoolean)
 	);
 
 }

@@ -76,20 +76,4 @@ describe("validateUnion", () => {
 
 	});
 
-	it("requires a bound to single out one branch", async () => {
-
-		expect(validateUnion([42], shape, { scope: "bound" })).toBeUndefined();
-		expect(validateUnion([true], shape, { scope: "bound" }))
-			.toEqual([{ "0": [expect.stringContaining("no")] }]);
-
-	});
-
-	it("admits a bound outside the value domain of the branch it singles out", async () => {
-
-		const bounded = union(number({ minInclusive: 1, maxInclusive: 5 }), string());
-
-		expect(validateUnion([8], bounded, { scope: "bound" })).toBeUndefined();
-
-	});
-
 });

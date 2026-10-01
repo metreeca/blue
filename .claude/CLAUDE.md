@@ -47,7 +47,8 @@ branch map for one alternative of a union at a time. Cardinality is not stated b
 the entry naming it, carrying its `Criteria` keys alongside the keys retrieving its values.
 
 **Three validation regimes.** Union matching (a non-union is a degenerate single-variant union) runs in three regimes,
-mirroring qest §3.1/§5.2/§5.4 and named by the `Scope` type (`state | bound | model`):
+mirroring qest §3.1/§5.2/§5.4. The `Scope` type (`state | model`) selects the value regimes; bounds and options are
+checked by `checkBound()` / `checkOption()` in `src/union/validator.ts`:
 
 - **state** (`sh:xone`) — a data value (a resource instance on ingress) MUST match **exactly one** variant against
   **all** constraints. It is a legal value fixing the branch that drives storage; no match is unsatisfiable, several is

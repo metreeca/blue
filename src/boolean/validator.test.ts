@@ -16,7 +16,6 @@
 
 
 import { describe, expect, it } from "vitest";
-import type { Scope } from "../value/validator.js";
 import { boolean } from "./index.js";
 import { validateBoolean } from "./validator.js";
 
@@ -44,17 +43,6 @@ describe("validateBoolean", () => {
 
 	});
 
-	it.each<[string, Scope]>([
-		["state", "state"],
-		["bound", "bound"]
-	])("enforces the kind at the %s scope", async (_label, scope) => {
-
-		expect(validateBoolean([true], boolean(), { scope })).toBeUndefined();
-		expect(validateBoolean([42], boolean(), { scope }))
-			.toEqual([{ "0": ["{type} expected <boolean> value"] }]);
-
-	});
-
 	it("admits the atomic placeholder at the model scope", async () => {
 
 		expect(validateBoolean([{}], boolean(), { scope: "model" })).toBeUndefined();
@@ -76,12 +64,6 @@ describe("validateBoolean", () => {
 
 			expect(validateBoolean([true, false], boolean({ in: false })))
 				.toEqual([{ "0": ["{domain} expected value in [false]"] }]);
-
-		});
-
-		it("leaves the enumeration unenforced at the bound scope", async () => {
-
-			expect(validateBoolean([true], boolean({ in: false }), { scope: "bound" })).toBeUndefined();
 
 		});
 

@@ -1460,6 +1460,45 @@ describe("validateTemplate", () => {
 
 		});
 
+		it("accepts a plain string bound over a localised path", async () => {
+
+			const shape = resource({ items: multiple(reference(Product)) });
+
+			expect(validateTemplate([{ items: { name: {}, ">=label": "M" } }], shape)).toBeUndefined();
+
+		});
+
+		it("holds a bound to the pattern of a string path", async () => {
+
+			const patterned = resource({ items: multiple(reference(resource({ code: optional(string({ pattern: "^a" })) }))) });
+
+			expect(validateTemplate([{ items: { ">=code": "alpha" } }], patterned)).toBeUndefined();
+			expect(validateTemplate([{ items: { ">=code": "bravo" } }], patterned)).toBeDefined();
+
+		});
+
+		it("tells string alternatives apart by pattern for a bound", async () => {
+
+			const branched = resource({
+				items: multiple(reference(resource({
+					code: optional(union(string({ pattern: "^a" }), string({ pattern: "^b" })))
+				})))
+			});
+
+			expect(validateTemplate([{ items: { ">=code": "bravo" } }], branched)).toBeUndefined();
+
+		});
+
+		it("reports a plain string bound over a string and a localised alternative", async () => {
+
+			const branched = resource({
+				items: multiple(reference(resource({ code: optional(union(string(), dictionary())) })))
+			});
+
+			expect(validateTemplate([{ items: { ">=code": "M" } }], branched)).toBeDefined();
+
+		});
+
 		it("accepts a text search over a textual path", async () => {
 
 			const shape = resource({ items: multiple(reference(Product)) });
@@ -1755,6 +1794,14 @@ describe("validateTemplate", () => {
 		it("admits nothing at all among the options", async () => {
 
 			expect(validateTemplate([{ items: { "?name": [null, "Widget"] } }], shape)).toBeUndefined();
+
+		});
+
+		it("admits an option of a string path whatever its pattern", async () => {
+
+			const patterned = resource({ items: multiple(reference(resource({ code: optional(string({ pattern: "^a" })) }))) });
+
+			expect(validateTemplate([{ items: { "?code": "zulu" } }], patterned)).toBeUndefined();
 
 		});
 

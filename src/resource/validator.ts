@@ -28,7 +28,6 @@
 import {
 	type Identifier,
 	isArray,
-	isBoolean,
 	isIdentifier,
 	isNumber,
 	isObject,
@@ -36,7 +35,7 @@ import {
 	opt as fold,
 	type Optional
 } from "@metreeca/core";
-import { isTag, isTagRange } from "@metreeca/core/language";
+import { isTagRange } from "@metreeca/core/language";
 import { all, array, fail, object, type Trace } from "@metreeca/core/trace";
 import { isReference, isVacuous, type Reference, type Resource } from "@metreeca/qest/state";
 import {
@@ -56,7 +55,7 @@ import { match, type Scope, validateShape } from "../value/validator.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { Property, ResourceShape } from "./index.js";
 import { getShapeBranches } from "../union/index.js";
-import { isTemplateModel } from "../union/accessors.js";
+import { checkBound, checkOption, isTemplateModel } from "../union/validator.js";
 import { getShapeTarget } from "../reference/index.js";
 import { getShapeId } from "./accessors.js";
 
@@ -814,18 +813,13 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 		if ( branches.length > 1 ) {
 
-			return verdict(branches.filter(branch => bound(value, [branch]) === undefined), "bound");
+			return verdict(branches.filter(branch => checkBound(value, branch) === undefined), "bound");
 
 		}
 
 		const [branch] = branches;
 
-		// a localised value is filtered through the strings it carries
-
-		return literal(value, branch, () => branch.kind === "dictionary"
-			? isString(value) ? undefined : ["expected string value"]
-			: [`unsupported constraint for <${branch.kind}> value`]
-		);
+		return checkBound(value, branch);
 
 	}
 
@@ -880,35 +874,18 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			// a tag map, or a plain string standing for the strings the map carries, stated singly or as a set;
 			// the two forms are never mixed within one set
 
-			return value === null || isString(value) || isArray(value, isString) ? undefined
-				: isObject(value) ? tags(value)
-					: isArray(value) && value.some(value => isObject(value)) && value.some(value => isString(value))
+			return isArray(value, isString) ? undefined
+				: !isArray(value) ? checkOption(value, branch)
+					: value.some(value => isObject(value)) && value.some(value => isString(value))
 						? ["mixed plain and tagged options"]
 						: [`unsupported constraint for <${branch.kind}> value`];
 
 		}
 
 		return isArray(value)
-			? array((value: unknown) => option(value, branch))(value)
-			: option(value, branch);
+			? array((value: unknown) => checkOption(value, branch))(value)
+			: checkOption(value, branch);
 
-
-		/**
-		 * Validates a set of options stated as a tag map, grouped by the tag they are to match under.
-		 *
-		 * The map states the options a filter tests against rather than a value a resource holds, so a tag carries as
-		 * many as the filter lists whatever the member admits, and the strings, being matched for equality, need not
-		 * be legal values of the shape.
-		 */
-		function tags(value: Readonly<Record<string, unknown>>): Optional<Trace> {
-
-			return object(([tag, asked]: readonly [string, unknown]) =>
-				!isTag(tag) ? [{ [tag]: ["invalid tag"] }]
-					: isString(asked) || isArray(asked, isString) ? undefined
-						: [{ [tag]: ["expected string or string array option"] }]
-			)(value);
-
-		}
 
 		/**
 		 * Reports whether an option singles out one branch; an option stated as nothing at all is typeless and exempt.
@@ -917,20 +894,9 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			if ( value === null ) { return undefined; }
 
-			return verdict(branches.filter(branch => options(value, [branch]) === undefined), "option");
+			return verdict(branches.filter(branch => checkOption(value, branch) === undefined), "option");
 
 		}
-
-	}
-
-	/**
-	 * Validates one option against the branch it is matched against.
-	 */
-	function option(value: unknown, branch: Shape): Optional<Trace> {
-
-		if ( value === null ) { return undefined; } // an option stated as nothing at all matches any value type
-
-		return literal(value, branch, () => isReference(value) ? undefined : ["expected <reference> value"]);
 
 	}
 
@@ -1355,33 +1321,6 @@ function arity(
 		: present !== undefined && scalar === isArray(present)
 			? [scalar ? "{kind} expected a single value" : "{kind} expected an array of values"]
 			: undefined;
-
-}
-
-/**
- * Holds a value to the literal branch it is matched against, deferring any other kind to the caller.
- */
-function literal(value: unknown, branch: Shape, otherwise: () => Optional<Trace>): Optional<Trace> {
-
-	switch ( branch.kind ) {
-
-		case "boolean":
-
-			return isBoolean(value) ? undefined : [`expected <${branch.kind}> value`];
-
-		case "number":
-
-			return isNumber(value) ? undefined : [`expected <${branch.kind}> value`];
-
-		case "string":
-
-			return isString(value) ? undefined : [`expected <${branch.kind}> value`];
-
-		default:
-
-			return otherwise();
-
-	}
 
 }
 

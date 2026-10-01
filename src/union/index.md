@@ -8,9 +8,9 @@ description: How Blue matches a value, a relational bound and a retrieval placeh
 
 Blue models a union as a set of branches and drives full CRUD from it, not validation alone.
 
-Matching a union runs in three regimes, named by the `state | bound | model` strictness a caller selects and
-distinguished by which SHACL logical constraint governs: **`sh:xone`** (exactly one) for a **state** value and for a
-**bound**, **`sh:or`** (at least one) for a **model** placeholder. Every regime requires at least one match; they
+Matching a union runs in three regimes, **state**, **bound** and **model**, distinguished by which SHACL logical
+constraint governs: **`sh:xone`** (exactly one) for a **state** value and for a **bound**, **`sh:or`** (at least one)
+for a **model** placeholder. Every regime requires at least one match; they
 differ in whether more than one is allowed, and in the constraints the match is tested against.
 
 A **state** value carries content and MUST match **exactly one** branch (`sh:xone`), tested against **all** shape
@@ -172,7 +172,9 @@ string length, `languageIn`, `in`, `hasValue`) and keys **only on the syntactic 
 processing `kind` and, where literal branches share a kind, their lexical `pattern`. A bound matching several branches
 is ambiguous and one matching none unsatisfiable, both rejected. Because it is matched by syntactic form alone, a bound
 requires the union to be **literally disjoint** (see *State*, above); a union that is not is rejected at runtime by the
-ambiguous-match rule.
+ambiguous-match rule. A **localised** branch takes a bound as a plain string, compared against the strings its tags
+carry, so a plain string bound over a string branch and a localised one is ambiguous. Links and embedded resources have
+no order and take no bound.
 
 A set-matching **option** must likewise single out **exactly one** branch, and is likewise **not** held to a legal
 element value: a filter tests membership by equality, so an option outside the domain is a legal query matching nothing,
@@ -186,7 +188,8 @@ option is typeless and exempt.
 A **localised** branch takes its options as the strings a tag carries, stated either plainly, as the text any tag may
 match, or grouped in a map keyed by the tag they are to match under. A tag carries as many options as the filter lists,
 whatever arity the branch admits, since the map states what to test membership against rather than a value a resource
-holds. The two forms are never mixed within one set, and a key that is not a language tag is rejected.
+holds. The two forms are never mixed within one set, and a key that is not a language tag is rejected. A plain string
+option fits a string branch and a localised one alike, so over a union of the two it is ambiguous.
 
 A text-search **keywords** operand (`~`) is neither a placeholder nor a data value but a plain search string. It is not
 matched against the branches at all: it applies to **every** string branch of the union at once, filtering their values

@@ -17,9 +17,9 @@
 /**
  * Union shape accessors.
  *
- * Reads off a shape the alternatives it admits values from, and selects the ones a given value, bound or placeholder
- * fits, whether the caller needs the single branch it singles out or every branch it may be drawn from, so that a
- * caller routing a value over a shape needs not tell a polymorphic shape from a plain one.
+ * Lists the alternatives a shape admits values from, and picks the branches a stored value, a filter operand or a
+ * retrieval placeholder is matched against. A caller routing an input over a shape thus handles polymorphic and plain
+ * shapes alike.
  *
  * @module
  */
@@ -32,8 +32,9 @@ import type { Member, ResourceShape } from "../resource/index.js";
 import { validateTemplate } from "../resource/validator.js";
 import { reject } from "../value/assembler.js";
 import { eager, type Shape } from "../value/index.js";
-import { type Scope, validateShape } from "../value/validator.js";
+import { validateShape } from "../value/validator.js";
 import type { UnionShape } from "./index.js";
+import { checkBound, checkOption, isTemplateModel, matching } from "./validator.js";
 
 
 /**
@@ -112,6 +113,12 @@ export function getStateBranch<B extends Shape>(state: unknown, branches: readon
  * alone and the union is expected to be literally disjoint; the match stays exactly one, as a conversion commits to a
  * single branch.
  *
+ * A localised branch takes a plain string bound, compared against the strings its tags carry. A plain string bound over
+ * a string branch and a localised one therefore fits both and routes to neither. Links and embedded resources have no
+ * order and take no bound.
+ *
+ * Routing applies the same rule as template validation, so every bound in a validated template routes to a branch.
+ *
  * @typeParam B The branch type, carried through from the branches supplied
  *
  * @param bound The bound to route
@@ -123,7 +130,39 @@ export function getStateBranch<B extends Shape>(state: unknown, branches: readon
  */
 export function getBoundBranch<B extends Shape>(bound: unknown, branches: readonly B[]): Optional<B> {
 
-	const matched = matching(bound, branches, "bound");
+	const matched = branches.filter(branch => checkBound(bound, branch) === undefined);
+
+	return matched.length === 1 ? matched[0] : undefined;
+
+}
+
+/**
+ * Picks the single branch a set-matching option is tested against.
+ *
+ * Routes a `?`, `!` or `+` operand to the one branch it is compared with, so that a caller may type the option by that
+ * branch. An option is tested by equality and need not be a legal element value. It is matched on its kind alone,
+ * ignoring any lexical pattern, so the union is expected to be kind-disjoint. The match stays exactly one, as a
+ * conversion commits to a single branch.
+ *
+ * A localised branch takes either a plain string option, matched against the strings of every tag, or a map grouping
+ * options by language tag. A `null` option has no kind and fits every branch, so it routes to a branch only over a
+ * single-branch shape.
+ *
+ * Routing applies the same rule as template validation, so every option in a validated template routes to a branch.
+ * Stored values route through {@link getStateBranch} instead, which never assigns a plain string to a localised branch.
+ *
+ * @typeParam B The branch type, carried through from the branches supplied
+ *
+ * @param option The option to route, stated singly rather than as the set a filter lists
+ * @param branches The branches to choose among
+ *
+ * @returns The sole branch `option` is tested against, or `undefined` where it fits none or several
+ *
+ * @see [Unions — Design](./index.md)
+ */
+export function getOptionBranch<B extends Shape>(option: unknown, branches: readonly B[]): Optional<B> {
+
+	const matched = branches.filter(branch => checkOption(option, branch) === undefined);
 
 	return matched.length === 1 ? matched[0] : undefined;
 
@@ -197,47 +236,6 @@ export function getModelBranches<B extends Shape>(model: unknown, branches: read
 	));
 
 	return answered && matched.length > 0 ? matched : undefined;
-
-}
-
-/**
- * Tells whether a placeholder object asks for a nested resource rather than for tag ranges.
- *
- * A tag range may also be a member name, so the object form alone does not tell a template from a map of tag ranges.
- * The branches settle it: an object is a template if each of its keys names a member of a resource branch, reached
- * directly or through a link, and a map of tag ranges otherwise. A map of tag ranges whose ranges all name such members
- * therefore cannot be asked for.
- *
- * @param model The placeholder to read
- * @param branches The branches the placeholder is matched against
- *
- * @returns `true` if `model` is an object to be read as a template; `false` otherwise
- */
-export function isTemplateModel(model: unknown, branches: readonly Shape[]): boolean {
-
-	const names = new Set(branches.flatMap(branch => Object.keys(getShapeTarget(branch)?.members ?? {})));
-
-	return !isAtomic(model) && isObject(model) && Object.keys(model).every(key => names.has(key));
-
-}
-
-/**
- * Selects the branches admitting a value.
- *
- * Matches a value against each branch at the strictness the caller asks for, in the order the branches were stated, so
- * that a caller routing a value over a union reads the alternatives it fits off a single list.
- *
- * @typeParam B The branch type, carried through from the branches supplied
- *
- * @param value The value to match
- * @param branches The branches to match against
- * @param scope The {@link Scope | strictness} the branches are matched at
- *
- * @returns The branches admitting `value`, in the order they were stated
- */
-export function matching<B extends Shape>(value: unknown, branches: readonly B[], scope: Scope): readonly B[] {
-
-	return branches.filter(branch => validateShape([value], branch, { scope }) === undefined);
 
 }
 

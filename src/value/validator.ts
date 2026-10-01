@@ -17,10 +17,8 @@
 /**
  * Value validation.
  *
- * Holds a value to what a shape admits: {@link validateShape} routes it to the validators of the shape's kind, so that
- * a caller matching a value against a shape needs not know which kind it holds, {@link scoped} states the validator of
- * a single kind from what each strictness enforces, and {@link match} tests an identifier against the pattern a shape
- * admits its resources under.
+ * Holds a value to what a shape admits, whatever kind the shape is, either as a stored value or as a retrieval
+ * placeholder. Also tests an identifier against the pattern a shape admits its resources under.
  *
  * @module
  */
@@ -56,11 +54,9 @@ const PatternFormat = new RegExp("^"
  * Validation strictness for matching a value against a shape.
  *
  * Selects how much of a shape the value validators enforce, so a caller can match the same shape against a stored
- * value, a relational bound, or a retrieval model:
+ * value or a retrieval model:
  *
  * - `"state"` enforces **every** constraint: the value must be a legal element of the shape's domain.
- * - `"bound"` keeps the syntactic discriminators (`kind`, and a literal branch's `pattern`) but skips the value-domain
- *   magnitude constraints, so a relational bound lying outside the domain still matches by form alone.
  * - `"model"` matches by **form** alone, ignoring every constraint: a retrieval placeholder carries no value of its
  *   own, so it is held to asking for something the shape can give rather than to being a legal value of it. A literal
  *   or a link admits the atomic placeholder, a localised map admits it too, coalesced, or a map of the tag ranges
@@ -70,32 +66,28 @@ const PatternFormat = new RegExp("^"
  */
 export type Scope =
 	| "state"
-	| "bound"
 	| "model"
 
 
 /**
  * States a value validator from what each strictness enforces.
  *
- * Yields the single entry point a shape kind exposes from the checks each {@link Scope | strictness} enforces, so that
- * a kind states a stored value, a relational bound and a retrieval placeholder each as the constraints it alone is
- * held to.
+ * Combines the checks each {@link Scope | strictness} enforces into the single validator a shape kind exposes. A kind
+ * states the constraints a stored value is held to apart from those a retrieval placeholder is held to.
  *
  * @typeParam S The shape the values are matched against
  *
  * @param state The checks a legal element of the shape's domain is held to
- * @param bound The checks a relational bound is held to
  * @param model The checks a retrieval placeholder is held to
  *
  * @returns A validator matching values against a shape at the strictness its options ask for, defaulting to `"state"`
  */
 export function scoped<S>(
 	state: (shape: S) => Validator<readonly unknown[]>,
-	bound: (shape: S) => Validator<readonly unknown[]>,
 	model: (shape: S) => Validator<readonly unknown[]>
 ): (values: readonly unknown[], shape: S, opts?: { scope?: Scope }) => Optional<Trace> {
 
-	const scopes: Readonly<Record<Scope, (shape: S) => Validator<readonly unknown[]>>> = { state, bound, model };
+	const scopes: Readonly<Record<Scope, (shape: S) => Validator<readonly unknown[]>>> = { state, model };
 
 	return (values, shape, { scope = "state" } = {}) => scopes[scope](shape)(values);
 

@@ -91,35 +91,6 @@ describe("validateString", () => {
 
 	});
 
-	describe("bound scope", () => {
-
-		// the bound scope keeps pattern (the sole lexical discriminator over an open datatype set) but drops the
-		// magnitude constraints, so a bound outside the value domain still routes
-
-		it("skips the magnitude constraints for a bound", async () => {
-
-			expect(validateString(["ab"], string({ minLength: 3 }), { scope: "bound" })).toBeUndefined();
-			expect(validateString(["abcdef"], string({ maxLength: 3 }), { scope: "bound" })).toBeUndefined();
-			expect(validateString(["x"], string({ in: ["a", "b"] }), { scope: "bound" })).toBeUndefined();
-
-		});
-
-		it("still enforces the pattern for a bound", async () => {
-
-			expect(validateString(["A1"], string({ pattern: "^[a-z]*$" }), { scope: "bound" }))
-				.toEqual([{ "0": ["{pattern} expected string matching </^[a-z]*$/>"] }]);
-
-		});
-
-		it("still rejects a bound of the wrong kind", async () => {
-
-			expect(validateString([42], string(), { scope: "bound" }))
-				.toEqual([{ "0": ["{type} expected <string> value"] }]);
-
-		});
-
-	});
-
 	describe.each([
 
 		{

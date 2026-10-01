@@ -18,7 +18,7 @@
  * String value validation.
  *
  * Holds a value to what a string shape admits and reports everything wrong with it at once, keyed by the facet at
- * fault, at the strictness the caller asks for: a stored value, a relational bound, or a retrieval placeholder.
+ * fault, at the strictness the caller asks for: a stored value or a retrieval placeholder.
  *
  * @module
  */
@@ -49,7 +49,7 @@ export const validateString: (values: readonly unknown[], shape: StringShape, op
 
 	scope?: Scope
 
-}) => Optional<Trace> = scoped(state, bound, model);
+}) => Optional<Trace> = scoped(state, model);
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -78,23 +78,6 @@ function state({
 			)
 		),
 		contains(required)
-	);
-
-}
-
-/**
- * The syntactic discriminators alone: a relational bound need not lie within the shape's domain.
- */
-function bound({
-
-	pattern
-
-}: StringShape): Validator<readonly unknown[]> {
-
-	return array(
-		type(isString,
-			format(pattern)
-		)
 	);
 
 }

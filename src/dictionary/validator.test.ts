@@ -16,7 +16,6 @@
 
 
 import { describe, expect, it } from "vitest";
-import type { Scope } from "../value/validator.js";
 import { dictionary } from "./index.js";
 import { validateDictionary } from "./validator.js";
 
@@ -389,42 +388,6 @@ describe("validateDictionary", () => {
 				expect(at(trace, "en")).toBeUndefined();
 
 			});
-
-		});
-
-	});
-
-	describe.each<[string, Scope]>([
-		["bound", "bound"]
-	])("%s scope", (_label, scope) => {
-
-		it("skips the value-domain constraints", async () => {
-
-			expect(validateDictionary([{ en: "hi" }], dictionary({
-				uniqueLang: true,
-				minLength: 5,
-				languageIn: ["fr"]
-			}), { scope })).toBeUndefined();
-
-		});
-
-		it("still rejects a value of the wrong kind", async () => {
-
-			expect(validateDictionary(["hello"], dictionary({ uniqueLang: true }), { scope }))
-				.toEqual([{ "0": [expect.stringContaining("{kind}")] }]);
-
-		});
-
-	});
-
-	describe("bound scope", () => {
-
-		// a bound is a value, so it names the tag it filters rather than the range a placeholder wants
-
-		it("rejects a key that is not a tag", async () => {
-
-			expect(at(validateDictionary([{ "*": "hi" }], dictionary({ uniqueLang: true }), { scope: "bound" }), "*"))
-				.toEqual(["invalid tag"]);
 
 		});
 
