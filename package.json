@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "@metreeca/core": "^0.12.0",
-    "@metreeca/qest": "^0.11.0"
+    "@metreeca/qest": "^0.12.0"
   },
   "devDependencies": {
     "@web/dev-server": "^1.0.0",

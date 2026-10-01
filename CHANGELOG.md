@@ -7,6 +7,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.12.0](https://github.com/metreeca/blue/compare/v0.11.0...HEAD)
 
+### Changed
+
+- Align with `@metreeca/qest` 0.12: on a member ranging over resources, `validateResource` now treats a record with no
+  content at any depth, such as `{}` or `{ detail: {} }`, as a value left unstated, so it no longer satisfies a
+  required member or counts toward the member's bounds
+
 ### Fixed
 
 - Read an object placeholder over a union of localised and nested-resource branches one way only, as `@metreeca/qest`

@@ -432,6 +432,15 @@ describe("validateResource", () => {
 
 		});
 
+		it("reads a record carrying no content at any depth as absent on a member reaching a resource", async () => {
+
+			const shape = resource({ rating: required(resource({ detail: optional(resource({})) })) });
+
+			expect(at(validateResource([{ rating: { detail: {} } }], shape), "0", "rating")).toBeDefined();
+			expect(at(validateResource([{ rating: [{ detail: {} }] }], shape), "0", "rating")).toBeDefined();
+
+		});
+
 		it("reads an empty record as absent on a localised member", async () => {
 
 			expect(validateResource([{ label: {} }], resource({ label: optional(dictionary()) })))
@@ -518,6 +527,15 @@ describe("validateResource", () => {
 				const shape = resource({ vendors: nonempty(reference(Target)) });
 
 				expect(validateResource([{ vendors: [{}] }], shape)).toBeDefined();
+
+			});
+
+			it("counts a record carrying no content at any depth as absent", async () => {
+
+				const shape = resource({ ratings: nonempty(resource({ detail: optional(resource({})) })) });
+
+				expect(at(validateResource([{ ratings: [{ detail: {} }] }], shape), "0", "ratings")).toBeDefined();
+				expect(at(validateResource([{ ratings: [{ detail: {} }, {}] }], shape), "0", "ratings")).toBeDefined();
 
 			});
 

@@ -38,7 +38,7 @@ import {
 } from "@metreeca/core";
 import { isTag, isTagRange } from "@metreeca/core/language";
 import { all, array, fail, object, type Trace } from "@metreeca/core/trace";
-import { isReference, type Reference, type Resource } from "@metreeca/qest/state";
+import { isReference, isVacuous, type Reference, type Resource } from "@metreeca/qest/state";
 import {
 	decodeProbe,
 	isAggregate,
@@ -75,6 +75,11 @@ import { getShapeId } from "./accessors.js";
  * A member ranging over a {@link dictionary!DictionaryShape | dictionary} states the language map whole, whatever
  * bounds it carries: a map wrapped in an array is rejected, as is one stated beside values of other alternatives, and
  * the bounds are held against those other values alone.
+ *
+ * A member ranging over resources treats a record carrying no content at any depth, such as `{}` or `{ detail: {} }`,
+ * as a value left unstated. Such a record doesn't count toward the member's bounds, so a required member stated only
+ * that way is reported as missing. A member ranging over plain values rejects the same record as a value of the wrong
+ * kind.
  *
  * @param values The values to validate
  * @param shape The shape the values are matched against
@@ -149,8 +154,8 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 		const resolved = eager(range);
 		const branches = getShapeBranches(resolved);
 
-		// a member reaching a resource reads an empty record as nothing stated, as a resource stating no member at
-		// all names nothing to hold; one reaching a value reads it as a value of the wrong kind
+		// a member reaching a resource reads a record carrying no content at any depth as nothing stated, as a resource
+		// stating no member at all names nothing to hold; one reaching a value reads it as a value of the wrong kind
 
 		const nesting = branches.some(branch =>
 			branch.kind === "reference" || branch.kind === "resource"
@@ -160,10 +165,10 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 		// states: a member carries it whole, never in an array and never beside the other values, and the bounds
 		// stated for the member count the other values alone
 
-		const present = value === undefined || isArray(value, []) || nesting && vacant(value) ? undefined : value;
+		const present = value === undefined || isArray(value, []) || nesting && isVacuous(value) ? undefined : value;
 
 		const carried = (present === undefined ? [] : isArray(present) ? present : [present])
-			.filter(element => !(nesting && vacant(element)));
+			.filter(element => !(nesting && isVacuous(element)));
 
 		const whole = isLocalised(present, branches, scope);
 
@@ -227,15 +232,6 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 			: depth === undefined || depth > 0
 				? validateResource([value], eager(range.target), { scope, depth: step(depth) })
 				: ["exceeded the maximum nesting depth"];
-
-	}
-
-	/**
-	 * Reports whether a value states nothing at all.
-	 */
-	function vacant(value: unknown): boolean {
-
-		return isObject(value) && Object.keys(value).length === 0;
 
 	}
 
