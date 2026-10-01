@@ -16,7 +16,7 @@
 
 import type { Reference } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance } from "../value/index.js";
+import { type State } from "../value/index.js";
 import { type NumberShape } from "../number/index.js";
 import { reference, type ReferenceShape } from "../reference/index.js";
 import { id, type Id, multiple, type Property, required, resource } from "../resource/index.js";
@@ -41,30 +41,30 @@ type LinkShape={
 describe("union values", () => {
 
 	test("retrieves the value of every branch", () => {
-		expectTypeOf<Instance<UnionShape<[StringShape, ReferenceShape]>>>().toEqualTypeOf<string | Reference>();
+		expectTypeOf<State<UnionShape<[StringShape, ReferenceShape]>>>().toEqualTypeOf<string | Reference>();
 	});
 
 	test("retrieves a resource branch as the instance it describes", () => {
-		expectTypeOf<Instance<UnionShape<[StringShape, LinkShape]>>>().toEqualTypeOf<string | Instance<LinkShape>>();
+		expectTypeOf<State<UnionShape<[StringShape, LinkShape]>>>().toEqualTypeOf<string | State<LinkShape>>();
 	});
 
 	test("retrieves a lazy branch as the value of the shape it returns", () => {
-		expectTypeOf<Instance<UnionShape<[() => LinkShape]>>>().toEqualTypeOf<Instance<LinkShape>>();
+		expectTypeOf<State<UnionShape<[() => LinkShape]>>>().toEqualTypeOf<State<LinkShape>>();
 	});
 
 	test("retrieves a narrowed branch as the values it enumerates", () => {
-		expectTypeOf<Instance<UnionShape<[StringShape<"home" | "work">, NumberShape]>>>()
+		expectTypeOf<State<UnionShape<[StringShape<"home" | "work">, NumberShape]>>>()
 			.toEqualTypeOf<"home" | "work" | number>();
 	});
 
 	test("flattens a nested union into the values of its leaves", () => {
-		expectTypeOf<Instance<UnionShape<[StringShape, UnionShape<[NumberShape, ReferenceShape]>]>>>()
+		expectTypeOf<State<UnionShape<[StringShape, UnionShape<[NumberShape, ReferenceShape]>]>>>()
 			.toEqualTypeOf<string | number | Reference>();
 	});
 
 	test("flattens a nested union deferred to break definition cycles", () => {
-		expectTypeOf<Instance<UnionShape<[StringShape, () => UnionShape<[NumberShape, LinkShape]>]>>>()
-			.toEqualTypeOf<string | number | Instance<LinkShape>>();
+		expectTypeOf<State<UnionShape<[StringShape, () => UnionShape<[NumberShape, LinkShape]>]>>>()
+			.toEqualTypeOf<string | number | State<LinkShape>>();
 	});
 
 });
@@ -84,7 +84,7 @@ describe("union ranges", () => {
 
 	});
 
-	type Retrieved=Instance<typeof shape>
+	type Retrieved=State<typeof shape>
 
 	test("carries a union-valued member as the value of every branch", () => {
 		expectTypeOf<Retrieved["location"]>().toEqualTypeOf<string | Reference>();

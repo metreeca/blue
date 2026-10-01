@@ -17,17 +17,19 @@
 import type { Optional } from "@metreeca/core";
 import type { Reference, Resource } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Shape } from "../value/index.js";
+import { type Tagged } from "../dictionary/inference.js";
+import { type DictionaryShape } from "../dictionary/index.js";
 import { type ReferenceShape } from "../reference/index.js";
 import { type StringShape } from "../string/index.js";
-import { type Id, type Property, type ResourceShape, type Type } from "./index.js";
-import { type DictionaryShape } from "../dictionary/index.js";
-import { type Tagged } from "../dictionary/inference.js";
 import { type UnionShape } from "../union/index.js";
+import { type Shape } from "../value/index.js";
+import { type Id, type Property, type ResourceShape, type Type } from "./index.js";
 import {
 	type Arity,
 	type Carried,
 	type Content,
+	type Identifier,
+	type Repeated,
 	type Retrieved,
 	type Skippable,
 	type Slot
@@ -128,6 +130,39 @@ describe("inheritance", () => {
 
 describe("members", () => {
 
+	describe("Identifier", () => {
+
+		type IdentifiedShape={
+
+			readonly kind: "resource",
+			readonly classes: readonly Reference[],
+			readonly parents: [LabelShape],
+
+			readonly members: {
+				readonly iri: Id,
+				readonly type: Type
+			}
+
+		}
+
+		test("ResourceShape → the member carrying the identifier, whatever its name", () => {
+			expectTypeOf<Identifier<IdentifiedShape>>().toEqualTypeOf<"iri">();
+		});
+
+		test("ResourceShape → the identifier member it inherits", () => {
+			expectTypeOf<Identifier<ResourceShape<[IdentifiedShape], {}>>>().toEqualTypeOf<"iri">();
+		});
+
+		test("ResourceShape → no member where none carries the identifier", () => {
+			expectTypeOf<Identifier<LabelShape>>().toEqualTypeOf<never>();
+		});
+
+		test("thunk → the identifier member of the shape it returns", () => {
+			expectTypeOf<Identifier<() => IdentifiedShape>>().toEqualTypeOf<"iri">();
+		});
+
+	});
+
 	describe("Retrieved", () => {
 
 		test("empty members → empty record", () => {
@@ -173,6 +208,56 @@ describe("members", () => {
 			expectTypeOf<Retrieved<ResourceShape<[], {
 				readonly label: Property<StringShape, 1, 1>
 			}>>>().toExtend<Resource>();
+		});
+
+	});
+
+	describe("Repeated", () => {
+
+		type ListedShape={
+
+			readonly kind: "resource",
+			readonly classes: readonly Reference[],
+			readonly parents: [LabelShape],
+
+			readonly members: {
+				readonly id: Id,
+				readonly type: Type,
+				readonly zeroOrOne: Property<StringShape, undefined, 1>,
+				readonly oneOrMore: Property<StringShape, 1, undefined>,
+				readonly zeroOrMore: Property<LabelShape, undefined, undefined>,
+				readonly unbounded: Property<StringShape, number, number>,
+				readonly localised: Property<DictionaryShape, undefined, undefined>,
+				readonly mixed: Property<UnionShape<[StringShape, DictionaryShape]>, undefined, undefined>
+			}
+
+		}
+
+		test("ResourceShape → the members carrying their values as an array", () => {
+			expectTypeOf<Repeated<ListedShape>>().toEqualTypeOf<"oneOrMore" | "zeroOrMore" | "unbounded">();
+		});
+
+		test("ResourceShape → the repeated members it inherits", () => {
+			expectTypeOf<Repeated<ResourceShape<[ListedShape], {}>>>()
+				.toEqualTypeOf<"oneOrMore" | "zeroOrMore" | "unbounded">();
+		});
+
+		test("ResourceShape → no member where none is repeated", () => {
+			expectTypeOf<Repeated<LabelShape>>().toEqualTypeOf<never>();
+		});
+
+		test("ResourceShape → no voided member", () => {
+			expectTypeOf<Repeated<ResourceShape<[ListedShape], {
+				readonly oneOrMore: Property<StringShape, undefined, undefined>
+			}>>>().toEqualTypeOf<"zeroOrMore" | "unbounded">();
+		});
+
+		test("thunk → the repeated members of the shape it returns", () => {
+			expectTypeOf<Repeated<() => ListedShape>>().toEqualTypeOf<Repeated<ListedShape>>();
+		});
+
+		test("scalar shape → no member at all", () => {
+			expectTypeOf<Repeated<StringShape>>().toEqualTypeOf<never>();
 		});
 
 	});

@@ -275,13 +275,12 @@ position the branch was stated at (see [Validating Templates](#validating-templa
 
 ## Type Inference
 
-Schemas double as TypeScript type definitions. `Instance` yields the value a resource carries as it is held and
-retrieved:
+Schemas double as TypeScript type definitions. `State` yields the value a resource carries as it is held:
 
 ```ts
-import { type Instance } from "@metreeca/blue/value";
+import { type State } from "@metreeca/blue/value";
 
-type ProductType = Instance<typeof Product>;
+type ProductType = State<typeof Product>;
 
 // {
 //     readonly id: Reference,
@@ -300,13 +299,19 @@ Members admitting absence are optional keys: a value may either set them to `und
 
 No separate interface needed: the schema is the type definition.
 
-`Delivery` narrows that value to the members a retrieval template asked for, so a caller reads back its own request
-rather than everything the schema declares:
+`Draft` yields the state of a resource to be persisted, with its identifier optional, as the target of the operation
+already identifies the resource or leaves the store to assign it; stated with a collection model, such as
+`Draft<typeof Catalog, { items: {} }>`, it yields the state of an item to be added to that collection instead. The
+`blueprint` accessor resolves the shape such an item must satisfy, so that it can be validated before it is stored. The
+`collection` accessor resolves the property holding the collection.
+
+`Match` narrows the value to the members a retrieval template asked for, so a caller reads back its own request rather
+than everything the schema declares:
 
 ```ts
-import { type Delivery } from "@metreeca/blue/value";
+import { type Match } from "@metreeca/blue/value";
 
-type ProductSummary = Delivery<typeof Product, { id: {}, price: {} }>;
+type ProductSummary = Match<typeof Product, { id: {}, price: {} }>;
 
 // {
 //     readonly id: Reference,
@@ -315,8 +320,19 @@ type ProductSummary = Delivery<typeof Product, { id: {}, price: {} }>;
 ```
 
 The template states which values are wanted and no longer what they are, so depth, cardinality and optionality all come
-from the schema. A member the template leaves out, or states as `undefined`, is left out of the result; a polymorphic
-member and a projection column come back as wide as the schema describes them.
+from the schema. A member the template leaves out is left out of the result; a polymorphic member, a projection column
+and a localised member come back as wide as the schema describes them.
+
+The retrieval models themselves are held to the schema where they are written:
+
+- `Model` admits the templates a resource shape serves, rejecting a member the shape doesn't carry
+- `Slice` admits the models a collection held by a property serves, merged with the criteria filtering, ordering and
+  paginating it
+- `Items` types the items of such a collection, narrowed to what the model asked for
+- `Frame` types a single item of such a collection, for code generic over the schema and the model
+
+The `items` accessor gets those items from the resource a slice retrieval returns, typed as `Items`, without looking
+up the collection property by name.
 
 ## Validating Resources
 
@@ -328,7 +344,7 @@ import { validate } from "@metreeca/blue";
 
 validate(data, { shape: Product })({
 	value: product => {
-		// product is typed as Instance<typeof Product>
+		// product is typed as State<typeof Product>
 	},
 	trace: trace => {
 		// trace describes validation violations
@@ -358,7 +374,7 @@ const model = { id: {}, name: {} }; // projection requested by the caller
 
 validate(response, { shape: Product, model })({
 	value: product => {
-		// product is typed as Delivery<typeof Product, typeof model>
+		// product is typed as Match<typeof Product, typeof model>
 	},
 	trace: trace => {
 		// trace describes validation violations

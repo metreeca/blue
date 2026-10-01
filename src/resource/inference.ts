@@ -18,20 +18,21 @@
  * Resource type inference.
  *
  * Resolves the state a resource carries, merging the members a shape declares over the ones it inherits and mapping
- * each to the form its range and cardinality admit, so that a resource type and the shape describing it cannot drift.
+ * each to the form its range and cardinality admit, so that a resource type and the shape describing it cannot drift,
+ * and singles out the members it carries as its identifier or as arrays of values.
  *
  * @module
  */
 
 import type { Eager, Lazy, Optional } from "@metreeca/core";
 import type { Reference } from "@metreeca/qest/state";
-import type { Instance, Shape } from "../value/index.js";
 import type { DictionaryShape } from "../dictionary/index.js";
-import type { UnionShape } from "../union/index.js";
+import type { Variant } from "../union/inference.js";
+import type { Shape, State } from "../value/index.js";
 import type { Id, Parents, Property, PropertyBounds, ResourceShape, Type } from "./index.js";
 
 
-//// Resource Inheritance ////////////////////////////////////////////////////////////////////////////////////////////
+//// Resource Members ////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Resolves the members a resource carries.
@@ -46,66 +47,51 @@ export type Carried<S extends Lazy<Shape>> =
 	Eager<S> extends ResourceShape<infer P, infer M> ? Merged<Inherited<P>, M> : {}
 
 /**
- * Resolves the members a list of extended shapes contributes.
+ * Resolves the name of the member a resource carries as its identifier.
  *
- * Yields the members every extended shape carries, so that a constraint stated anywhere up the chain reaches every
- * extending resource and shapes agreeing on a member pass it on as it stands. A member stated by two shapes with
- * ranges no single value satisfies is voided, so that the conflict surfaces where the state is resolved rather than
- * settling on either side.
+ * Yields the carried member, declared or inherited, holding the IRI of the resource itself, so that the state of a
+ * resource to be persisted can leave it out where the target of the operation identifies the resource or the store
+ * assigns it. A shape declaring no identifier names no member.
  *
- * @typeParam P The extended shapes, possibly deferred to break definition cycles
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Inherited<P extends Parents> =
-	P extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends Parents]
-		? Settled<Carried<H> & Inherited<T>>
-		: {}
+export type Identifier<S extends Lazy<ResourceShape>> = {
+
+	[field in keyof Carried<S>]: Carried<S>[field] extends { readonly kind: "id" } ? field : never
+
+}[keyof Carried<S>]
 
 /**
- * Settles the members several extended shapes contribute into a single record.
+ * Resolves the names of the members a resource carries as an array of values.
  *
- * Yields one record carrying every member the shapes state, voiding a member whose ranges no single value satisfies
- * rather than carrying it as a range nothing fits.
+ * Yields the carried members, declared or inherited, whose values an instance holds as an array, so that an argument
+ * naming a collection of items can be constrained to the members able to hold one. A member admitting at most one
+ * value, one carrying localised text, which is held as a tag-keyed map, and one voided by a conflicting override are
+ * never named.
  *
- * @typeParam M The members to settle
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
-export type Settled<M> = {
+export type Repeated<S extends Lazy<Shape>> = {
 
-	readonly [field in keyof M]: M[field] extends { readonly range: never } ? never : M[field]
+	[field in keyof Carried<S> & string]: Arrayed<Carried<S>[field]> extends true ? field : never
 
-}
+}[keyof Carried<S> & string]
 
 /**
- * Merges declared members over inherited ones.
+ * Checks whether a member holds its values as an array.
  *
- * Retains a declared member whose outline restricts the one it overrides and voids any other; inherited members left
- * undeclared pass through untouched.
+ * Yields `true` for a property whose content, where present, is always an array, and `false` for any other member,
+ * a voided one included.
  *
- * @typeParam I The inherited members
- * @typeParam M The members the extending resource declares in its own right
+ * @typeParam M The member to check
  */
-export type Merged<I, M> = Omit<I, keyof M> & {
-
-	readonly [field in keyof M]: field extends keyof I
-		? Outline<M[field]> extends Outline<I[field]> ? M[field] : never
-		: M[field]
-
-}
-
-/**
- * Resolves the outline a member may be narrowed within.
- *
- * Yields, for a property, the kind of its range in the form its cardinality admits, and an identifier or a type as it
- * stands, so that a member restricts another exactly when its outline is assignable to the other's: the range kind is
- * kept, telling apart two ranges which happen to project the same state, a required value is never made optional, and
- * a repeated property is never capped at a single value, which would swap an array for a bare value.
- *
- * @typeParam M The member to outline
- */
-export type Outline<M> =
-	M extends Property<infer R, infer L, infer U> ? Arity<Eager<R>["kind"], L, U> : M
+export type Arrayed<M> =
+	[M] extends [never] ? false
+		: [Exclude<Content<M>, undefined>] extends [readonly unknown[]] ? true
+			: false
 
 
-//// Resource Members ////////////////////////////////////////////////////////////////////////////////////////////////
+//// Resource State //////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Resolves the value an instance of a resource carries.
@@ -117,7 +103,6 @@ export type Outline<M> =
 export type Retrieved<S extends Lazy<Shape>> =
 	Loose<Carried<S>> extends infer M ? { readonly [field in keyof M]: Content<M[field]> } : never
 
-
 /**
  * Marks optional the members a resource may leave out.
  *
@@ -125,11 +110,10 @@ export type Retrieved<S extends Lazy<Shape>> =
  * requires exactly the members the resource is bound to carry.
  *
  * @typeParam M The members to mark
- * @typeParam X The members left out on top of the ones any resource may leave out
  */
-export type Loose<M, X = never> = Joined<
-	& { readonly [field in keyof M as Omitted<M[field], X> extends true ? never : field]: M[field] }
-	& { readonly [field in keyof M as Omitted<M[field], X> extends true ? field : never]?: M[field] }
+export type Loose<M> = Joined<
+	& { readonly [field in keyof M as Omitted<M[field]> extends true ? never : field]: M[field] }
+	& { readonly [field in keyof M as Omitted<M[field]> extends true ? field : never]?: M[field] }
 >
 
 /**
@@ -147,22 +131,6 @@ export type Joined<T> = {
 }
 
 /**
- * Checks whether a member may be left out of a resource.
- *
- * Yields `true` for a type, for a member named as additionally optional and for a property whose lower bound is
- * skippable, so that a resource states only the members it is bound to carry. A voided member is never left out, so
- * that a conflict surfaces where the state is resolved.
- *
- * @typeParam M The member to check
- * @typeParam X The members left out on top of the ones any resource may leave out
- */
-export type Omitted<M, X = never> =
-	[M] extends [never] ? false
-		: M extends Type | X ? true
-			: M extends Property<Lazy<Shape>, infer L, Optional<number>> ? Skippable<L>
-				: false
-
-/**
  * Resolves the value a member carries in an instance.
  *
  * Yields an IRI for an identifier, an optional IRI for a type and, for a property, the
@@ -176,9 +144,6 @@ export type Content<M> =
 		: M extends Type ? Optional<Reference>
 			: M extends Property<infer R, infer L, infer U> ? Slot<R, L, U>
 				: never
-
-
-//// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Resolves the form a property carries its values in, holding localised text apart.
@@ -195,39 +160,13 @@ export type Content<M> =
  * @typeParam U The greatest number of values admitted
  */
 export type Slot<R extends Lazy<Shape>, L extends Optional<number>, U extends Optional<number>> =
-	[Localised<R>] extends [never] ? Arity<Instance<R>, L, U>
-		: [Valued<R>] extends [never] ? Arity<Instance<R>, L, 1>
-			: Arity<Instance<Valued<R>>, L, U> | Arity<Instance<Localised<R>>, L, 1>
+	[R] extends [never] ? never // a range voided by conflicting overrides
+		: [Localised<R>] extends [never] ? Arity<State<R>, L, U>
+			: [Valued<R>] extends [never] ? Arity<State<R>, L, 1>
+				: Arity<State<Valued<R>>, L, U> | Arity<State<Localised<R>>, L, 1>
 
-/**
- * Resolves the alternatives a range admits, each eager.
- *
- * Yields every branch of a union and a shape of any other kind as it stands, so that the branches can be told apart by
- * kind; a bare {@link value!Shape}, standing for any kind at all, admits no alternative.
- *
- * @typeParam R The range describing the values, possibly deferred to break definition cycles
- */
-export type Variant<R extends Lazy<Shape>> =
-	Shape extends Eager<R> ? never
-		: Eager<R> extends infer E extends Shape
-			? E extends UnionShape<infer B> ? Eager<B[number]> : E
-			: never
 
-/**
- * Resolves the alternatives of a range carrying localised text.
- *
- * @typeParam R The range describing the values, possibly deferred to break definition cycles
- */
-export type Localised<R extends Lazy<Shape>> =
-	Extract<Variant<R>, DictionaryShape>
-
-/**
- * Resolves the alternatives of a range carrying anything but localised text.
- *
- * @typeParam R The range describing the values, possibly deferred to break definition cycles
- */
-export type Valued<R extends Lazy<Shape>> =
-	Exclude<Variant<R>, DictionaryShape>
+//// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Resolves the form a value takes at the arity its bounds admit.
@@ -278,3 +217,96 @@ export type Declared<C extends PropertyBounds, K extends keyof PropertyBounds> =
  */
 export type Unbounded<C extends PropertyBounds> =
 	[Exclude<keyof C, "minCount" | "maxCount">] extends [never] ? {} : Omit<C, "minCount" | "maxCount">
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Resolves the members a list of extended shapes contributes.
+ *
+ * Yields the members every extended shape carries, so that a constraint stated anywhere up the chain reaches every
+ * extending resource and shapes agreeing on a member pass it on as it stands. A member stated by two shapes with
+ * ranges no single value satisfies is voided, so that the conflict surfaces where the state is resolved rather than
+ * settling on either side.
+ *
+ * @typeParam P The extended shapes, possibly deferred to break definition cycles
+ */
+type Inherited<P extends Parents> =
+	P extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends Parents]
+		? Settled<Carried<H> & Inherited<T>>
+		: {}
+
+/**
+ * Settles the members several extended shapes contribute into a single record.
+ *
+ * Yields one record carrying every member the shapes state, voiding a member whose ranges no single value satisfies
+ * rather than carrying it as a range nothing fits.
+ *
+ * @typeParam M The members to settle
+ */
+type Settled<M> = {
+
+	readonly [field in keyof M]: M[field] extends { readonly range: never } ? never : M[field]
+
+}
+
+/**
+ * Merges declared members over inherited ones.
+ *
+ * Retains a declared member whose outline restricts the one it overrides and voids any other; inherited members left
+ * undeclared pass through untouched.
+ *
+ * @typeParam I The inherited members
+ * @typeParam M The members the extending resource declares in its own right
+ */
+type Merged<I, M> = Omit<I, keyof M> & {
+
+	readonly [field in keyof M]: field extends keyof I
+		? Outline<M[field]> extends Outline<I[field]> ? M[field] : never
+		: M[field]
+
+}
+
+/**
+ * Resolves the outline a member may be narrowed within.
+ *
+ * Yields, for a property, the kind of its range in the form its cardinality admits, and an identifier or a type as it
+ * stands, so that a member restricts another exactly when its outline is assignable to the other's: the range kind is
+ * kept, telling apart two ranges which happen to project the same state, a required value is never made optional, and
+ * a repeated property is never capped at a single value, which would swap an array for a bare value.
+ *
+ * @typeParam M The member to outline
+ */
+type Outline<M> =
+	M extends Property<infer R, infer L, infer U> ? Arity<Eager<R>["kind"], L, U> : M
+
+/**
+ * Checks whether a member may be left out of a resource.
+ *
+ * Yields `true` for a type and for a property whose lower bound is skippable, so that a resource states only the
+ * members it is bound to carry. A voided member is never left out, so that a conflict surfaces where the state is
+ * resolved.
+ *
+ * @typeParam M The member to check
+ */
+type Omitted<M> =
+	[M] extends [never] ? false
+		: M extends Type ? true
+			: M extends Property<Lazy<Shape>, infer L, Optional<number>> ? Skippable<L>
+				: false
+
+/**
+ * Resolves the alternatives of a range carrying localised text.
+ *
+ * @typeParam R The range describing the values, possibly deferred to break definition cycles
+ */
+type Localised<R extends Lazy<Shape>> =
+	Extract<Variant<R>, DictionaryShape>
+
+/**
+ * Resolves the alternatives of a range carrying anything but localised text.
+ *
+ * @typeParam R The range describing the values, possibly deferred to break definition cycles
+ */
+type Valued<R extends Lazy<Shape>> =
+	Exclude<Variant<R>, DictionaryShape>

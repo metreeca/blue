@@ -58,6 +58,7 @@
       "Resource": "https://metreeca.github.io/qest/types/state.Resource.html",
       "Reference": "https://metreeca.github.io/qest/types/state.Reference.html",
       "Value": "https://metreeca.github.io/qest/types/state.Value.html",
+      "Values": "https://metreeca.github.io/qest/types/state.Values.html",
       "Dictionary": "https://metreeca.github.io/qest/types/state.Dictionary.html",
       "Locale": "https://metreeca.github.io/qest/types/model.Locale.html",
       "app": "https://metreeca.github.io/qest/variables/index.app.html",

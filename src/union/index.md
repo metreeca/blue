@@ -192,3 +192,9 @@ retrieval, but the range still meets **both** regimes, according to the probe's 
 
 Either input matches the flattened range exactly as it would a root union, so traversal needs no per-crossing reasoning:
 the rule stays flat across the whole path.
+
+A path step names a member once for the whole union, so every branch declaring that name must mean the same property by
+it: the branches describing or linking to resources are held to **coherence**, agreeing on each shared member's kind,
+its `forward` and `reverse` predicates and its `captive` and `foreign` flags. Range, cardinality and value domain may
+still differ, merging into the effective range the step reaches. An incoherent union is rejected as its branches are
+first resolved, since deferred branches leave nothing to check as the union is built.

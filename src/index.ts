@@ -76,11 +76,10 @@ import { equals, seal } from "@metreeca/core/values";
 import { type Trace } from "@metreeca/core/trace";
 import type { Reference } from "@metreeca/qest/state";
 import type { Template } from "@metreeca/qest/model";
-import type { Delivery } from "./value/index.js";
 import { enforce } from "./index.core.js";
 import type { ResourceShape } from "./resource/index.js";
 import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
-import { eager, type Instance, type Shape } from "./value/index.js";
+import { eager, type Match, type Shape, type State } from "./value/index.js";
 import { validateShape } from "./value/validator.js";
 
 
@@ -158,7 +157,7 @@ export function validate<S extends Lazy<ResourceShape>>(value: unknown, opts: {
 	/**
 	 * The resource as it stands, typed as the shape describes it; relayed where it passes.
 	 */
-	readonly value: Instance<S>,
+	readonly value: State<S>,
 
 	/**
 	 * The violations the resource states, keyed by the member at fault; relayed where it doesn't pass.
@@ -178,8 +177,8 @@ export function validate<S extends Lazy<ResourceShape>>(value: unknown, opts: {
  *
  * > [!NOTE]
  * > The template states which values are wanted and no longer what they are, so every type comes from the shape: the
- * > resource comes back as {@link Delivery} resolves it, keyed down to the members the template
- * > named. A polymorphic member and a projection column come back as wide as the shape describes them.
+ * > resource comes back as {@link Match} resolves it, keyed down to the members the template named. A polymorphic
+ * > member, a projection column and a localised member come back as wide as the shape describes them.
  *
  * > [!TIP]
  * > Revalidating a value against the same shape and template costs nothing, as
@@ -210,7 +209,7 @@ export function validate<S extends Lazy<ResourceShape>, M extends Template>(valu
 	/**
 	 * The resource as it stands, typed as the template asked for it; relayed where it passes.
 	 */
-	readonly value: Delivery<S, M>,
+	readonly value: Match<S, M>,
 
 	/**
 	 * The violations the retrieval brought back, keyed by the member at fault; relayed where it doesn't pass.

@@ -17,8 +17,8 @@
 /**
  * Union alternative inference.
  *
- * Resolves the alternatives a union describes: `Branch` yields every branch at once, so that the value of a union is
- * resolved by resolving each branch in turn.
+ * Resolves the alternatives a union describes, and those any range admits, so that the value of a union is resolved
+ * branch by branch and the alternatives of a range can be told apart by kind.
  *
  * @module
  */
@@ -32,9 +32,22 @@ import type { UnionShape } from "./index.js";
  * Resolves the alternatives a union describes.
  *
  * Yields every branch at once, each as declared, so that a value of the union is resolved by resolving each branch in
- * turn, as {@link value!Instance} does; a shape that is not a union has no branch at all.
+ * turn, as {@link value!State} does; a shape that is not a union has no branch at all.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type Branch<S extends Lazy<Shape>> =
 	Eager<S> extends UnionShape<infer B> ? B[number] : never
+
+/**
+ * Resolves the alternatives a range admits, each eager.
+ *
+ * Yields every branch of a union and a shape of any other kind as it stands, so that the branches can be told apart by
+ * kind; a bare {@link value!Shape}, standing for any kind at all, admits no alternative.
+ *
+ * @typeParam R The range describing the values, possibly deferred to break definition cycles
+ */
+export type Variant<R extends Lazy<Shape>> =
+	Shape extends Eager<R> ? never
+		: [Branch<R>] extends [never] ? Eager<R>
+			: Eager<Branch<R>>

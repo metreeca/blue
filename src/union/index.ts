@@ -54,8 +54,6 @@
  * the single branch it is, so that a caller routing a value needs not tell a polymorphic shape from a plain one.
  * {@link getStateBranch} settles the one branch a stored value belongs to, {@link getBoundBranch} the one a relational
  * bound filters against, and {@link getModelBranches} every branch a retrieval placeholder may draw from.
- * {@link isBranchKey} tells the keys addressing an alternative from the member names and constraint operators sharing
- * the key space with them.
  *
  * @module
  *
@@ -70,7 +68,7 @@ import type { Lazy } from "@metreeca/core";
 import type { Shape } from "../value/index.js";
 import { assemble } from "./assembler.js";
 
-export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches, isBranchKey } from "./accessors.js";
+export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches } from "./accessors.js";
 
 
 /**
@@ -110,6 +108,13 @@ export { getShapeBranches, getStateBranch, getBoundBranch, getModelBranches, isB
  * > stricter grade, as a bound is told apart by syntax alone: it admits at most one numeric and one boolean branch,
  * > and textual branches only under mutually exclusive patterns. One filtered by set-matching options is held to a
  * > stricter grade still, as an option is told apart by kind alone: it admits at most one branch of each kind.
+ *
+ * > [!IMPORTANT]
+ * > Branches describing or linking to resources are expected to be **coherent**: a member name several of them
+ * > declare denotes the same property throughout the union, agreeing on its kind, its `forward` and `reverse`
+ * > predicates and its `captive` and `foreign` flags, while its range, cardinality and value domain may differ.
+ * > Branches may be deferred, so coherence is checked as the branches are first resolved rather than as the union is
+ * > built, and an incoherent union is rejected there.
  *
  * **Inheritance**
  *

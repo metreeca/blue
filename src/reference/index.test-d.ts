@@ -16,7 +16,7 @@
 
 import type { Reference } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance } from "../value/index.js";
+import { type State } from "../value/index.js";
 import { reference, type ReferenceShape } from "./index.js";
 import { id, resource } from "../resource/index.js";
 
@@ -30,7 +30,7 @@ describe("reference", () => {
 	});
 
 	test("ReferenceShape → an IRI", () => {
-		expectTypeOf<Instance<ReferenceShape>>().toEqualTypeOf<Reference>();
+		expectTypeOf<State<ReferenceShape>>().toEqualTypeOf<Reference>();
 	});
 
 });

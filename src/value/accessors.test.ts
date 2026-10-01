@@ -16,7 +16,7 @@
 
 
 import { isString } from "@metreeca/core";
-import { type Issue } from "@metreeca/core/trace";
+import { type Issue, TraceError } from "@metreeca/core/trace";
 import type { Probe, Transform } from "@metreeca/qest/model";
 import { describe, expect, it } from "vitest";
 import { boolean } from "../boolean/index.js";
@@ -37,8 +37,25 @@ import {
 import { date, duration, instant, string, time, timestamp, year } from "../string/index.js";
 import { getShapeBranches } from "../union/index.js";
 import { union } from "../union/index.js";
-import { eager, effective } from "./accessors.js";
+import { blueprint, collection, eager, effective, items } from "./accessors.js";
 import { type Range, type Shape, sh } from "./index.js";
+
+
+const Item = resource({ id: id(), label: required(string()) });
+const Note = resource({ text: required(string()) });
+
+
+const Catalogue = resource({
+
+	id: id(),
+
+	members: multiple(reference(Item)),
+	notes: multiple(Note),
+	tags: multiple(string())
+
+});
+
+const Special = resource(Catalogue, { extras: multiple(reference(() => Item)) });
 
 
 describe("eager", () => {
@@ -425,19 +442,6 @@ describe("effective", () => {
 			});
 
 			expect(effective(shape, probe(["value", "name", "x"]))).toBe("unknown property path");
-
-		});
-
-		it("reaches the navigable alternative where a sibling ends on an identifier", async () => {
-
-			const shape = resource({
-				value: required(union(
-					reference(resource({ name: id() })),
-					resource({ name: required(resource({ x: required(string()) })) })
-				))
-			});
-
-			expect(range(effective(shape, probe(["value", "name", "x"]))).shape).toEqual(string());
 
 		});
 
@@ -1052,6 +1056,110 @@ describe("effective", () => {
 			expect(reached.maxCount).toBe(1);
 
 		});
+
+	});
+
+});
+
+describe("collection", () => {
+
+	it("resolves the property the model names", async () => {
+		expect(collection(Catalogue, { members: {} })).toEqual(eager(Catalogue).members.members);
+	});
+
+	it("resolves inherited properties", async () => {
+		expect(collection(Special, { members: {} })).toEqual(eager(Catalogue).members.members);
+	});
+
+	it("resolves deferred shapes", async () => {
+		expect(collection(() => Special, { extras: {} })).toEqual(eager(Special).members.extras);
+	});
+
+	it("resolves properties collecting anything other than resources", async () => {
+		// @ts-expect-error test fixture: a model the type rejects, to exercise the runtime lookup
+		expect(collection(Catalogue, { tags: {} })).toEqual(eager(Catalogue).members.tags);
+	});
+
+	it("rejects members other than properties", async () => {
+		// @ts-expect-error test fixture: a model the type rejects, to exercise the runtime check
+		expect(() => collection(Catalogue, { id: {} })).toThrow(TraceError);
+	});
+
+	it("rejects properties the shape doesn't carry", async () => {
+		// @ts-expect-error test fixture: a model the type rejects, to exercise the runtime check
+		expect(() => collection(Catalogue, { others: {} })).toThrow(TraceError);
+	});
+
+	it("rejects names inherited from Object.prototype", async () => {
+		// @ts-expect-error test fixture: a model the type rejects, to exercise the runtime check
+		expect(() => collection(Catalogue, { toString: {} })).toThrow(TraceError);
+	});
+
+});
+
+describe("blueprint", () => {
+
+	it("resolves the shape the references of a property point at", async () => {
+		expect(blueprint(Catalogue, { members: {} })).toBe(Item);
+	});
+
+	it("resolves the shape of the resources a property embeds", async () => {
+		expect(blueprint(Catalogue, { notes: {} })).toBe(Note);
+	});
+
+	it("resolves inherited properties", async () => {
+		expect(blueprint(Special, { members: {} })).toBe(Item);
+	});
+
+	it("resolves deferred shapes", async () => {
+		expect(blueprint(() => Special, { extras: {} })).toBe(Item);
+	});
+
+	it("rejects properties collecting anything other than resources", async () => {
+		// @ts-expect-error test fixture: a model the type rejects, to exercise the runtime check
+		expect(() => blueprint(Catalogue, { tags: {} })).toThrow(TraceError);
+	});
+
+	it("rejects properties the shape doesn't carry", async () => {
+		// @ts-expect-error test fixture: a model the type rejects, to exercise the runtime check
+		expect(() => blueprint(Catalogue, { others: {} })).toThrow(TraceError);
+	});
+
+});
+
+describe("items", () => {
+
+	it("returns the items of the collecting property", async () => {
+
+		const frames = [{ label: "first" }, { label: "second" }];
+
+		expect(items<typeof Catalogue, { members: { label: {} } }>({ members: frames }, { members: { label: {} } }))
+			.toBe(frames);
+
+	});
+
+	it("returns the items regardless of the criteria the slice carries", async () => {
+
+		const frames = [{ label: "first" }];
+
+		expect(items<typeof Catalogue, { members: { label: {}, "#": 10 } }>({ members: frames }, {
+			members: { label: {}, "#": 10 }
+		})).toBe(frames);
+
+	});
+
+	it("returns the rows of a projection over the items", async () => {
+
+		const rows = [{ n: "first" }];
+
+		expect(items<typeof Catalogue, { members: { "n=label": {} } }>({ members: rows }, { members: { "n=label": {} } }))
+			.toBe(rows);
+
+	});
+
+	it("returns an empty array if the resource holds no items", async () => {
+
+		expect(items<typeof Catalogue, { members: { label: {} } }>({}, { members: { label: {} } })).toEqual([]);
 
 	});
 

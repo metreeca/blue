@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-
 import type { Reference } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
 import { type ReferenceShape } from "../reference/index.js";
 import { type Id, type Property } from "../resource/index.js";
 import { type StringShape } from "../string/index.js";
-import { type Branch } from "./inference.js";
+import { type Shape } from "../value/index.js";
 import { type UnionShape } from "./index.js";
+import { type Branch, type Variant } from "./inference.js";
 
 
 
@@ -54,6 +54,31 @@ describe("Branch", () => {
 
 	test("non-union shape → no branch at all", () => {
 		expectTypeOf<Branch<StringShape>>().toBeNever();
+	});
+
+});
+
+describe("Variant", () => {
+
+	test("union shape → the shape of every branch", () => {
+		expectTypeOf<Variant<UnionShape<[StringShape, ReferenceShape]>>>().toEqualTypeOf<StringShape | ReferenceShape>();
+	});
+
+	test("lazy branch → the shape it returns", () => {
+		expectTypeOf<Variant<UnionShape<[StringShape, () => LinkShape]>>>().toEqualTypeOf<StringShape | LinkShape>();
+	});
+
+	test("lazy union → the branches of the shape it returns", () => {
+		expectTypeOf<Variant<() => UnionShape<[StringShape]>>>().toEqualTypeOf<StringShape>();
+	});
+
+	test("non-union shape → the shape itself", () => {
+		expectTypeOf<Variant<StringShape>>().toEqualTypeOf<StringShape>();
+		expectTypeOf<Variant<() => LinkShape>>().toEqualTypeOf<LinkShape>();
+	});
+
+	test("bare shape → no alternative at all", () => {
+		expectTypeOf<Variant<Shape>>().toBeNever();
 	});
 
 });

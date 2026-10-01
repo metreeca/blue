@@ -17,9 +17,11 @@
 /**
  * Shape accessors.
  *
- * Reads what a shape reaches, so that a caller needs not walk it: a definition deferred to break a cycle is resolved
- * to the shape it states, with inheritance already merged, and a path and transform pipe to the range their values are
- * drawn from, which is what types a projection binding or a constraint operand.
+ * Reads what a shape or a retrieved resource reaches, so that callers don't have to walk it themselves. A shape
+ * deferred to break a definition cycle resolves to the shape it states, with inherited members merged in. A path and
+ * transform pipe resolve to the range of the values they reach, which types a projection binding or a constraint
+ * operand. A slice resolves to the collection property it names and to the shape of the drafts posted to it, and a
+ * resource retrieved with a slice gives access to the items of its collection, typed by the slice.
  *
  * @module
  */
@@ -27,6 +29,7 @@
 import {
 	assert,
 	type Eager,
+	error,
 	type Identifier,
 	isFunction,
 	isString,
@@ -35,16 +38,17 @@ import {
 } from "@metreeca/core";
 import { unique } from "@metreeca/core/arrays";
 import { xsd } from "@metreeca/core/datatype";
-import { equals, immutable } from "@metreeca/core/values";
 import { type Issue, TraceError } from "@metreeca/core/trace";
+import { equals, immutable } from "@metreeca/core/values";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/model";
 
 import { decimal, integer } from "../number/index.js";
 import { getShapeTarget } from "../reference/index.js";
 import { flatten } from "../resource/assembler.js";
+import type { Member, Property, ResourceShape } from "../resource/index.js";
 import { string } from "../string/index.js";
 import { getShapeBranches, union } from "../union/index.js";
-import { type Range, type Shape, sh } from "./index.js";
+import { type Items, type Match, type Range, sh, type Shape, type Slice } from "./index.js";
 
 
 /**
@@ -214,7 +218,8 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, leaving the
  *     shape it states undefined, or where it states a target that doesn't narrow the one the link it is reached
- *     through overrides
+ *     through overrides, or where a union the path crosses declares a shared member name inconsistently across its
+ *     branches
  * @throws {@link !TypeError TypeError} Where `probe` is not a well-formed probe
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}
@@ -443,5 +448,88 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 	function multiply(a: Optional<number>, b: Optional<number>): Optional<number> {
 		return a === undefined || b === undefined ? undefined : a*b;
 	}
+
+}
+
+
+/**
+ * Resolves the collection property a {@link Slice | slice} names.
+ *
+ * Gives access to the declaration of the collection, such as its cardinality bounds, without looking up the property
+ * on the shape by name.
+ *
+ * @typeParam S The shape of the resource holding the collection, possibly deferred to break definition cycles
+ * @typeParam T The slice naming the collection property
+ *
+ * @param shape The shape of the resource holding the collection
+ * @param model The slice naming the collection property
+ *
+ * @returns The property the slice names, whether declared by the shape or inherited
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} If the shape carries no property by the name the slice states
+ */
+export function collection<S extends Lazy<ResourceShape>, T extends Slice<S, T>>(shape: S, model: T): Property {
+
+	const [field] = Object.keys(model);
+
+	const member: Optional<Member> = eager(shape).members[field];
+
+	return member?.kind === "property" ? member : error(new TraceError(
+		"invalid model", [{ [field]: ["{range} expected a collection property"] }]
+	));
+
+}
+
+/**
+ * Resolves the shape of the drafts posted to a collection property.
+ *
+ * Every new item of the collection named by a {@link Slice | slice} must satisfy this shape. Callers use it to
+ * validate a {@link Draft | draft} before storing it.
+ *
+ * @typeParam S The shape of the resource holding the collection, possibly deferred to break definition cycles
+ * @typeParam T The slice naming the collection property
+ *
+ * @param shape The shape of the resource holding the collection
+ * @param model The slice naming the collection property
+ *
+ * @returns The shape of the resources the collection embeds, or of the ones its references point to, with inherited
+ *     members merged in as by {@link eager}
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} If the shape carries no property by the name the slice
+ *     states, or if the property collects anything other than resources
+ */
+export function blueprint<S extends Lazy<ResourceShape>, T extends Slice<S, T>>(shape: S, model: T): ResourceShape {
+
+	const [field] = Object.keys(model);
+
+	const resolved = eager(collection(shape, model).range.shape);
+
+	return resolved.kind === "reference" ? eager(resolved.target)
+		: resolved.kind === "resource" ? resolved
+			: error(new TraceError("invalid model", [{ [field]: ["{range} expected a collection property"] }]));
+
+}
+
+/**
+ * Resolves the items of a collection property from a retrieved resource.
+ *
+ * Reads the result of a retrieval made with a {@link Slice | slice}. The items, or the rows a projection computes over
+ * them, are returned as {@link Items | items}, typed by the slice, without looking up the collection property on the
+ * {@link Match | match} by name. A resource holding no items returns an empty array.
+ *
+ * @typeParam S The shape of the resource holding the collection, possibly deferred to break definition cycles
+ * @typeParam T The slice: the collection property and the members to retrieve from each item, or the projection to
+ * compute over the items, possibly with criteria
+ *
+ * @param match The resource retrieved with `slice`
+ * @param slice The slice used to retrieve `match`
+ *
+ * @returns The items in the collection, or an empty array if there are none
+ */
+export function items<S extends Lazy<ResourceShape>, T extends Slice<S, T>>(match: Match<S, T>, slice: T): Items<S, T> {
+
+	const [collection] = Object.keys(slice); // the slice names a single collection property
+
+	return (Reflect.get(match, collection) ?? []) as Items<S, T>; // ;(cast) Items is not derivable from Match
 
 }

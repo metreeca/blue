@@ -12,10 +12,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Close a boolean shape to a single truth value with the `in` enumeration `BooleanConstraints` states, so that a
   member may tag the alternatives of a union: the value the shape describes is narrowed to the enumerated one, and an
   extension admitting the other value is rejected as the shape is built
-- Add the `isBranchKey` accessor, telling the keys of a branch map from the member names and constraint operators
-  sharing the key space with them (#27)
-- Add the `Delivery` resolver on the `value` module, yielding the value a retrieval hands back: the shape-driven
-  instance keyed down to the members the template named, nested templates included (#27)
+- Add the shape-driven inference types on the `value` module: `State` yields the value a shape describes, `Draft` the
+  state of a resource or collection item to be persisted, `Model` and `Slice` the retrieval models a resource
+  and a collection it holds admit, rejecting a member the shape doesn't carry where the model is written, and `Match`,
+  `Items` and `Frame` what a retrieval hands back, keyed down to the members the model named, nested templates
+  included (#33)
+- Add the `items`, `collection` and `blueprint` accessors on the `value` module: `items` reads the items a slice
+  retrieval returns, typed as `Items`, `collection` resolves the collection property a slice names, and `blueprint`
+  the shape a draft posted to it must satisfy (#33)
 
 ### Changed
 
@@ -39,13 +43,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Resolve the result of a template-narrowed validation from the shape and the template together, the template-driven
   inference having been withdrawn upstream: the value comes back keyed down to the members the template named, nested
   templates included, with cardinality and optionality off the shape. A polymorphic member and a projection column
-  come back as the shape describes them until the inference overhaul lands (#27)
+  come back as the shape describes them (#27)
+- Refuse a template member or a projection column stated as `undefined`, in line with `@metreeca/qest` dropping the
+  absent marker from retrieval models: an entry left out is omitted from the map rather than set to `undefined`
+- Reject a union whose resource branches declare a shared member name inconsistently: the branches must agree on the
+  kind, the `forward` and `reverse` predicates and the `captive` and `foreign` flags of every member name they share,
+  while range, cardinality and value domain may still differ (#33)
+- Raise the minimum supported dependencies to `@metreeca/core` 0.12 and `@metreeca/qest` 0.11 (#33)
 - Read the bare values `boolean()`, `number()` and `string()` accept as the `in` enumeration closing the domain to
   them, in place of the prototype model they stated: `boolean(true)`, `number(1, 2, 3)` and `string("open", "closed")`
   take the admitted values as leading arguments
 - Describe a value with a plain declarative shape, dropping the `model` field every shape carried: a shape is stated
   as an object literal, carrying no representative value and no JSON-incompatible content, while the value it
-  describes is resolved at the type level by `Instance` (#22)
+  describes is resolved at the type level by `State` (#22)
 - Declare link ownership and lifecycle once per slot: `foreign` and `captive` move from the reference shape to
   `PropertyConstraints`, alongside `forward` and `reverse`, so they can no longer differ across the branches of a
   union on the same property (#27)
@@ -77,7 +87,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Remove the `model()` helper and the types serving the stored model — `Schema`, `Prototype`, `Boxed`, `State`,
   `Resolved`, `Bounds`, `ValueShape`, `ValuesShape`, `RangeShape`, `SetShape` and `SetFactory` — superseded by the
-  `Range` a property states and by the `Instance` value resolver (#22)
+  `Range` a property states and by the reworked `State` value resolver (#22)
 - Remove `ReferenceConstraints`: `reference()` states its target alone, the link flags being declared on the property
   (#27)
 - Remove the `computed` property constraint

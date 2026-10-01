@@ -16,7 +16,7 @@
 
 import type { Reference } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
-import { type Instance, type Range } from "../value/index.js";
+import { type State, type Range } from "../value/index.js";
 import { number } from "../number/index.js";
 import { reference } from "../reference/index.js";
 import { string, type StringShape } from "../string/index.js";
@@ -46,7 +46,7 @@ describe("inheritance", () => {
 		const middle=resource(top, { middle: required(string()) });
 		const bottom=resource(middle, { bottom: required(string()) });
 
-		expectTypeOf<Instance<typeof bottom>>().toEqualTypeOf<{
+		expectTypeOf<State<typeof bottom>>().toEqualTypeOf<{
 			readonly top: string,
 			readonly middle: string,
 			readonly bottom: string
@@ -61,9 +61,9 @@ describe("inheritance", () => {
 		const right=resource(apex, { right: required(string()) });
 		const base=resource(left, right, {});
 
-		expectTypeOf<Instance<typeof base>["apex"]>().toEqualTypeOf<string>();
-		expectTypeOf<Instance<typeof base>["left"]>().toEqualTypeOf<string>();
-		expectTypeOf<Instance<typeof base>["right"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof base>["apex"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof base>["left"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof base>["right"]>().toEqualTypeOf<string>();
 
 	});
 
@@ -72,7 +72,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: required(string()) });
 		const child=resource(parent, parent, {});
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
 
 	});
 
@@ -82,7 +82,7 @@ describe("inheritance", () => {
 		const right=resource({ shared: required(string()) });
 		const child=resource(left, right, {});
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
 
 	});
 
@@ -92,7 +92,7 @@ describe("inheritance", () => {
 		const right=resource({ shared: optional(string()) });
 		const child=resource(left, right, {});
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toBeNever();
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
 
 	});
 
@@ -102,7 +102,7 @@ describe("inheritance", () => {
 		const right=resource({ shared: required(number()) });
 		const child=resource(left, right, {});
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toBeNever();
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
 
 	});
 
@@ -111,7 +111,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: optional(string()) });
 		const child=resource(parent, { shared: required(string()) });
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
 
 	});
 
@@ -121,7 +121,7 @@ describe("inheritance", () => {
 		const middle=resource(top, { shared: required(string()) });
 		const bottom=resource(middle, {});
 
-		expectTypeOf<Instance<typeof bottom>["shared"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof bottom>["shared"]>().toEqualTypeOf<string>();
 
 	});
 
@@ -130,7 +130,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: multiple(string()) });
 		const child=resource(parent, { shared: required(string()) });
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toBeNever();
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
 
 	});
 
@@ -139,7 +139,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: optional(string()) });
 		const child=resource(parent, { shared: required(string()) });
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
 
 	});
 
@@ -148,7 +148,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: multiple(string()) });
 		const child=resource(parent, { shared: nonempty(string()) });
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toEqualTypeOf<readonly [string, ...string[]]>();
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<readonly [string, ...string[]]>();
 
 	});
 
@@ -157,7 +157,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: required(string()) });
 		const child=resource(parent, { shared: optional(string()) });
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toBeNever();
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
 
 	});
 
@@ -166,7 +166,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: required(string()) });
 		const child=resource(parent, { shared: required(number()) });
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toBeNever();
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
 
 	});
 
@@ -175,7 +175,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: required(string()) });
 		const child=resource(parent, { shared: multiple(string()) });
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toBeNever();
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
 
 	});
 
@@ -185,7 +185,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: required(string()) });
 		const child=resource(parent, { shared: required(reference(target)) });
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toBeNever();
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
 
 	});
 
@@ -194,7 +194,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: required(string()) });
 		const child=resource(parent, { shared: id() });
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toBeNever();
+		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
 
 	});
 
@@ -206,7 +206,7 @@ describe("inheritance", () => {
 		const middle=resource(first, second, {});
 		const bottom=resource(middle, { shared: optional(string()) });
 
-		expectTypeOf<Instance<typeof bottom>["shared"]>().toBeNever();
+		expectTypeOf<State<typeof bottom>["shared"]>().toBeNever();
 
 	});
 
@@ -215,7 +215,7 @@ describe("inheritance", () => {
 		const parent=resource({ shared: required(string()) });
 		const child=resource(parent, { shared: required(string()) });
 
-		expectTypeOf<Instance<typeof child>["shared"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof child>["shared"]>().toEqualTypeOf<string>();
 
 	});
 
@@ -224,7 +224,7 @@ describe("inheritance", () => {
 		const parent=resource({ inherited: required(string()) });
 		const child=resource(parent, { own: optional(string()) });
 
-		expectTypeOf<Instance<typeof child>["own"]>().toEqualTypeOf<undefined | string>();
+		expectTypeOf<State<typeof child>["own"]>().toEqualTypeOf<undefined | string>();
 
 	});
 
@@ -241,7 +241,7 @@ describe("inheritance", () => {
 		}
 
 		// @ts-expect-error - inheritance cycles resolve indefinitely
-		expectTypeOf<Instance<ReturnType<typeof alpha>>>().toBeObject();
+		expectTypeOf<State<ReturnType<typeof alpha>>>().toBeObject();
 
 		expectTypeOf(alpha).toBeFunction();
 		expectTypeOf(beta).toBeFunction();
@@ -258,7 +258,7 @@ describe("inheritance", () => {
 
 		const child=resource(eager, lazy, { own: required(string()) });
 
-		expectTypeOf<Instance<typeof child>>().toEqualTypeOf<{
+		expectTypeOf<State<typeof child>>().toEqualTypeOf<{
 			readonly eager: string,
 			readonly lazy: string,
 			readonly own: string
@@ -275,7 +275,7 @@ describe("factories", () => {
 		test("infers the instance type from its members", () => {
 			const shape=resource({ id: id(), type: typed(), label: required(string()) });
 
-			expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{
 				readonly id: Reference,
 				readonly type?: Reference,
 				readonly label: string
@@ -285,7 +285,7 @@ describe("factories", () => {
 		test("empty members → empty instance", () => {
 			const shape=resource({});
 
-			expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{}>();
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{}>();
 		});
 
 		test("rejects a non-member value", () => {
@@ -297,7 +297,7 @@ describe("factories", () => {
 		test("merges the state of an extended shape into the instance", () => {
 			const shape=resource(resource({ id: id() }), { label: required(string()) });
 
-			expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
 		});
 
 		test("merges the state of every extended shape", () => {
@@ -307,7 +307,7 @@ describe("factories", () => {
 				{ label: required(string()) }
 			);
 
-			expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{
 				readonly id: Reference,
 				readonly type?: Reference,
 				readonly label: string
@@ -318,19 +318,19 @@ describe("factories", () => {
 			const base=resource({ id: id() });
 			const shape=resource(() => base, { label: required(string()) });
 
-			expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
 		});
 
 		test("accepts constraints ahead of the members", () => {
 			const shape=resource(resource({ id: id() }), {}, { label: required(string()) });
 
-			expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
 		});
 
 		test("resolves a lazy property range", () => {
 			const shape=resource({ label: required(() => string()) });
 
-			expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<LabelState>();
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<LabelState>();
 		});
 
 		test("links mutually recursive shapes through lazy ranges", () => {
@@ -354,7 +354,7 @@ describe("factories", () => {
 			const left: LeftShape=resource({ right: required(() => right) });
 			const right: RightShape=resource({ left: required(() => left) });
 
-			expectTypeOf<Instance<typeof left>["right"]["left"]["right"]>().toEqualTypeOf<Instance<typeof right>>();
+			expectTypeOf<State<typeof left>["right"]["left"]["right"]>().toEqualTypeOf<State<typeof right>>();
 
 		});
 
@@ -368,12 +368,12 @@ describe("factories", () => {
 				return resource({ id: id(), left: required(reference(left)) });
 			}
 
-			expectTypeOf<Instance<ReturnType<typeof left>>>().toEqualTypeOf<{
+			expectTypeOf<State<ReturnType<typeof left>>>().toEqualTypeOf<{
 				readonly id: Reference,
 				readonly right: Reference
 			}>();
 
-			expectTypeOf<Instance<ReturnType<typeof right>>>().toEqualTypeOf<{
+			expectTypeOf<State<ReturnType<typeof right>>>().toEqualTypeOf<{
 				readonly id: Reference,
 				readonly left: Reference
 			}>();
@@ -392,8 +392,8 @@ describe("factories", () => {
 				return resource({ id: id(), inScheme: required(reference(scheme)) });
 			}
 
-			expectTypeOf<Instance<ReturnType<typeof scheme>>["hasTopConcept"]>().toEqualTypeOf<Reference>();
-			expectTypeOf<Instance<ReturnType<typeof concept>>["inScheme"]>().toEqualTypeOf<Reference>();
+			expectTypeOf<State<ReturnType<typeof scheme>>["hasTopConcept"]>().toEqualTypeOf<Reference>();
+			expectTypeOf<State<ReturnType<typeof concept>>["inScheme"]>().toEqualTypeOf<Reference>();
 
 		});
 
@@ -409,7 +409,7 @@ describe("factories", () => {
 				return resource({ id: id(), back: required(reference(outer)) });
 			}
 
-			expectTypeOf<Instance<ReturnType<typeof outer>>>().toEqualTypeOf<{
+			expectTypeOf<State<ReturnType<typeof outer>>>().toEqualTypeOf<{
 				readonly id: Reference,
 				readonly back: Reference,
 				readonly own: string
@@ -429,7 +429,7 @@ describe("factories", () => {
 				return resource(referring, { own: required(string()) });
 			}
 
-			expectTypeOf<Instance<ReturnType<typeof extending>>>().toEqualTypeOf<{
+			expectTypeOf<State<ReturnType<typeof extending>>>().toEqualTypeOf<{
 				readonly id: Reference,
 				readonly back: Reference,
 				readonly own: string
@@ -447,11 +447,11 @@ describe("factories", () => {
 				return resource({ id: id(), left: required(reference(left)) });
 			}
 
-			expectTypeOf<Instance<ReturnType<typeof left>>["right"]>()
-				.not.toEqualTypeOf<Instance<ReturnType<typeof right>>>();
+			expectTypeOf<State<ReturnType<typeof left>>["right"]>()
+				.not.toEqualTypeOf<State<ReturnType<typeof right>>>();
 
-			expectTypeOf<Instance<ReturnType<typeof right>>["left"]>()
-				.not.toEqualTypeOf<Instance<ReturnType<typeof left>>>();
+			expectTypeOf<State<ReturnType<typeof right>>["left"]>()
+				.not.toEqualTypeOf<State<ReturnType<typeof left>>>();
 
 		});
 
@@ -464,8 +464,8 @@ describe("factories", () => {
 
 			const bottom=resource(middle, { shared: required(string()) });
 
-			expectTypeOf<Instance<typeof bottom>["shared"]>().toEqualTypeOf<string>();
-			expectTypeOf<Instance<typeof bottom>["other"]>().toEqualTypeOf<undefined | string>();
+			expectTypeOf<State<typeof bottom>["shared"]>().toEqualTypeOf<string>();
+			expectTypeOf<State<typeof bottom>["other"]>().toEqualTypeOf<undefined | string>();
 
 		});
 
@@ -477,7 +477,7 @@ describe("factories", () => {
 			const parent=resource({ link: required(reference(target)) });
 			const child=resource(parent, { link: required(reference(refining)) });
 
-			expectTypeOf<Instance<typeof child>["link"]>().toEqualTypeOf<Reference>();
+			expectTypeOf<State<typeof child>["link"]>().toEqualTypeOf<Reference>();
 
 		});
 
@@ -503,7 +503,7 @@ describe("factories", () => {
 
 			});
 
-			expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{
 
 				readonly one: string,
 				readonly zeroOrOne?: string,

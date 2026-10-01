@@ -17,14 +17,13 @@
 /**
  * Value shape types and operations.
  *
- * Defines the {@link Shape} a value of any kind is matched against and the types a validated value comes back as, and
- * provides the accessors resolving what a shape reaches. A shape gathers the kinds the other modules state, so a
- * caller holding one needs not know which kind it holds, and the type of a validated value is derived from the shape
- * describing it, so the two cannot drift.
+ * Defines the {@link Shape} any value is validated against, derives TypeScript types from shapes, and provides the
+ * accessors for navigating them. Callers holding a shape don't need to know which kind of shape it is, and since value
+ * types are derived from the shapes describing them, the two can't drift apart.
  *
- * **The shapes a value is drawn from**
+ * **Shape kinds**
  *
- * Each kind is stated in a module of its own:
+ * Each kind of shape is defined in its own module:
  *
  * - {@link boolean!BooleanShape | BooleanShape} — truth values
  * - {@link number!NumberShape | NumberShape} — numeric values
@@ -36,35 +35,52 @@
  *
  * <img src="../index.svg" alt="Shape hierarchy" style="width: 100%" />
  *
- * {@link sh} names the SHACL terms the shapes are drawn from.
+ * {@link sh} is the namespace of the SHACL terms shapes are modelled on.
  *
- * **How many values a set admits**
+ * **Cardinality**
  *
- * {@link Range} states the shape a set draws its values from and how many of them it admits, describing the set a
- * member declares and the set a path resolves to alike, so that either is read the same way. A range is not itself a
- * shape: a shape says what a value may be, a range how many of them there are.
+ * A {@link Range} pairs a shape with the number of values allowed, and describes both the values of a declared member
+ * and the values a path resolves to. A range isn't a shape: the shape describes each value, the range how many there
+ * may be.
  *
- * **The value a shape describes**
+ * **Value types**
  *
- * The type of a value is derived from the shape describing it, so that the two cannot drift: {@link Instance} yields
- * the value the shape admits, as a resource is held and retrieved, and {@link Delivery} narrows it to the members a
- * retrieval template asked for, so a caller reads back its own request rather than everything the shape declares.
+ * {@link State} is the type of a value described by a shape, and {@link Draft} the type of a resource or collection
+ * item to be persisted, with its identifier optional:
  *
  * ```typescript
- * type Item = Instance<typeof Product>;                        // { readonly id: Reference, readonly name: string, … }
- * type Read = Delivery<typeof Product, { name: {} }>;          // { readonly name: string }
+ * type Item = State<typeof Product>;                           // { readonly id: Reference, readonly name: string, … }
+ * type Seed = Draft<typeof Product>;                           // { readonly name: string, …, readonly id?: Reference }
  * ```
  *
- * **Resolving what a shape reaches**
+ * {@link blueprint} resolves the shape a draft posted to a collection property must satisfy, so that a new item can be
+ * validated before it is stored.
  *
- * {@link eager} resolves a shape or range deferred to break a definition cycle, yielding a resource shape with its
- * inheritance merged and handing back the same value on every later reach.
+ * **Retrieval types**
  *
- * {@link effective} resolves the {@link Range} a path and transform pipe reach through a shape or range, so that a
- * caller may type a projection column or a constraint operand without walking the shape itself: it steps across the
- * members of the resources it reaches, crossing a link only where a step names a member beyond it and entering each
- * alternative of a union in turn, and answers with an issue where the path names a member no alternative carries or
- * the pipe cannot act on what the path reached.
+ * {@link Model} and {@link Slice} are the models allowed for retrieving a resource or a collection it holds, so that a
+ * model naming members the shape doesn't declare fails to compile. {@link Match} and {@link Items} are the types of a
+ * retrieved resource and of the items of a retrieved collection, restricted to the members the model asks for, so
+ * callers get back exactly what they asked for:
+ *
+ * ```typescript
+ * type Read = Match<typeof Product, { name: {} }>;             // { readonly name: string }
+ * type Rows = Items<typeof Catalog, { items: { name: {} } }>;  // readonly { readonly name: string }[]
+ * ```
+ *
+ * {@link items} gets the items of the collection from a resource retrieved with a slice, typed as {@link Items}.
+ *
+ * **Navigation**
+ *
+ * {@link eager} resolves a shape or range deferred to break definition cycles, returning resource shapes with their
+ * inherited members merged in; repeated calls return the same value.
+ *
+ * {@link collection} resolves the collection property a slice names, whether the shape declares or inherits it.
+ *
+ * {@link effective} resolves the {@link Range} reached by a path and transform pipe, so that callers can type a
+ * projection column or a constraint operand without walking the shape themselves. Links are followed only when the
+ * path continues past them, and each branch of a union is explored in turn. Paths naming a member no branch declares,
+ * and pipes that can't apply to the values reached, are reported as issues.
  *
  * @module
  *
@@ -73,20 +89,20 @@
 
 import type { Eager, Lazy, Optional } from "@metreeca/core";
 import { createNamespace, type Namespace } from "@metreeca/core/resource";
+import type { Binding, Criteria, Template } from "@metreeca/qest/model";
+import type { Resource, Value } from "@metreeca/qest/state";
 import type { BooleanShape } from "../boolean/index.js";
 import type { DictionaryShape } from "../dictionary/index.js";
 import type { NumberShape } from "../number/index.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { ResourceShape } from "../resource/index.js";
-import type { Retrieved } from "../resource/inference.js";
+import type { Repeated, Retrieved } from "../resource/inference.js";
 import type { StringShape } from "../string/index.js";
 import type { UnionShape } from "../union/index.js";
 import type { Branch } from "../union/inference.js";
-import type { Plain } from "./inference.js";
+import type { Blueprint, Collecting, Detailed, Drafted, Entries, Plain, Row, Sole, Wanted } from "./inference.js";
 
-export { eager, effective } from "./accessors.js";
-
-export type { Delivery } from "./_inference.js";
+export { blueprint, collection, eager, effective, items } from "./accessors.js";
 
 
 /**
@@ -102,12 +118,11 @@ export const sh: Namespace = createNamespace("http://www.w3.org/ns/shacl#");
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * A description of a value.
+ * Value shape.
  *
- * Describes a plain value, a localised one, a reference to a resource, a resource in its own right or a value drawn
- * from one of several alternatives; a resource shape names the members its instances carry and may extend other
- * resource shapes. The type of the value a shape describes is derived from the shape itself, as {@link Instance}, so
- * that the two cannot drift.
+ * Describes a plain value, localised text, a reference to a resource, a resource itself, or a value matching one of
+ * several alternatives. Resource shapes declare the members of their instances and may extend other resource shapes.
+ * The type of the described value is derived from the shape as {@link State}, so the two can't drift apart.
  */
 export type Shape =
 	| BooleanShape
@@ -120,14 +135,14 @@ export type Shape =
 
 
 /**
- * Description of a cardinality-constrained value set.
+ * Cardinality-constrained value set.
  *
- * Describes the set a {@link resource!Property | property} declares and the set a path resolves to alike, so
- * that either may be read for how many values it admits and for the shape those values are drawn from.
+ * Describes both the values of a {@link resource!Property | property} and the values a path resolves to, stating the
+ * shape of each value and how many values are allowed.
  *
- * @typeParam R The shape the values are drawn from, possibly deferred to break definition cycles
- * @typeParam L The least number of values admitted
- * @typeParam U The greatest number of values admitted
+ * @typeParam R The shape of the values, possibly deferred to break definition cycles
+ * @typeParam L The minimum number of values
+ * @typeParam U The maximum number of values
  */
 export type Range<
 	R extends Lazy<Shape> = Lazy<Shape>,
@@ -136,18 +151,18 @@ export type Range<
 > = {
 
 	/**
-	 * Least number of values admitted.
+	 * Minimum number of values.
 	 *
-	 * `undefined` leaves the set unbounded below.
+	 * `undefined` sets no lower bound.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#MinCountConstraintComponent SHACL § 4.2.1 sh:minCount}
 	 */
 	readonly minCount: L
 
 	/**
-	 * Greatest number of values admitted.
+	 * Maximum number of values.
 	 *
-	 * `undefined` leaves the set unbounded above.
+	 * `undefined` sets no upper bound.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#MaxCountConstraintComponent SHACL § 4.2.2 sh:maxCount}
 	 */
@@ -155,10 +170,9 @@ export type Range<
 
 
 	/**
-	 * Shape shared by every value in the set.
+	 * Shape of every value in the set.
 	 *
-	 * Possibly deferred to break definition cycles: resolve it with {@link Eager} before reading it as a
-	 * {@link Shape}.
+	 * May be deferred to break definition cycles: resolve it with {@link Eager} before reading it as a {@link Shape}.
 	 */
 	readonly shape: R
 
@@ -168,32 +182,184 @@ export type Range<
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Resolves the value a shape describes.
+ * Resolves the value type of a shape.
  *
- * Yields the type an instance of the shape takes: the plain value for a scalar, localised or reference shape,
- * for a resource shape a record of the members it declares merged over the ones it inherits, and for a union shape the
- * value of any of its branches, as the value alone tells the reader which branch it belongs to. A reference shape
- * contributes a {@link @metreeca/qest!Reference | Reference} to the target alone, keeping a linked resource out of the
- * value pointing at it. A bare {@link Shape}, standing for any kind at all, resolves to no value.
+ * Scalar, localised and reference shapes resolve to their plain value. Resource shapes resolve to a record of their
+ * declared members merged over the inherited ones. Union shapes resolve to the value of any branch. A reference shape
+ * resolves to a {@link @metreeca/qest!Reference | Reference} to its target, never to the target resource itself. A
+ * bare {@link Shape}, standing for any kind of value, resolves to `never`; the bare
+ * {@link resource!ResourceShape | ResourceShape}, standing for any resource, resolves to
+ * {@link @metreeca/qest!Resource | Resource}, so the state of any resource shape is accepted where only a generic
+ * resource shape is known.
  *
- * Within a resource, an identifier carries the IRI of the resource itself and a type the IRI of its class, left
- * undefined where the resource is untyped. A property carries the values its range describes, as a bare value where it
- * admits at most one and as a read-only array otherwise, non-empty where at least one value is required; localised text
- * is carried whole as a tag-keyed map, at the arity its own shape states, so it is never wrapped in an array and never
- * sits in one beside the values of sibling branches, and a range admitting it alongside other branches carries either
- * the map or the other values, never both.
+ * In a resource, the identifier is the IRI of the resource and the type is the IRI of its class, undefined for untyped
+ * resources. A property holds a single value if it admits at most one, a read-only array otherwise, and a non-empty
+ * array if at least one value is required. Localised text is always a single language-tag-keyed map, never wrapped in
+ * an array, so a range admitting both localised text and other values holds either the map or the other values, never
+ * both.
  *
- * A member the resource may leave out is optional, and one voided by a conflicting override carries no value at all, so
- * an extension relaxing what it inherits reads as a member nothing satisfies rather than silently dropping out.
+ * Optional members may be omitted. A member voided by an incompatible override in an extension accepts no value, so the
+ * conflict shows up as a member nothing can satisfy instead of the member silently disappearing.
  *
- * @typeParam S The describing shape, possibly deferred to break definition cycles
+ * @typeParam S The shape, possibly deferred to break definition cycles
  *
  * @opaque
  */
-export type Instance<S extends Lazy<Shape>> =
+export type State<S extends Lazy<Shape>> =
 	Shape extends Eager<S> ? never
-		: Eager<S> extends infer E extends Shape
-			? E extends ResourceShape ? Retrieved<E>
-				: E extends UnionShape ? Instance<Branch<E>>
-					: Plain<E>
-			: never
+		: ResourceShape extends Eager<S> ? Resource
+			: S extends Lazy<ResourceShape> ? Retrieved<S>
+				: S extends Lazy<UnionShape> ? State<Branch<S>>
+					: Plain<S>
+
+/**
+ * Resolves the state of a resource to be persisted.
+ *
+ * Resolves to the {@link State | state} of a resource of the shape, with an optional identifier. The identifier is
+ * optional because the target of the operation already identifies the resource, or leaves the store to assign it on
+ * creation; if stated, it must agree with the target.
+ *
+ * Given a {@link Slice | slice} as well, resolves instead to the state of a new item for the collection it names,
+ * whether the collection property is declared or inherited. {@link blueprint} returns the shape such an item must
+ * satisfy, so it can be validated before it is stored. Resolves to `never` for properties holding values other than
+ * resources, which can't be drafted.
+ *
+ * The bare {@link resource!ResourceShape | ResourceShape} or a generic {@link @metreeca/qest!Template | Template}
+ * resolves to any {@link @metreeca/qest!Resource | Resource}, so any draft is accepted where only a generic shape or
+ * model is known.
+ *
+ * @typeParam S The resource shape, or the shape of the resource holding the collection, possibly deferred to break
+ * definition cycles
+ * @typeParam T The slice naming the collection property; omit it to draft the resource itself
+ *
+ * @opaque
+ */
+export type Draft<S extends Lazy<ResourceShape>, T = never> =
+	[Blueprint<S, T>] extends [never] ? never : Drafted<Blueprint<S, T>>;
+
+
+/**
+ * Resolves the models for retrieving a resource.
+ *
+ * Resolves to the {@link @metreeca/qest!Template | templates} a retrieval against the shape may use, so that a template
+ * naming members the shape doesn't declare, or requesting a member in a form its range doesn't support, fails to
+ * compile instead of failing in the store. Any member of the shape, declared or inherited, may be requested as:
+ *
+ * - **atomic** — `{}`, for any member
+ * - **template** — a nested template, checked against the shape of the linked or embedded resource
+ * - **locale** — a language-range map, for ranges admitting localised text
+ * - **union** — a branch map, for ranges mixing kinds of value, each branch in any form above except a locale
+ * - **query** — any form above, or a projection, merged with collection criteria, for multi-valued members
+ *
+ * Only forms are checked: filter, ordering and projection expressions are not validated against the shape. Since keys
+ * are compared structurally, a template mixing unknown members with known ones is accepted, unless the template is
+ * passed as `T`: a bound stated as `T extends Model<S, T>` rejects it. Every model is a
+ * {@link @metreeca/qest!Template | Template}, so stores can read it as one regardless of its shape.
+ *
+ * @typeParam S The resource shape, possibly deferred to break definition cycles
+ * @typeParam T The supplied template, typically inferred from the argument, with members the shape doesn't declare
+ * rejected; omit it to accept any template naming only members of the shape
+ *
+ * @opaque
+ */
+export type Model<S extends Lazy<ResourceShape>, T = never> = Template & Entries<S, T>
+
+/**
+ * Resolves the type of the resource retrieved by a model.
+ *
+ * For a template, resolves to the {@link State | state} of the shape restricted to the members the template names,
+ * including those of nested templates. A collection requested with a projection holds the rows the projection
+ * computes. For a projection, resolves to the computed row, keyed by the name before each binding's `=`, with columns
+ * typed as any value a resource may hold. Depth, cardinality and optionality come from the shape: the model only
+ * selects which values to return. Filtering, ordering and pagination criteria don't affect the result type.
+ *
+ * Members the template omits are omitted from the match. Polymorphic members, localised members and projection
+ * columns keep the broad type the shape describes: callers needing the branch selected by a branch map, the tags
+ * selected by a language range, or the specific type an expression computes, must narrow it themselves. Under the bare
+ * {@link resource!ResourceShape | ResourceShape}, every member the template names resolves to any
+ * {@link @metreeca/qest!Values | values}; a generic {@link @metreeca/qest!Template | Template}, naming no member,
+ * resolves to an empty record.
+ *
+ * @typeParam S The shape the retrieval runs against, possibly deferred to break definition cycles
+ * @typeParam T The template or projection model of the retrieval, possibly with criteria
+ *
+ * @opaque
+ */
+export type Match<S extends Lazy<ResourceShape>, T extends object> =
+	Exclude<keyof T, keyof Criteria> extends Binding ? Row<T>
+		: Detailed<S, Wanted<T>>
+
+
+/**
+ * Resolves the models for retrieving a resource restricted to a single collection.
+ *
+ * A slice is a specialised {@link Model | model} of the holding shape that targets a single collection, a property
+ * holding any number of resources. It names that property and nothing else, and states under it a
+ * {@link Model | template} or a {@link @metreeca/qest!Projection | projection} over the item shape, merged with
+ * filtering, ordering and pagination criteria for the collection. This way a collection retrieval is checked against
+ * the holding shape alone, just like a resource retrieval.
+ *
+ * {@link items} reads the retrieved items from the {@link Match | match}. {@link collection} resolves the property a
+ * slice names, and {@link blueprint} the shape new items of that collection must satisfy.
+ *
+ * Slices fail to compile if they name no property or more than one, or a property the shape doesn't declare. They also
+ * fail if the property isn't a collection, because it is single-valued or holds values other than resources, or if
+ * they request a member the item shape doesn't declare.
+ *
+ * The bare {@link resource!ResourceShape | ResourceShape} accepts any model naming a single property, and a generic
+ * {@link @metreeca/qest!Template | Template} is accepted as {@link Model} accepts it, so collection retrievals still
+ * compile where only a generic shape or model is known.
+ *
+ * @typeParam S The shape of the resource holding the collection, possibly deferred to break definition cycles
+ * @typeParam T The supplied model, typically inferred from the argument
+ *
+ * @opaque
+ */
+export type Slice<S extends Lazy<ResourceShape>, T> =
+	string extends keyof T ? Model<S, T> // the model left wide
+		: ResourceShape extends Eager<S> ? Model<S, T> & Sole<keyof T> // the shape left wide
+			: Model<S, T> & Sole<keyof T> & { readonly [F in keyof T]: F extends Repeated<S> ? Collecting<S, F, T[F]> : never }
+
+/**
+ * Resolves the type of the items retrieved from a collection.
+ *
+ * Items are the array of {@link Frame | frames} that a {@link Slice | slice} retrieves from a collection.
+ * {@link items} extracts them from the {@link Match | match} of the retrieval, so callers don't need to look up the
+ * collection in the holding resource. Each frame is restricted to the members the slice asks for.
+ *
+ * Items are always an array, whatever the shape and model, so they are accepted wherever an iterable of items is
+ * expected, even in code generic over both. The bare {@link resource!ResourceShape | ResourceShape} or a generic
+ * {@link @metreeca/qest!Template | Template} resolves to an array of any {@link @metreeca/qest!Value | values}, so
+ * any collection result is accepted where only a generic shape or model is known.
+ *
+ * @typeParam S The shape of the resource holding the collection, possibly deferred to break definition cycles
+ * @typeParam T The slice, naming the collection property and the members wanted from each item, possibly
+ * with criteria; callers constrain it to the {@link Slice | slice} the shape allows, as with {@link Match}
+ *
+ * @opaque
+ */
+export type Items<S extends Lazy<ResourceShape>, T extends object> =
+	readonly Frame<S, T>[]
+
+/**
+ * Resolves the type of a single item retrieved from a collection.
+ *
+ * A frame is one of the {@link Items | items} returned by a {@link Slice | slice} retrieval. For a template
+ * under the property, the item is restricted to the members the template names. For a projection, it is a computed
+ * row, keyed by the name before each binding's `=`. For an empty template, it is the item as stored, such as a
+ * {@link @metreeca/qest!Reference | reference}. Filtering, ordering and pagination criteria don't affect the item
+ * type. The bare {@link resource!ResourceShape | ResourceShape} or a generic
+ * {@link @metreeca/qest!Template | Template} resolves to any {@link @metreeca/qest!Value | value}.
+ *
+ * Code generic over the shape and the slice uses this type to name a single item, for instance to type the items
+ * flattened out of several retrievals.
+ *
+ * @typeParam S The shape of the resource holding the collection, possibly deferred to break definition cycles
+ * @typeParam T The slice, naming the collection property and the members wanted from each item, possibly
+ * with criteria; callers constrain it to the {@link Slice | slice} the shape allows, as with {@link Match}
+ *
+ * @opaque
+ */
+export type Frame<S extends Lazy<ResourceShape>, T extends object> =
+	string extends keyof T ? Value // the model left wide
+		: Extract<Match<S, T>[keyof T & keyof Match<S, T>], readonly unknown[]>[number]

@@ -696,12 +696,15 @@ describe("enforce", () => {
 
 	describe("polymorphic members", () => {
 
+		const Vendor = resource({ id: id(), tags: multiple(string()) });
+
 		const A = resource({ name: required(string()) });
 		const B = resource({ tags: multiple(string()) });
 
 		const shape = resource({
 			value: optional(union(A, B)),
-			values: multiple(union(A, B))
+			values: multiple(union(A, B)),
+			linked: optional(union(A, reference(Vendor)))
 		});
 
 		it("descends into each branch of a single value", async () => {
@@ -718,10 +721,27 @@ describe("enforce", () => {
 
 		});
 
-		it("leaves a branch the union doesn't declare alone", async () => {
+		it("resolves an alternative by its form rather than by its key", async () => {
 
-			expect(enforce({ value: { "7": { name: {} } } }, shape, { limit }))
-				.toEqual({ value: { "7": { name: {} } } });
+			expect(enforce({ value: { "0": { tags: {} }, "1": { name: {} } } }, shape, { limit }))
+				.toEqual({ value: { "0": { tags: { "#": limit } }, "1": { name: {} } } });
+
+			expect(enforce({ value: { "7": { tags: {} } } }, shape, { limit }))
+				.toEqual({ value: { "7": { tags: { "#": limit } } } });
+
+		});
+
+		it("descends into the template behind a link branch", async () => {
+
+			expect(enforce({ linked: { "0": { tags: {} } } }, shape, { limit }))
+				.toEqual({ linked: { "0": { tags: { "#": limit } } } });
+
+		});
+
+		it("leaves an alternative fitting no branch alone", async () => {
+
+			expect(enforce({ value: { "7": { unknown: {} } } }, shape, { limit }))
+				.toEqual({ value: { "7": { unknown: {} } } });
 
 		});
 

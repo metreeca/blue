@@ -18,7 +18,7 @@ import { assert } from "@metreeca/core";
 import { isTagRange, type Tag } from "@metreeca/core/language";
 import { describe, expectTypeOf, test } from "vitest";
 import { dictionary, type DictionaryShape } from "./index.js";
-import { type Instance } from "../value/index.js";
+import { type State } from "../value/index.js";
 import { multiple, optional, required, resource } from "../resource/index.js";
 
 
@@ -31,26 +31,26 @@ describe("dictionary", () => {
 	const shape = dictionary();
 
 	test("DictionaryShape → tag-keyed arrays", () => {
-		expectTypeOf<Instance<DictionaryShape>>().toEqualTypeOf<{ readonly [tag: Tag]: readonly string[] }>();
+		expectTypeOf<State<DictionaryShape>>().toEqualTypeOf<{ readonly [tag: Tag]: readonly string[] }>();
 	});
 
 	test("unique-tagged shape → a single string per tag", () => {
 
 		const unique = dictionary({ uniqueLang: true });
 
-		expectTypeOf<Instance<typeof unique>>().toEqualTypeOf<{ readonly [tag: Tag]: string }>();
+		expectTypeOf<State<typeof unique>>().toEqualTypeOf<{ readonly [tag: Tag]: string }>();
 
 	});
 
 	test("unstated arity → an array of strings per tag", () => {
-		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<{ readonly [tag: Tag]: readonly string[] }>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly [tag: Tag]: readonly string[] }>();
 	});
 
 	test("explicitly non-unique arity → an array of strings per tag", () => {
 
 		const stacked = dictionary({ uniqueLang: false });
 
-		expectTypeOf<Instance<typeof stacked>>().toEqualTypeOf<{ readonly [tag: Tag]: readonly string[] }>();
+		expectTypeOf<State<typeof stacked>>().toEqualTypeOf<{ readonly [tag: Tag]: readonly string[] }>();
 
 	});
 
@@ -58,7 +58,7 @@ describe("dictionary", () => {
 
 		const stated = dictionary({ uniqueLang: Boolean(1) });
 
-		expectTypeOf<Instance<typeof stated>>().toEqualTypeOf<{ readonly [tag: Tag]: readonly string[] }>();
+		expectTypeOf<State<typeof stated>>().toEqualTypeOf<{ readonly [tag: Tag]: readonly string[] }>();
 
 	});
 
@@ -66,7 +66,7 @@ describe("dictionary", () => {
 
 		const unique = dictionary({ uniqueLang: true, minLength: 1, languageIn: [assert("en", isTagRange)] });
 
-		expectTypeOf<Instance<typeof unique>>().toEqualTypeOf<{ readonly [tag: Tag]: string }>();
+		expectTypeOf<State<typeof unique>>().toEqualTypeOf<{ readonly [tag: Tag]: string }>();
 
 	});
 
@@ -108,13 +108,13 @@ describe("members", () => {
 
 	test("carries the per-tag arity through cardinality", () => {
 
-		expectTypeOf<Instance<typeof Article>["title"]>()
+		expectTypeOf<State<typeof Article>["title"]>()
 			.toEqualTypeOf<{ readonly [tag: Tag]: string }>();
 
-		expectTypeOf<Instance<typeof Article>["abstract"]>()
+		expectTypeOf<State<typeof Article>["abstract"]>()
 			.toEqualTypeOf<undefined | { readonly [tag: Tag]: string }>();
 
-		expectTypeOf<Instance<typeof Article>["keywords"]>()
+		expectTypeOf<State<typeof Article>["keywords"]>()
 			.toEqualTypeOf<undefined | { readonly [tag: Tag]: readonly string[] }>();
 
 	});
@@ -123,7 +123,7 @@ describe("members", () => {
 
 		const Titled = resource(Article, { abstract: required(dictionary({ uniqueLang: true })) });
 
-		expectTypeOf<Instance<typeof Titled>["abstract"]>().toEqualTypeOf<{ readonly [tag: Tag]: string }>();
+		expectTypeOf<State<typeof Titled>["abstract"]>().toEqualTypeOf<{ readonly [tag: Tag]: string }>();
 
 	});
 

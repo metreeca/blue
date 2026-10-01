@@ -18,7 +18,7 @@ import { describe, expectTypeOf, test } from "vitest";
 import { multiple, optional, required, resource } from "../resource/index.js";
 import { string } from "../string/index.js";
 import { union } from "../union/index.js";
-import { type Instance } from "../value/index.js";
+import { type State } from "../value/index.js";
 import { type BooleanShape, boolean } from "./index.js";
 
 
@@ -29,7 +29,7 @@ describe("boolean", () => {
 	});
 
 	test("BooleanShape → boolean", () => {
-		expectTypeOf<Instance<BooleanShape>>().toEqualTypeOf<boolean>();
+		expectTypeOf<State<BooleanShape>>().toEqualTypeOf<boolean>();
 	});
 
 	test("enumerated BooleanShape → admitted value", () => {
@@ -37,7 +37,7 @@ describe("boolean", () => {
 		const shape=boolean({ in: true });
 
 		expectTypeOf(shape).toEqualTypeOf<BooleanShape<true>>();
-		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<true>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<true>();
 
 	});
 
@@ -46,7 +46,7 @@ describe("boolean", () => {
 		const shape=boolean(false);
 
 		expectTypeOf(shape).toEqualTypeOf<BooleanShape<false>>();
-		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<false>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<false>();
 
 	});
 
@@ -55,7 +55,7 @@ describe("boolean", () => {
 		const flag: () => boolean=() => true;
 		const shape=boolean(flag());
 
-		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<boolean>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<boolean>();
 
 	});
 
@@ -64,7 +64,7 @@ describe("boolean", () => {
 		const flag: () => boolean=() => true;
 		const shape=boolean({ in: flag() });
 
-		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<boolean>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<boolean>();
 
 	});
 
@@ -73,7 +73,7 @@ describe("boolean", () => {
 		// @ts-expect-error - the state is stated through the constraints, not on its own
 		const shape=boolean<true>();
 
-		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<boolean>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<boolean>();
 
 	});
 
@@ -82,7 +82,7 @@ describe("boolean", () => {
 		// @ts-expect-error - the stated enumeration doesn't admit the supplied value
 		const shape=boolean<{ readonly in: true }>({ in: false });
 
-		expectTypeOf<Instance<typeof shape>>().toEqualTypeOf<true>();
+		expectTypeOf<State<typeof shape>>().toEqualTypeOf<true>();
 
 	});
 
@@ -98,9 +98,9 @@ describe("members", () => {
 
 	test("carries the admitted value through cardinality", () => {
 
-		expectTypeOf<Instance<typeof Product>["available"]>().toEqualTypeOf<boolean>();
-		expectTypeOf<Instance<typeof Product>["featured"]>().toEqualTypeOf<undefined | true>();
-		expectTypeOf<Instance<typeof Product>["flags"]>().toEqualTypeOf<undefined | readonly false[]>();
+		expectTypeOf<State<typeof Product>["available"]>().toEqualTypeOf<boolean>();
+		expectTypeOf<State<typeof Product>["featured"]>().toEqualTypeOf<undefined | true>();
+		expectTypeOf<State<typeof Product>["flags"]>().toEqualTypeOf<undefined | readonly false[]>();
 
 	});
 
@@ -108,7 +108,7 @@ describe("members", () => {
 
 		const Featured=resource(Product, { available: required(boolean({ in: true })) });
 
-		expectTypeOf<Instance<typeof Featured>["available"]>().toEqualTypeOf<true>();
+		expectTypeOf<State<typeof Featured>["available"]>().toEqualTypeOf<true>();
 
 	});
 
@@ -121,7 +121,7 @@ describe("tagged unions", () => {
 		resource({ settled: required(boolean({ in: true })), paid: required(string()) })
 	);
 
-	type Value=Instance<typeof Payment>
+	type Value=State<typeof Payment>
 
 	test("tags each alternative with the value it admits", () => {
 

@@ -20,7 +20,7 @@
  * The value a shape describes is resolved by a chain of helper types (`Retrieved`, `Submitted`, `Carried`, `Content`,
  * `Slot`, `Arity`, `Legal`, `Declared`, `Branch`, `Plain`, …) exported from the per-kind `inference.ts` modules so that
  * the public aliases and the type tests can reach them. None of those modules is an entry point, so a consumer reading
- * `Instance`, `Compound`, `property()` or a scalar factory learns nothing from a signature naming one: TypeDoc renders
+ * `State`, `Compound`, `property()` or a scalar factory learns nothing from a signature naming one: TypeDoc renders
  * it as unlinked dead text. Two guarantees put an annotation there instead:
  *
  * - a type alias tagged `@opaque` renders as `{ inferred from <S> }`, its comment carrying the resolved value in full;
@@ -28,6 +28,9 @@
  *   argument, as `{ inferred L }` where it fills a named slot beside siblings, as in
  *   `Range<R, { inferred L }, { inferred U }>`, and as a bare `{ inferred }` where the container offers no slot to name
  *   it by.
+ *
+ * A type parameter constraint renders as written in the source, so a constraint naming an `@opaque` alias, as in
+ * `T extends Slice<S, T>`, links to the alias rather than spelling out the machinery it resolves to.
  *
  * The second guarantee doubles as a safety net: a helper leaking into a future signature is annotated with no per-site
  * tagging. Neither hides anything from TypeScript, which resolves and displays the machinery as before.
@@ -46,6 +49,8 @@
  * - an annotation replaces the reference node rather than renaming it, which removes it ahead of the `notExported`
  *   validation and so spares `typedoc.json` an `intentionallyNotExported` entry per helper; the trade-off is that a
  *   newly leaked helper is annotated silently rather than warned about;
+ * - a signature's type parameters are converted from the resolved constraint type, which expands aliases and so
+ *   escapes `@opaque`; the constraint is converted again from its declaration node on `createTypeParameter`;
  * - the annotation is an `IntrinsicType`, as an `UnknownType` parenthesises itself everywhere but the root;
  * - iterating `project.reflections` reaches every rendered type, signatures, parameters and type parameters being
  *   reflections in their own right.
@@ -76,6 +81,11 @@ export function load(app) {
 		app.options.setValue("modifierTags", [...app.options.getValue("modifierTags"), OPAQUE]);
 	});
 
+	app.converter.on(Converter.EVENT_CREATE_TYPE_PARAMETER, (context, reflection) => { // keep the alias as written
+		const constraint = context.getSymbolFromReflection(reflection)?.declarations?.find(({ constraint }) => constraint)?.constraint;
+		reflection.type = constraint ? context.converter.convertType(context.withScope(reflection), constraint) : reflection.type;
+	});
+
 	app.converter.on(Converter.EVENT_RESOLVE_BEGIN, ({ project }) => {
 		project.getReflectionsByKind(ReflectionKind.TypeAlias)
 			.filter(reflection => reflection.comment?.hasModifier(OPAQUE))
@@ -93,7 +103,13 @@ export function load(app) {
 
 		const slot = (type, index) => new IntrinsicType(inferred(type.reflection?.typeParameters?.[index]?.name));
 
+		const member = type => hidden(type) ? new IntrinsicType(inferred()) : type; // a member has no slot to name it by
+
 		const elide = makeRecursiveVisitor({ // a reference knows whether an elided argument stands alone
+
+			union: type => Object.assign(type, { types: type.types.map(member) }),
+
+			intersection: type => Object.assign(type, { types: type.types.map(member) }),
 
 			reference: type => hidden(type)
 
