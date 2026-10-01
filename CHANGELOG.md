@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.11.0](https://github.com/metreeca/blue/compare/v0.10.0...HEAD)
+## [Unreleased](https://github.com/metreeca/blue/compare/v0.11.0...HEAD)
+
+## [0.11.0](https://github.com/metreeca/blue/compare/v0.10.0...v0.11.0) - 2026-10-01
 
 ### Added
 
@@ -50,6 +52,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   kind, the `forward` and `reverse` predicates and the `captive` and `foreign` flags of every member name they share,
   while range, cardinality and value domain may still differ (#33)
 - Raise the minimum supported dependencies to `@metreeca/core` 0.12 and `@metreeca/qest` 0.11 (#33)
+- Require Node.js 22.22 or later
 - Read the bare values `boolean()`, `number()` and `string()` accept as the `in` enumeration closing the domain to
   them, in place of the prototype model they stated: `boolean(true)`, `number(1, 2, 3)` and `string("open", "closed")`
   take the admitted values as leading arguments
@@ -88,6 +91,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Remove the `model()` helper and the types serving the stored model — `Schema`, `Prototype`, `Boxed`, `State`,
   `Resolved`, `Bounds`, `ValueShape`, `ValuesShape`, `RangeShape`, `SetShape` and `SetFactory` — superseded by the
   `Range` a property states and by the reworked `State` value resolver (#22)
+- Remove the `cardinality()` factory: custom bounds are stated on the member itself, as
+  `property(range, { minCount, maxCount })` in place of `cardinality(minCount, maxCount)(range)`
 - Remove `ReferenceConstraints`: `reference()` states its target alone, the link flags being declared on the property
   (#27)
 - Remove the `computed` property constraint
