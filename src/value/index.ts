@@ -208,8 +208,8 @@ export type Range<
 export type State<S extends Lazy<Shape>> =
 	Shape extends Eager<S> ? never
 		: ResourceShape extends Eager<S> ? Resource
-			: S extends Lazy<ResourceShape> ? Retrieved<S>
-				: S extends Lazy<UnionShape> ? State<Branch<S>>
+			: S extends Lazy<{ readonly kind: "resource" }> ? Retrieved<S>
+				: S extends Lazy<{ readonly kind: "union" }> ? State<Branch<S>>
 					: Plain<S>
 
 /**
