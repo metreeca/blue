@@ -756,6 +756,69 @@ export type PropertyBounds = PropertyConstraints & {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Creates a resource shape extending other shapes.
+ *
+ * Extends the shapes given, carrying their members and constraints without adding or narrowing any member. A shape
+ * extending nothing admits only resources carrying no members.
+ *
+ * @typeParam I The shapes extended, possibly deferred to break definition cycles
+ *
+ * @param args The shapes extended
+ *
+ * @returns An immutable shape admitting the resources the inherited members bound
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the extended shapes disagree on an inherited constraint,
+ *     or the merged shape states two identifiers, two types, or two members mapping to the same predicate
+ */
+export function resource<I extends Parents>(
+	...args: [...inheritance: I]
+): ResourceShape<I, {}>
+
+/**
+ * Creates a resource shape extending other shapes with shape-level constraints.
+ *
+ * Extends the shapes given first, carrying their members and constraints, and holds every resource to the
+ * {@link ResourceConstraints constraints} stated after them. The shape carries only the members it inherits: a shape
+ * extending nothing admits only resources carrying no members.
+ *
+ * @typeParam I The shapes extended, possibly deferred to break definition cycles
+ *
+ * @param args The shapes extended, followed by the shape {@link ResourceConstraints constraints}
+ *
+ * @returns An immutable shape admitting the resources the inherited members and the constraints bound
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where the extended shapes disagree on an inherited constraint,
+ *     or the merged shape states two identifiers, two types, or two members mapping to the same predicate
+ */
+export function resource<I extends Parents>(
+	...args: [...inheritance: I, constraints: ResourceConstraints & { readonly kind?: never }]
+): ResourceShape<I, {}>
+
+/**
+ * Creates a resource shape stating shape-level constraints.
+ *
+ * Extends the shapes given first, carrying their members and constraints on top of the ones declared here, and holds
+ * every resource to the {@link ResourceConstraints constraints} stated between them and the members: what it is
+ * called, the class it belongs to, the space its members resolve their predicates against, and the identifiers it may
+ * be named by.
+ *
+ * @typeParam I The shapes extended, possibly deferred to break definition cycles
+ * @typeParam M The members declared in the shape's own right
+ *
+ * @param args The shapes extended, followed by the shape {@link ResourceConstraints constraints} and the members
+ *     declared
+ *
+ * @returns An immutable shape admitting the resources the members and constraints bound
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a member fails to narrow the one it overrides, the
+ *     extended shapes disagree on an inherited constraint, or the merged shape states two identifiers, two types, or
+ *     two members mapping to the same predicate
+ */
+export function resource<I extends Parents, M extends Members>(
+	...args: [...inheritance: I, constraints: ResourceConstraints & { readonly kind?: never }, members: M]
+): ResourceShape<I, M>
+
+/**
  * Creates a resource shape.
  *
  * Extends the shapes given ahead of the members, carrying their members and constraints on top of the ones declared
@@ -778,29 +841,6 @@ export function resource<I extends Parents, M extends Members>(
 ): ResourceShape<I, M>
 
 /**
- * Creates a resource shape stating shape-level constraints.
- *
- * Extends the shapes given first, as {@link resource | the members-only form} does, and holds every resource to the
- * {@link ResourceConstraints constraints} stated between them and the members: what it is called, the class it belongs
- * to, the space its members resolve their predicates against, and the identifiers it may be named by.
- *
- * @typeParam I The shapes extended, possibly deferred to break definition cycles
- * @typeParam M The members declared in the shape's own right
- *
- * @param args The shapes extended, followed by the shape {@link ResourceConstraints constraints} and the members
- *     declared
- *
- * @returns An immutable shape admitting the resources the members and constraints bound
- *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where a member fails to narrow the one it overrides, the
- *     extended shapes disagree on an inherited constraint, or the merged shape states two identifiers, two types, or
- *     two members mapping to the same predicate
- */
-export function resource<I extends Parents, M extends Members>(
-	...args: [...inheritance: I, constraints: ResourceConstraints & { readonly kind?: never }, members: M]
-): ResourceShape<I, M>
-
-/**
  * Creates a resource shape.
  */
 export function resource(...args: readonly unknown[]): ResourceShape {
@@ -809,6 +849,8 @@ export function resource(...args: readonly unknown[]): ResourceShape {
 
 }
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Creates the member naming a resource.

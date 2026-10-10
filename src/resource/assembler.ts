@@ -71,19 +71,24 @@ const Flattened = Symbol("flattened");
  * off the arguments as they were stated, resolves each member's predicate against the effective space, and merges the
  * inherited definitions in, so that the shape a caller holds states everything its resources carry.
  *
- * @param args The extended shapes, optionally the constraints, and the members stated last
+ * @param args The extended shapes, followed by the constraints, the members, or both, each optional; a lone declaration
+ *     is read as members where it lists members, and as constraints otherwise
  *
  * @returns An immutable shape admitting the resources the members and constraints bound
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated declarations are inconsistent with the
  *     inherited ones
- * @throws {@link !TypeError TypeError} Where the declaration stated last lists something other than members, or the
- *     one ahead of it something other than constraints
+ * @throws {@link !TypeError TypeError} Where a lone declaration lists neither members nor constraints, or of two
+ *     declarations the last lists something other than members or the first something other than constraints
  */
 export function assemble(args: readonly unknown[]): ResourceShape {
 
 	const parents = args.filter(isParent);
-	const [members, constraints = {}] = [...args.filter(isDeclaration)].reverse();
+	const declarations = args.filter(isDeclaration);
+
+	const [constraints = {}, members = {}] = declarations.length === 1 && !isMembers(declarations[0])
+		? [declarations[0]]
+		: [declarations.at(-2), declarations.at(-1)];
 
 	if ( !isMembers(members) ) {
 		throw new TypeError(`malformed member declarations <${JSON.stringify(members)}>`);

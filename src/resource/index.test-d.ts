@@ -526,9 +526,51 @@ describe("factories", () => {
 			resource(string(), { label: required(string()) });
 		});
 
-		test("rejects an extended shape as the members", () => {
-			// @ts-expect-error - a resource shape is not a member map
-			resource(resource({ id: id() }));
+		test("inherits the state of an extended shape stated alone", () => {
+			const shape=resource(resource({ id: id(), label: required(string()) }));
+
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
+		});
+
+		test("inherits the state of a lazy extended shape stated alone", () => {
+			const base=resource({ id: id(), label: required(string()) });
+			const shape=resource(() => base);
+
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
+		});
+
+		test("inherits the state of extended shapes followed by constraints alone", () => {
+			const shape=resource(resource({ id: id() }), { class: "https://schema.org/Product" });
+
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference }>();
+		});
+
+		test("constraints alone → empty instance", () => {
+			const shape=resource({ class: "https://schema.org/Product" });
+
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{}>();
+		});
+
+		test("no declaration → empty instance", () => {
+			const shape=resource();
+
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{}>();
+		});
+
+		test("reads a member named like a constraint as a member", () => {
+			const shape=resource(resource({ id: id() }), { name: required(string()) });
+
+			expectTypeOf<State<typeof shape>>().toEqualTypeOf<{ readonly id: Reference, readonly name: string }>();
+		});
+
+		test("rejects an unknown constraint stated alone", () => {
+			// @ts-expect-error - nope is neither a member nor a constraint
+			resource({ nope: "https://schema.org/Product" });
+		});
+
+		test("rejects a non-member value after an extended shape", () => {
+			// @ts-expect-error - a number is not a member
+			resource(resource({ id: id() }), { label: 1 });
 		});
 
 	});

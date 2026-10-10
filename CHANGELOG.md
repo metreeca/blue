@@ -7,6 +7,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.13.0](https://github.com/metreeca/blue/compare/v0.12.0...HEAD)
 
+### Added
+
+- Let `resource` declare no members of its own: it now accepts extended shapes alone, shape-level constraints alone,
+  extended shapes followed by constraints, or no arguments at all, carrying only the members it inherits
+
 ### Fixed
 
 - Resolve `State` and the retrieval types built on it correctly for self-referential shapes in packages compiling

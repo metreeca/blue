@@ -98,9 +98,47 @@ describe("factories", () => {
 
 		});
 
+		it("accepts constraints alone", async () => {
+
+			const shape = resource({ class: "https://schema.org/Product" });
+
+			expect(shape.class).toBe("https://schema.org/Product");
+			expect(shape.members).toEqual({});
+
+		});
+
+		it("accepts extended shapes alone", async () => {
+
+			const Base = resource({ name: required(string()) });
+			const shape = resource(Base);
+
+			expect(shape.parents).toEqual([Base]);
+			expect(Object.keys(shape.members)).toEqual(["name"]);
+
+		});
+
+		it("accepts extended shapes and constraints with no members", async () => {
+
+			const Base = resource({ name: required(string()) });
+			const shape = resource(Base, { class: "https://schema.org/Product" });
+
+			expect(shape.class).toBe("https://schema.org/Product");
+			expect(Object.keys(shape.members)).toEqual(["name"]);
+
+		});
+
+		it("accepts no declaration at all", async () => {
+
+			const shape = resource();
+
+			expect(shape.parents).toEqual([]);
+			expect(shape.members).toEqual({});
+
+		});
+
 		it("rejects a malformed declaration", async () => {
 
-			expect(() => resource({ name: "nope" } as never)).toThrow(TypeError);
+			expect(() => resource({ name: required(string()), label: "nope" } as never)).toThrow(TypeError);
 
 		});
 
