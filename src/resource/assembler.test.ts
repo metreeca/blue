@@ -29,6 +29,7 @@ import {
 	checkParents,
 	checkPredicates,
 	checkResource,
+	checkReverse,
 	checkSingletons,
 	flatten,
 	mergeProperty,
@@ -57,6 +58,18 @@ function getProperty(shape: ResourceShape, name: string) {
 
 	return member?.kind === "property" ? member : undefined;
 
+}
+
+
+const Target = resource({ id: id() });
+
+const Embedded = resource({ label: optional(string()) });
+
+
+// assembled by hand, as the factory itself rejects the shapes checkReverse is meant to catch
+
+function assembled(members: Record<string, Property>): ResourceShape {
+	return { kind: "resource", classes: [], parents: [], members };
 }
 
 
@@ -735,6 +748,40 @@ describe("checkPredicates", () => {
 			name: required(string()),
 			code: required(string())
 		}))).toBeUndefined();
+
+	});
+
+});
+
+describe("checkReverse", () => {
+
+	it("returns undefined where no member states a reverse mapping", async () => {
+
+		expect(checkReverse(assembled({ name: required(string(), { forward: "https://schema.org/name" }) })))
+			.toBeUndefined();
+
+	});
+
+	it.each<[string, Property]>([
+		["a reference range", multiple(reference(Target), { reverse: "https://schema.org/employee" })],
+		["an embedded resource range", multiple(Embedded, { reverse: "https://schema.org/employee" })],
+		["a union of resource ranges", multiple(union(reference(Target), Embedded), { reverse: "https://schema.org/employee" })],
+		["a deferred range", multiple(() => reference(Target), { reverse: "https://schema.org/employee" })]
+	])("accepts a reverse mapping over %s", async (_, member) => {
+
+		expect(checkReverse(assembled({ employee: member }))).toBeUndefined();
+
+	});
+
+	it.each<[string, Property]>([
+		["a string range", optional(string(), { reverse: "https://example.com/owner" })],
+		["a number range", optional(number(), { reverse: "https://example.com/owner" })],
+		["a boolean range", optional(boolean(), { reverse: "https://example.com/owner" })],
+		["a union admitting a literal", optional(union(reference(Target), string()), { reverse: "https://example.com/owner" })]
+	])("reports a reverse mapping over %s", async (_, member) => {
+
+		expect(checkReverse(assembled({ value: member })))
+			.toContainEqual(expect.stringContaining("{reverse}"));
 
 	});
 

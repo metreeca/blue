@@ -324,7 +324,7 @@ export function declare<M>(member: Record<string, unknown>): M {
  * @returns An immutable shape stating the inherited definitions alongside its own
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated declarations are inconsistent with the
- *     inherited ones
+ *     inherited ones or with each other, or a member admitting literals states a reverse mapping
  */
 export function flatten(shape: ResourceShape): ResourceShape {
 
@@ -346,7 +346,8 @@ export function flatten(shape: ResourceShape): ResourceShape {
 	reject("incompatible merged shape", all(
 		() => checkParents(shape, parents),
 		() => checkSingletons(Object.values(merged.members)),
-		() => checkPredicates(merged)
+		() => checkPredicates(merged),
+		() => checkReverse(merged)
 
 		// checkId is left to validateResource, which alone can tell an embedded resource from an expanded target
 	)(undefined));
@@ -594,6 +595,39 @@ export function checkPredicates(shape: ResourceShape): Optional<Trace> {
 
 			});
 
+	}
+
+}
+
+/**
+ * Checks that every reverse mapping of a shape ranges over resources alone.
+ *
+ * A reverse mapping makes each value the subject of the statement it writes, and a literal can't be a subject. A
+ * member stating a reverse mapping must therefore range over references, embedded resources, or unions of them. The
+ * check runs as the shape is built, so consumers never receive values they can't encode. A range or union branch
+ * deferred to break a definition cycle is exempt.
+ *
+ * @param shape The merged shape to check
+ *
+ * @returns A trace naming each member that maps a literal range in reverse, or `undefined` if every reverse mapping
+ *     ranges over resources alone
+ */
+export function checkReverse(shape: ResourceShape): Optional<Trace> {
+
+	return all(...Object.entries(shape.members).map(([name, member]) =>
+		member.kind === "property" && member.reverse !== undefined && literal(member.range.shape)
+		&& fail([`{reverse} unexpected literal range on <${name}>`])
+	))(undefined);
+
+
+	/**
+	 * Checks whether a range admits literal values, treating a deferred range as admitting none.
+	 */
+	function literal(range: Lazy<Shape>): boolean {
+		return !isFunction(range) && (range.kind === "union"
+				? range.branches.some(literal)
+				: range.kind !== "reference" && range.kind !== "resource"
+		);
 	}
 
 }

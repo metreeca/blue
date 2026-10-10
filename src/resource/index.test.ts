@@ -17,7 +17,9 @@
 import { createNamespace } from "@metreeca/core/resource";
 import { TraceError } from "@metreeca/core/trace";
 import { describe, expect, it } from "vitest";
+import { reference } from "../reference/index.js";
 import { string } from "../string/index.js";
+import { union } from "../union/index.js";
 import {
 	id,
 	multiple,
@@ -32,6 +34,9 @@ import {
 
 
 const schema = createNamespace("https://schema.org/");
+
+
+const Person = resource({ id: id() });
 
 
 function getProperty(shape: ResourceShape, name: string) {
@@ -193,7 +198,7 @@ describe("factories", () => {
 
 			it("resolves a reverse mapping and states no forward one", async () => {
 
-				const shape = resource({ employee: multiple(string(), { reverse: schema }) });
+				const shape = resource({ employee: multiple(reference(Person), { reverse: schema }) });
 
 				expect(getProperty(shape, "employee")?.reverse).toBe("https://schema.org/employee");
 				expect(getProperty(shape, "employee")?.forward).toBeUndefined();
@@ -202,7 +207,9 @@ describe("factories", () => {
 
 			it("keeps a stated reverse predicate", async () => {
 
-				const shape = resource({ employee: multiple(string(), { reverse: "https://example.net/employee" }) });
+				const shape = resource({
+					employee: multiple(reference(Person), { reverse: "https://example.net/employee" })
+				});
 
 				expect(getProperty(shape, "employee")?.reverse).toBe("https://example.net/employee");
 
@@ -210,7 +217,7 @@ describe("factories", () => {
 
 			it("resolves both mappings where a member states both", async () => {
 
-				const shape = resource({ peer: multiple(string(), { forward: schema, reverse: schema }) });
+				const shape = resource({ peer: multiple(reference(Person), { forward: schema, reverse: schema }) });
 
 				expect(getProperty(shape, "peer")?.forward).toBe("https://schema.org/peer");
 				expect(getProperty(shape, "peer")?.reverse).toBe("https://schema.org/peer");
@@ -239,8 +246,25 @@ describe("factories", () => {
 
 				expect(() => resource({
 					name: required(string(), { forward: "https://schema.org/name" }),
-					named: multiple(string(), { reverse: "https://schema.org/name" })
+					named: multiple(reference(Person), { reverse: "https://schema.org/name" })
 				})).not.toThrow();
+
+			});
+
+			it("rejects a reverse mapping on a literal range", async () => {
+
+				expect(() => resource({
+					id: id(),
+					value: optional(string(), { reverse: "https://example.com/owner" })
+				})).toThrow(TraceError);
+
+			});
+
+			it("rejects a reverse mapping on a union admitting a literal", async () => {
+
+				expect(() => resource({
+					value: optional(union(reference(Person), string()), { reverse: "https://example.com/owner" })
+				})).toThrow(TraceError);
 
 			});
 

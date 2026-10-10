@@ -14,6 +14,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Reject `reverse` mappings on members whose range admits literals when the shape is built: a reverse mapping makes
+  each value a subject, so it is admitted only over references, embedded resources, or unions of them
+
 - Resolve `State` and the retrieval types built on it correctly for self-referential shapes in packages compiling
   against the published declarations, where value types could collapse to `{}`
 

@@ -202,6 +202,8 @@ export {
  * - all merged `hasValue` entries must be members of the merged `in` set (if defined)
  * - at most one `id` member and one `type` member, counted after inheritance
  * - no two members may share a forward predicate, nor two a reverse predicate
+ * - a member stating a reverse predicate must range over resources alone (references, embedded resources, or unions
+ *   of them)
  *
  * @typeParam P The shapes extended, possibly deferred to break definition cycles
  * @typeParam M The members declared in the shape's own right
@@ -703,6 +705,12 @@ export type PropertyConstraints<
 	 * > Both {@link forward} and `reverse` mappings write actual property values. This is independent from
 	 * > {@link foreign}, which exposes a read-only view over mappings another property owns.
 	 *
+	 * > [!IMPORTANT]
+	 * > A reverse mapping makes each value the subject of the statement it writes, and a literal can't be a subject.
+	 * > The mapping is therefore admitted only on members ranging over references, embedded resources, or unions of
+	 * > them. The {@link resource} factory rejects a reverse mapping on a member admitting literals. A range deferred
+	 * > to break a definition cycle is exempt from this check.
+	 *
 	 * **Inheritance** — cannot be overridden.
 	 *
 	 * @defaultValue `undefined` (no inverse mapping)
@@ -811,8 +819,8 @@ export function resource<I extends Parents>(
  * @returns An immutable shape admitting the resources the members and constraints bound
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a member fails to narrow the one it overrides, the
- *     extended shapes disagree on an inherited constraint, or the merged shape states two identifiers, two types, or
- *     two members mapping to the same predicate
+ *     extended shapes disagree on an inherited constraint, the merged shape states two identifiers, two types, or
+ *     two members mapping to the same predicate, or a member admitting literals states a reverse mapping
  */
 export function resource<I extends Parents, M extends Members>(
 	...args: [...inheritance: I, constraints: ResourceConstraints & { readonly kind?: never }, members: M]
@@ -833,8 +841,8 @@ export function resource<I extends Parents, M extends Members>(
  * @returns An immutable shape admitting the resources the members bound
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a member fails to narrow the one it overrides, the
- *     extended shapes disagree on an inherited constraint, or the merged shape states two identifiers, two types, or
- *     two members mapping to the same predicate
+ *     extended shapes disagree on an inherited constraint, the merged shape states two identifiers, two types, or
+ *     two members mapping to the same predicate, or a member admitting literals states a reverse mapping
  */
 export function resource<I extends Parents, M extends Members>(
 	...args: [...inheritance: I, members: M]
