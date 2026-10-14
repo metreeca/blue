@@ -24,15 +24,42 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./dist/index.js",
-    "./value": "./dist/value/index.js",
-    "./union": "./dist/union/index.js",
-    "./boolean": "./dist/boolean/index.js",
-    "./number": "./dist/number/index.js",
-    "./string": "./dist/string/index.js",
-    "./dictionary": "./dist/dictionary/index.js",
-    "./reference": "./dist/reference/index.js",
-    "./resource": "./dist/resource/index.js"
+    ".": {
+      "@metreeca/source": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./value": {
+      "@metreeca/source": "./src/value/index.ts",
+      "default": "./dist/value/index.js"
+    },
+    "./union": {
+      "@metreeca/source": "./src/union/index.ts",
+      "default": "./dist/union/index.js"
+    },
+    "./boolean": {
+      "@metreeca/source": "./src/boolean/index.ts",
+      "default": "./dist/boolean/index.js"
+    },
+    "./number": {
+      "@metreeca/source": "./src/number/index.ts",
+      "default": "./dist/number/index.js"
+    },
+    "./string": {
+      "@metreeca/source": "./src/string/index.ts",
+      "default": "./dist/string/index.js"
+    },
+    "./dictionary": {
+      "@metreeca/source": "./src/dictionary/index.ts",
+      "default": "./dist/dictionary/index.js"
+    },
+    "./reference": {
+      "@metreeca/source": "./src/reference/index.ts",
+      "default": "./dist/reference/index.js"
+    },
+    "./resource": {
+      "@metreeca/source": "./src/resource/index.ts",
+      "default": "./dist/resource/index.js"
+    }
   },
   "files": [
     "README.md",
@@ -43,18 +70,19 @@
     "node": ">=22.22.0"
   },
   "scripts": {
-    "clean": "rm -rf dist docs node_modules",
+    "clean": "rm dist docs node_modules",
     "prime": "npm ci",
-    "setup": "npm ci && sh package.sh",
-    "build": "rm -rf dist docs && tsc -p tsconfig.build.json && npx typedoc",
+    "setup": "npm ci && ln",
+    "build": "rm dist docs && tsc -p tsconfig.build.json && npx typedoc",
     "check": "npx vitest --typecheck run",
     "proof": "npm run build && (npx typedoc --watch & npx wds --root-dir docs --watch --open)"
   },
   "dependencies": {
-    "@metreeca/core": "^0.12.0",
-    "@metreeca/qest": "^0.12.0"
+    "@metreeca/core": "^0.12.1",
+    "@metreeca/qest": "^0.12.1"
   },
   "devDependencies": {
+    "@metreeca/rack": "^0.4.0",
     "@web/dev-server": "^1.0.0",
     "typedoc": "^0.28.14",
     "typescript": "^5.9.3",

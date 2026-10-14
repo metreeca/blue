@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.13.0](https://github.com/metreeca/blue/compare/v0.12.0...HEAD)
+## [0.13.0](https://github.com/metreeca/blue/compare/v0.12.1...HEAD)
 
 ### Added
 
@@ -17,8 +17,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Reject `reverse` mappings on members whose range admits literals when the shape is built: a reverse mapping makes
   each value a subject, so it is admitted only over references, embedded resources, or unions of them
 
+## [0.12.1](https://github.com/metreeca/blue/compare/v0.12.0...v0.12.1) - 2026-10-14
+
+### Fixed
+
 - Resolve `State` and the retrieval types built on it correctly for self-referential shapes in packages compiling
   against the published declarations, where value types could collapse to `{}`
+
+### Changed
+
+- Upgrade `@metreeca/core` to `^0.12.1`
+- Upgrade `@metreeca/qest` to `^0.12.1`
+- Published exports declare the `@metreeca/source` condition, resolving each entry point to its TypeScript source in
+  checkouts linked for local development, while registry consumers keep resolving to the compiled `dist` modules
 
 ## [0.12.0](https://github.com/metreeca/blue/compare/v0.11.0...v0.12.0) - 2026-10-01
 
