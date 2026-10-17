@@ -36,7 +36,7 @@ import {
 	type Optional
 } from "@metreeca/core";
 import { unique, union } from "@metreeca/core/arrays";
-import { app, isIRI, type Namespace } from "@metreeca/core/resource";
+import { base, isIRI, type Namespace } from "@metreeca/core/resource";
 import { dedent, tidy } from "@metreeca/core/strings";
 import { equals, immutable, seal } from "@metreeca/core/values";
 import { all, fail, test, type Trace } from "@metreeca/core/trace";
@@ -191,7 +191,7 @@ export function assemble(args: readonly unknown[]): ResourceShape {
 
 		const [first] = parents;
 
-		return space ?? (first === undefined ? undefined : eager(first).space) ?? app;
+		return space ?? (first === undefined ? undefined : eager(first).space) ?? base;
 
 	}
 

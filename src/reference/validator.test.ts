@@ -34,7 +34,7 @@ describe("validateReference", () => {
 	describe("type filtering", () => {
 
 		it.each<[string, readonly unknown[]]>([
-			["valid reference values", ["app:/users/123"]],
+			["valid reference values", ["base:/users/123"]],
 			["empty values", []]
 		])("returns undefined for %s", async (_label, values) => {
 
@@ -44,7 +44,7 @@ describe("validateReference", () => {
 
 		it.each<[string, readonly unknown[], readonly number[]]>([
 			["a single non-reference value", [42], [0]],
-			["mixed valid and non-reference values", ["app:/users/123", 42], [1]],
+			["mixed valid and non-reference values", ["base:/users/123", 42], [1]],
 			["multiple non-reference values", [42, true], [0, 1]],
 
 			// references MUST be absolute IRIs; a root-relative string carries no scheme
@@ -65,24 +65,24 @@ describe("validateReference", () => {
 		{
 			constraint: "pattern",
 			constraints: { pattern: "/users/{id}" } as const,
-			valid: ["app:/users/123"],
-			invalid: ["app:/products/123"],
+			valid: ["base:/users/123"],
+			invalid: ["base:/products/123"],
 			error: [{ "0": [expect.stringContaining("{pattern}")] }]
 		},
 
 		{
 			constraint: "in",
-			constraints: { in: ["app:/users/1", "app:/users/2"] } as const,
-			valid: ["app:/users/1"],
-			invalid: ["app:/users/99"],
+			constraints: { in: ["base:/users/1", "base:/users/2"] } as const,
+			valid: ["base:/users/1"],
+			invalid: ["base:/users/99"],
 			error: [{ "0": [expect.stringContaining("{domain}")] }]
 		},
 
 		{
 			constraint: "hasValue",
-			constraints: { hasValue: ["app:/users/1"] } as const,
-			valid: ["app:/users/1", "app:/users/2"],
-			invalid: ["app:/users/2"],
+			constraints: { hasValue: ["base:/users/1"] } as const,
+			valid: ["base:/users/1", "base:/users/2"],
+			invalid: ["base:/users/2"],
 			error: [expect.stringContaining("{values}")]
 		}
 
@@ -109,8 +109,8 @@ describe("validateReference", () => {
 			const Users = target({ pattern: "/users/{id}" });
 			const shape = reference(() => Users);
 
-			expect(validateReference(["app:/users/123"], shape)).toBeUndefined();
-			expect(validateReference(["app:/products/123"], shape))
+			expect(validateReference(["base:/users/123"], shape)).toBeUndefined();
+			expect(validateReference(["base:/products/123"], shape))
 				.toEqual([{ "0": [expect.stringContaining("{pattern}")] }]);
 
 		});
@@ -125,7 +125,7 @@ describe("validateReference", () => {
 				scope: "model"
 			})).toBeUndefined();
 
-			expect(validateReference([{}], reference(target({ in: ["app:/users/1"] })), {
+			expect(validateReference([{}], reference(target({ in: ["base:/users/1"] })), {
 				scope: "model"
 			})).toBeUndefined();
 
@@ -141,7 +141,7 @@ describe("validateReference", () => {
 		});
 
 		it.each<[string, readonly unknown[]]>([
-			["an IRI", ["app:/vendors/1"]],
+			["an IRI", ["base:/vendors/1"]],
 			["the empty string", [""]],
 			["a tag range map", [{ "*": {} }]]
 		])("rejects %s placeholder", async (_label, values) => {

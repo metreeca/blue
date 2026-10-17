@@ -33,7 +33,7 @@ describe("validateShape", () => {
 		expect(validateShape([42], integer())).toBeUndefined();
 		expect(validateShape([true], boolean())).toBeUndefined();
 		expect(validateShape([{ en: ["Widget"] }], dictionary())).toBeUndefined();
-		expect(validateShape(["app:/vendors/1"], reference(resource({ id: id() })))).toBeUndefined();
+		expect(validateShape(["base:/vendors/1"], reference(resource({ id: id() })))).toBeUndefined();
 
 	});
 
@@ -84,9 +84,9 @@ describe("validateShape", () => {
 describe("match", () => {
 
 	it.each<[string, string, string, boolean]>([
-		["a placeholder segment", "app:/users/123", "/users/{id}", true],
-		["a mismatched segment", "app:/products/123", "/users/{id}", false],
-		["a trailing wildcard", "app:/users/1/2", "/users/*", true],
+		["a placeholder segment", "base:/users/123", "/users/{id}", true],
+		["a mismatched segment", "base:/products/123", "/users/{id}", false],
+		["a trailing wildcard", "base:/users/1/2", "/users/*", true],
 		["an absolute pattern", "https://example.net/users/1", "https://example.net/users/{id}", true],
 		["an absolute pattern against another origin", "https://example.com/users/1",
 			"https://example.net/users/{id}", false],
@@ -101,7 +101,7 @@ describe("match", () => {
 
 	it("rejects a malformed pattern", async () => {
 
-		expect(() => match("app:/users/1", "users/{id}")).toThrow(TypeError);
+		expect(() => match("base:/users/1", "users/{id}")).toThrow(TypeError);
 
 	});
 

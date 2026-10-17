@@ -604,13 +604,13 @@ describe("checkResource", () => {
 	it("returns undefined for consistent constraints", async () => {
 
 		expect(checkResource({})).toBeUndefined();
-		expect(checkResource({ in: ["app:/1", "app:/2"], hasValue: ["app:/1"] })).toBeUndefined();
+		expect(checkResource({ in: ["base:/1", "base:/2"], hasValue: ["base:/1"] })).toBeUndefined();
 
 	});
 
 	it("reports required identifiers outside the enumeration", async () => {
 
-		expect(checkResource({ in: ["app:/1"], hasValue: ["app:/2"] }))
+		expect(checkResource({ in: ["base:/1"], hasValue: ["base:/2"] }))
 			.toContainEqual(expect.stringContaining("{hasValue/in}"));
 
 	});
@@ -854,8 +854,8 @@ describe("narrowsResource", () => {
 	it("rejects a child widening the admitted identifiers", async () => {
 
 		expect(narrowsResource(
-			resource({ in: ["app:/1", "app:/2"] }, {}),
-			resource({ in: ["app:/1"] }, {})
+			resource({ in: ["base:/1", "base:/2"] }, {}),
+			resource({ in: ["base:/1"] }, {})
 		)).toBeDefined();
 
 	});
@@ -863,8 +863,8 @@ describe("narrowsResource", () => {
 	it("rejects a child dropping a required identifier", async () => {
 
 		expect(narrowsResource(
-			resource({ hasValue: ["app:/1"] }, {}),
-			resource({ hasValue: ["app:/1", "app:/2"] }, {})
+			resource({ hasValue: ["base:/1"] }, {}),
+			resource({ hasValue: ["base:/1", "base:/2"] }, {})
 		)).toBeDefined();
 
 	});
@@ -988,22 +988,22 @@ describe("mergeResource", () => {
 	it("intersects the admitted identifiers", async () => {
 
 		const merged = mergeResource(
-			resource({ in: ["app:/1"] }, {}),
-			resource({ in: ["app:/1", "app:/2"] }, {})
+			resource({ in: ["base:/1"] }, {}),
+			resource({ in: ["base:/1", "base:/2"] }, {})
 		);
 
-		expect(merged.in).toEqual(["app:/1"]);
+		expect(merged.in).toEqual(["base:/1"]);
 
 	});
 
 	it("accumulates the required identifiers", async () => {
 
 		const merged = mergeResource(
-			resource({ hasValue: ["app:/1", "app:/2"] }, {}),
-			resource({ hasValue: ["app:/2"] }, {})
+			resource({ hasValue: ["base:/1", "base:/2"] }, {}),
+			resource({ hasValue: ["base:/2"] }, {})
 		);
 
-		expect(merged.hasValue).toEqual(expect.arrayContaining(["app:/1", "app:/2"]));
+		expect(merged.hasValue).toEqual(expect.arrayContaining(["base:/1", "base:/2"]));
 
 	});
 

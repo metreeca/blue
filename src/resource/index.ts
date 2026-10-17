@@ -316,7 +316,7 @@ export type ResourceConstraints = {
 	 *
 	 * **Inheritance** — inherited; conflicting parents without a child override are reported as an error.
 	 *
-	 * @defaultValue the {@link @metreeca/core!app | app} namespace (`app:/#`)
+	 * @defaultValue the {@link @metreeca/core!base | base} namespace (`base:/#`)
 	 */
 	readonly space?: Namespace;
 

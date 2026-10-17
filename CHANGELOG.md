@@ -17,6 +17,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Reject `reverse` mappings on members whose range admits literals when the shape is built: a reverse mapping makes
   each value a subject, so it is admitted only over references, embedded resources, or unions of them
 
+### Changed
+
+- Resolve member predicates unqualified by a stated or inherited `space` against the `base` namespace (`base:/#`) of
+  `@metreeca/core/resource`, which replaces the former `app` namespace and its `app:/#` origin in core 0.13.0
+- Upgrade `@metreeca/core` to `^0.13.0`
+
 ## [0.12.1](https://github.com/metreeca/blue/compare/v0.12.0...v0.12.1) - 2026-10-14
 
 ### Fixed

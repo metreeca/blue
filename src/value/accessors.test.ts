@@ -314,7 +314,7 @@ describe("effective", () => {
 
 		it("reaches the member typing a resource", async () => {
 
-			const shape = resource({ class: "app:/types/T" }, { kind: typed(), name: required(string()) });
+			const shape = resource({ class: "base:/types/T" }, { kind: typed(), name: required(string()) });
 
 			expect(range(effective(shape, probe(["kind"]))).shape).toEqual(iri);
 
@@ -339,7 +339,7 @@ describe("effective", () => {
 
 		it("reports a step past the member typing a resource", async () => {
 
-			const shape = resource({ class: "app:/types/T" }, { kind: typed(), name: required(string()) });
+			const shape = resource({ class: "base:/types/T" }, { kind: typed(), name: required(string()) });
 
 			expect(effective(shape, probe(["kind", "something"]))).toBe("unknown property path");
 

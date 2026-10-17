@@ -78,7 +78,7 @@
     "proof": "npm run build && (npx typedoc --watch & npx wds --root-dir docs --watch --open)"
   },
   "dependencies": {
-    "@metreeca/core": "^0.12.1",
+    "@metreeca/core": "^0.13.0",
     "@metreeca/qest": "^0.12.1"
   },
   "devDependencies": {

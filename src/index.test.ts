@@ -58,8 +58,8 @@ describe("validate", () => {
 
 		it("hands back the resource it admits", async () => {
 
-			expect(value(validate({ id: "app:/products/1", name: "Widget" }, { shape: Product })))
-				.toEqual({ id: "app:/products/1", name: "Widget" });
+			expect(value(validate({ id: "base:/products/1", name: "Widget" }, { shape: Product })))
+				.toEqual({ id: "base:/products/1", name: "Widget" });
 
 		});
 
@@ -77,7 +77,7 @@ describe("validate", () => {
 
 		it("reports a member the shape requires and the resource leaves out", async () => {
 
-			expect(trace(validate({ id: "app:/products/1" }, { shape: Product }))).toBeDefined();
+			expect(trace(validate({ id: "base:/products/1" }, { shape: Product }))).toBeDefined();
 
 		});
 
@@ -90,10 +90,10 @@ describe("validate", () => {
 
 		it("holds the resource to the identifier it is expected to be named by", async () => {
 
-			const stated = { id: "app:/products/1", name: "Widget" };
+			const stated = { id: "base:/products/1", name: "Widget" };
 
-			expect(value(validate(stated, { shape: Product, entry: "app:/products/1" }))).toEqual(stated);
-			expect(trace(validate(stated, { shape: Product, entry: "app:/products/2" }))).toBeDefined();
+			expect(value(validate(stated, { shape: Product, entry: "base:/products/1" }))).toEqual(stated);
+			expect(trace(validate(stated, { shape: Product, entry: "base:/products/2" }))).toBeDefined();
 
 		});
 
@@ -123,9 +123,9 @@ describe("validate", () => {
 
 		it("validates again where the terms tightened", async () => {
 
-			const validated = value(validate({ vendor: "app:/vendors/1", name: "Widget" }, { shape: Product }));
+			const validated = value(validate({ vendor: "base:/vendors/1", name: "Widget" }, { shape: Product }));
 
-			expect(value(validate(validated, { shape: Product, entry: "app:/products/1" }))).not.toBe(validated);
+			expect(value(validate(validated, { shape: Product, entry: "base:/products/1" }))).not.toBe(validated);
 
 		});
 
@@ -264,7 +264,7 @@ describe("validate", () => {
 
 		it("hands back the resource the template asked for", async () => {
 
-			const retrieved = { id: "app:/products/1", name: "Widget" };
+			const retrieved = { id: "base:/products/1", name: "Widget" };
 
 			expect(value(validate(retrieved, { shape: Product, model: { id: {}, name: {} } })))
 				.toEqual(retrieved);
@@ -273,14 +273,14 @@ describe("validate", () => {
 
 		it("leaves a member the template didn't ask for unchecked", async () => {
 
-			expect(value(validate({ id: "app:/products/1" }, { shape: Product, model: { id: {} } })))
-				.toEqual({ id: "app:/products/1" });
+			expect(value(validate({ id: "base:/products/1" }, { shape: Product, model: { id: {} } })))
+				.toEqual({ id: "base:/products/1" });
 
 		});
 
 		it("reports a member the template didn't ask for", async () => {
 
-			expect(trace(validate({ id: "app:/products/1", name: "Widget" }, {
+			expect(trace(validate({ id: "base:/products/1", name: "Widget" }, {
 				shape: Product,
 				model: { id: {} }
 			}))).toBeDefined();
@@ -295,12 +295,12 @@ describe("validate", () => {
 
 		it("holds the resource to the identifier it is expected to be named by", async () => {
 
-			const retrieved = { id: "app:/products/1" };
+			const retrieved = { id: "base:/products/1" };
 
 			expect(trace(validate(retrieved, {
 				shape: Product,
 				model: { id: {} },
-				entry: "app:/products/2"
+				entry: "base:/products/2"
 			}))).toBeDefined();
 
 		});
@@ -329,7 +329,7 @@ describe("validate", () => {
 
 		it("admits a link brought back as the identifier naming it", async () => {
 
-			const retrieved = { vendor: "app:/vendors/1" };
+			const retrieved = { vendor: "base:/vendors/1" };
 
 			expect(value(validate(retrieved, { shape: Product, model: { vendor: {} } })))
 				.toEqual(retrieved);
@@ -338,7 +338,7 @@ describe("validate", () => {
 
 		it("admits a link brought back as the resource behind it", async () => {
 
-			const retrieved = { vendor: { id: "app:/vendors/1", name: "Acme" } };
+			const retrieved = { vendor: { id: "base:/vendors/1", name: "Acme" } };
 
 			expect(value(validate(retrieved, { shape: Product, model: { vendor: { id: {}, name: {} } } })))
 				.toEqual(retrieved);
@@ -347,7 +347,7 @@ describe("validate", () => {
 
 		it("holds the resource behind a link to what the nested template asked for", async () => {
 
-			expect(trace(validate({ vendor: { id: "app:/vendors/1", name: "Acme" } }, {
+			expect(trace(validate({ vendor: { id: "base:/vendors/1", name: "Acme" } }, {
 				shape: Product,
 				model: { vendor: { id: {} } }
 			}))).toBeDefined();

@@ -159,7 +159,7 @@ describe("factories", () => {
 
 				const shape = resource({ name: required(string()) });
 
-				expect(getProperty(shape, "name")?.forward).toBe("app:/#name");
+				expect(getProperty(shape, "name")?.forward).toBe("base:/#name");
 
 			});
 

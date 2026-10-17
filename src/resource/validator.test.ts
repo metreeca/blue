@@ -60,7 +60,7 @@ describe("validateResource", () => {
 
 	it("returns undefined for a resource matching the shape", async () => {
 
-		expect(validateResource([{ id: "app:/products/1", name: "Widget" }], Product)).toBeUndefined();
+		expect(validateResource([{ id: "base:/products/1", name: "Widget" }], Product)).toBeUndefined();
 
 	});
 
@@ -84,9 +84,9 @@ describe("validateResource", () => {
 
 	it("keys a violation by the identifier the resource states", async () => {
 
-		const trace = validateResource([{ id: "app:/products/1" }], Product);
+		const trace = validateResource([{ id: "base:/products/1" }], Product);
 
-		expect(trace).toEqual([{ "<app:/products/1>": expect.anything() }]);
+		expect(trace).toEqual([{ "<base:/products/1>": expect.anything() }]);
 
 	});
 
@@ -127,7 +127,7 @@ describe("validateResource", () => {
 
 		it("admits a link among the alternatives", async () => {
 
-			expect(validateResource([{ link: "app:/vendors/1" }], shape)).toBeUndefined();
+			expect(validateResource([{ link: "base:/vendors/1" }], shape)).toBeUndefined();
 
 		});
 
@@ -135,7 +135,7 @@ describe("validateResource", () => {
 
 			const ambiguous = resource({ link: optional(union(string(), reference(Target))) });
 
-			expect(validateResource([{ link: "app:/vendors/1" }], ambiguous))
+			expect(validateResource([{ link: "base:/vendors/1" }], ambiguous))
 				.toBeDefined();
 
 		});
@@ -148,23 +148,23 @@ describe("validateResource", () => {
 
 			const shape = resource({ pattern: "/products/{code}" }, { id: id() });
 
-			expect(validateResource([{ id: "app:/products/1" }], shape)).toBeUndefined();
-			expect(validateResource([{ id: "app:/vendors/1" }], shape)).toBeDefined();
+			expect(validateResource([{ id: "base:/products/1" }], shape)).toBeUndefined();
+			expect(validateResource([{ id: "base:/vendors/1" }], shape)).toBeDefined();
 
 		});
 
 		it("holds an identifier to the ones the shape enumerates", async () => {
 
-			const shape = resource({ in: ["app:/products/1", "app:/products/2"] }, { id: id() });
+			const shape = resource({ in: ["base:/products/1", "base:/products/2"] }, { id: id() });
 
-			expect(validateResource([{ id: "app:/products/1" }], shape)).toBeUndefined();
-			expect(validateResource([{ id: "app:/products/3" }], shape)).toBeDefined();
+			expect(validateResource([{ id: "base:/products/1" }], shape)).toBeUndefined();
+			expect(validateResource([{ id: "base:/products/3" }], shape)).toBeDefined();
 
 		});
 
 		it("reports an identifier stated as a set", async () => {
 
-			expect(validateResource([{ id: ["app:/products/1"] }], resource({ id: id() }))).toBeDefined();
+			expect(validateResource([{ id: ["base:/products/1"] }], resource({ id: id() }))).toBeDefined();
 
 		});
 
@@ -187,10 +187,10 @@ describe("validateResource", () => {
 
 		it("holds a class to the one the shape declares", async () => {
 
-			const shape = resource({ class: "app:/Product" }, { kind: typed() });
+			const shape = resource({ class: "base:/Product" }, { kind: typed() });
 
-			expect(validateResource([{ kind: "app:/Product" }], shape)).toBeUndefined();
-			expect(validateResource([{ kind: "app:/Vendor" }], shape)).toBeDefined();
+			expect(validateResource([{ kind: "base:/Product" }], shape)).toBeUndefined();
+			expect(validateResource([{ kind: "base:/Vendor" }], shape)).toBeDefined();
 
 		});
 
@@ -199,7 +199,7 @@ describe("validateResource", () => {
 			const shape = resource({ kind: typed() });
 
 			expect(validateResource([{}], shape)).toBeUndefined();
-			expect(validateResource([{ kind: "app:/Product" }], shape)).toBeDefined();
+			expect(validateResource([{ kind: "base:/Product" }], shape)).toBeDefined();
 
 		});
 
@@ -209,7 +209,7 @@ describe("validateResource", () => {
 
 		it("reports a required member left out", async () => {
 
-			expect(validateResource([{ id: "app:/1" }], Product)).toBeDefined();
+			expect(validateResource([{ id: "base:/1" }], Product)).toBeDefined();
 
 		});
 
@@ -261,8 +261,8 @@ describe("validateResource", () => {
 
 			const shape = resource({ pattern: "/products/{id}" }, { id: id() });
 
-			expect(validateResource([{ id: "app:/products/1" }], shape)).toBeUndefined();
-			expect(validateResource([{ id: "app:/vendors/1" }], shape)).toBeDefined();
+			expect(validateResource([{ id: "base:/products/1" }], shape)).toBeUndefined();
+			expect(validateResource([{ id: "base:/vendors/1" }], shape)).toBeDefined();
 
 		});
 
@@ -270,8 +270,8 @@ describe("validateResource", () => {
 
 			const shape = resource({ id: id() });
 
-			expect(validateResource([{ id: "app:/1" }], shape, { entry: "app:/1" })).toBeUndefined();
-			expect(validateResource([{ id: "app:/2" }], shape, { entry: "app:/1" })).toBeDefined();
+			expect(validateResource([{ id: "base:/1" }], shape, { entry: "base:/1" })).toBeUndefined();
+			expect(validateResource([{ id: "base:/2" }], shape, { entry: "base:/1" })).toBeDefined();
 
 		});
 
@@ -312,7 +312,7 @@ describe("validateResource", () => {
 			const Vendor = resource({ id: id() });
 			const shape = resource({ products: multiple(reference(Vendor), { foreign: true }) });
 
-			expect(validateResource([{ products: ["app:/1"] }], shape)).toBeDefined();
+			expect(validateResource([{ products: ["base:/1"] }], shape)).toBeDefined();
 
 		});
 
@@ -501,7 +501,7 @@ describe("validateResource", () => {
 
 				const shape = resource({ vendors: nonempty(reference(Target)) });
 
-				expect(validateResource([{ vendors: ["app:/vendors/1", {}, "app:/vendors/2"] }], shape))
+				expect(validateResource([{ vendors: ["base:/vendors/1", {}, "base:/vendors/2"] }], shape))
 					.toBeUndefined();
 
 			});
@@ -550,33 +550,33 @@ describe("validateResource", () => {
 
 		it("admits a captive member stated as a link", async () => {
 
-			expect(validateResource([{ parts: ["app:/parts/1"] }], Assembly)).toBeUndefined();
+			expect(validateResource([{ parts: ["base:/parts/1"] }], Assembly)).toBeUndefined();
 
 		});
 
 		it("admits a captive member stated inline", async () => {
 
-			expect(validateResource([{ parts: [{ id: "app:/parts/1", name: "Bolt" }] }], Assembly))
+			expect(validateResource([{ parts: [{ id: "base:/parts/1", name: "Bolt" }] }], Assembly))
 				.toBeUndefined();
 
 		});
 
 		it("rejects an inline captive breaking the target shape", async () => {
 
-			expect(validateResource([{ parts: [{ id: "app:/parts/1" }] }], Assembly)).toBeDefined();
+			expect(validateResource([{ parts: [{ id: "base:/parts/1" }] }], Assembly)).toBeDefined();
 
 		});
 
 		it("rejects an expansion beyond the stated depth", async () => {
 
-			expect(validateResource([{ parts: [{ id: "app:/parts/1", name: "Bolt" }] }], Assembly, { depth: 0 }))
+			expect(validateResource([{ parts: [{ id: "base:/parts/1", name: "Bolt" }] }], Assembly, { depth: 0 }))
 				.toBeDefined();
 
 		});
 
 		it("admits the link naming a captive whatever nesting is allowed", async () => {
 
-			expect(validateResource([{ parts: ["app:/parts/1"] }], Assembly, { depth: 0 })).toBeUndefined();
+			expect(validateResource([{ parts: ["base:/parts/1"] }], Assembly, { depth: 0 })).toBeUndefined();
 
 		});
 
@@ -586,7 +586,7 @@ describe("validateResource", () => {
 			const Sub = resource({ id: id(), bolts: multiple(reference(Bolt), { captive: true }) });
 			const shape = resource({ subs: multiple(reference(Sub), { captive: true }) });
 
-			const stated = { subs: [{ id: "app:/subs/1", bolts: [{ id: "app:/bolts/1", name: "Bolt" }] }] };
+			const stated = { subs: [{ id: "base:/subs/1", bolts: [{ id: "base:/bolts/1", name: "Bolt" }] }] };
 
 			expect(validateResource([stated], shape, { depth: 2 })).toBeUndefined();
 			expect(validateResource([stated], shape, { depth: 1 })).toBeDefined();
@@ -599,7 +599,7 @@ describe("validateResource", () => {
 			const Sub = resource({ id: id(), bolts: multiple(reference(Bolt), { captive: true }) });
 			const shape = resource({ subs: multiple(reference(Sub), { captive: true }) });
 
-			expect(validateResource([{ subs: [{ id: "app:/subs/1", bolts: ["app:/bolts/1"] }] }], shape, {
+			expect(validateResource([{ subs: [{ id: "base:/subs/1", bolts: ["base:/bolts/1"] }] }], shape, {
 				depth: 1
 			})).toBeUndefined();
 
@@ -612,7 +612,7 @@ describe("validateResource", () => {
 			const shape = resource({ subs: multiple(reference(Sub), { captive: true }) });
 
 			expect(validateResource([{
-				subs: [{ id: "app:/subs/1", bolts: [{ id: "app:/bolts/1", name: "Bolt" }] }]
+				subs: [{ id: "base:/subs/1", bolts: [{ id: "base:/bolts/1", name: "Bolt" }] }]
 			}], shape)).toBeUndefined();
 
 		});
@@ -621,7 +621,7 @@ describe("validateResource", () => {
 
 			const shape = resource({ part: optional(reference(Part)) });
 
-			expect(validateResource([{ part: "app:/parts/1" }], shape, { depth: 0 })).toBeUndefined();
+			expect(validateResource([{ part: "base:/parts/1" }], shape, { depth: 0 })).toBeUndefined();
 			expect(validateResource([{ part: { name: "Bolt" } }], shape, { depth: 0 })).toBeDefined();
 
 		});
@@ -635,33 +635,33 @@ describe("validateResource", () => {
 
 			it("admits a captive alternative stated as a link", async () => {
 
-				expect(validateResource([{ parts: ["app:/parts/1"] }], Mixed)).toBeUndefined();
+				expect(validateResource([{ parts: ["base:/parts/1"] }], Mixed)).toBeUndefined();
 
 			});
 
 			it("admits a captive alternative stated inline", async () => {
 
-				expect(validateResource([{ parts: [{ id: "app:/parts/1", name: "Bolt" }] }], Mixed))
+				expect(validateResource([{ parts: [{ id: "base:/parts/1", name: "Bolt" }] }], Mixed))
 					.toBeUndefined();
 
 			});
 
 			it("rejects an inline captive breaking the target shape", async () => {
 
-				expect(validateResource([{ parts: [{ id: "app:/parts/1" }] }], Mixed)).toBeDefined();
+				expect(validateResource([{ parts: [{ id: "base:/parts/1" }] }], Mixed)).toBeDefined();
 
 			});
 
 			it("rejects an expansion beyond the stated depth", async () => {
 
-				expect(validateResource([{ parts: [{ id: "app:/parts/1", name: "Bolt" }] }], Mixed, { depth: 0 }))
+				expect(validateResource([{ parts: [{ id: "base:/parts/1", name: "Bolt" }] }], Mixed, { depth: 0 }))
 					.toBeDefined();
 
 			});
 
 			it("admits the link naming a captive whatever nesting is allowed", async () => {
 
-				expect(validateResource([{ parts: ["app:/parts/1"] }], Mixed, { depth: 0 })).toBeUndefined();
+				expect(validateResource([{ parts: ["base:/parts/1"] }], Mixed, { depth: 0 })).toBeUndefined();
 
 			});
 
@@ -678,7 +678,7 @@ describe("validateResource", () => {
 					parts: multiple(union(reference(Part), reference(Piece)), { captive: true })
 				});
 
-				expect(validateResource([{ parts: [{ id: "app:/parts/1", name: "Bolt" }] }], shape)).toBeDefined();
+				expect(validateResource([{ parts: [{ id: "base:/parts/1", name: "Bolt" }] }], shape)).toBeDefined();
 
 			});
 
@@ -686,8 +686,8 @@ describe("validateResource", () => {
 
 				const shape = resource({ parts: multiple(union(integer(), reference(Part))) });
 
-				expect(validateResource([{ parts: ["app:/parts/1"] }], shape)).toBeUndefined();
-				expect(validateResource([{ parts: [{ id: "app:/parts/1", name: "Bolt" }] }], shape)).toBeDefined();
+				expect(validateResource([{ parts: ["base:/parts/1"] }], shape)).toBeUndefined();
+				expect(validateResource([{ parts: [{ id: "base:/parts/1", name: "Bolt" }] }], shape)).toBeDefined();
 
 			});
 
@@ -964,7 +964,7 @@ describe("validateTemplate", () => {
 
 		it("reports a placeholder carrying a value under the member naming a resource", async () => {
 
-			expect(validateTemplate([{ id: "app:/products/1" }], Product)).toBeDefined();
+			expect(validateTemplate([{ id: "base:/products/1" }], Product)).toBeDefined();
 
 		});
 
@@ -1456,7 +1456,7 @@ describe("validateTemplate", () => {
 
 			const shape = resource({ items: multiple(reference(Product)) });
 
-			expect(validateTemplate([{ items: { name: {}, ">=vendor": "app:/v/1" } }], shape)).toBeDefined();
+			expect(validateTemplate([{ items: { name: {}, ">=vendor": "base:/v/1" } }], shape)).toBeDefined();
 
 		});
 
@@ -1787,7 +1787,7 @@ describe("validateTemplate", () => {
 
 			expect(validateTemplate([{ items: { "?size": [1, 2] } }], shape)).toBeUndefined();
 			expect(validateTemplate([{ items: { "!listed": [true] } }], shape)).toBeUndefined();
-			expect(validateTemplate([{ items: { "?vendor": ["app:/vendors/1"] } }], shape)).toBeUndefined();
+			expect(validateTemplate([{ items: { "?vendor": ["base:/vendors/1"] } }], shape)).toBeUndefined();
 
 		});
 
@@ -1976,7 +1976,7 @@ describe("validateTemplate", () => {
 		it("admits the member typing a resource as a column", async () => {
 
 			const typedShape = resource({
-				items: multiple(reference(resource({ class: "app:/Product" }, { kind: typed() })))
+				items: multiple(reference(resource({ class: "base:/Product" }, { kind: typed() })))
 			});
 
 			expect(validateTemplate([{ items: { "type=kind": {} } }], typedShape)).toBeUndefined();
@@ -2484,7 +2484,7 @@ describe("validateResult", () => {
 
 	it("returns undefined for a resource matching what was asked for", async () => {
 
-		expect(validateResult([{ id: "app:/products/1", name: "Widget" }], {
+		expect(validateResult([{ id: "base:/products/1", name: "Widget" }], {
 			shape: Product,
 			model: { id: {}, name: {} }
 		})).toBeUndefined();
@@ -2510,7 +2510,7 @@ describe("validateResult", () => {
 
 			// name is required by the shape, but unrequested, so its absence is not a violation
 
-			expect(validateResult([{ id: "app:/products/1" }], {
+			expect(validateResult([{ id: "base:/products/1" }], {
 				shape: Product,
 				model: { id: {} }
 			})).toBeUndefined();
@@ -2544,20 +2544,20 @@ describe("validateResult", () => {
 
 		it("holds the identifier to the stated entry", async () => {
 
-			expect(validateResult([{ id: "app:/1" }], { shape: Product, model: { id: {} }, entry: "app:/1" }))
+			expect(validateResult([{ id: "base:/1" }], { shape: Product, model: { id: {} }, entry: "base:/1" }))
 				.toBeUndefined();
 
-			expect(validateResult([{ id: "app:/2" }], { shape: Product, model: { id: {} }, entry: "app:/1" }))
+			expect(validateResult([{ id: "base:/2" }], { shape: Product, model: { id: {} }, entry: "base:/1" }))
 				.toBeDefined();
 
 		});
 
 		it("keys a violation by the identifier the resource states", async () => {
 
-			expect(validateResult([{ id: "app:/products/1", name: 42 }], {
+			expect(validateResult([{ id: "base:/products/1", name: 42 }], {
 				shape: Product,
 				model: { id: {}, name: {} }
-			})).toEqual([{ "<app:/products/1>": expect.anything() }]);
+			})).toEqual([{ "<base:/products/1>": expect.anything() }]);
 
 		});
 
@@ -2626,7 +2626,7 @@ describe("validateResult", () => {
 
 		it("admits a foreign member the template asked for", async () => {
 
-			expect(validateResult([{ name: "Acme", held: ["app:/vendors/1"] }], {
+			expect(validateResult([{ name: "Acme", held: ["base:/vendors/1"] }], {
 				shape: Held,
 				model: { name: {}, held: {} }
 			})).toBeUndefined();
@@ -2635,7 +2635,7 @@ describe("validateResult", () => {
 
 		it("reports a foreign member the template didn't ask for", async () => {
 
-			expect(validateResult([{ name: "Acme", held: ["app:/vendors/1"] }], {
+			expect(validateResult([{ name: "Acme", held: ["base:/vendors/1"] }], {
 				shape: Held,
 				model: { name: {} }
 			})).toBeDefined();
@@ -2738,14 +2738,14 @@ describe("validateResult", () => {
 
 			it("admits a link alternative stated as an identifier", async () => {
 
-				expect(validateResult([{ link: "app:/people/1" }], { shape: linked, model: { link: { "1": {} } } }))
+				expect(validateResult([{ link: "base:/people/1" }], { shape: linked, model: { link: { "1": {} } } }))
 					.toBeUndefined();
 
 			});
 
 			it("admits a link alternative expanded to the resource it points at", async () => {
 
-				expect(validateResult([{ link: { id: "app:/people/1", name: "Alice" } }], {
+				expect(validateResult([{ link: { id: "base:/people/1", name: "Alice" } }], {
 					shape: linked,
 					model: { link: { "1": { id: {}, name: {} } } }
 				})).toBeUndefined();
@@ -2760,10 +2760,10 @@ describe("validateResult", () => {
 					link: optional(union(reference(Person), reference(Place)))
 				});
 
-				expect(validateResult([{ link: "app:/people/1" }], { shape: targets, model: { link: { "0": {} } } }))
+				expect(validateResult([{ link: "base:/people/1" }], { shape: targets, model: { link: { "0": {} } } }))
 					.toBeUndefined();
 
-				expect(validateResult([{ link: "app:/widgets/1" }], { shape: targets, model: { link: { "0": {} } } }))
+				expect(validateResult([{ link: "base:/widgets/1" }], { shape: targets, model: { link: { "0": {} } } }))
 					.toBeDefined();
 
 			});
@@ -2776,7 +2776,7 @@ describe("validateResult", () => {
 
 		it("admits a link stated as an identifier", async () => {
 
-			expect(validateResult([{ vendor: "app:/vendors/1" }], {
+			expect(validateResult([{ vendor: "base:/vendors/1" }], {
 				shape: Product,
 				model: { vendor: {} }
 			})).toBeUndefined();
@@ -2794,7 +2794,7 @@ describe("validateResult", () => {
 
 		it("admits a link expanded to the resource it points at", async () => {
 
-			expect(validateResult([{ vendor: { id: "app:/vendors/1", name: "Acme" } }], {
+			expect(validateResult([{ vendor: { id: "base:/vendors/1", name: "Acme" } }], {
 				shape: Product,
 				model: { vendor: { id: {}, name: {} } }
 			})).toBeUndefined();
@@ -2803,7 +2803,7 @@ describe("validateResult", () => {
 
 		it("holds an expanded link to the nested template", async () => {
 
-			expect(validateResult([{ vendor: { id: "app:/vendors/1", name: 42 } }], {
+			expect(validateResult([{ vendor: { id: "base:/vendors/1", name: 42 } }], {
 				shape: Product,
 				model: { vendor: { id: {}, name: {} } }
 			})).toBeDefined();
@@ -2812,7 +2812,7 @@ describe("validateResult", () => {
 
 		it("reports a member the expansion states but the nested template didn't ask for", async () => {
 
-			expect(validateResult([{ vendor: { id: "app:/vendors/1", name: "Acme" } }], {
+			expect(validateResult([{ vendor: { id: "base:/vendors/1", name: "Acme" } }], {
 				shape: Product,
 				model: { vendor: { id: {} } }
 			})).toBeDefined();
@@ -3014,7 +3014,7 @@ describe("validateResult", () => {
 
 		it("admits the link it asked for", async () => {
 
-			expect(validateResult([{ vendor: "app:/vendors/1" }], {
+			expect(validateResult([{ vendor: "base:/vendors/1" }], {
 				shape: Product,
 				model: { vendor: {} }
 			})).toBeUndefined();
@@ -3023,7 +3023,7 @@ describe("validateResult", () => {
 
 		it("reports a link expanded where it asked for the identifier alone", async () => {
 
-			expect(validateResult([{ vendor: { id: "app:/vendors/1", name: "Acme" } }], {
+			expect(validateResult([{ vendor: { id: "base:/vendors/1", name: "Acme" } }], {
 				shape: Product,
 				model: { vendor: {} }
 			})).toBeDefined();
@@ -3048,7 +3048,7 @@ describe("validateResult", () => {
 		it("keys a violation by the resource carrying it", async () => {
 
 			const trace = validateResult([{
-				vendors: [{ id: "app:/vendors/1", name: "Acme" }, { id: "app:/vendors/2", name: 42 }]
+				vendors: [{ id: "base:/vendors/1", name: "Acme" }, { id: "base:/vendors/2", name: 42 }]
 			}], {
 				shape,
 				model: { vendors: { id: {}, name: {} } }
