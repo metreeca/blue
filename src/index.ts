@@ -15,12 +15,13 @@
  */
 
 /**
- * Linked data validation.
+ * Linked data description and validation.
  *
- * Provides shape-based validation for the values, retrieval templates and retrieved data crossing a service boundary.
- * The {@link validate} function returns either the value, typed as the shape describes it, or a trace of every
- * violation found. A shape states once what a service accepts, so the checks stay in one place instead of scattered
- * across the entry points that receive data.
+ * Provides shape-based description and validation for the values, retrieval templates and retrieved data crossing a
+ * service boundary. The {@link schema} function describes the payloads a shape admits as a JSON Schema, and the
+ * {@link validate} function returns either the value, typed as the shape describes it, or a trace of every violation
+ * found. A shape states once what a service accepts, so the description and the checks stay in one place instead of
+ * being restated across the interfaces and entry points that exchange data with clients.
  *
  * Shapes are stated with the per-kind modules {@link value! | value} gathers:
  *
@@ -38,6 +39,20 @@
  *   tags: multiple(string()),
  *   released: optional(date())
  * });
+ * ```
+ *
+ * **Describing a shape as JSON Schema**
+ *
+ * A shape also declares schema-driven consumers, such as API descriptions, language model tool interfaces and
+ * structured output formats, without a hand-written schema restating it. The {@link schema} function describes the
+ * payloads a resource shape admits as a JSON Schema (draft 2020-12). Its strict variant keeps to the subset of JSON
+ * Schema accepted by structured output generators, which reject the keywords and formats outside it:
+ *
+ * ```typescript
+ * import { schema } from '@metreeca/blue';
+ *
+ * schema(Product);                    // the payloads Product admits
+ * schema(Product, { strict: true });  // the same, for strict structured output generators
  * ```
  *
  * **Matching a value against a shape**
@@ -67,18 +82,21 @@
  *
  * @module
  *
+ * @see {@link https://json-schema.org/draft/2020-12/json-schema-core JSON Schema Core (draft 2020-12)}
  * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
  */
 
-import { type Lazy, map, type Optional } from "@metreeca/core";
+import { isString, type Lazy, map, memo, opt, type Optional } from "@metreeca/core";
 import { createRelay, type Relay } from "@metreeca/core/relay";
-import { equals, seal } from "@metreeca/core/values";
+import { equals, immutable, seal } from "@metreeca/core/values";
 import { type Trace } from "@metreeca/core/trace";
-import type { Reference } from "@metreeca/qest/state";
+import type { Dictionary, Reference } from "@metreeca/qest/state";
 import type { Template } from "@metreeca/qest/model";
+import type { JSONSchema } from "json-schema-typed";
 import { enforce } from "./index.core.js";
-import type { ResourceShape } from "./resource/index.js";
+import type { Property, ResourceShape } from "./resource/index.js";
 import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
+import { date, email, instant, iri, time, timestamp, url } from "./string/index.js";
 import { eager, type Match, type Shape, type State } from "./value/index.js";
 import { validateShape } from "./value/validator.js";
 
@@ -91,6 +109,176 @@ import { validateShape } from "./value/validator.js";
  */
 const Validated: unique symbol = Symbol("validated");
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * The JSON Schema converted for a shape in each mode, retained for the lifetime of the module (see {@link memo}).
+ */
+const schemas = memo((strict: boolean) => {
+
+	/**
+	 * The JSON Schema format each well-known lexical pattern stands for; only `strict` formats are carried by strict
+	 * schemas, as strict structured output generators reject the others, while plain schemas carry every format.
+	 *
+	 * Built on first conversion rather than at module load, as the string module imports this one through a cycle.
+	 */
+	const formats = new Map<Optional<string>, {
+
+		readonly format: string,
+		readonly strict?: boolean
+
+	}>([
+
+		[url().pattern, { format: "uri" }],
+		[iri().pattern, { format: "iri-reference" }],
+		[email().pattern, { format: "email", strict: true }],
+
+		[date().pattern, { format: "date", strict: true }],
+		[time().pattern, { format: "time", strict: true }],
+
+		[instant().pattern, { format: "date-time", strict: true }],
+		[timestamp().pattern, { format: "date-time", strict: true }]
+
+	]);
+
+	return memo((shape: ResourceShape) => immutable(value(shape)));
+
+
+	function value(shape: Shape): JSONSchema.Interface {
+
+		switch ( shape.kind ) {
+
+			case "boolean":
+
+				return {
+
+					type: "boolean"
+
+				};
+
+			case "number":
+
+				return {
+
+					type: shape.integral ? "integer" : "number",
+
+					...opt(shape.minInclusive, minimum => ({ minimum })),
+					...opt(shape.maxInclusive, maximum => ({ maximum }))
+
+				};
+
+			case "string":
+
+				return {
+
+					type: "string",
+
+					...opt(shape.in, values => ({ enum: [...values] })),
+					...opt(formats.get(shape.pattern), ({ format, strict: supported }) =>
+						strict && !supported ? {} : { format }
+					),
+					...opt(shape.pattern, pattern => ({ pattern })),
+
+					...opt(shape.minLength, minLength => ({ minLength })),
+					...opt(shape.maxLength, maxLength => ({ maxLength }))
+
+				};
+
+			case "reference":
+
+				return {
+
+					type: "string",
+
+					...(strict ? {} : { format: "iri-reference" })
+
+				};
+
+			case "resource":
+
+				const properties = Object.entries(shape.members).flatMap(([name, member]) =>
+					member.kind === "property" ? [{ name, member }] : []
+				);
+
+				const required = properties
+					.filter(({ member: { range: { minCount = 0 } } }) => strict || minCount > 0)
+					.map(({ name }) => name);
+
+				return {
+
+					type: "object",
+
+					...annotations(shape),
+
+					properties: Object.fromEntries(properties.map(({ name, member }) => [name, property(member)])),
+
+					...(required.length > 0 ? { required } : {}),
+
+					additionalProperties: false
+
+				};
+
+			case "dictionary": // keyed by the language tags a value happens to carry, which a schema has no way to name
+
+				throw new RangeError(`unsupported localised <${shape.kind}> range in JSON Schema`);
+
+			case "union":
+
+				return {
+
+					anyOf: shape.branches.map(branch => value(eager(branch)))
+
+				};
+
+		}
+
+	}
+
+	function property({ range: { shape, minCount = 0, maxCount }, ...member }: Property): JSONSchema.Interface {
+
+		const items = value(eager(shape));
+
+		return {
+
+			...(maxCount !== 1 ? { type: "array", items }
+				: strict && minCount === 0 ? { anyOf: [items, { type: "null" }] }
+					: items),
+
+			...annotations(member)
+
+		};
+
+	}
+
+	function annotations({ name, description }: {
+
+		readonly name?: string | Dictionary
+		readonly description?: string | Dictionary
+
+	}): JSONSchema.Interface {
+
+		return {
+
+			...opt(english(name), title => ({ title })),
+			...opt(english(description), description => ({ description }))
+
+		};
+
+	}
+
+	function english(text: Optional<string | Dictionary>): Optional<string> {
+
+		return opt(text, text => isString(text) ? text
+			: opt(text.en, entry => isString(entry) ? entry : entry.join("\n\n"))
+		);
+
+	}
+
+});
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * The terms a value was validated against.
@@ -113,6 +301,72 @@ type Sealed = {
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Converts a resource shape into a JSON Schema.
+ *
+ * A resource is described as an object with one property per member. Like the shape, the object is closed and admits
+ * no other property. Members requiring at least one value are required, and a member admitting more than one value is
+ * described as an array of its range. Identifier and class members are left out, as they name the resource rather than
+ * describe it, so a payload stating them is rejected. A {@link reference!reference | reference} is described as the
+ * IRI it carries, and an embedded resource as a nested object. A {@link union!union | union} is described as the
+ * alternatives it admits, so the schema accepts a value conforming to any one of its branches.
+ *
+ * Value constraints are carried through: the bounds of a number and whether it is an integer, and the values, length
+ * bounds and lexical pattern of a string. A string in a well-known lexical form also carries the matching `format`, a
+ * hint for the consumers that recognise it about the kind of value expected and how to present or check it:
+ *
+ * - {@link string!url | url} as `uri`, {@link string!iri | iri} as `iri-reference`
+ * - {@link string!email | email} as `email`
+ * - {@link string!date | date} as `date`, {@link string!time | time} as `time`
+ * - {@link string!instant | instant} and {@link string!timestamp | timestamp} as `date-time`
+ *
+ * Values are still held to the pattern alone: a validator asserting formats may reject values the shape admits, such
+ * as a time with no zone offset, so formats are best read as annotations rather than as constraints.
+ *
+ * The name and description of a resource and of each member are carried as `title` and `description`. A member
+ * admitting more than one value annotates the array rather than its items. Localised names and descriptions are
+ * carried in English, and are left out if they are stated in no English, as a schema has room for one language only.
+ *
+ * A strict schema keeps to the subset of JSON Schema accepted by strict structured output generators. Every member is
+ * required. An optional single-valued member also admits `null` for an absent value, and an absent multi-valued member
+ * is stated as an empty array. A payload generated under a strict schema therefore conforms to the shape only once its
+ * `null` members are dropped. No string carries the `uri` or `iri-reference` format: IRI strings are held to their
+ * pattern, and references only to being strings, as strict generators reject both formats.
+ *
+ * The returned schema is deeply immutable. Conversions are cached, so converting the same shape again with the same
+ * options returns the same schema at no cost, whether the shape is passed as is or deferred. Cached schemas are kept
+ * for the lifetime of the module, so shapes are best declared once rather than built anew on each conversion.
+ *
+ * @param shape The resource shape to convert, possibly deferred
+ * @param options The conversion options
+ *
+ * @returns The JSON Schema describing the values `shape` admits
+ *
+ * @throws {@link !RangeError RangeError} If `shape` admits a {@link dictionary!dictionary | localised} value range at
+ *     any depth, as a JSON Schema has no way to name the language tags keying each localised value it describes
+ *
+ * @see {@link https://json-schema.org/draft/2020-12/json-schema-validation#section-7.3 JSON Schema § 7.3 Defined Formats}
+ */
+export function schema(shape: Lazy<ResourceShape>, {
+
+	strict = false
+
+}: {
+
+	/**
+	 * Whether to produce a strict schema for structured output generators.
+	 *
+	 * @defaultValue false
+	 */
+	readonly strict?: boolean
+
+} = {}): JSONSchema.Interface {
+
+	return schemas(strict)(eager(shape));
+
+}
+
 
 /**
  * Validates a resource against a shape.
