@@ -79,7 +79,7 @@
   },
   "dependencies": {
     "@metreeca/core": "^0.13.0",
-    "@metreeca/qest": "^0.12.1",
+    "@metreeca/qest": "^0.13.0",
     "json-schema-typed": "^9.0.0"
   },
   "devDependencies": {
