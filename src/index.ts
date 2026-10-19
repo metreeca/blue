@@ -509,6 +509,10 @@ export function validate<S extends Lazy<ResourceShape>>(value: unknown, opts: {
  * caller having nowhere to put it. Reach for this where the shape fixes what may be asked for and the template varies
  * from one request to the next.
  *
+ * > [!IMPORTANT]
+ * > The custom {@link ResourceShape.validators | checks} a shape states never run against a retrieved resource, even
+ * > one the template asked for whole: they run only where a whole resource is validated in its own right.
+ *
  * > [!NOTE]
  * > The template states which values are wanted and no longer what they are, so every type comes from the shape: the
  * > resource comes back as {@link Match} resolves it, keyed down to the members the template named. A polymorphic

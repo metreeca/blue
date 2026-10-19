@@ -25,6 +25,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Run the custom `validators` a resource shape states only where a whole resource is validated: `validateResult` and
+  `validate` with a retrieval template no longer apply them, as a retrieval may leave out any member a check reads
 - Resolve member predicates unqualified by a stated or inherited `space` against the `base` namespace (`base:/#`) of
   `@metreeca/core/resource`, which replaces the former `app` namespace and its `app:/#` origin in core 0.13.0
 - Upgrade `@metreeca/core` to `^0.13.0`

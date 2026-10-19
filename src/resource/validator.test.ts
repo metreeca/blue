@@ -882,6 +882,16 @@ describe("validateResource", () => {
 
 		});
 
+		it("leaves the checks out where the shape is matched by form alone", async () => {
+
+			const shape = resource({
+				validators: [function rejected() { return ["rejected"]; }]
+			}, { name: required(string()) });
+
+			expect(validateResource([{ name: {} }], shape, { scope: "model" })).toBeUndefined();
+
+		});
+
 	});
 
 });
@@ -3087,37 +3097,23 @@ describe("validateResult", () => {
 
 	describe("custom checks", () => {
 
-		it("passes a resource every check admits", async () => {
+		it("leaves the checks a shape states out of a retrieval", async () => {
 
-			const shape = resource({ validators: [() => undefined] }, { name: required(string()) });
+			const shape = resource({
+				validators: [function rejected() { return ["rejected"]; }]
+			}, { name: required(string()), code: optional(string()) });
 
 			expect(validateResult([{ name: "Widget" }], { shape, model: { name: {} } })).toBeUndefined();
 
 		});
 
-		it("reports what a check finds, keyed by the name of the check", async () => {
+		it("leaves the checks out even where the retrieval asks for every member", async () => {
 
-			function rated(resource: Resource): Optional<Trace> {
-				return resource["name"] === "Widget" ? undefined : ["expected a widget"];
-			}
-
-			const shape = resource({ validators: [rated] }, { name: required(string()) });
-
-			expect(at(validateResult([{ name: "Gadget" }], { shape, model: { name: {} } }), "0", "{rated}"))
-				.toEqual(["expected a widget"]);
-
-		});
-
-		it("runs the checks a shape inherits", async () => {
-
-			const Base = resource({
-				validators: [function inherited() { return ["inherited"]; }]
+			const shape = resource({
+				validators: [function rejected() { return ["rejected"]; }]
 			}, { name: required(string()) });
 
-			const shape = resource(Base, {});
-
-			expect(at(validateResult([{ name: "Widget" }], { shape, model: { name: {} } }), "0", "{inherited}"))
-				.toEqual(["inherited"]);
+			expect(validateResult([{ name: "Widget" }], { shape, model: { name: {} } })).toBeUndefined();
 
 		});
 

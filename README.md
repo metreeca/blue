@@ -385,7 +385,8 @@ validate(response, { shape: Product, model })({
 Constraints on members absent from `model` are not enforced, so an unrequested required member triggers no `minCount`
 violation. A member the template didn't ask for is rejected all the same, as the caller has nowhere to put it. A
 reference member additionally accepts an expanded nested resource, validated against the target shape narrowed by the
-nested projection in `model`.
+nested projection in `model`. Custom validators are not run, as they are written against a whole resource rather than
+the part of it a template asked for, even where the template asks for every member.
 
 ## Validating Templates
 

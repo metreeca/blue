@@ -407,6 +407,10 @@ export type ResourceConstraints = {
 	 * so a resource is told everything that is wrong with it at once rather than one thing at a time, and each trace
 	 * is keyed by the name of the check reporting it.
 	 *
+	 * > [!IMPORTANT]
+	 * > Checks run only where a whole resource is validated, never against a retrieval template or the resources it
+	 * > retrieves: a retrieval may leave out any member a check reads, failing the check on data it never asked for.
+	 *
 	 * **Inheritance** — union of the checks stated and the ones inherited; every check applies.
 	 *
 	 * @see {@link https://www.w3.org/TR/shacl/#constraints SHACL § 2.1.1 Constraint Components}

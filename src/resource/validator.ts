@@ -67,6 +67,9 @@ import { getShapeId } from "./accessors.js";
  * own facet, keyed by the member it is stated under, so that a caller may tell which member failed and why. A resource
  * shape is closed: a value carrying a member the shape doesn't declare is rejected.
  *
+ * The custom {@link ResourceShape.validators | checks} a shape states run at `"state"` scope alone, each reporting
+ * under the name of the check: a template matched by form carries no values for them to read.
+ *
  * A captive member is stated either as the link naming its target or as the resource itself, held in turn to the
  * target shape, so that a resource and the ones it holds captive travel as a single value; `depth` caps how far the
  * expansion reaches. A foreign member is written by the resources it points at, so a value stating one is rejected.
@@ -128,9 +131,9 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 				.filter(name => !Object.hasOwn(shape.members, name))
 				.map(name => () => [{ [name]: ["unexpected member"] }]),
 
-			// the checks the shape states on top of its members, each keyed by the name of the check
+			// the checks the shape states on top of its members, held against full states alone
 
-			...checks(resource, shape)
+			...(scope === "state" ? checks(resource, shape) : [])
 
 		)(undefined))
 
@@ -951,7 +954,8 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
  * so that a caller may tell which part of what it asked for came back malformed. Only the members the template names
  * are held to the shape: one it left out is neither required nor checked, so a partial retrieval passes on its own
  * terms. The surface is closed the other way too: a member the resource states but the template didn't ask for is
- * rejected, as the caller has no place to put it.
+ * rejected, as the caller has no place to put it. The custom {@link ResourceShape.validators | checks} a shape states
+ * are left out, as they are written against a whole resource rather than the part of it a template asked for.
  *
  * A member reaching a resource comes back as the resource itself where a nested template asked for it, and as the
  * identifier naming it where the atomic placeholder did; either way it is held to what was asked. A localised member
@@ -997,11 +1001,7 @@ export function validateResult(values: readonly unknown[], {
 
 		...Object.keys(resource)
 			.filter(name => !Object.hasOwn(model, name))
-			.map(name => () => [{ [name]: ["unexpected member"] }]),
-
-		// the checks the shape states on top of its members, each keyed by the name of the check
-
-		...checks(resource, shape)
+			.map(name => () => [{ [name]: ["unexpected member"] }])
 
 	)(undefined));
 
