@@ -15,13 +15,13 @@
  */
 
 /**
- * Linked data description and validation.
+ * Linked data validation.
  *
- * Provides shape-based description and validation for the values, retrieval templates and retrieved data crossing a
- * service boundary. The {@link schema} function describes the payloads a shape admits as a JSON Schema, and the
- * {@link validate} function returns either the value, typed as the shape describes it, or a trace of every violation
- * found. A shape states once what a service accepts, so the description and the checks stay in one place instead of
- * being restated across the interfaces and entry points that exchange data with clients.
+ * Provides shape-based validation for the values, retrieval templates and retrieved data crossing a service boundary.
+ * The {@link schema} function describes the payloads a shape admits as a JSON Schema, and the {@link validate}
+ * function returns either the value, typed as the shape describes it, or a trace of every violation found. A shape
+ * states once what a service accepts, so the description and the checks stay in one place instead of being restated
+ * across the interfaces and entry points that exchange data with clients.
  *
  * Shapes are stated with the per-kind modules {@link value! | value} gathers:
  *
@@ -53,6 +53,29 @@
  *
  * schema(Product);                    // the payloads Product admits
  * schema(Product, { strict: true });  // the same, for strict structured output generators
+ * ```
+ *
+ * **Collecting entry shapes and their dependencies**
+ *
+ * Model-wide encodings, such as vocabularies, schemas and documentation, cover every shape a set of entry shapes
+ * depends on rather than only the entry shapes themselves. The {@link model} function collects the entry shapes and
+ * the shapes they extend, link to or embed, each once and in a stable order, ready to be encoded as a whole:
+ *
+ * ```typescript
+ * import { model } from '@metreeca/blue';
+ * import { id, optional, resource } from '@metreeca/blue/resource';
+ * import { reference } from '@metreeca/blue/reference';
+ *
+ * const Vendor = resource({
+ *   id: id()
+ * });
+ *
+ * const Offer = resource({
+ *   id: id(),
+ *   vendor: optional(reference(Vendor))
+ * });
+ *
+ * model(Offer); // [Offer, Vendor]
  * ```
  *
  * **Matching a value against a shape**
@@ -87,13 +110,15 @@
  */
 
 import { isString, type Lazy, map, memo, opt, type Optional } from "@metreeca/core";
+import { type Some, some } from "@metreeca/core/arrays";
 import { createRelay, type Relay } from "@metreeca/core/relay";
-import { equals, immutable, seal } from "@metreeca/core/values";
 import { type Trace } from "@metreeca/core/trace";
-import type { Dictionary, Reference } from "@metreeca/qest/state";
+import { equals, immutable, seal } from "@metreeca/core/values";
 import type { Template } from "@metreeca/qest/model";
+import type { Dictionary, Reference } from "@metreeca/qest/state";
 import type { JSONSchema } from "json-schema-typed";
 import { enforce } from "./index.core.js";
+import { getShapeTarget } from "./reference/index.js";
 import type { Property, ResourceShape } from "./resource/index.js";
 import { validateResource, validateResult, validateTemplate } from "./resource/validator.js";
 import { date, email, instant, iri, time, timestamp, url } from "./string/index.js";
@@ -367,6 +392,61 @@ export function schema(shape: Lazy<ResourceShape>, {
 
 }
 
+/**
+ * Collects entry shapes and their dependencies.
+ *
+ * A shape depends on the shapes it extends and on the shapes its properties link to or embed, directly or through
+ * other shapes. Dependencies include the targets of {@link resource!PropertyConstraints.foreign | foreign} properties
+ * and the resource alternatives of {@link union!union | unions}, so the listing covers the whole connected model.
+ *
+ * Each shape is listed once, even where shapes link to each other in a cycle. The entry shapes come first, in the
+ * order given, followed by their dependencies, nearest first. Shapes at the same distance follow the order of the
+ * shapes reaching them, each contributing its parents before its property targets, in declaration order.
+ *
+ * @param shapes The entry shape or shapes, possibly deferred
+ *
+ * @returns The entry shapes followed by their dependencies; empty if `shapes` is empty
+ *
+ * @see {@link https://www.w3.org/TR/shacl/#shapes-graph SHACL § 3.1 Shapes Graph}
+ */
+export function model(shapes: Some<Lazy<ResourceShape>>): readonly ResourceShape[] {
+
+	return reachable(some(shapes).map(eager), []);
+
+
+	function reachable(pending: readonly ResourceShape[], visited: readonly ResourceShape[]): readonly ResourceShape[] {
+
+		const [head, ...tail] = pending;
+
+		return head === undefined ? visited
+			: visited.includes(head) ? reachable(tail, visited)
+				: reachable([...tail, ...neighbours(head)], [...visited, head]);
+
+	}
+
+	function neighbours({ parents, members }: ResourceShape): readonly ResourceShape[] {
+
+		return [
+			...parents.map(eager),
+			...Object.values(members).flatMap(member => member.kind === "property" ? targets(member.range.shape) : [])
+		];
+
+	}
+
+	function targets(shape: Lazy<Shape>): readonly ResourceShape[] {
+
+		const resolved = eager(shape);
+
+		return resolved.kind === "union"
+			? resolved.branches.flatMap(targets)
+			: opt(getShapeTarget(resolved), target => [target], []);
+
+	}
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Validates a resource against a shape.
@@ -579,7 +659,6 @@ export function validate(value: unknown, {
 		} else if ( model === true ) {
 
 			return verify(
-
 				sealed => sealed.model === true
 					&& (!plain || sealed.plain === true)
 					&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth)
@@ -599,13 +678,11 @@ export function validate(value: unknown, {
 				},
 
 				() => enforce(value, shape, { limit })
-
 			);
 
 		} else if ( model ) {
 
 			return verify(
-
 				sealed => equals(sealed.model, model)
 					&& (entry === undefined || sealed.entry === entry),
 
@@ -619,13 +696,11 @@ export function validate(value: unknown, {
 					entry
 
 				}
-
 			);
 
 		} else {
 
 			return verify(
-
 				sealed => sealed.model === false
 					&& (entry === undefined || sealed.entry === entry)
 					&& (depth === undefined || sealed.depth !== undefined && sealed.depth <= depth),
@@ -641,7 +716,6 @@ export function validate(value: unknown, {
 					depth
 
 				}
-
 			);
 
 		}

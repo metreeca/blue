@@ -15,6 +15,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   validated state and its values as `Entry` records typed by the value shape each one matches
 - Add `schema` to `@metreeca/blue`, describing the payloads a resource shape admits as a JSON Schema (draft 2020-12),
   with a `strict` variant keeping to the subset accepted by strict structured output generators
+- Add `model` to `@metreeca/blue`, collecting entry shapes together with every shape they extend, link to or embed,
+  each once and in a stable order, so model-wide encodings can cover the whole connected model
 
 ### Fixed
 
