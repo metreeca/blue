@@ -11,6 +11,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Let `resource` declare no members of its own: it now accepts extended shapes alone, shape-level constraints alone,
   extended shapes followed by constraints, or no arguments at all, carrying only the members it inherits
+- Add `getStateId` and `getStateEntries` state accessors to `@metreeca/blue/resource`, returning the identifier of a
+  validated state and its values as `Entry` records typed by the value shape each one matches
 
 ### Fixed
 

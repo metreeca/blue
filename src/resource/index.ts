@@ -147,6 +147,11 @@
  * {@link getShapeProperties} the members they carry. Each resolves a deferred shape and crosses a link through to the
  * resource behind it, answering with nothing where the shape reaches no resource at all.
  *
+ * **Reading a state off a shape**
+ *
+ * {@link getStateId} returns the identifier a state carries, and {@link getStateEntries} returns its values, each
+ * typed by the value shape it matches. Both validate the state against the shape and reject it if it doesn't conform.
+ *
  * @module
  *
  * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
@@ -166,7 +171,10 @@ export {
 	getShapeClasses,
 	getShapeId,
 	getShapeType,
-	getShapeProperties
+	getShapeProperties,
+	getStateId,
+	getStateEntries,
+	type Entry
 } from "./accessors.js";
 
 
