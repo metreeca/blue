@@ -204,7 +204,7 @@ function literal(value: unknown, branch: Shape, otherwise: () => Optional<Trace>
 /**
  * Matches a string against the lexical pattern of a branch, admitting every string where it states none.
  */
-function lexical(value: string, pattern: undefined | string): Optional<Trace> {
+function lexical(value: string, pattern: Optional<string>): Optional<Trace> {
 
 	return pattern === undefined || new RegExp(pattern).test(value) ? undefined
 		: [`{pattern} expected string matching </${pattern}/>`];

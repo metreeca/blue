@@ -85,7 +85,7 @@ function model({}: BooleanShape): Validator<readonly unknown[]> {
 /**
  * Matches a boolean against the value a shape enumerates, admitting both truth values where it enumerates none.
  */
-function domain(allowed: undefined | boolean): Validator<boolean> {
+function domain(allowed: Optional<boolean>): Validator<boolean> {
 
 	if ( allowed === undefined ) {
 

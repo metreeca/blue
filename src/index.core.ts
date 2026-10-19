@@ -23,7 +23,7 @@
  * @module
  */
 
-import { isIdentifier, isObject } from "@metreeca/core";
+import { isIdentifier, isObject, type Optional } from "@metreeca/core";
 import { decodeProbe, isBinding, isBranch, isUnion } from "@metreeca/qest/model";
 import { getShapeTarget } from "./reference/index.js";
 import type { ResourceShape } from "./resource/index.js";
@@ -94,7 +94,7 @@ export function enforce(value: unknown, shape: ResourceShape, {
 	/**
 	 * Resolves a template key to the range the shape gives it, if the shape declares it.
 	 */
-	function resolve(shape: ResourceShape, name: string): undefined | Range {
+	function resolve(shape: ResourceShape, name: string): Optional<Range> {
 
 		// a projection column carries its own path, while a plain member names the single step it is
 

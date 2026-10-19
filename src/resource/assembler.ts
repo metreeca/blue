@@ -185,7 +185,7 @@ export function assemble(args: readonly unknown[]): ResourceShape {
 	 *
 	 * @returns The effective space: the stated one, else the inherited one, else the default
 	 */
-	function locate(parents: Parents, space: undefined | Namespace): Namespace {
+	function locate(parents: Parents, space: Optional<Namespace>): Namespace {
 
 		// a conflict among the extended shapes is reported by checkParents against the merged ones
 
@@ -518,7 +518,7 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 	/**
 	 * Resolves the first pair of inherited values that disagree.
 	 */
-	function conflict<V>(values: readonly V[]): undefined | readonly [V, V] {
+	function conflict<V>(values: readonly V[]): Optional<readonly [V, V]> {
 
 		const [first] = values;
 		const other = values.findIndex(value => value !== first);

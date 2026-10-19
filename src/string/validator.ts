@@ -96,7 +96,7 @@ function model({}: StringShape): Validator<readonly unknown[]> {
 /**
  * Matches a string against the lexical pattern a shape states, admitting every string where it states none.
  */
-function format(pattern: undefined | string): Validator<string> {
+function format(pattern: Optional<string>): Validator<string> {
 
 	if ( pattern === undefined ) {
 

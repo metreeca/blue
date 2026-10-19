@@ -107,7 +107,7 @@ export function validateReference(values: readonly unknown[], shape: ReferenceSh
 
 	}
 
-	function matches(pattern: undefined | string): Validator<string> {
+	function matches(pattern: Optional<string>): Validator<string> {
 
 		return pattern === undefined ? pass : test<string>(value =>
 			match(value, pattern) || [`{pattern} expected IRI matching pattern <${pattern}>`]

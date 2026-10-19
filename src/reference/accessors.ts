@@ -25,7 +25,7 @@
  * @module
  */
 
-import { type Lazy } from "@metreeca/core";
+import { type Lazy, type Optional } from "@metreeca/core";
 import type { ResourceShape } from "../resource/index.js";
 import { eager, type Shape } from "../value/index.js";
 
@@ -45,7 +45,7 @@ import { eager, type Shape } from "../value/index.js";
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or the target is
  *     deferred and the definition it states doesn't narrow the target of the link it overrides
  */
-export function getShapeTarget(shape: Lazy<Shape>): undefined | ResourceShape {
+export function getShapeTarget(shape: Lazy<Shape>): Optional<ResourceShape> {
 
 	const resolved = eager(shape);
 

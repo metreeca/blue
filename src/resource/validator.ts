@@ -190,7 +190,7 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
 	/**
 	 * Validates the elements a member carries, expanding the ones it holds captive.
 	 */
-	function elements(carried: readonly unknown[], range: Shape, captive: undefined | boolean): Optional<Trace> {
+	function elements(carried: readonly unknown[], range: Shape, captive: Optional<boolean>): Optional<Trace> {
 
 		const branches = getShapeBranches(range);
 		const [branch] = branches;
@@ -1377,7 +1377,7 @@ function isLocalised(value: unknown, branches: readonly Shape[], scope: Scope): 
 /**
  * Validates the identifier a resource states against the constraints its shape puts on identifiers.
  */
-function identifier(value: unknown, shape: ResourceShape, entry: undefined | Reference): Optional<Trace> {
+function identifier(value: unknown, shape: ResourceShape, entry: Optional<Reference>): Optional<Trace> {
 
 	const { pattern, in: allowed, hasValue: required } = shape;
 

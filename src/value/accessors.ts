@@ -294,7 +294,7 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 	/**
 	 * Resolves one step of the path against a branch.
 	 */
-	function step(shape: Shape, segment: Identifier): undefined | Range {
+	function step(shape: Shape, segment: Identifier): Optional<Range> {
 
 		const members = getShapeTarget(shape)?.members;
 
@@ -329,7 +329,7 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 			.map(shape => pipe.length > 0 && shape.kind === "dictionary" ? string() : shape);
 
 		const surviving = staged
-			.map(shape => pipe.reduceRight<undefined | Shape>(apply, shape))
+			.map(shape => pipe.reduceRight<Optional<Shape>>(apply, shape))
 			.filter(shape => shape !== undefined);
 
 		if ( surviving.length === 0 ) { return "incompatible transform input"; }
@@ -351,7 +351,7 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 	/**
 	 * Applies one transform, dropping the branch once it falls outside a transform's domain.
 	 */
-	function apply(shape: undefined | Shape, name: Transform): undefined | Shape {
+	function apply(shape: Optional<Shape>, name: Transform): Optional<Shape> {
 
 		const transform = Transforms[name];
 

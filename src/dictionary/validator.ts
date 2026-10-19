@@ -154,7 +154,7 @@ export function validateDictionary(values: readonly unknown[], shape: Dictionary
 
 	}
 
-	function accepts(tag: Tag, languageIn: undefined | readonly string[]): Validator<unknown> {
+	function accepts(tag: Tag, languageIn: Optional<readonly string[]>): Validator<unknown> {
 
 		return languageIn === undefined || languageIn.some(range => matchTag(tag, range)) ? pass
 			: fail([`{languageIn} unsupported tag for allowed languages [${languageIn.join(", ")}]`]);
