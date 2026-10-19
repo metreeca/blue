@@ -103,7 +103,7 @@
  * > untrusted caller to what the service will serve: `plain` refuses the aggregate transforms, `depth` caps the
  * > nesting, and `limit` caps the page.
  *
- * @module
+ * @module index
  *
  * @see {@link https://json-schema.org/draft/2020-12/json-schema-core JSON Schema Core (draft 2020-12)}
  * @see {@link https://www.w3.org/TR/shacl/ SHACL - Shapes Constraint Language}
