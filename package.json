@@ -4,7 +4,10 @@
   "description": "Declarative blueprints for model-driven linked data processing.",
   "keywords": [
     "typescript",
-    "utilities"
+    "json-ld",
+    "shacl",
+    "validation",
+    "model-driven"
   ],
   "homepage": "https://metreeca.github.io/blue/",
   "bugs": {
