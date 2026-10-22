@@ -5,13 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased](https://github.com/metreeca/blue/compare/v0.13.0...HEAD)
+## [Unreleased](https://github.com/metreeca/blue/compare/v0.13.1...HEAD)
+
+## [0.13.1](https://github.com/metreeca/blue/compare/v0.13.0...v0.13.1) - 2026-10-22
 
 ### Fixed
 
 - Reject a resource shape embedding itself again, directly or through other embedded resources and unions of them, as
   the deferred definition closing the cycle is resolved: an embedded resource is carried inline, so such a shape
   admitted no finite value, and `schema` overflowed the stack on it ([#34](https://github.com/metreeca/blue/issues/34))
+
+### Security
+
+- Upgrade `vite` to `8.3.5`, `vitest` to `4.1.12` and `markdown-it` to `14.3.3`, clearing the advisories `npm audit`
+  raised against them (development dependencies only, so applications installing the package are unaffected)
 
 ## [0.13.0](https://github.com/metreeca/blue/compare/v0.12.1...v0.13.0) - 2026-10-19
 
