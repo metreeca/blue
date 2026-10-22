@@ -172,6 +172,16 @@ describe("schema", () => {
 
 		});
 
+		it("reports a shape embedding itself", async () => {
+
+			function Node(): ResourceShape {
+				return resource({ label: required(text), child: optional(Node) });
+			}
+
+			expect(() => schema(Node())).toThrow(TraceError);
+
+		});
+
 		it("returns the same schema for the same shape", async () => {
 
 			const shape = resource({ label: required(text) });
@@ -837,6 +847,16 @@ describe("validate", () => {
 		it("resolves a shape deferred to break a definition cycle", async () => {
 
 			expect(value(validate({ name: "Widget" }, { shape: () => Product }))).toEqual({ name: "Widget" });
+
+		});
+
+		it("reports a shape embedding itself as the embedded definition is reached", async () => {
+
+			function Node(): ResourceShape {
+				return resource({ label: required(string()), child: optional(Node) });
+			}
+
+			expect(() => validate({ label: "a", child: { label: "b" } }, { shape: Node() })).toThrow(TraceError);
 
 		});
 

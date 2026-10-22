@@ -368,6 +368,8 @@ type Sealed = {
  *
  * @returns The JSON Schema describing the values `shape` admits
  *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `shape` is malformed, as where it embeds itself with no
+ *     link to break the cycle and so admits no finite payload a schema could describe
  * @throws {@link !RangeError RangeError} If `shape` admits a {@link dictionary!dictionary | localised} value range at
  *     any depth, as a JSON Schema has no way to name the language tags keying each localised value it describes
  *

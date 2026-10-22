@@ -66,8 +66,8 @@ const unions = new WeakMap<UnionShape, readonly Shape[]>();
  * @returns The branches `shape` admits values from, in the order they were stated, each resolved and merged where it
  *     describes a resource
  *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or where the
- *     branches declare a shared member name inconsistently
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself with no link to
+ *     break the cycle, or where the branches declare a shared member name inconsistently
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design § 3.2 Union Constraints}
  */

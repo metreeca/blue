@@ -7,6 +7,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased](https://github.com/metreeca/blue/compare/v0.13.0...HEAD)
 
+### Fixed
+
+- Reject a resource shape embedding itself again, directly or through other embedded resources and unions of them, as
+  the deferred definition closing the cycle is resolved: an embedded resource is carried inline, so such a shape
+  admitted no finite value, and `schema` overflowed the stack on it ([#34](https://github.com/metreeca/blue/issues/34))
+
 ## [0.13.0](https://github.com/metreeca/blue/compare/v0.12.1...v0.13.0) - 2026-10-19
 
 ### Added

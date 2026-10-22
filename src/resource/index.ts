@@ -114,6 +114,9 @@
  * }
  * ```
  *
+ * Only a link breaks the cycle. An embedded resource is carried inline, so a shape that embeds itself, directly or
+ * through other embedded resources or unions, admits no finite value and is rejected as its definition is resolved.
+ *
  * **Inheritance**
  *
  * A shape extends the ones it is given first, carrying their members and constraints:

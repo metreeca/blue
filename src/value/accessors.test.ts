@@ -141,6 +141,97 @@ describe("eager", () => {
 
 	});
 
+	describe("an embedded definition cycle", () => {
+
+		it("reports a shape embedding itself", async () => {
+
+			function Node(): ResourceShape {
+				return resource({ label: optional(string()), child: optional(Node) });
+			}
+
+			expect(() => eager(Node)).toThrow(TraceError);
+
+		});
+
+		it("reports a shape embedding itself through a stated definition", async () => {
+
+			const deferred = (): ResourceShape => Node;
+			const Node: ResourceShape = resource({ child: optional(deferred) });
+
+			expect(() => eager(deferred)).toThrow(TraceError);
+
+		});
+
+		it("reports shapes embedding each other once both are resolved", async () => {
+
+			function Left(): ResourceShape { return resource({ right: optional(Right) }); }
+			function Right(): ResourceShape { return resource({ left: optional(Left) }); }
+
+			expect(eager(Left).kind).toBe("resource"); // the cycle is closed by the definition resolved last
+			expect(() => eager(Right)).toThrow(TraceError);
+
+		});
+
+		it("reports a cycle closed through a union branch", async () => {
+
+			function Node(): ResourceShape {
+				return resource({ child: optional(union(string(), Node)) });
+			}
+
+			expect(() => eager(Node)).toThrow(TraceError);
+
+		});
+
+		it("reports a cycle closed through an inherited member", async () => {
+
+			function Base(): ResourceShape { return resource({ child: optional(Derived) }); }
+			function Derived(): ResourceShape { return resource(Base, {}); }
+
+			expect(() => eager(Derived)).toThrow(TraceError);
+
+		});
+
+		it("leaves nothing cached where a definition closes a cycle", async () => {
+
+			function Node(): ResourceShape { return resource({ child: optional(Node) }); }
+
+			expect(() => eager(Node)).toThrow(TraceError);
+			expect(() => eager(Node)).toThrow(TraceError);
+
+		});
+
+		it("accepts a cycle a link breaks", async () => {
+
+			function Category(): ResourceShape {
+				return resource({ id: id(), parent: optional(reference(Category)) });
+			}
+
+			expect(eager(Category).kind).toBe("resource");
+
+		});
+
+		it("accepts a link to a shape embedding the linking one", async () => {
+
+			function Linking(): ResourceShape { return resource({ id: id(), to: optional(reference(Embedding))}); }
+			function Embedding(): ResourceShape { return resource({ linking: optional(Linking) }); }
+
+			expect(eager(Linking).kind).toBe("resource");
+			expect(eager(Embedding).kind).toBe("resource");
+
+		});
+
+		it("accepts a deferred embedded range stating no cycle", async () => {
+
+			const deferred = (): ResourceShape => Note;
+
+			resource({ note: optional(deferred) });
+
+			expect(eager(deferred)).toBe(Note);
+
+		});
+
+	});
+
 	describe("a range", () => {
 
 		it("resolves a stated range to itself", async () => {

@@ -86,8 +86,8 @@ export type Entry<S extends Shape = Exclude<Shape, UnionShape>> = S extends Shap
  * @returns The class the target shape declares, or `undefined` where it declares none or `shape` points at no
  *     resource
  *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
- *     target that doesn't narrow the one the link it is reached through overrides
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself with no link to
+ *     break the cycle, or states a target that doesn't narrow the one the link it is reached through overrides
  */
 export function getShapeClass(shape: Lazy<Shape>): Optional<Reference> {
 
@@ -103,8 +103,8 @@ export function getShapeClass(shape: Lazy<Shape>): Optional<Reference> {
  * @returns The classes the target shape inherits, empty where it extends nothing stating one, or `undefined` where
  *     `shape` points at no resource
  *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
- *     target that doesn't narrow the one the link it is reached through overrides
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself with no link to
+ *     break the cycle, or states a target that doesn't narrow the one the link it is reached through overrides
  */
 export function getShapeClasses(shape: Lazy<Shape>): Optional<readonly Reference[]> {
 
@@ -120,8 +120,8 @@ export function getShapeClasses(shape: Lazy<Shape>): Optional<readonly Reference
  * @returns The name the identifier is stated under, or `undefined` where the target states none or `shape` points at
  *     no resource
  *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
- *     target that doesn't narrow the one the link it is reached through overrides
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself with no link to
+ *     break the cycle, or states a target that doesn't narrow the one the link it is reached through overrides
  */
 export function getShapeId(shape: Lazy<Shape>): Optional<Identifier> {
 
@@ -137,8 +137,8 @@ export function getShapeId(shape: Lazy<Shape>): Optional<Identifier> {
  * @returns The name the class is stated under, or `undefined` where the target states none or `shape` points at no
  *     resource
  *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
- *     target that doesn't narrow the one the link it is reached through overrides
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself with no link to
+ *     break the cycle, or states a target that doesn't narrow the one the link it is reached through overrides
  */
 export function getShapeType(shape: Lazy<Shape>): Optional<Identifier> {
 
@@ -153,8 +153,8 @@ export function getShapeType(shape: Lazy<Shape>): Optional<Identifier> {
  *
  * @returns The members of the target shape, or no member at all where `shape` points at no resource
  *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or states a
- *     target that doesn't narrow the one the link it is reached through overrides
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself with no link to
+ *     break the cycle, or states a target that doesn't narrow the one the link it is reached through overrides
  */
 export function getShapeProperties(shape: Lazy<Shape>): Members {
 
@@ -176,7 +176,8 @@ export function getShapeProperties(shape: Lazy<Shape>): Members {
  * @returns The identifier `state` states, or `undefined` where `shape` declares no id member or `state` states none
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where `state` doesn't conform to `shape`, where a deferred
- *     definition reaches itself or states a target that doesn't narrow the one the link it is reached through overrides
+ *     definition reaches itself with no link to break the cycle, or where it states a target that doesn't narrow the
+ *     one the link it is reached through overrides, as a re-pointed target must extend the one it replaces
  */
 export function getStateId<S extends Lazy<ResourceShape>>(shape: S, state: State<S>): Optional<Reference> {
 
@@ -202,8 +203,8 @@ export function getStateId<S extends Lazy<ResourceShape>>(shape: S, state: State
  * @returns One entry for each value `state` holds under a property `shape` declares
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where `state` doesn't conform to `shape`, where a deferred
- *     definition reaches itself, where it states a target that doesn't narrow the one the link it is reached through
- *     overrides, or where the branches of a union range declare a shared member name inconsistently
+ *     definition reaches itself with no link to break the cycle, where it states a target that doesn't narrow the one
+ *     the link it is reached through overrides, or where a union range declares a shared member name inconsistently
  */
 export function getStateEntries<S extends Lazy<ResourceShape>>(shape: S, state: State<S>): readonly Entry[] {
 

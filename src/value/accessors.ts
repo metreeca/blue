@@ -34,11 +34,12 @@ import {
 	isFunction,
 	isString,
 	type Lazy,
+	opt as fold,
 	type Optional
 } from "@metreeca/core";
 import { unique } from "@metreeca/core/arrays";
 import { xsd } from "@metreeca/core/datatype";
-import { type Issue, TraceError } from "@metreeca/core/trace";
+import { all, type Issue, type Trace, TraceError } from "@metreeca/core/trace";
 import { equals, immutable } from "@metreeca/core/values";
 import { isProbe, type Probe, type Transform, Transforms } from "@metreeca/qest/model";
 
@@ -48,6 +49,7 @@ import { flatten } from "../resource/assembler.js";
 import type { Member, Property, ResourceShape } from "../resource/index.js";
 import { string } from "../string/index.js";
 import { getShapeBranches, union } from "../union/index.js";
+import { reject } from "./assembler.js";
 import { type Items, type Match, type Range, sh, type Shape, type Slice } from "./index.js";
 
 
@@ -113,6 +115,11 @@ const shapes = new WeakMap<() => Shape | Range, null | Shape | Range>();
  * shape comes back merged, so a caller reading its members needs not merge the inheritance chain itself; a range comes
  * back as stated, the shape it carries still possibly deferred.
  *
+ * A deferred definition may reach itself only through a link. An embedded resource is carried inline, so a definition
+ * that embeds itself, directly or through other embedded resources or unions, admits no finite value and is rejected.
+ * A cycle running through several definitions is reported only once all of them have been resolved, in whatever
+ * order: resolving the earlier ones succeeds, and the error surfaces on the definition resolved last.
+ *
  * @typeParam S The stated shape or range, possibly deferred to break definition cycles
  *
  * @param shape The shape or range to resolve
@@ -120,8 +127,8 @@ const shapes = new WeakMap<() => Shape | Range, null | Shape | Range>();
  * @returns The shape or range `shape` states, merged where it describes a resource
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, leaving the
- *     shape it states undefined, or where it states a target that doesn't narrow the one the link it is reached
- *     through overrides
+ *     shape it states undefined, where it embeds itself with no link to break the cycle, or where it states a target
+ *     that doesn't narrow the inherited target overridden by the link it is reached through
  */
 export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
 
@@ -151,7 +158,11 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
 
 		const resolved = resolve(shape());
 
+		// cached before it is checked, so that the walk reaches the definition through its own thunk
+
 		shapes.set(shape, resolved);
+
+		reject("circular definition", embeds(shape, []));
 
 		return resolved as Eager<S>; // ;(cast) as above
 
@@ -171,6 +182,41 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
 		return "shape" in shape ? shape
 			: shape.kind === "resource" ? flatten(shape)
 				: shape;
+	}
+
+	/**
+	 * Checks whether a range reaches a definition already on the embedding path.
+	 *
+	 * Walks the embedded resources and unions a range reaches, stopping at links and at ranges deferred and not yet
+	 * resolved, which are checked where they resolve in their own right; a definition under resolution up the stack
+	 * is reached again through its own thunk once it resolves, the thunk being cached before the check runs.
+	 *
+	 * @param range The range to walk, possibly deferred
+	 * @param trail The definitions and shapes the walk crossed to reach `range`
+	 *
+	 * @returns A trace keyed by the members leading to the definition reached again, or `undefined` where none is
+	 */
+	function embeds(range: Lazy<Shape | Range>, trail: readonly Lazy<Shape | Range>[]): Optional<Trace> {
+
+		if ( trail.includes(range) ) {
+
+			return ["{range} circular embedding"];
+
+		} else {
+
+			const resolved = isFunction(range) ? shapes.get(range) : range;
+			const crossed = [...trail, range];
+
+			return resolved === null || resolved === undefined || "shape" in resolved ? undefined
+				: resolved.kind === "resource" ? all(...Object.entries(resolved.members).map(([name, member]) => () =>
+					member.kind === "property" ? fold(embeds(member.range.shape, crossed), trace => [{ [name]: trace }])
+						: undefined
+				))(undefined)
+					: resolved.kind === "union" ? all(...resolved.branches.map(branch => () => embeds(branch, crossed)))(undefined)
+						: undefined;
+
+		}
+
 	}
 
 }
@@ -217,9 +263,9 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
  *     `"incompatible transform input"` where no alternative survives the transforms
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, leaving the
- *     shape it states undefined, or where it states a target that doesn't narrow the one the link it is reached
- *     through overrides, or where a union the path crosses declares a shared member name inconsistently across its
- *     branches
+ *     shape it states undefined, where it embeds itself with no link to break the cycle, where it states a target
+ *     that doesn't narrow the inherited target overridden by the link it is reached through, or where a union
+ *     the path crosses declares a shared member name inconsistently across its branches
  * @throws {@link !TypeError TypeError} Where `probe` is not a well-formed probe
  *
  * @see {@link https://metreeca.github.io/qest/documents/model.Model_Design.html Model Design}

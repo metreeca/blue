@@ -42,8 +42,8 @@ import { eager, type Shape } from "../value/index.js";
  * @returns The resource shape `shape` points at, merged with the shapes it extends, or `undefined` where it points at
  *     none
  *
- * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself, or the target is
- *     deferred and the definition it states doesn't narrow the target of the link it overrides
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a deferred definition reaches itself with no link to
+ *     break the cycle, or where a deferred target doesn't narrow the target of the link it overrides
  */
 export function getShapeTarget(shape: Lazy<Shape>): Optional<ResourceShape> {
 
