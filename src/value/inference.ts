@@ -32,11 +32,13 @@ import type { Eager, Lazy, Optional } from "@metreeca/core";
 import type { Atomic, Binding, Criteria, Locale, Projection, Query, Union } from "@metreeca/qest/model";
 import type { Reference, Value, Values } from "@metreeca/qest/state";
 import type { BooleanShape } from "../boolean/index.js";
-import type { Tagged } from "../dictionary/inference.js";
+import type { Coalesced, Tagged } from "../dictionary/inference.js";
 import type { DictionaryShape } from "../dictionary/index.js";
 import type { NumberShape } from "../number/index.js";
 import type { ReferenceShape } from "../reference/index.js";
-import type { Arity, Arrayed, Carried, Content, Identifier, Joined, Loose, Repeated } from "../resource/inference.js";
+import type {
+	Arity, Arrayed, Carried, Content, Identifier, Joined, Localised, Loose, Repeated, Slot
+} from "../resource/inference.js";
 import type { Property, ResourceShape } from "../resource/index.js";
 import type { StringShape } from "../string/index.js";
 import type { Branch, Variant } from "../union/inference.js";
@@ -170,8 +172,9 @@ export type Sole<K extends PropertyKey> =
  * only selects which values to return.
  *
  * Members the template omits are omitted from the result; a member the template doesn't narrow resolves as it would in
- * {@link State}. The bare resource shape declares no member, so every member the template names resolves to any value
- * a resource may hold.
+ * {@link State}. The one exception is a localised member asked for by the atomic placeholder: it resolves to its
+ * {@link Coalesced | coalesced} text rather than to its tag-keyed map, as the retrieval returns it. The bare resource
+ * shape declares no member, so every member the template names resolves to any value a resource may hold.
  *
  * > [!WARNING]
  * > Provisional. Every value type comes from the shape and the template contributes only the set of keys, so some
@@ -342,7 +345,9 @@ type Linked<M> =
  *
  * If the entry is a projection over a collection, resolves to the {@link Row | rows} it computes. If the member reaches
  * a resource and the template requests members of it, resolves to the {@link Detailed | detailed} resource at the
- * cardinality of the member. Otherwise resolves to the value the shape describes.
+ * cardinality of the member. If the entry is the atomic placeholder, resolves to the value the shape describes, with
+ * localised text in its {@link Coalesced | coalesced} form rather than as a tag-keyed map. Otherwise, as for a branch
+ * map or a language range, resolves to the value exactly as the shape describes it, tag-keyed maps included.
  *
  * @typeParam M The member to narrow
  * @typeParam A The template entry for the member
@@ -350,8 +355,8 @@ type Linked<M> =
 type Narrowed<M, A> =
 	[Extract<Exclude<keyof A, keyof Criteria>, Binding>] extends [never]
 		? M extends Property<infer R, infer L, infer U>
-			? [Target<R>] extends [never] ? Content<M>
-				: [keyof Wanted<A>] extends [never] ? Content<M>
+			? [keyof Wanted<A>] extends [never] ? Slot<R, L, U, Coalesced<Localised<R>>>
+				: [Target<R>] extends [never] ? Content<M>
 					: Arity<Detailed<Target<R>, Wanted<A>>, L, U>
 			: Content<M>
 		: readonly Row<A>[] // the rows a projection over the collection hands back

@@ -273,12 +273,15 @@ export type Model<S extends Lazy<ResourceShape>, T = never> = Template & Entries
  * typed as any value a resource may hold. Depth, cardinality and optionality come from the shape: the model only
  * selects which values to return. Filtering, ordering and pagination criteria don't affect the result type.
  *
- * Members the template omits are omitted from the match. Polymorphic members, localised members and projection
- * columns keep the broad type the shape describes: callers needing the branch selected by a branch map, the tags
- * selected by a language range, or the specific type an expression computes, must narrow it themselves. Under the bare
- * {@link resource!ResourceShape | ResourceShape}, every member the template names resolves to any
- * {@link @metreeca/qest!Values | values}; a generic {@link @metreeca/qest!Template | Template}, naming no member,
- * resolves to an empty record.
+ * Members the template omits are omitted from the match. A localised member asked for by the atomic placeholder
+ * resolves to the text language negotiation returns for it: a string or an array of strings, at the per-tag arity its
+ * shape states. Polymorphic members, localised members asked for per tag and projection columns keep the broad type
+ * the shape describes, since each value is resolved against its whole shape. Callers needing the branch a branch map
+ * selects, the tags a language range selects, or the type an expression computes, must narrow it themselves.
+ *
+ * Under the bare {@link resource!ResourceShape | ResourceShape}, every member the template names resolves to any
+ * {@link @metreeca/qest!Values | values}. A generic {@link @metreeca/qest!Template | Template} names no member at all
+ * and resolves to an empty record, with no member left for the shape to resolve.
  *
  * @typeParam S The shape the retrieval runs against, possibly deferred to break definition cycles
  * @typeParam T The template or projection model of the retrieval, possibly with criteria

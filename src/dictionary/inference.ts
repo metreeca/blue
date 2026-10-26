@@ -18,8 +18,9 @@
 /**
  * Dictionary value inference.
  *
- * Resolves the value a dictionary shape describes: `Tagged` maps a shape to the tag-keyed record its content is read
- * as, typed at the per-tag arity the shape admits.
+ * Types every form a localised value takes from the dictionary shape that describes it: the tag-keyed map the value
+ * is stored and submitted as, and the negotiated text a retrieval returns in its place. Both forms follow the per-tag
+ * arity the shape admits, so stored and retrieved text never disagree on how many strings a tag carries.
  *
  * @module
  */
@@ -43,3 +44,17 @@ export type Tagged<S extends Lazy<DictionaryShape>> = {
 	readonly [tag: Tag]: Eager<S> extends { readonly uniqueLang: true } ? string : readonly string[]
 
 }
+
+/**
+ * Resolves the negotiated text a dictionary shape coalesces to.
+ *
+ * A localised member asked for by the atomic placeholder comes back as plain text: the content of the one tag that
+ * language negotiation selects. The text is a single string where the shape states
+ * {@link DictionaryConstraints.uniqueLang | uniqueLang}, and an array of strings otherwise, matching the per-tag arity
+ * {@link Tagged} states for the map. A shape that leaves the constraint unstated, or states it only as a boolean, may
+ * carry several strings under a tag, so its text is always an array, however many strings the selected tag holds.
+ *
+ * @typeParam S The describing shape, possibly deferred to break definition cycles
+ */
+export type Coalesced<S extends Lazy<DictionaryShape>> =
+	Eager<S> extends { readonly uniqueLang: true } ? string : readonly string[]

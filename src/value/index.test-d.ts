@@ -266,6 +266,8 @@ describe("Match", () => {
 
 		tags: multiple(string()),
 		label: optional(dictionary({ uniqueLang: true })),
+		notes: optional(dictionary()),
+		title: required(union(integer(), dictionary({ uniqueLang: true }))),
 
 		vendor: optional(reference(Vendor)),
 		vendors: multiple(reference(Vendor)),
@@ -306,10 +308,37 @@ describe("Match", () => {
 
 		});
 
-		it("carries a localised member as the shape describes it", async () => {
+		// a localised member asked for per tag comes back as its tag-keyed map, and asked for whole as the text that
+		// language negotiation selects, either way at the per-tag arity its shape states rather than the member's
+
+		it("carries a localised member asked for per tag as the shape describes it", async () => {
 
 			expectTypeOf<Match<typeof Product, { label: { "*": {} } }>>()
 				.toEqualTypeOf<{ readonly label?: undefined | { readonly [tag: Tag]: string } }>();
+
+			expectTypeOf<Match<typeof Product, { notes: { en: {}, it: {} } }>>()
+				.toEqualTypeOf<{ readonly notes?: undefined | { readonly [tag: Tag]: readonly string[] } }>();
+
+		});
+
+		it("coalesces a unique-tagged localised member asked for whole to a string", async () => {
+
+			expectTypeOf<Match<typeof Product, { label: {} }>>()
+				.toEqualTypeOf<{ readonly label?: undefined | string }>();
+
+		});
+
+		it("coalesces a multi-valued localised member asked for whole to an array of strings", async () => {
+
+			expectTypeOf<Match<typeof Product, { notes: {} }>>()
+				.toEqualTypeOf<{ readonly notes?: undefined | readonly string[] }>();
+
+		});
+
+		it("keeps the other branches of a range beside the coalesced text", async () => {
+
+			expectTypeOf<Match<typeof Product, { title: {} }>>()
+				.toEqualTypeOf<{ readonly title: number | string }>();
 
 		});
 

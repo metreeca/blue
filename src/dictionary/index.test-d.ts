@@ -18,6 +18,7 @@ import { assert } from "@metreeca/core";
 import { isTagRange, type Tag } from "@metreeca/core/language";
 import { describe, expectTypeOf, test } from "vitest";
 import { dictionary, type DictionaryShape } from "./index.js";
+import type { Coalesced } from "./inference.js";
 import { type State } from "../value/index.js";
 import { multiple, optional, required, resource } from "../resource/index.js";
 
@@ -67,6 +68,46 @@ describe("dictionary", () => {
 		const unique = dictionary({ uniqueLang: true, minLength: 1, languageIn: [assert("en", isTagRange)] });
 
 		expectTypeOf<State<typeof unique>>().toEqualTypeOf<{ readonly [tag: Tag]: string }>();
+
+	});
+
+});
+
+describe("Coalesced", () => {
+
+	test("unique-tagged shape → a single string", () => {
+
+		const unique = dictionary({ uniqueLang: true });
+
+		expectTypeOf<Coalesced<typeof unique>>().toEqualTypeOf<string>();
+
+	});
+
+	test("unstated arity → an array of strings", () => {
+		expectTypeOf<Coalesced<DictionaryShape>>().toEqualTypeOf<readonly string[]>();
+	});
+
+	test("explicitly non-unique arity → an array of strings", () => {
+
+		const multiple = dictionary({ uniqueLang: false });
+
+		expectTypeOf<Coalesced<typeof multiple>>().toEqualTypeOf<readonly string[]>();
+
+	});
+
+	test("arity stated only as a boolean → an array of strings", () => {
+
+		const stated = dictionary({ uniqueLang: Boolean() });
+
+		expectTypeOf<Coalesced<typeof stated>>().toEqualTypeOf<readonly string[]>();
+
+	});
+
+	test("deferred shape → the content of the eager one", () => {
+
+		const unique = dictionary({ uniqueLang: true });
+
+		expectTypeOf<Coalesced<() => typeof unique>>().toEqualTypeOf<string>();
 
 	});
 

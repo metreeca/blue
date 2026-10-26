@@ -155,15 +155,24 @@ export type Content<M> =
  * the other values, as a resource carries one or the other and never both. Either form is optional where the lower
  * bound lets the property be left out.
  *
+ * The map is the form localised text is stored in. A retrieval asking for the text coalesced passes the negotiated
+ * form as `T` instead, and that form takes the place of the map under the same arity rules.
+ *
  * @typeParam R The range describing the values, possibly deferred to break definition cycles
  * @typeParam L The least number of values admitted
  * @typeParam U The greatest number of values admitted
+ * @typeParam T The form localised text is carried in, defaulting to the tag-keyed map the range describes
  */
-export type Slot<R extends Lazy<Shape>, L extends Optional<number>, U extends Optional<number>> =
+export type Slot<
+	R extends Lazy<Shape>,
+	L extends Optional<number>,
+	U extends Optional<number>,
+	T = State<Localised<R>>
+> =
 	[R] extends [never] ? never // a range voided by conflicting overrides
 		: [Localised<R>] extends [never] ? Arity<State<R>, L, U>
-			: [Valued<R>] extends [never] ? Arity<State<R>, L, 1>
-				: Arity<State<Valued<R>>, L, U> | Arity<State<Localised<R>>, L, 1>
+			: [Valued<R>] extends [never] ? Arity<T, L, 1>
+				: Arity<State<Valued<R>>, L, U> | Arity<T, L, 1>
 
 
 //// Property Cardinality ////////////////////////////////////////////////////////////////////////////////////////////
@@ -298,9 +307,12 @@ type Omitted<M> =
 /**
  * Resolves the alternatives of a range carrying localised text.
  *
+ * Resolves to the dictionary shapes among the variants of the range, and to `never` for a range admitting no localised
+ * text, so the localised part of a range can be typed apart from the other values it admits.
+ *
  * @typeParam R The range describing the values, possibly deferred to break definition cycles
  */
-type Localised<R extends Lazy<Shape>> =
+export type Localised<R extends Lazy<Shape>> =
 	Extract<Variant<R>, DictionaryShape>
 
 /**

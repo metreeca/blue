@@ -7,6 +7,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased](https://github.com/metreeca/blue/compare/v0.13.1...HEAD)
 
+### Fixed
+
+- Type a localised member asked for by the atomic placeholder `{}` as its coalesced text, a `string` under
+  `uniqueLang: true` and a `readonly string[]` otherwise, rather than as the tag-keyed map only a language-range entry
+  returns: `Match` results now carry the negotiated text as the runtime does, so clients no longer narrow it by hand
+
 ## [0.13.1](https://github.com/metreeca/blue/compare/v0.13.0...v0.13.1) - 2026-10-22
 
 ### Fixed

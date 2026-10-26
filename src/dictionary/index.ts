@@ -105,9 +105,9 @@ import { assemble } from "./assembler.js";
  *
  * The tag-keyed map is the form a value is stored and submitted in. On retrieval a localised member is additionally
  * *coalesced* under language negotiation, at the same per-tag arity: the value may be retrieved as the negotiated
- * content alone (a bare string where a tag carries one, a single-element array where it carries several), and filtered
- * by a plain string operand (a comparison, a text search or an option) matched against the negotiated content under
- * ordinary textual semantics. Submission never coalesces: it accepts the tag-keyed form alone.
+ * content alone (a bare string under a unique-tagged shape, otherwise the array of strings the selected tag carries),
+ * and filtered by a plain string operand (a comparison, a text search or an option) matched against the negotiated
+ * content under ordinary textual semantics. Submission never coalesces: it accepts the tag-keyed form alone.
  *
  * **Inheritance**
  *

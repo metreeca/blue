@@ -387,6 +387,16 @@ describe("members", () => {
 			expectTypeOf<Slot<Shape, 1, 1>>().toEqualTypeOf<never>();
 		});
 
+		// a retrieval asking for localised text coalesced states the form it comes back in, in place of the map
+
+		test("the stated form of localised text, under the arity rules of the map", () => {
+			expectTypeOf<Slot<DictionaryShape, 1, undefined, string>>().toEqualTypeOf<string>();
+			expectTypeOf<Slot<DictionaryShape, undefined, undefined, string>>().toEqualTypeOf<undefined | string>();
+			expectTypeOf<Slot<UnionShape<[ReferenceShape, DictionaryShape]>, 1, undefined, string>>()
+				.toEqualTypeOf<readonly [Reference, ...Reference[]] | string>();
+			expectTypeOf<Slot<StringShape, 1, 1, never>>().toEqualTypeOf<string>();
+		});
+
 	});
 
 });
