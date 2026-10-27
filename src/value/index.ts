@@ -248,7 +248,7 @@ export type Draft<S extends Lazy<ResourceShape>, T = never> =
  * - **atomic** — `{}`, for any member
  * - **template** — a nested template, checked against the shape of the linked or embedded resource
  * - **locale** — a language-range map, for ranges admitting localised text
- * - **union** — a branch map, for ranges mixing kinds of value, each branch in any form above except a locale
+ * - **union** — a branch map, for ranges mixing kinds of value, each branch in any form above
  * - **query** — any form above, or a projection, merged with collection criteria, for multi-valued members
  *
  * Only forms are checked: filter, ordering and projection expressions are not validated against the shape. Since keys

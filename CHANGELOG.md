@@ -12,6 +12,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Type a localised member asked for by the atomic placeholder `{}` as its coalesced text, a `string` under
   `uniqueLang: true` and a `readonly string[]` otherwise, rather than as the tag-keyed map only a language-range entry
   returns: `Match` results now carry the negotiated text as the runtime does, so clients no longer narrow it by hand
+- Accept a locale asked for on a member pairing localised text with other variants, under a branch map or directly on
+  the member if no other variant reaches a resource, rather than within a projection column alone; retrieved results
+  no longer report a missing required member whose template reaches only some of its variants, and admit coalesced
+  text wherever any variant admits it ([#35](https://github.com/metreeca/blue/issues/35))
 
 ## [0.13.1](https://github.com/metreeca/blue/compare/v0.13.0...v0.13.1) - 2026-10-22
 

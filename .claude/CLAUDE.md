@@ -64,7 +64,8 @@ checked by `checkBound()` / `checkOption()` in `src/union/validator.ts`:
   constraint: the `Atomic` leaf reaches every variant coming back as a value (an embedded resource, naming no
   identifier, excepted), a nested `Template` the variants naming a resource, a `Locale` map the localised ones. It
   carries no value to discriminate with, so it may match several (retrieving each) and is rejected only when it matches
-  none. A localised variant takes its tag ranges within a projection column alone, coming back coalesced elsewhere.
+  none. A localised variant takes its tag ranges under a branch map, or directly on the member if no other variant
+  reaches a resource.
   An object whose keys each name a member of a nested-resource variant is read as a `Template` and never as a `Locale`
   map, which it is read as otherwise (qest §5.5).
 

@@ -126,10 +126,10 @@ alone** and ignores every constraint, the placeholder carrying no value of its o
   shape in each, and what is asked for it need fit only one of them. The template is rejected only if some member it
   asks for fits no branch. A template states what to bring back rather than what is held, so it is held to the
   declared members but **not to their presence**: a template asking for part of a resource matches it all the same.
-- a map of **tag ranges** matches the localised branches alone, asking for their text tag by tag. A map has nowhere
-  to sit among the values the sibling branches carry, so a localised branch takes it within a **projection column**
-  alone, where each branch is asked for under a column of its own; elsewhere the branch comes back coalesced, through
-  the atomic placeholder.
+- a map of **tag ranges** matches the localised branches alone, asking for their text tag by tag. A resource holds
+  the value of one branch alone, so the map never sits among the values the sibling branches carry. A localised branch
+  takes it under a **branch map**, or directly on the member if no sibling branch reaches a resource, since the map
+  then cannot be read as a template naming the members of a resource branch by its tag ranges.
 
 A nested template and a map of tag ranges share the object form, and a tag range such as `en` may also be a member
 name, so the shape settles which one an object is. An object whose keys each name a member of a resource branch,

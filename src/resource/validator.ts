@@ -54,7 +54,7 @@ import { eager, effective, type Range, type Shape } from "../value/index.js";
 import { match, type Scope, validateShape } from "../value/validator.js";
 import type { ReferenceShape } from "../reference/index.js";
 import type { Property, ResourceShape } from "./index.js";
-import { getShapeBranches } from "../union/index.js";
+import { getModelBranches, getShapeBranches } from "../union/index.js";
 import { checkBound, checkOption, isTemplateModel } from "../union/validator.js";
 import { getShapeTarget } from "../reference/index.js";
 import { getShapeId } from "./accessors.js";
@@ -262,9 +262,9 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  * reports both.
  *
  * Within a branch map, a template may ask for members declared by different resource branches. A member several of
- * them declare may take a different shape in each, and what is asked for it need fit only one of them. Where a
- * localised branch is one alternative among others, the map of ranges is taken within a projection column alone, the
- * coalesced text being what it comes back as elsewhere. A tag range may also be a member name, so an object whose keys
+ * them declare may take a different shape in each, and what is asked for it need fit only one of them. A localised
+ * branch standing among others takes a map of tag ranges under a branch map. If no other branch reaches a resource,
+ * the map may also be stated directly on the member. A tag range may also be a member name, so an object whose keys
  * each name a member of a resource branch is read as a template, and any other object as a map of tag ranges.
  *
  * **What a constraint may test against**
@@ -464,13 +464,19 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	 * Validates what a single-valued slot asks for.
 	 *
 	 * A localised branch is asked for either as the tags wanted or as the text content negotiation settles on. Standing
-	 * as one alternative among others, it takes the tags within a projection column alone, where each branch is asked
-	 * for under a column of its own and a map has nowhere to sit among the values the other branches carry.
+	 * among other branches, it takes the tags under a branch map. If no branch reaches a resource, it also takes them
+	 * directly on the slot, as the map then cannot be mistaken for a template naming members by its tag ranges.
 	 */
-	function model(value: unknown, range: Range, depth: Optional<number>, local: boolean = false): Optional<Trace> {
+	function model(value: unknown, range: Range, depth: Optional<number>): Optional<Trace> {
 
 		const branches = getShapeBranches(range.shape);
 		const [branch] = branches;
+
+		// with no branch reaching a resource, an object keyed by anything but branch indices can only be a locale
+
+		const localised = branches.every(alternative => getShapeTarget(alternative) === undefined)
+			? branches.find((alternative): alternative is DictionaryShape => alternative.kind === "dictionary")
+			: undefined;
 
 		return branches.length > 1
 
@@ -480,9 +486,10 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			? isAtomic(value)
 				? branches.some(alternative => alternative.kind !== "resource") ? undefined
 					: ["{branches} no branch comes back as a value"]
-				: indexed(value, branches, depth, local)
+				: localised !== undefined && !isObject(value, (_, key) => isBranch(key)) ? locale(value, localised)
+					: indexed(value, branches, depth)
 
-			: branch.kind === "dictionary" ? locale(value, branch, true)
+			: branch.kind === "dictionary" ? locale(value, branch)
 				: placeholder(value, branch, depth);
 
 	}
@@ -496,8 +503,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	function indexed(
 		value: unknown,
 		branches: readonly Shape[],
-		depth: Optional<number>,
-		local: boolean
+		depth: Optional<number>
 	): Optional<Trace> {
 
 		if ( !isObject(value, (_, key) => isBranch(key)) ) { return ["expected union variant map"]; }
@@ -529,7 +535,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 				isTemplateModel(contents, branches) && isObject(contents)
 					? all(...Object.entries(contents).map(([name, nested]) => () => member(name, nested)))(undefined)
 					: branches.some(branch => branch.kind === "dictionary"
-						? locale(contents, branch, local) === undefined
+						? locale(contents, branch) === undefined
 						: placeholder(contents, branch, depth) === undefined
 					) ? undefined : ["{branches} no branch admits the placeholder"]
 
@@ -567,15 +573,12 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	 *
 	 * @param value The placeholder the slot states
 	 * @param shape The localised shape the slot reaches
-	 * @param structural Whether the tags may be wanted here, which they may not where the shape is one alternative
-	 *     among others outside a projection column
 	 */
-	function locale(value: unknown, shape: DictionaryShape, structural: boolean): Optional<Trace> {
+	function locale(value: unknown, shape: DictionaryShape): Optional<Trace> {
 
 		return isAtomic(value) ? undefined
-			: !structural ? ["expected <Atomic> placeholder"]
-				: !isObject(value) ? ["{kind} expected <Atomic> or <Locale> placeholder"]
-					: tagged(value, shape);
+			: !isObject(value) ? ["{kind} expected <Atomic> or <Locale> placeholder"]
+				: tagged(value, shape);
 
 	}
 
@@ -718,7 +721,7 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			return isArray(asked) ? ["unexpected array in projection value"]
 
 				: unconstrained(asked, "unexpected constraint in a projection column",
-					contents => model(contents, range, depth, true)
+					contents => model(contents, range, depth)
 				);
 
 		}
@@ -963,6 +966,11 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
  * where the atomic placeholder asked for it, the text content negotiation settled on, at the arity the shape states
  * per tag and held to the lengths it bounds rather than to the counts of the other alternatives.
  *
+ * A polymorphic member comes back holding one variant alone. If the template reaches only some of its variants, the
+ * member may come back empty on a resource holding another, so its lower bound binds only if every variant is
+ * reached. If the atomic placeholder asks for localised text paired with other values, the text comes back folded
+ * among them as plain strings, and a value is admitted if any variant of the member admits it.
+ *
  * @param values The retrieved resources to validate
  * @param opts Validation options
  * @param opts.shape The shape the resources are matched against
@@ -1033,7 +1041,7 @@ export function validateResult(values: readonly unknown[], {
 
 		if ( present === undefined ) {
 
-			return minCount !== undefined && minCount >= 1
+			return minCount !== undefined && minCount >= 1 && exhaustive(requested, branches)
 				? [`{minCount} expected at least <${minCount}> value(s)`]
 				: undefined;
 
@@ -1047,21 +1055,65 @@ export function validateResult(values: readonly unknown[], {
 			.find(branch => plain(requested, branch));
 
 		if ( negotiated !== undefined ) {
-			return text(present, negotiated);
+
+			// the text folds into the values of the other variants, so a value is admitted where either admits it
+
+			const others = branches.filter(branch => branch !== negotiated);
+			const coalesced = text(present, negotiated);
+
+			return coalesced === undefined || others.length === 0 ? coalesced
+				: valued(present, member, others, requested) === undefined ? undefined
+					: coalesced;
+
 		}
 
 		// a localised member comes back as it is carried: one map, whole and never in an array, whatever bounds it
 		// states of the other values, and the bounds count those other values alone
 
-		const whole = isLocalised(present, branches, "state");
+		// a map is matched against the range as it stands, the template narrowing the other values alone
+
+		return isLocalised(present, branches, "state")
+			? validateShape([present], eager(range))
+			: valued(present, member, branches, requested);
+
+	}
+
+	/**
+	 * Validates the values a member came back with, other than a localised map, against the branches they may belong to.
+	 */
+	function valued(
+		present: unknown,
+		member: Property,
+		branches: readonly Shape[],
+		requested: unknown
+	): Optional<Trace> {
 
 		const carried = isArray(present) ? present : [present];
 
-		// a map is matched against the range as it stands, the template narrowing the other values alone
+		return arity(present, member.range.maxCount, branches, "state")
+			?? elements(carried, branches, requested)
+			?? counts(carried.length, member);
 
-		return (whole ? undefined : arity(present, maxCount, branches, "state"))
-			?? (whole ? validateShape(carried, eager(range)) : elements(carried, branches, requested))
-			?? (whole ? undefined : counts(carried.length, member));
+	}
+
+	/**
+	 * Checks whether a request reaches every branch a member admits, so that coming back empty breaks its lower bound.
+	 *
+	 * A resource holds the value of one branch alone, so a request reaching only some comes back empty on a resource
+	 * holding another, and the bound then says nothing about what the resource holds.
+	 */
+	function exhaustive(requested: unknown, branches: readonly Shape[]): boolean {
+
+		const asked = isObject(requested)
+			? Object.fromEntries(Object.entries(requested).filter(([key]) => !isSelector(key)))
+			: requested;
+
+		const keyed = isObject(asked) && Object.keys(asked).length > 0 && Object.keys(asked).every(isBranch);
+		const alternatives = keyed ? Object.values(asked) : [asked];
+
+		const reached = new Set(alternatives.flatMap(alternative => getModelBranches(alternative, branches) ?? []));
+
+		return branches.length === 1 || reached.size === branches.length;
 
 	}
 

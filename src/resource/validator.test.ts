@@ -32,6 +32,7 @@ import {
 	property,
 	required,
 	resource,
+	type ResourceShape,
 	type as typed
 } from "./index.js";
 import { validateResource, validateResult, validateTemplate } from "./validator.js";
@@ -1290,8 +1291,10 @@ describe("validateTemplate", () => {
 			const Plain = resource({ name: optional(string()) }); // carries no member a tag range could name
 
 			const localised = resource({
+				label: optional(union(string({ maxLength: 100 }), dictionary({ uniqueLang: true }))),
 				value: optional(union(dictionary(), reference(Plain))),
 				values: multiple(union(string(), dictionary())),
+				literal: optional(union(string(), integer())),
 				items: multiple(reference(resource({ value: optional(union(dictionary(), reference(Plain))) })))
 			});
 
@@ -1304,12 +1307,34 @@ describe("validateTemplate", () => {
 
 			});
 
-			// a branch carries one value, and a tag map has nowhere to sit among the values the other branches carry
+			// exclusivity keeps localised text apart from the values of the other variants on any one resource, so a tag
+			// map comes back on its own wherever it is asked for, with no value set of other variants to sit in
 
-			it("takes the tags of a localised alternative within a projection column alone", async () => {
+			it("takes the tags of a localised alternative in any branch map", async () => {
 
-				expect(validateTemplate([{ value: { "0": { en: {} } } }], localised)).toBeDefined();
+				expect(validateTemplate([{ value: { "0": { en: {} } } }], localised)).toBeUndefined();
 				expect(validateTemplate([{ items: { "x=value": { "0": { en: {} } } } }], localised)).toBeUndefined();
+
+			});
+
+			// with no nested-resource variant to read the object as a template, a tag map is read as a locale
+
+			it("accepts a locale stated plainly on a member pairing text with literal variants", async () => {
+
+				expect(validateTemplate([{ label: { pt: {} } }], localised)).toBeUndefined();
+				expect(validateTemplate([{ values: { en: {}, "*": {} } }], localised)).toBeUndefined();
+
+			});
+
+			it("holds a locale stated plainly to the tag ranges it may name", async () => {
+
+				expect(validateTemplate([{ label: { "de-*": {} } }], localised)).toBeDefined();
+
+			});
+
+			it("reports a locale stated plainly on a member carrying no text", async () => {
+
+				expect(validateTemplate([{ literal: { en: {} } }], localised)).toBeDefined();
 
 			});
 
@@ -2144,8 +2169,8 @@ describe("validateTemplate", () => {
 
 		describe("a localised alternative", () => {
 
-			// a localised alternative is reached as the text negotiation settles on, which sits among the values the
-			// other alternatives carry; the tags wanted, being a map, sit nowhere but in a column of their own
+			// a localised alternative is reached either as the text negotiation settles on or as the tags wanted, and
+			// exclusivity keeps the map apart from the values the other alternatives carry on any one resource
 
 			// the sibling alternative carries no text, so only the localised one admits a plain string placeholder
 
@@ -2163,9 +2188,9 @@ describe("validateTemplate", () => {
 
 			});
 
-			it("refuses the tags wanted outside a projection column", async () => {
+			it("admits the tags wanted outside a projection column", async () => {
 
-				expect(validateTemplate([{ of: { "1": { en: {} } } }], branched)).toBeDefined();
+				expect(validateTemplate([{ of: { "1": { en: {} } } }], branched)).toBeUndefined();
 
 			});
 
@@ -2780,6 +2805,59 @@ describe("validateResult", () => {
 
 		});
 
+		describe("variants a request leaves unreached", () => {
+
+			// a resource holds the value of one variant alone, so a request reaching only some variants legitimately
+			// comes back empty on a resource holding another, and the lower bound binds only where all are reached
+
+			const Person = resource({ id: id(), name: required(string()) });
+			const Organisation = resource({ id: id(), legalName: required(string()) });
+
+			const embedded = resource({
+				creator: required(union(resource({ name: required(string()) }), resource({
+					legalName: required(string())
+				})))
+			});
+
+			const linked = resource({ creator: required(union(reference(Person), reference(Organisation))) });
+
+			it.each<[string, ResourceShape]>([
+				["embedded", embedded],
+				["linked", linked]
+			])("admits an unreached %s variant coming back empty", async (_label, shape) => {
+
+				expect(validateResult([{}], { shape, model: { creator: { "0": { name: {} } } } })).toBeUndefined();
+
+			});
+
+			it("reports a member left out where every variant is reached", async () => {
+
+				expect(validateResult([{}], {
+					shape: embedded,
+					model: { creator: { "0": { name: {} }, "1": { legalName: {} } } }
+				})).toBeDefined();
+
+			});
+
+			it("reports a member left out where the atomic placeholder reaches every variant", async () => {
+
+				const plain = resource({ value: required(union(string(), integer())) });
+
+				expect(validateResult([{}], { shape: plain, model: { value: {} } })).toBeDefined();
+
+			});
+
+			it("admits a localised variant left unreached coming back empty", async () => {
+
+				const named = resource({ label: required(union(string(), dictionary({ uniqueLang: true }))) });
+
+				expect(validateResult([{}], { shape: named, model: { label: { pt: {} } } })).toBeUndefined();
+				expect(validateResult([{}], { shape: named, model: { label: { "1": { pt: {} } } } })).toBeUndefined();
+
+			});
+
+		});
+
 	});
 
 	describe("linked resources", () => {
@@ -2986,6 +3064,44 @@ describe("validateResult", () => {
 					.toBeUndefined();
 
 				expect(validateResult([{ label: "W" }], { shape: bounded, model: { label: {} } })).toBeDefined();
+
+			});
+
+		});
+
+		describe("asked for whole on a member pairing text with a string", async () => {
+
+			// the atomic placeholder folds the text into the strings of the other variant, so a value comes back
+			// indistinguishable from either and is admitted where either variant admits it
+
+			it("admits a plain string where the text stacks several strings per tag", async () => {
+
+				const shape = resource({ label: required(union(string(), dictionary())) });
+
+				expect(validateResult([{ label: "Widget" }], { shape, model: { label: {} } })).toBeUndefined();
+				expect(validateResult([{ label: ["Widget", "Gadget"] }], { shape, model: { label: {} } }))
+					.toBeUndefined();
+
+			});
+
+			it("admits a plain string the string variant bounds and the text variant does not", async () => {
+
+				const shape = resource({
+					label: required(union(string(), dictionary({ uniqueLang: true, maxLength: 3 })))
+				});
+
+				expect(validateResult([{ label: "Widget" }], { shape, model: { label: {} } })).toBeUndefined();
+
+			});
+
+			it("reports a value neither variant admits", async () => {
+
+				const shape = resource({
+					label: required(union(string({ maxLength: 3 }), dictionary({ uniqueLang: true, maxLength: 3 })))
+				});
+
+				expect(validateResult([{ label: "Widget" }], { shape, model: { label: {} } })).toBeDefined();
+				expect(validateResult([{ label: 42 }], { shape, model: { label: {} } })).toBeDefined();
 
 			});
 

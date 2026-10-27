@@ -283,16 +283,23 @@ type Entry<M> =
  * Resolves the forms a range supports for one of its values.
  *
  * Resolves to an atomic, plus a nested template for each resource the range reaches, a locale if the range admits
- * localised text, and a branch map if the range mixes kinds of value, with each branch taking any of these forms except
- * a locale.
+ * localised text, and a branch map if the range mixes kinds of value, with each branch taking any of these forms.
  *
  * @typeParam R The range, possibly deferred to break definition cycles
  */
 type Placeholding<R extends Lazy<Shape>> =
 	| Atomic
 	| Expanded<R>
-	| ([Extract<Variant<R>, DictionaryShape>] extends [never] ? never : Locale)
-	| ([Branch<R>] extends [never] ? never : Union<Atomic | Expanded<R>>)
+	| Tagging<R>
+	| ([Branch<R>] extends [never] ? never : Union<Atomic | Expanded<R> | Tagging<R>>)
+
+/**
+ * Resolves the locale a range supports, if it admits localised text.
+ *
+ * @typeParam R The range, possibly deferred to break definition cycles
+ */
+type Tagging<R extends Lazy<Shape>> =
+	[Extract<Variant<R>, DictionaryShape>] extends [never] ? never : Locale
 
 /**
  * Resolves the nested templates for the resources a range reaches.

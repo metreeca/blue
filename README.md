@@ -383,7 +383,9 @@ validate(response, { shape: Product, model })({
 ```
 
 Constraints on members absent from `model` are not enforced, so an unrequested required member triggers no `minCount`
-violation. A member the template didn't ask for is rejected all the same, as the caller has nowhere to put it. A
+violation, nor does a polymorphic member coming back empty where the template reaches only some of its variants, as
+the resource may hold another. A member the template didn't ask for is rejected all the same, as the caller has
+nowhere to put it. A
 reference member additionally accepts an expanded nested resource, validated against the target shape narrowed by the
 nested projection in `model`. Custom validators are not run, as they are written against a whole resource rather than
 the part of it a template asked for, even where the template asks for every member.
@@ -440,8 +442,8 @@ What each kind of member may be asked for:
   object as a map of tag ranges.
 - **Localised**: a map of the tag ranges wanted, each asking for the value a matched tag carries, or the atomic
   placeholder, standing for the content language negotiation settles on. Per-tag arity follows the shape rather than
-  the template. A localised branch of a union takes the map within a projection column alone, where each branch is
-  asked for under a column of its own; elsewhere it comes back coalesced.
+  the template. A localised branch of a union takes the map under a branch map, or directly on the member if no
+  other branch reaches a resource, since the map then cannot be read as a template.
 
 Constraint operands follow their own rules: comparison bounds and set-matching options carry content rather than
 placeholders, so each must single out exactly one branch, a bound keying on kind and lexical pattern and an option on

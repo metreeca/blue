@@ -466,7 +466,8 @@ describe("Model", () => {
 
 		rating: optional(resource({ average: required(number()) })),
 
-		code: optional(union(string(), integer()))
+		code: optional(union(string(), integer())),
+		title: optional(union(string(), dictionary({ uniqueLang: true })))
 
 	});
 
@@ -531,12 +532,24 @@ describe("Model", () => {
 			expectTypeOf<{ name: { "*": {} } }>().not.toExtend<Products>();
 		});
 
+		test("admits a locale on a member pairing localised text with a string", () => {
+			expectTypeOf<{ title: { pt: {} } }>().toExtend<Products>();
+		});
+
 	});
 
 	describe("unions", () => {
 
 		test("admits branches on a member admitting several kinds", () => {
 			expectTypeOf<{ code: { "0": {}, "1": {} } }>().toExtend<Products>();
+		});
+
+		test("admits a locale branch on a member admitting localised text", () => {
+			expectTypeOf<{ title: { "0": {}, "1": { pt: {} } } }>().toExtend<Products>();
+		});
+
+		test("rejects a locale branch on a member carrying no localised text", () => {
+			expectTypeOf<{ code: { "0": { en: {} } } }>().not.toExtend<Products>();
 		});
 
 		test("rejects branches on a member admitting one kind", () => {
