@@ -59,11 +59,14 @@ import { type Items, type Match, type Range, sh, type Shape, type Slice } from "
  * Names the temporal datatypes the processing space orders and computes on, so that a transform reaching for a date
  * is told apart from one reaching for plain text. The opaque temporal datatypes, `xsd:gYear` and `xsd:duration` among
  * them, are left out: they carry no position on a timeline and are handled as ordinary strings.
+ *
+ * Each datatype is mapped to the temporal transforms extracting a component its values always state. Any other
+ * temporal transform returns no value for it, as a date states no hours and a time of day states no year.
  */
-const Temporal: ReadonlySet<string> = new Set([
-	xsd.date,
-	xsd.time,
-	xsd.dateTime
+const Temporal: ReadonlyMap<string, ReadonlySet<Transform>> = new Map([
+	[xsd.date, new Set<Transform>(["year", "month", "day"])],
+	[xsd.time, new Set<Transform>(["hours", "minutes", "seconds"])],
+	[xsd.dateTime, new Set<Transform>(["year", "month", "day", "hours", "minutes", "seconds"])]
 ]);
 
 
@@ -250,8 +253,15 @@ export function eager<S extends Lazy<Shape | Range>>(shape: S): Eager<S> {
  * **How many values it reaches**
  *
  * Bounds accumulate multiplicatively along a path and envelope across alternatives: the lowest lower bound and the
- * highest upper bound win, and an unstated bound absorbs, leaving that end unbounded. A pipe that always yields a
- * value floors the count at one, an aggregate caps it at one, and any other transform leaves the count unstated.
+ * highest upper bound win, and an unstated bound absorbs, leaving that end unbounded.
+ *
+ * A transform applied value by value keeps the bounds as they stand. An aggregate caps the count at one, and it returns
+ * a value whenever the path reaches one, so a lower bound of one or more drops to one. An aggregate that always returns
+ * a value, such as `count` or `sum`, fixes the count at exactly one, whatever the path reaches.
+ *
+ * Some pipes may return no value for a resource even though the path reaches one: a pipe dropping an alternative it
+ * cannot act on, one reading a localised value through negotiation, and one extracting a temporal component the value
+ * doesn't state, as `hours` does from a date. Their lower bound stays unstated unless the pipe always returns a value.
  *
  * @param shape The shape to resolve the probe against or a range already resolved to probe further, either possibly
  *     deferred to break definition cycles
@@ -383,9 +393,21 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 		const piped = pipe.length > 0;
 		const total = pipe.some(name => Transforms[name].aggregate === "total");
 
+		// a dropped alternative, a localised value read through negotiation or a missing temporal component may leave a
+		// resource with no value; only min and max carry a temporal value through, verbatim, so the component a temporal
+		// transform extracts is checked against the shape the path reached, never against an intermediate one
+
+		const lossy = surviving.length < staged.length
+			|| getShapeBranches(reached.shape).some(shape => shape.kind === "dictionary")
+			|| staged.some(shape => pipe.some(name => misses(shape, name)));
+
 		return {
 
-			minCount: !piped ? reached.minCount : total ? 1 : undefined,
+			minCount: !piped ? reached.minCount
+				: total ? 1
+					: lossy ? undefined
+						: aggregates.length > 0 ? least(reached.minCount, 1)
+							: reached.minCount,
 			maxCount: aggregates.length > 0 ? 1 : reached.maxCount,
 
 			shape: collect(surviving)
@@ -452,6 +474,14 @@ export function effective(shape: Lazy<Shape | Range>, probe: Probe): Range | Iss
 
 	function isTextual(shape: Shape) {
 		return shape.kind === "string" && !isTemporal(shape);
+	}
+
+	/**
+	 * Checks whether a temporal transform extracts a component the values of a temporal shape don't state.
+	 */
+	function misses(shape: Shape, name: Transform): boolean {
+		return shape.kind === "string" && shape.datatype !== undefined && Transforms[name].accepts === "temporal"
+			&& Temporal.get(shape.datatype)?.has(name) === false;
 	}
 
 	function isTemporal(shape: Shape) {

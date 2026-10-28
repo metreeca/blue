@@ -18,6 +18,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   text wherever any variant admits it ([#35](https://github.com/metreeca/blue/issues/35))
 - Accept an ordering (`^`) or sort focus (`+`) naming a grouping key of a projection even if the member it reaches is
   multi-valued: a grouping key holds one value per group, so `validateTemplate` no longer rejects it as unrankable
+- Keep the lower bound `effective` resolves for a piped probe wherever the pipe always reaches a value: a transform
+  applied value by value keeps the bounds, and an aggregate keeps a lower bound of one or more at one, leaving it
+  unstated only where the pipe may drop an alternative, read a localised value through negotiation, or extract a
+  temporal component the value doesn't state, as `hours` does from a date ([#37](https://github.com/metreeca/blue/issues/37))
 
 ## [0.13.1](https://github.com/metreeca/blue/compare/v0.13.0...v0.13.1) - 2026-10-22
 

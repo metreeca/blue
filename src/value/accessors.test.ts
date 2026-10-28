@@ -854,21 +854,71 @@ describe("effective", () => {
 
 		describe("bounds", () => {
 
-			it("leaves the count unstated below where a transform may drop a value", async () => {
+			it.each([
+				["abs", ["abs"], integer()],
+				["lower", ["lower"], string()],
+				["length", ["length"], string()],
+				["year", ["year"], date()],
+				["abs then year", ["abs", "year"], date()]
+			] as const)("carries the bounds through %s, which maps each value to one", async (_l, pipe, shape) => {
 
-				const reached = range(effective(resource({ v: required(integer()) }), probe(["v"], ["abs"])));
+				const bounded = (minCount: number, maxCount?: number) => range(effective(
+					resource({ v: property(shape, { minCount, maxCount }) }), probe(["v"], [...pipe])
+				));
+
+				expect(bounded(1, 1)).toMatchObject({ minCount: 1, maxCount: 1 });
+				expect(bounded(2, 3)).toMatchObject({ minCount: 2, maxCount: 3 });
+				expect(bounded(1)).toMatchObject({ minCount: 1, maxCount: undefined });
+				expect(bounded(0, 1)).toMatchObject({ minCount: 0, maxCount: 1 });
+
+			});
+
+			it.each([
+				["year", "a date", date()],
+				["month", "a date", date()],
+				["day", "a date", date()],
+				["hours", "a time", time()],
+				["minutes", "a time", time()],
+				["seconds", "a time", time()],
+				["year", "an instant", instant()],
+				["hours", "an instant", instant()]
+			] as const)("carries the bounds through %s extracted from %s", async (name, _l, shape) => {
+
+				expect(range(effective(resource({ v: required(shape) }), probe(["v"], [name]))))
+					.toMatchObject({ minCount: 1, maxCount: 1 });
+
+			});
+
+			it.each([
+				["hours", "a date", date(), ["hours"]],
+				["minutes", "a date", date(), ["minutes"]],
+				["seconds", "a date", date(), ["seconds"]],
+				["year", "a time", time(), ["year"]],
+				["month", "a time", time(), ["month"]],
+				["day", "a time", time(), ["day"]],
+				["hours", "the earliest date", date(), ["hours", "min"]]
+			] as const)("leaves the lower bound unstated where %s is extracted from %s", async (_n, _l, shape, pipe) => {
+
+				const reached = range(effective(resource({ v: required(shape) }), probe(["v"], [...pipe])));
 
 				expect(reached.minCount).toBeUndefined();
 				expect(reached.maxCount).toBe(1);
 
 			});
 
-			it("leaves the count as it stands above", async () => {
+			it("floors the count at one where the pipe counts the components extracted", async () => {
 
-				const reached = range(effective(resource({ v: nonempty(integer()) }), probe(["v"], ["abs"])));
+				expect(range(effective(resource({ v: required(date()) }), probe(["v"], ["count", "hours"]))))
+					.toMatchObject({ minCount: 1, maxCount: 1 });
+
+			});
+
+			it("carries an unstated lower bound through", async () => {
+
+				const reached = range(effective(resource({ v: optional(integer()) }), probe(["v"], ["abs"])));
 
 				expect(reached.minCount).toBeUndefined();
-				expect(reached.maxCount).toBeUndefined();
+				expect(reached.maxCount).toBe(1);
 
 			});
 
@@ -889,12 +939,56 @@ describe("effective", () => {
 				["min", ["min"], nonempty(string())],
 				["max", ["max"], nonempty(string())],
 				["avg then floor", ["avg", "floor"], nonempty(decimal())]
-			] as const)("caps the count at one for %s, which may yield none", async (_l, pipe, member) => {
+			] as const)("floors and caps the count at one for %s over a value always reached", async (_l, pipe, member) => {
 
 				const reached = range(effective(resource({ v: member }), probe(["v"], [...pipe])));
 
-				expect(reached.minCount).toBeUndefined();
+				expect(reached.minCount).toBe(1);
 				expect(reached.maxCount).toBe(1);
+
+			});
+
+			it.each([
+				["avg", ["avg"], optional(integer()), undefined],
+				["min", ["min"], multiple(string()), undefined],
+				["max", ["max"], property(string(), { minCount: 0 }), 0]
+			] as const)("caps the count at one for %s over a value that may be missing", async (_l, pipe, member, lower) => {
+
+				const reached = range(effective(resource({ v: member }), probe(["v"], [...pipe])));
+
+				expect(reached.minCount).toBe(lower);
+				expect(reached.maxCount).toBe(1);
+
+			});
+
+			describe("over alternatives", () => {
+
+				const shape = resource({ value: required(union(string(), integer())) });
+
+				it.each([
+					["lower", ["lower"]],
+					["min then lower", ["min", "lower"]]
+				] as const)("leaves the lower bound unstated where %s drops an alternative", async (_l, pipe) => {
+
+					const reached = range(effective(shape, probe(["value"], [...pipe])));
+
+					expect(reached.minCount).toBeUndefined();
+					expect(reached.maxCount).toBe(1);
+
+				});
+
+				it("carries the bounds through where every alternative survives", async () => {
+
+					expect(range(effective(shape, probe(["value"], ["min"])))).toMatchObject({ minCount: 1, maxCount: 1 });
+
+				});
+
+				it("floors the count at one where the pipe always yields a value", async () => {
+
+					expect(range(effective(shape, probe(["value"], ["count", "length"]))))
+						.toMatchObject({ minCount: 1, maxCount: 1 });
+
+				});
 
 			});
 
@@ -995,6 +1089,21 @@ describe("effective", () => {
 
 				expect(reached.shape).toEqual(string());
 				expect(reached.maxCount).toBe(1);
+
+			});
+
+			it.each([
+				["lower", ["lower"]],
+				["min", ["min"]]
+			] as const)("leaves the lower bound unstated where %s reads text negotiation may miss", async (_l, pipe) => {
+
+				expect(range(effective(Item, probe(["label"], [...pipe]))).minCount).toBeUndefined();
+
+			});
+
+			it("floors the count at one where the pipe always yields a value", async () => {
+
+				expect(range(effective(Item, probe(["label"], ["count"])))).toMatchObject({ minCount: 1, maxCount: 1 });
 
 			});
 
