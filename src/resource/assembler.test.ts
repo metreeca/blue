@@ -292,6 +292,23 @@ describe("flatten", () => {
 
 		});
 
+		it("labels a member the extending shape redeclares with a name the inherited one lacks", async () => {
+
+			const Base = resource({ name: required(string()) });
+			const shape = resource(Base, { name: required(string(), { name: "Name" }) });
+
+			expect(getProperty(shape, "name")?.name).toEqual({ en: "Name" });
+
+		});
+
+		it("rejects a member the extending shape relabels", async () => {
+
+			const Base = resource({ name: required(string(), { name: "Name" }) });
+
+			expect(() => resource(Base, { name: required(string(), { name: "Label" }) })).toThrow(TraceError);
+
+		});
+
 		it("rejects a member the extending shape relaxes", async () => {
 
 			const Base = resource({ name: required(string({ minLength: 5 })) });
@@ -419,6 +436,82 @@ describe("flatten", () => {
 
 			expect(() => resource(Base, { code: required(string({ minLength: 2, maxLength: 4 })) }))
 				.toThrow(TraceError);
+
+		});
+
+		describe("members stated by several parents", () => {
+
+			const Concept = resource({ prefLabel: required(string()) });
+			const Topic = resource(Concept, { id: id(), label: required(string()) });
+			const Unrelated = resource({ code: required(string()) });
+
+			const Narrower = resource({ subject: multiple(reference(Topic)) });
+			const Wider = resource({ subject: multiple(reference(Concept)) });
+			const Other = resource({ subject: multiple(reference(Unrelated)) });
+
+			function getTarget(shape: ResourceShape, name: string) {
+				return getShapeTarget(getProperty(shape, name)?.range.shape ?? string());
+			}
+
+			it("inherits the narrowest member whatever the order the parents are listed in", async () => {
+
+				expect(getTarget(resource(Narrower, Wider, {}), "subject")).toBe(Topic);
+				expect(getTarget(resource(Wider, Narrower, {}), "subject")).toBe(Topic);
+
+			});
+
+			it("inherits the member of the parent narrowing every other whatever its position", async () => {
+
+				const Both = resource(Topic, Unrelated, {});
+				const Narrowest = resource({ subject: multiple(reference(Both)) });
+
+				expect(getTarget(resource(Narrower, Other, Narrowest, {}), "subject")).toBe(Both);
+				expect(getTarget(resource(Narrower, Narrowest, Other, {}), "subject")).toBe(Both);
+				expect(getTarget(resource(Narrowest, Narrower, Other, {}), "subject")).toBe(Both);
+
+			});
+
+			it("carries a field the narrowest parent leaves unstated from a wider one", async () => {
+
+				const Described = resource({ subject: multiple(reference(Concept), { name: "Subject" }) });
+
+				const name = getProperty(Described, "subject")?.name;
+
+				expect(getProperty(resource(Narrower, Described, {}), "subject")?.name).toEqual(name);
+				expect(getProperty(resource(Described, Narrower, {}), "subject")?.name).toEqual(name);
+
+			});
+
+			it("rejects parents stating unrelated ranges for a member the child leaves undeclared", async () => {
+
+				expect(() => resource(Narrower, Other, {})).toThrow(TraceError);
+
+			});
+
+			it("rejects parents disagreeing on the name of a member the child leaves undeclared", async () => {
+
+				const Named = resource({ subject: multiple(reference(Topic), { name: "Subject" }) });
+				const Renamed = resource({ subject: multiple(reference(Topic), { name: "Matter" }) });
+
+				expect(() => resource(Named, Renamed, {})).toThrow(TraceError);
+
+			});
+
+			it("admits a redeclaration narrowing every parent, unrelated ones included", async () => {
+
+				const Both = resource(Topic, Unrelated, {});
+
+				const shape = resource(Narrower, Other, { subject: multiple(reference(Both)) });
+
+				expect(getTarget(shape, "subject")).toBe(Both);
+
+			});
+
+			it("rejects a redeclaration narrowing only some of the parents", async () => {
+
+				expect(() => resource(Narrower, Other, { subject: multiple(reference(Topic)) })).toThrow(TraceError);
+
+			});
 
 		});
 
@@ -714,6 +807,59 @@ describe("checkParents", () => {
 
 	});
 
+	describe("members stated by several shapes", () => {
+
+		const Concept = resource({ prefLabel: required(string()) });
+		const Topic = resource(Concept, { id: id(), label: required(string()) });
+		const Unrelated = resource({ code: required(string()) });
+
+		const Narrower = resource({ subject: multiple(reference(Topic)) });
+		const Wider = resource({ subject: multiple(reference(Concept)) });
+		const Other = resource({ subject: multiple(reference(Unrelated)) });
+
+		it("returns undefined where one extended shape narrows every other", async () => {
+
+			expect(checkParents(resource({}), [Narrower, Wider])).toBeUndefined();
+			expect(checkParents(resource({}), [Wider, Narrower])).toBeUndefined();
+
+		});
+
+		it("returns undefined where one extended shape narrows every other, two of them unrelated", async () => {
+
+			const Narrowest = resource({ subject: multiple(reference(resource(Topic, Unrelated, {}))) });
+
+			expect(checkParents(resource({}), [Narrower, Other, Narrowest])).toBeUndefined();
+
+		});
+
+		it("reports extended shapes stating unrelated ranges for a member", async () => {
+
+			expect(checkParents(resource({}), [Narrower, Other]))
+				.toContainEqual({ subject: expect.arrayContaining([expect.stringContaining("{target}")]) });
+
+		});
+
+		it("reports extended shapes disagreeing on a field of a member under that field", async () => {
+
+			const Named = resource({ subject: multiple(reference(Topic), { name: "Subject" }) });
+			const Renamed = resource({ subject: multiple(reference(Topic), { name: "Matter" }) });
+
+			expect(checkParents(resource({}), [Named, Renamed]))
+				.toContainEqual({ subject: expect.arrayContaining([expect.stringContaining("{name}")]) });
+
+		});
+
+		it("returns undefined where the extending shape redeclares the member", async () => {
+
+			const Both = resource(Topic, Unrelated, {});
+			const settled = resource(Narrower, Other, { subject: multiple(reference(Both)) });
+
+			expect(checkParents(settled, [Narrower, Other])).toBeUndefined();
+
+		});
+
+	});
+
 });
 
 describe("checkSingletons", () => {
@@ -913,14 +1059,52 @@ describe("narrowsProperty", () => {
 
 	it.each<[string, Record<string, unknown>]>([
 		["forward", { forward: "https://example.net/other" }],
-		["reverse", { reverse: "https://example.net/other" }],
+		["reverse", { reverse: "https://example.net/other" }]
+	])("rejects a child stating a %s mapping the parent leaves unstated", async (field, constraints) => {
+
+		expect(narrowsProperty(required(string(), constraints), required(string())))
+			.toContainEqual(expect.stringContaining(`{${field}}`));
+
+	});
+
+	it.each<[string, Record<string, unknown>]>([
+		["forward", { forward: "https://example.net/other" }],
+		["reverse", { reverse: "https://example.net/other" }]
+	])("rejects a child leaving unstated a %s mapping the parent states", async (field, constraints) => {
+
+		expect(narrowsProperty(required(string()), required(string(), constraints)))
+			.toContainEqual(expect.stringContaining(`{${field}}`));
+
+	});
+
+	it.each<[string, Record<string, unknown>]>([
+		["forward", { forward: "https://example.net/other" }],
+		["reverse", { reverse: "https://example.net/other" }]
+	])("accepts a child restating the %s mapping the parent states", async (_, constraints) => {
+
+		expect(narrowsProperty(required(string(), constraints), required(string(), constraints))).toBeUndefined();
+
+	});
+
+	it.each<[string, Record<string, unknown>]>([
 		["foreign", { foreign: true }],
 		["captive", { captive: true }],
 		["name", { name: "Other" }],
 		["description", { description: "Other" }]
-	])("rejects a child overriding %s", async (field, constraints) => {
+	])("accepts a child stating %s where the parent leaves it unstated", async (_, constraints) => {
 
-		expect(narrowsProperty(required(string(), constraints), required(string())))
+		expect(narrowsProperty(required(string(), constraints), required(string()))).toBeUndefined();
+
+	});
+
+	it.each<[string, Record<string, unknown>, Record<string, unknown>]>([
+		["foreign", { foreign: false }, { foreign: true }],
+		["captive", { captive: false }, { captive: true }],
+		["name", { name: "Other" }, { name: "Base" }],
+		["description", { description: "Other" }, { description: "Base" }]
+	])("rejects a child stating a %s differing from the parent's", async (field, declared, inherited) => {
+
+		expect(narrowsProperty(required(string(), declared), required(string(), inherited)))
 			.toContainEqual(expect.stringContaining(`{${field}}`));
 
 	});
@@ -1043,16 +1227,38 @@ describe("mergeProperty", () => {
 
 	});
 
-	it("carries the inherited predicate through", async () => {
+	it("carries the shared predicate through", async () => {
 
 		const merged = mergeProperty(
-			required(string()),
+			required(string(), { forward: "https://schema.org/name" }),
 			required(string(), { forward: "https://schema.org/name" })
 		);
 
 		expect(merged.forward).toBe("https://schema.org/name");
 
 	});
+
+	it.each<[string, Record<string, unknown>]>([
+		["foreign", { foreign: true }],
+		["captive", { captive: true }],
+		["name", { name: "Label" }],
+		["description", { description: "Text" }]
+	])("takes %s from whichever member states it", async (field, constraints) => {
+
+		expect(mergeProperty(required(string(), constraints), required(string())))
+			.toHaveProperty(field, constraints[field]);
+		expect(mergeProperty(required(string()), required(string(), constraints)))
+			.toHaveProperty(field, constraints[field]);
+
+	});
+
+	it.each(["foreign", "captive", "name", "description"])(
+		"leaves %s unstated where neither member states it", async field => {
+
+			expect(mergeProperty(required(string()), required(string()))).not.toHaveProperty(field);
+
+		}
+	);
 
 	it("takes the hidden stated by the overriding member", async () => {
 

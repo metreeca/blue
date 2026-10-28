@@ -137,6 +137,9 @@
  * > Constraints accumulate: a value is held to the constraints the extending shape states **and** to every one it
  * > inherits. An override tightens what it inherits and never relaxes it.
  *
+ * A shape extending several others is held to each of them, whatever order they are listed in. A member stated by
+ * several parents takes the narrowest of their definitions, and a member the shape redeclares must narrow each one.
+ *
  * A member reaching a resource is refined by re-pointing it at a shape extending the inherited target: the refinement
  * states what it adds alone, as the narrower target carries the inherited definition through its own parents, the
  * {@link ResourceConstraints.class | classes} it belongs to included, which every value the refined member admits is
@@ -194,19 +197,25 @@ export {
  * Where a shape extends the ones it lists as `parents`, they are merged according to the following rules. The *child*
  * is the extending shape; the *parent* is the inherited one.
  *
- * | Field         | Override Rule                                                                    |
- * | ------------- | -------------------------------------------------------------------------------- |
- * | `kind`        | Cannot be overridden                                                             |
- * | `name`        | Always from the child; not inherited                                             |
- * | `description` | Always from the child; not inherited                                             |
- * | `space`       | Inherited; conflicting parents without a child override are reported as an error |
- * | `class`       | Always from the child; not inherited                                             |
- * | `classes`     | Computed from the `class` of the shapes extended; never stated                   |
- * | `pattern`     | Only a trailing `/*` admits narrowing; any other case requires equality          |
- * | `in`          | Child may only drop allowed identifiers                                          |
- * | `hasValue`    | Child may only add required identifiers                                          |
- * | `members`     | Declared members merged over inherited ones, each narrowing the one it overrides |
- * | `validators`  | Union of the checks stated and the ones inherited; every check applies           |
+ * | Field         | Override Rule                                                                         |
+ * | ------------- | ------------------------------------------------------------------------------------- |
+ * | `kind`        | Cannot be overridden                                                                  |
+ * | `name`        | Always from the child; not inherited                                                  |
+ * | `description` | Always from the child; not inherited                                                  |
+ * | `space`       | Inherited; conflicting parents without a child override are reported as an error      |
+ * | `class`       | Always from the child; not inherited                                                  |
+ * | `classes`     | Computed from the `class` of the shapes extended; never stated                        |
+ * | `pattern`     | Only a trailing `/*` admits narrowing; any other case requires equality               |
+ * | `in`          | Child may only drop allowed identifiers                                               |
+ * | `hasValue`    | Child may only add required identifiers                                               |
+ * | `members`     | Declared members narrow every parent definition; others take the narrowest one        |
+ * | `validators`  | Union of the checks stated and the ones inherited; every check applies                |
+ *
+ * A resource the child admits is an instance of every parent. A member stated by several parents therefore takes the
+ * definition narrowing all the others, whatever order the parents are listed in, and a member the child declares must
+ * narrow the definition of each parent stating it. If no parent definition narrows all the others, an error is
+ * reported unless the child redeclares the member to narrow each one, for instance by combining their bounds. Parents
+ * stating different values for a facet other than `hidden` can't be reconciled, as no override may change a facet.
  *
  * **Cross-field validation**
  *
@@ -268,7 +277,8 @@ export type ResourceShape<
 	 * contribute, so a caller reads what a resource carries off the shape rather than by walking the inheritance chain.
 	 * The shape is closed, so a resource carrying anything else is rejected.
 	 *
-	 * **Inheritance** — declared members merged over inherited ones, each narrowing the one it overrides.
+	 * **Inheritance** — a declared member narrows the definition of every parent stating it; an undeclared member
+	 * stated by several parents takes the narrowest definition, whatever order the parents are listed in.
 	 */
 	readonly members: M
 
@@ -540,12 +550,12 @@ export type Type = {
  * | ------------- | -------------------------------------------------------------------------------- |
  * | `kind`        | Cannot be overridden                                                             |
  * | `hidden`      | Inherited; conflicting parents without a child override are reported as an error |
- * | `foreign`     | Cannot be overridden                                                             |
- * | `captive`     | Cannot be overridden                                                             |
- * | `name`        | Cannot be overridden                                                             |
- * | `description` | Cannot be overridden                                                             |
- * | `forward`     | Cannot be overridden                                                             |
- * | `reverse`     | Cannot be overridden                                                             |
+ * | `foreign`     | Inherited; child may state it where the parent doesn't, never change it          |
+ * | `captive`     | Inherited; child may state it where the parent doesn't, never change it          |
+ * | `name`        | Inherited; child may state it where the parent doesn't, never change it          |
+ * | `description` | Inherited; child may state it where the parent doesn't, never change it          |
+ * | `forward`     | Taken from the parent if the child states no mapping, else equal to the parent's |
+ * | `reverse`     | Taken from the parent if the child states no mapping, else equal to the parent's |
  * | `range`       | Child may only narrow the inherited range, bound by bound and shape by shape     |
  *
  * A child narrows the range it inherits by raising its lower bound, lowering its upper bound or restricting its
@@ -620,7 +630,7 @@ export type PropertyConstraints<
 	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
 	 * {@link Property | resolved property}.
 	 *
-	 * **Inheritance** — cannot be overridden.
+	 * **Inheritance** — inherited; a child may state it where the parent leaves it unstated, never change it.
 	 *
 	 * @defaultValue `undefined` (no label)
 	 *
@@ -635,7 +645,7 @@ export type PropertyConstraints<
 	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
 	 * {@link Property | resolved property}.
 	 *
-	 * **Inheritance** — cannot be overridden.
+	 * **Inheritance** — inherited; a child may state it where the parent leaves it unstated, never change it.
 	 *
 	 * @defaultValue `undefined` (no description)
 	 *
@@ -664,7 +674,8 @@ export type PropertyConstraints<
 	 * > A foreign property is independent from a {@link reverse} mapping. A `reverse` mapping writes an actual inverse
 	 * > mapping; `foreign` exposes a read-only view over mappings another property owns and writes nothing on insert.
 	 *
-	 * **Inheritance** — cannot be overridden.
+	 * **Inheritance** — inherited; a child may state it where the parent leaves it unstated, never change it, so a
+	 * subtype may give up writing a member its supertype writes but never take up writing one left to the range.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -682,7 +693,8 @@ export type PropertyConstraints<
 	 * > is rejected as a value is validated) and is always managed as part of the resource containing it; a captive
 	 * > resource has both and may be managed on its own, but does not survive the resource declaring the property.
 	 *
-	 * **Inheritance** — cannot be overridden.
+	 * **Inheritance** — inherited; a child may state it where the parent leaves it unstated, never change it, so a
+	 * subtype may bind the lifecycle of a member its supertype leaves free but never free one its supertype binds.
 	 *
 	 * @defaultValue `undefined` (`false`)
 	 */
@@ -700,7 +712,8 @@ export type PropertyConstraints<
 	 * > Both `forward` and {@link reverse} mappings write actual property values. This is independent from
 	 * > {@link foreign}, which exposes a read-only view over mappings another property owns.
 	 *
-	 * **Inheritance** — cannot be overridden.
+	 * **Inheritance** — inherited where the child states no mapping. A child stating either mapping must match the
+	 * parent on both `forward` and {@link reverse}, including one the parent leaves unstated.
 	 *
 	 * @defaultValue `undefined` (the property name resolved against the {@link ResourceConstraints.space | space} of
 	 * the shape declaring it, unless a {@link reverse} mapping is stated)
@@ -726,7 +739,8 @@ export type PropertyConstraints<
 	 * > them. The {@link resource} factory rejects a reverse mapping on a member admitting literals. A range deferred
 	 * > to break a definition cycle is exempt from this check.
 	 *
-	 * **Inheritance** — cannot be overridden.
+	 * **Inheritance** — inherited where the child states no mapping. A child stating either mapping must match the
+	 * parent on both {@link forward} and `reverse`, including one the parent leaves unstated.
 	 *
 	 * @defaultValue `undefined` (no inverse mapping)
 	 *

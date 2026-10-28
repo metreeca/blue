@@ -27,6 +27,7 @@
 import type { Eager, Lazy, Optional } from "@metreeca/core";
 import type { Reference } from "@metreeca/qest/state";
 import type { DictionaryShape } from "../dictionary/index.js";
+import type { ReferenceShape } from "../reference/index.js";
 import type { Variant } from "../union/inference.js";
 import type { Shape, State } from "../value/index.js";
 import type { Id, Parents, Property, PropertyBounds, ResourceShape, Type } from "./index.js";
@@ -37,14 +38,14 @@ import type { Id, Parents, Property, PropertyBounds, ResourceShape, Type } from 
 /**
  * Resolves the members a resource carries.
  *
- * Yields the members the shape declares merged over the ones it inherits, and no member at all for a shape that
- * describes something other than a resource. A declared member that restricts the one it overrides is retained and
- * any other is voided, so an extending resource may tighten what it inherits but never relax it.
+ * Returns the members the shape declares merged over the ones it inherits, and no member at all for a shape that
+ * describes something other than a resource. A declared member restricting every definition it overrides is kept,
+ * and any other is voided, so an extending resource may tighten what it inherits but never relax it.
  *
  * @typeParam S The describing shape, possibly deferred to break definition cycles
  */
 export type Carried<S extends Lazy<Shape>> =
-	Eager<S> extends ResourceShape<infer P, infer M> ? Merged<Inherited<P>, M> : {}
+	Eager<S> extends ResourceShape<infer P, infer M> ? Merged<P, M> : {}
 
 /**
  * Resolves the name of the member a resource carries as its identifier.
@@ -231,63 +232,140 @@ export type Unbounded<C extends PropertyBounds> =
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Resolves the members a list of extended shapes contributes.
+ * Merges declared members over inherited ones.
  *
- * Yields the members every extended shape carries, so that a constraint stated anywhere up the chain reaches every
- * extending resource and shapes agreeing on a member pass it on as it stands. A member stated by two shapes with
- * ranges no single value satisfies is voided, so that the conflict surfaces where the state is resolved rather than
- * settling on either side.
+ * Returns one record carrying the declared members and every member the extended shapes state, so a constraint stated
+ * anywhere up the chain reaches every extending resource. A resource the extending shape admits is an instance of
+ * each extended shape. An undeclared member therefore takes the {@link Narrowest | narrowest} inherited definition.
+ * A declared member is kept if it {@link Restricts | restricts} every inherited definition and voided otherwise. The
+ * result never depends on the order the shapes are listed in, and a conflict surfaces where the state is resolved.
+ *
+ * @typeParam P The extended shapes, possibly deferred to break definition cycles
+ * @typeParam M The members the extending resource declares in its own right
+ */
+type Merged<P extends Parents, M> = {
+
+	readonly [field in Fields<Extended<P>> | keyof M]: field extends keyof M
+		? Restricts<M[field], Stated<Extended<P>, field>> extends true ? M[field] : never
+		: Narrowest<Stated<Extended<P>, field>>
+
+}
+
+/**
+ * Resolves the shapes in a list of extended shapes.
+ *
+ * Returns the listed shapes as a union. A list of unknown length, as the generic resource shape states, resolves to
+ * `never`, so a generic shape carries the members it declares rather than an endless inheritance chain.
  *
  * @typeParam P The extended shapes, possibly deferred to break definition cycles
  */
-type Inherited<P extends Parents> =
-	P extends readonly [infer H extends Lazy<ResourceShape>, ...infer T extends Parents]
-		? Settled<Carried<H> & Inherited<T>>
-		: {}
+type Extended<P extends Parents> =
+	number extends P["length"] ? never : P[number]
 
 /**
- * Settles the members several extended shapes contribute into a single record.
+ * Resolves the names of the members a set of extended shapes states.
  *
- * Yields one record carrying every member the shapes state, voiding a member whose ranges no single value satisfies
- * rather than carrying it as a range nothing fits.
+ * Returns, as a union, the names of the members each shape declares or inherits. The names are read off the
+ * declarations rather than off the {@link Carried | carried} members: the carried record is keyed on this very
+ * resolution, so reading the names off that record would make the type circular.
  *
- * @typeParam M The members to settle
+ * @typeParam S The extended shapes, as a union each member of which is read on its own
  */
-type Settled<M> = {
-
-	readonly [field in keyof M]: M[field] extends { readonly range: never } ? never : M[field]
-
-}
+type Fields<S extends Lazy<ResourceShape>> =
+	S extends unknown
+		? Eager<S> extends ResourceShape<infer P, infer M> ? keyof M | Fields<Extended<P>> : never
+		: never
 
 /**
- * Merges declared members over inherited ones.
+ * Resolves the definitions a set of extended shapes states for a member.
  *
- * Retains a declared member whose outline restricts the one it overrides and voids any other; inherited members left
- * undeclared pass through untouched.
+ * Returns, as a union, the member each shape declares or inherits under the name. The result is `never` if no
+ * extended shape carries a member under that name, as for a member the extending shape declares on its own.
  *
- * @typeParam I The inherited members
- * @typeParam M The members the extending resource declares in its own right
+ * @typeParam S The extended shapes, as a union each member of which is read on its own
+ * @typeParam F The name of the member
  */
-type Merged<I, M> = Omit<I, keyof M> & {
+type Stated<S extends Lazy<ResourceShape>, F extends PropertyKey> =
+	S extends unknown ? F extends keyof Carried<S> ? Carried<S>[F] : never : never
 
-	readonly [field in keyof M]: field extends keyof I
-		? Outline<M[field]> extends Outline<I[field]> ? M[field] : never
-		: M[field]
+/**
+ * Selects, among the definitions stated for a member, the ones restricting all the others.
+ *
+ * Returns each definition that {@link Restricts | restricts} every other one, so definitions the shapes agree on
+ * resolve to the one they share. The result is `never` if no definition restricts all the others, for instance where
+ * two shapes link unrelated targets and the extending shape leaves the member undeclared.
+ *
+ * @typeParam D The definitions stated for the member, as a union
+ * @typeParam C The candidate definitions, each tested on its own; defaults to `D` and is never passed explicitly
+ */
+type Narrowest<D, C = D> =
+	C extends unknown ? Restricts<C, D> extends true ? C : never : never
 
-}
+/**
+ * Checks whether a member restricts every one of a set of definitions.
+ *
+ * Returns `true` if, for each definition, the {@link Outline | outline} of the member is assignable to the outline of
+ * the definition and, where the definition links to a resource, the member target {@link Descends | descends} from
+ * the definition target, as the shape factory requires of a re-pointed link. An empty set of definitions, as for a
+ * member no extended shape states, is always restricted, so a member new to the extending shape is kept as stated.
+ *
+ * @typeParam M The member held to the definitions
+ * @typeParam D The definitions, as a union each member of which the member is held to on its own
+ */
+type Restricts<M, D> =
+	false extends (D extends unknown
+		? Outline<M> extends Outline<D>
+			? [Linked<D>] extends [never] ? true : Descends<Linked<M>, Linked<D>>
+			: false
+		: never
+	) ? false : true
 
 /**
  * Resolves the outline a member may be narrowed within.
  *
- * Yields, for a property, the kind of its range in the form its cardinality admits, and an identifier or a type as it
- * stands, so that a member restricts another exactly when its outline is assignable to the other's: the range kind is
- * kept, telling apart two ranges which happen to project the same state, a required value is never made optional, and
- * a repeated property is never capped at a single value, which would swap an array for a bare value.
+ * Returns, for a property, the kind of its range in the form its cardinality admits, and an identifier or a type as
+ * it stands. Link targets aside, a member restricts another exactly when its outline is assignable to the other's.
+ * The outline keeps the range kind, telling apart two ranges that project the same state. It also ensures a required
+ * value is never made optional and a repeated property is never capped at a single value, which would swap an array
+ * for a bare value wherever the state of the extending resource is read or written.
  *
  * @typeParam M The member to outline
  */
 type Outline<M> =
 	M extends Property<infer R, infer L, infer U> ? Arity<Eager<R>["kind"], L, U> : M
+
+/**
+ * Resolves the resource a member links to.
+ *
+ * Returns the target of a property ranging over a link, possibly deferred to break definition cycles, and `never` for
+ * any other member. An embedded resource resolves to `never` as well, as it stands in no extension chain of its own.
+ *
+ * @typeParam M The member to reach through
+ */
+type Linked<M> =
+	M extends Property<infer R> ? Eager<R> extends ReferenceShape<infer T> ? T : never : never
+
+/**
+ * Checks whether a resource shape descends from another.
+ *
+ * Returns `true` if the wider shape is the narrower one itself or one of its {@link Ancestors | ancestors}, so a link
+ * re-pointed at the narrower shape admits only resources the wider one admits as well.
+ *
+ * @typeParam N The narrower shape, possibly deferred to break definition cycles
+ * @typeParam W The wider shape, possibly deferred to break definition cycles
+ */
+type Descends<N extends Lazy<ResourceShape>, W extends Lazy<ResourceShape>> =
+	[Extract<Ancestors<N>, Eager<W>>] extends [never] ? false : true
+
+/**
+ * Resolves the shapes a resource shape descends from.
+ *
+ * Returns, as a union, the shape itself and every shape it extends, directly or transitively.
+ *
+ * @typeParam S The shape, possibly deferred to break definition cycles, or a union of shapes each read on its own
+ */
+type Ancestors<S extends Lazy<ResourceShape>> =
+	S extends unknown ? Eager<S> | Ancestors<Extended<Eager<S>["parents"]>> : never
 
 /**
  * Checks whether a member may be left out of a resource.

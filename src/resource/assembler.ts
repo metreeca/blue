@@ -315,16 +315,18 @@ export function declare<M>(member: Record<string, unknown>): M {
 /**
  * Merges the inheritance chain of a resource shape into a single shape.
  *
- * Walks the shapes extended and merges each into the result, so that the shape a caller holds states every member and
- * constraint its resources are held to. A shape already merged is left as it stands, so that merging it again costs
- * nothing and changes nothing.
+ * The merged shape states every member and constraint its resources are held to. A resource the shape admits is an
+ * instance of every shape extended: a member several of them state takes the narrowest definition, whatever order
+ * they are listed in, and a member the shape declares must narrow each inherited definition. Merging a shape already
+ * merged returns it unchanged at no cost, so every shape extending it may merge it again freely.
  *
  * @param shape The shape to merge
  *
  * @returns An immutable shape stating the inherited definitions alongside its own
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated declarations are inconsistent with the
- *     inherited ones or with each other, or a member admitting literals states a reverse mapping
+ *     inherited ones or with each other, where the extended shapes conflict on a field or member the shape leaves
+ *     unstated, or where a member admitting literals states a reverse mapping, as a literal can't be a subject
  */
 export function flatten(shape: ResourceShape): ResourceShape {
 
@@ -332,19 +334,31 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 	const parents = shape.parents.map(parent => eager(parent));
 
-	const merged = mergeResource(shape, parents.reduce(mergeResource, {
+	// a resource the shape admits is an instance of every shape extended, so the shape is held to each of them on
+	// its own, and the conflicts they leave for it to settle are reported before the members are merged, so that a
+	// member unrelated shapes state surfaces as such rather than as a failed override
 
-		kind: "resource",
+	reject("incompatible resource shape override", all(
+		...parents.map(parent => () => narrowsResource(shape, parent))
+	)(undefined));
 
-		classes: [],
+	reject("incompatible merged shape", checkParents(shape, parents));
 
-		parents: [],
-		members: {}
+	// the constraints are merged in list order with the members left out, which are merged apart, as every shape
+	// extended states them rather than as the first listed does, whose definition would otherwise override the rest
 
-	}));
+	const merged = immutable({
+
+		...mergeResource({ ...shape, members: {} }, parents.map(parent => ({ ...parent, members: {} })).reduce(
+			mergeResource,
+			{ kind: "resource", classes: [], parents: [], members: {} }
+		)),
+
+		members: mergeMembers(shape, parents)
+
+	});
 
 	reject("incompatible merged shape", all(
-		() => checkParents(shape, parents),
 		() => checkSingletons(Object.values(merged.members)),
 		() => checkPredicates(merged),
 		() => checkReverse(merged)
@@ -417,6 +431,63 @@ export function flatten(shape: ResourceShape): ResourceShape {
 
 }
 
+/**
+ * Merges the members of a resource shape with the ones the shapes it extends state.
+ *
+ * Returns the members an extending resource is validated against. A declared member is merged over the definition of
+ * each extended shape stating it. An undeclared member takes the narrowest inherited definition, merged over the
+ * others, whatever order the extended shapes are listed in, so the result never depends on declaration order.
+ *
+ * @param shape The extending shape
+ * @param parents The extended shapes, already merged and {@link checkParents | checked} for unsettled conflicts
+ *
+ * @returns The merged members, each admitting the values every definition stated for it admits
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where a declared member doesn't narrow an inherited definition
+ */
+function mergeMembers(shape: ResourceShape, parents: readonly ResourceShape[]): Members {
+
+	return Object.fromEntries(union([
+		Object.keys(shape.members),
+		...parents.map(parent => Object.keys(parent.members))
+	]).map(name => {
+
+		const declared = shape.members[name];
+
+		const inherited = parents.flatMap(parent => {
+
+			const member = parent.members[name];
+
+			return member === undefined ? [] : [member];
+
+		});
+
+		return [name, declared !== undefined ? inherited.reduce(mergeMember, declared) : inherit(inherited)];
+
+	}));
+
+
+	/**
+	 * Merges the definitions the extended shapes state for a member the extending shape leaves undeclared.
+	 *
+	 * @param stated The definitions stated for the member, at least one as the member is named after them
+	 *
+	 * @returns The narrowest definition merged over the others
+	 */
+	function inherit(stated: readonly Member[]): Member {
+
+		const [first, ...rest] = stated;
+		const settled = narrowest(first, ...rest);
+
+		// the definition settled on is merged over each other one once and never over itself, as a union reached
+		// along two paths is told restated as it stands by the branches it shares, which a merge no longer carries
+
+		return stated.filter(member => member !== settled).reduce(mergeMember, settled);
+
+	}
+
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -473,6 +544,10 @@ export function checkBounds(bounds: Partial<PropertyBounds>): Optional<Trace> {
  * are `space` on the resource and `hidden` on each of its properties; a marker carries its own `hidden` from the
  * declaration that states it and conflicts on none.
  *
+ * Also reports each undeclared member stated by several extended shapes if no definition narrows all the others.
+ * Such a member is rejected rather than settled by declaration order. The trace is keyed by the member name and lists
+ * why the closest definition fails to narrow the others, so a disagreement on a field is reported under that field.
+ *
  * @param shape The extending shape
  * @param parents The extended shapes, already merged
  *
@@ -490,25 +565,37 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 		space !== undefined
 		&& fail([`{space} conflicting inherited values <${space[0]}> vs <${space[1]}> without an override`]),
 
-		// a marker is taken whole from the most derived declaration, so its `hidden` is settled before this check
-
 		...unique(parents.flatMap(parent => Object.keys(parent.members))).map(name => {
 
-			const inherited = parents.flatMap(parent => {
+			const stated = parents.flatMap(parent => {
 
 				const member = parent.members[name];
 
-				return member?.kind === "property" ? [member] : [];
+				return member === undefined ? [] : [member];
 
 			});
 
-			const hidden = inherited.length > 1 && shape.members[name]?.hidden === undefined
-				? conflict(inherited.map(member => member.hidden))
+			// a marker is taken whole from the most derived declaration, so its `hidden` is settled before this check
+
+			const properties = stated.flatMap(member => member.kind === "property" ? [member] : []);
+
+			const hidden = properties.length > 1 && shape.members[name]?.hidden === undefined
+				? conflict(properties.map(member => member.hidden))
 				: undefined;
 
-			return hidden !== undefined
+			const unsettled = stated.length > 1 && shape.members[name] === undefined
+				? conflicting(stated)
+				: undefined;
+
+			return all(
+
+				hidden !== undefined
 				&& fail([`{hidden} conflicting inherited values <${hidden[0]}> vs <${hidden[1]
-				}> for <${name}> without an override`]);
+				}> for <${name}> without an override`]),
+
+				unsettled !== undefined && fail([{ [name]: unsettled }])
+
+			);
 
 		})
 
@@ -524,6 +611,22 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 		const other = values.findIndex(value => value !== first);
 
 		return other < 0 ? undefined : [first, values[other]];
+
+	}
+
+	/**
+	 * Identifies why the closest of the definitions stated for a member fails to narrow the others.
+	 *
+	 * @param stated The definitions stated for the member, at least two
+	 *
+	 * @returns A trace of the first obstacle found, or `undefined` where the closest definition narrows every other
+	 */
+	function conflicting(stated: readonly Member[]): Optional<Trace> {
+
+		const [first, ...rest] = stated;
+		const closest = narrowest(first, ...rest);
+
+		return stated.map(member => narrowsMember(closest, member)).find(trace => trace !== undefined);
 
 	}
 
@@ -678,18 +781,9 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): O
 
 		// per shared member: the kind is kept, and a property narrows the one it overrides
 
-		...Object.keys(target.members).filter(name => Object.hasOwn(source.members, name)).flatMap(name => {
-
-			const declared = target.members[name];
-			const inherited = source.members[name];
-
-			return declared.kind !== inherited.kind
-				? [() => [{ [name]: [`mismatched member kinds <${declared.kind}> vs <${inherited.kind}>`] }]]
-				: declared.kind === "property" && inherited.kind === "property"
-					? [() => fold(narrowsProperty(declared, inherited), trace => [{ [name]: trace }])]
-					: [];
-
-		}),
+		...Object.keys(target.members).filter(name => Object.hasOwn(source.members, name)).map(name =>
+			() => fold(narrowsMember(target.members[name], source.members[name]), trace => [{ [name]: trace }])
+		),
 
 		// post-merge constraint consistency, over the identifiers alone: merging the members here would throw on
 		// the very incompatibility this relation is asked to report
@@ -702,9 +796,13 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): O
 /**
  * Reports whether a member narrows an inherited one.
  *
- * Tests the override relation without building the merged member: a member narrows the inherited one where it leaves
- * the fields it may not override untouched and states a range narrowing the inherited one, bound by bound and shape
- * by shape.
+ * Tests the override relation without building the merged member. A member narrows the inherited one if both state
+ * the same `forward` and `reverse` mappings, every other facet stated on both sides has the same value (`hidden`
+ * aside), and its range narrows the inherited one, bound by bound and shape by shape. A facet stated on one side alone
+ * raises no conflict, so a child may label, describe or take ownership of a member its parent left bare.
+ *
+ * Mappings are compared as stated, unstated included: an override leaving them unstated must first take the inherited
+ * ones, as the {@link resource!resource | resource} factory does before testing the relation.
  *
  * @param target The overriding member
  * @param source The inherited member
@@ -714,36 +812,53 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): O
 export function narrowsProperty(target: Property, source: Property): Optional<Trace> {
 
 	return all<Property>(
+
+		// a facet stated on one side alone is agreed on; one stated on both sides must be stated alike
+
 		test(({ name }) => {
 
-			return name === undefined || equals(name, source.name) || [`{name} unexpected <name> override`];
+			return name === undefined || source.name === undefined || equals(name, source.name) || [
+				`{name} conflicting <name> override`
+			];
 
 		}),
 		test(({ description }) => {
 
-			return description === undefined || equals(description, source.description) || [
-				`{description} unexpected <description> override`
-			];
-
-		}),
-		test(({ forward }) => {
-
-			return forward === undefined || forward === source.forward || [`{forward} unexpected <forward> override`];
-
-		}),
-		test(({ reverse }) => {
-
-			return reverse === undefined || reverse === source.reverse || [`{reverse} unexpected <reverse> override`];
+			return description === undefined || source.description === undefined
+				|| equals(description, source.description)
+				|| [`{description} conflicting <description> override`];
 
 		}),
 		test(({ foreign }) => {
 
-			return foreign === undefined || foreign === source.foreign || [`{foreign} unexpected <foreign> override`];
+			return foreign === undefined || source.foreign === undefined || foreign === source.foreign || [
+				`{foreign} conflicting <foreign> override`
+			];
 
 		}),
 		test(({ captive }) => {
 
-			return captive === undefined || captive === source.captive || [`{captive} unexpected <captive> override`];
+			return captive === undefined || source.captive === undefined || captive === source.captive || [
+				`{captive} conflicting <captive> override`
+			];
+
+		}),
+
+		// a mapping fixes the data the member denotes, so both sides state the same one, unstated included; the
+		// factory copies the inherited mappings onto a member stating none before the relation is tested
+
+		test(({ forward }) => {
+
+			return forward === source.forward || [
+				`{forward} mismatched <forward> mappings <${forward}> vs <${source.forward}>`
+			];
+
+		}),
+		test(({ reverse }) => {
+
+			return reverse === source.reverse || [
+				`{reverse} mismatched <reverse> mappings <${reverse}> vs <${source.reverse}>`
+			];
 
 		}),
 		// an unstated bound leaves that end unbounded rather than unsaid, so it is read as the widest one
@@ -771,6 +886,53 @@ export function narrowsProperty(target: Property, source: Property): Optional<Tr
 			maxCount: target.range.maxCount ?? source.range.maxCount
 		})
 	)(target);
+
+}
+
+/**
+ * Reports whether a member of any kind narrows an inherited one.
+ *
+ * Extends the {@link narrowsProperty | property override relation} to markers. A member narrows the inherited one if
+ * it keeps its kind and, for a property, narrows the inherited property. A marker narrows any marker of its kind,
+ * whatever their `hidden` flags, as the most derived declaration is taken whole.
+ *
+ * @param target The overriding member
+ * @param source The inherited member
+ *
+ * @returns A trace of the obstacles to the override, or `undefined` where `target` narrows `source`
+ */
+export function narrowsMember(target: Member, source: Member): Optional<Trace> {
+
+	return target.kind !== source.kind ? [`mismatched member kinds <${target.kind}> vs <${source.kind}>`]
+		: target.kind === "property" && source.kind === "property" ? narrowsProperty(target, source)
+			: undefined;
+
+}
+
+/**
+ * Selects the narrowest of the definitions several shapes state for a member.
+ *
+ * Returns the definition narrowing every other, whatever order the definitions are listed in: the one every value of
+ * the member must satisfy. Among definitions narrowing each other, as markers of the same kind do, the first listed
+ * is returned. If no definition narrows every other, the result fails to narrow at least one of them, and callers
+ * must check it with {@link narrowsMember} before relying on it, reporting or rejecting the conflict it reveals.
+ *
+ * @param first The first definition stated for the member
+ * @param rest The other definitions stated for the member
+ *
+ * @returns The narrowest of the definitions stated
+ */
+export function narrowest(first: Member, ...rest: readonly Member[]): Member {
+
+	// a definition narrowing every other narrows whichever one is held as the narrowest so far and takes its place,
+	// which no later definition takes back unless it narrows it in turn; one narrowing it no more than it is narrowed
+	// by it, as a marker is by every marker of its kind, leaves the one listed first in place
+
+	return rest.reduce((narrowest, member) =>
+		narrowsMember(member, narrowest) === undefined && narrowsMember(narrowest, member) !== undefined
+			? member
+			: narrowest
+	, first);
 
 }
 
@@ -829,10 +991,9 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 			const declared = target.members[name];
 			const inherited = source.members[name];
 
-			return declared === undefined || inherited === undefined ? [name, declared ?? inherited]
-				: declared.kind === "property" && inherited.kind === "property"
-					? [name, mergeProperty(declared, inherited)]
-					: [name, declared]; // a marker is taken whole, `hidden` included, and narrowsResource kept the kind
+			return declared === undefined || inherited === undefined
+				? [name, declared ?? inherited]
+				: [name, mergeMember(declared, inherited)];
 
 		}))
 
@@ -843,9 +1004,9 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 /**
  * Merges a member with an inherited one.
  *
- * Yields the single member an extending resource is validated against: a range taking the tighter of the two
- * cardinality bounds over the merged shape, and the fields the override may not restate carried through from the
- * inherited member. `hidden` falls back to the inherited value where the override leaves it unstated.
+ * Returns the single member an extending resource is validated against: a range taking the tighter of the two
+ * cardinality bounds over the merged shape, the mappings both members share, and every other facet from whichever
+ * member states it. The overriding `hidden` flag takes precedence; any other facet stated on both sides is the same.
  *
  * @param target The overriding member
  * @param source The inherited member
@@ -860,20 +1021,28 @@ export function mergeProperty(target: Property, source: Property): Property {
 
 	const hidden = target.hidden ?? source.hidden;
 
+	const name = target.name ?? source.name;
+	const description = target.description ?? source.description;
+
+	const foreign = target.foreign ?? source.foreign;
+	const captive = target.captive ?? source.captive;
+
 	return immutable({
 
 		kind: target.kind,
 
 		...hidden !== undefined && { hidden },
 
-		...source.name !== undefined && { name: source.name },
-		...source.description !== undefined && { description: source.description },
+		...name !== undefined && { name },
+		...description !== undefined && { description },
+
+		...foreign !== undefined && { foreign },
+		...captive !== undefined && { captive },
+
+		// the mappings are stated alike on both sides, as narrowsProperty checked
 
 		...source.forward !== undefined && { forward: source.forward },
 		...source.reverse !== undefined && { reverse: source.reverse },
-
-		...source.foreign !== undefined && { foreign: source.foreign },
-		...source.captive !== undefined && { captive: source.captive },
 
 		range: {
 
@@ -885,6 +1054,29 @@ export function mergeProperty(target: Property, source: Property): Property {
 		}
 
 	});
+
+}
+
+/**
+ * Merges a member of any kind with an inherited one.
+ *
+ * Returns the single member an extending resource is validated against: a {@link mergeProperty | merged property}
+ * where both are properties, and the overriding marker taken whole, `hidden` included, where both name a resource.
+ *
+ * @param target The overriding member
+ * @param source The inherited member
+ *
+ * @returns An immutable member admitting the values both `target` and `source` admit
+ *
+ * @throws {@link @metreeca/core!TraceError | TraceError} Where `target` doesn't narrow `source`
+ */
+export function mergeMember(target: Member, source: Member): Member {
+
+	reject("incompatible member override", narrowsMember(target, source));
+
+	return target.kind === "property" && source.kind === "property"
+		? mergeProperty(target, source)
+		: target; // a marker is taken whole, `hidden` included, and narrowsMember kept the kind
 
 }
 

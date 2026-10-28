@@ -16,7 +16,7 @@
 
 import type { Reference } from "@metreeca/qest/state";
 import { describe, expectTypeOf, test } from "vitest";
-import { type State, type Range } from "../value/index.js";
+import { type Match, type State, type Range } from "../value/index.js";
 import { number } from "../number/index.js";
 import { reference } from "../reference/index.js";
 import { string, type StringShape } from "../string/index.js";
@@ -86,13 +86,100 @@ describe("inheritance", () => {
 
 	});
 
-	test("voids a member two parents give different cardinalities", () => {
+	test("inherits the tighter cardinality where two parents give different ones", () => {
 
 		const left=resource({ shared: required(string()) });
 		const right=resource({ shared: optional(string()) });
+
+		const lr=resource(left, right, {});
+		const rl=resource(right, left, {});
+
+		expectTypeOf<State<typeof lr>["shared"]>().toEqualTypeOf<string>();
+		expectTypeOf<State<typeof rl>["shared"]>().toEqualTypeOf<string>();
+
+	});
+
+	test("voids a member two parents give cardinalities of different arity", () => {
+
+		const left=resource({ shared: required(string()) });
+		const right=resource({ shared: multiple(string()) });
 		const child=resource(left, right, {});
 
 		expectTypeOf<State<typeof child>["shared"]>().toBeNever();
+
+	});
+
+	describe("members stated by several parents", () => {
+
+		const concept=resource({ prefLabel: required(string()) });
+		const topic=resource(concept, { id: id(), label: required(string()) });
+		const unrelated=resource({ code: required(string()) });
+
+		const narrower=resource({ subject: multiple(reference(topic)) });
+		const wider=resource({ subject: multiple(reference(concept)) });
+		const other=resource({ subject: multiple(reference(unrelated)) });
+
+		// the state of a link is its IRI whatever the target, so the target reached is told by the members a nested
+		// template asks of it, which the state carries only where the shape the link names declares them
+
+		type Topical={ subject: { id: {}, label: {} } }
+		type Both={ subject: { label: {}, code: {} } }
+
+		type Subject<R extends { readonly subject?: readonly unknown[] }>=NonNullable<R["subject"]>[number]
+
+		test("inherits the narrowest member whatever the order the parents are listed in", () => {
+
+			const ab=resource(narrower, wider, {});
+			const ba=resource(wider, narrower, {});
+
+			expectTypeOf<Subject<Match<typeof ab, Topical>>>()
+				.toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
+			expectTypeOf<Subject<Match<typeof ba, Topical>>>()
+				.toEqualTypeOf<{ readonly id: Reference, readonly label: string }>();
+
+		});
+
+		test("inherits the member of the parent narrowing every other whatever its position", () => {
+
+			const narrowest=resource({ subject: multiple(reference(resource(topic, unrelated, {}))) });
+
+			const first=resource(narrowest, narrower, other, {});
+			const middle=resource(narrower, narrowest, other, {});
+			const last=resource(narrower, other, narrowest, {});
+
+			expectTypeOf<Subject<Match<typeof first, Both>>>()
+				.toEqualTypeOf<{ readonly label: string, readonly code: string }>();
+			expectTypeOf<Subject<Match<typeof middle, Both>>>()
+				.toEqualTypeOf<{ readonly label: string, readonly code: string }>();
+			expectTypeOf<Subject<Match<typeof last, Both>>>()
+				.toEqualTypeOf<{ readonly label: string, readonly code: string }>();
+
+		});
+
+		test("voids a member two parents give unrelated reference targets", () => {
+
+			const child=resource(narrower, other, {});
+
+			expectTypeOf<State<typeof child>["subject"]>().toBeNever();
+
+		});
+
+		test("retains a redeclaration narrowing every parent, unrelated ones included", () => {
+
+			const child=resource(narrower, other, { subject: multiple(reference(resource(topic, unrelated, {}))) });
+
+			expectTypeOf<Subject<Match<typeof child, Both>>>()
+				.toEqualTypeOf<{ readonly label: string, readonly code: string }>();
+
+		});
+
+		test("voids a redeclaration narrowing only some of the parents", () => {
+
+			const child=resource(narrower, other, { subject: multiple(reference(topic)) });
+
+			expectTypeOf<State<typeof child>["subject"]>().toBeNever();
+
+		});
 
 	});
 

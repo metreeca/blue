@@ -7,6 +7,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased](https://github.com/metreeca/blue/compare/v0.13.1...HEAD)
 
+### Changed
+
+- Admit a `name`, `description`, `foreign` or `captive` facet on a member overriding one its parent left unstated,
+  rather than rejecting any facet the parent doesn't state: a facet stated on one side alone is carried into the
+  merged member, and one stated on both sides must still be stated alike; an override stating a mapping must now
+  state both `forward` and `reverse` as its parent does, rather than silently inheriting the one it leaves out
+
 ### Fixed
 
 - Type a localised member asked for by the atomic placeholder `{}` as its coalesced text, a `string` under
@@ -22,6 +29,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   applied value by value keeps the bounds, and an aggregate keeps a lower bound of one or more at one, leaving it
   unstated only where the pipe may drop an alternative, read a localised value through negotiation, or extract a
   temporal component the value doesn't state, as `hours` does from a date ([#37](https://github.com/metreeca/blue/issues/37))
+- Resolve a member stated by several extended shapes to the narrowest definition whatever order the shapes are listed
+  in, at runtime and in the inferred types alike, rather than letting an earlier shape override the later ones at
+  runtime and the last one settle the inferred range: a redeclaration is now held to every extended shape, shapes no
+  single definition narrows are rejected unless the child redeclares the member, and a member two shapes give
+  different cardinalities is inferred at the tighter one rather than voided ([#38](https://github.com/metreeca/blue/issues/38))
 
 ## [0.13.1](https://github.com/metreeca/blue/compare/v0.13.0...v0.13.1) - 2026-10-22
 
