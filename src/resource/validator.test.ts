@@ -1970,6 +1970,32 @@ describe("validateTemplate", () => {
 
 		});
 
+		it.each<[string, Record<string, unknown>]>([
+			["an ordering", { "^tags": "asc" }],
+			["a sort focus", { "+tags": ["a"] }],
+			["an ordering over links", { "^vendors": "asc" }],
+			["a sort focus over links", { "+vendors": ["https://example.com/vendors/1"] }]
+		])("admits %s naming a multi-valued grouping key", async (_label, constraint) => {
+
+			// a grouping key holds one value per group, however many the member holds per item
+
+			expect(validateTemplate([{
+				items: { "tag=tags": {}, "vendor=vendors": {}, "n=count:": {}, ...constraint }
+			}], shape)).toBeUndefined();
+
+		});
+
+		it.each<[string, Record<string, unknown>]>([
+			["an ordering", { "^tags": "asc" }],
+			["a sort focus", { "+tags": ["a"] }]
+		])("refuses %s naming a multi-valued key of an ungrouped collection", async (_label, constraint) => {
+
+			expect(validateTemplate([{
+				items: { "tag=tags": {}, "s=size": {}, ...constraint }
+			}], shape)).toBeDefined();
+
+		});
+
 		it("admits an ordering combining values as the grouping does", async () => {
 
 			expect(validateTemplate([{

@@ -449,7 +449,8 @@ Constraint operands follow their own rules: comparison bounds and set-matching o
 placeholders, so each must single out exactly one branch, a bound keying on kind and lexical pattern and an option on
 kind alone, while a `~` text search is a plain string applied to every string branch at once. A plain-string operand
 over a localised member filters the negotiated content under ordinary textual semantics; sorting and focusing still
-require a single-valued key, so they accept a coalesced localised key only where it resolves single-valued.
+require a single-valued key, so they accept a coalesced localised key only where it resolves single-valued. A key that
+groups a projection counts as single-valued, since it holds one value per group even over a multi-valued member.
 
 Three options bound the query language a template may draw on:
 

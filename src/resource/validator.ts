@@ -282,7 +282,8 @@ export function validateResource(values: readonly unknown[], shape: ResourceShap
  * identifier another column already binds. A binding whose path takes no step reaches the item the collection holds as
  * it stands, so a link is asked for as the identifier naming its target or expanded through a nested template, while an
  * embedded resource, naming no identifier to come back as, is refused. Where a projection groups the collection, every
- * ordering and focus key must name a grouping key or reduce to an aggregate, as nothing else ranks a group.
+ * ordering and focus key must name a grouping key or reduce to an aggregate, as nothing else ranks a group. A grouping
+ * key holds one value per group, so it may rank the groups even if the member it reaches is multi-valued.
  *
  * A column holds one value per row, so it supplies no collection to narrow and refuses a constraint of its own; a
  * collection reached below it, through a nested template, carries its constraints as any other collection does.
@@ -384,12 +385,14 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 			const constraints = entries.filter(([key]) => isSelector(key));
 			const contents = Object.fromEntries(entries.filter(([key]) => !isSelector(key)));
 
+			const keys = grouping(contents);
+
 			// element keys and constraint operators are disjoint, so the two traces merge into one
 
 			return all(
 				() => item(contents, member, depth),
-				() => filters(constraints, member, depth),
-				() => grouped(contents, constraints)
+				() => filters(constraints, member, depth, keys),
+				() => grouped(keys, constraints)
 			)(undefined);
 
 		}
@@ -596,27 +599,62 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	}
 
 	/**
-	 * Validates that every ordering ranks a grouped collection by something the grouping leaves standing.
+	 * Identifies the grouping keys of a collection.
+	 *
+	 * @returns The {@link signature} of each grouping column, or `undefined` if no aggregate column groups it
 	 */
-	function grouped(element: unknown, constraints: readonly (readonly [string, unknown])[]): Optional<Trace> {
-
-		const aggregate = (probe: Probe): boolean => probe.pipe.some(isAggregate);
-		const signature = (probe: Probe): string => `${probe.path.join(".")}|${probe.pipe.join(":")}`;
+	function grouping(element: unknown): Optional<ReadonlySet<string>> {
 
 		const bindings = isObject(element) ? Object.keys(element).filter(isBinding).map(decodeProbe) : [];
-		const selectors = constraints.map(([selector]): [string, Probe] => [selector, decodeProbe(selector)]);
 
 		// the projection alone fixes the grouping: a combining column groups the collection, and the columns left
 		// standing are then the keys it is grouped by; a combining selector reduces one group rather than forming it
 
-		const groups = bindings.some(aggregate);
-		const keys = new Set(bindings.filter(probe => !aggregate(probe)).map(signature));
+		return bindings.some(aggregate)
+			? new Set(bindings.filter(probe => !aggregate(probe)).map(signature))
+			: undefined;
 
-		return !groups ? undefined : all(...selectors
+	}
+
+	/**
+	 * Checks whether a selector names one of the grouping keys of a collection.
+	 */
+	function keyed(probe: Probe, keys: Optional<ReadonlySet<string>>): boolean {
+
+		return keys !== undefined && !aggregate(probe) && keys.has(signature(probe));
+
+	}
+
+	/**
+	 * Checks whether a selector or column combines several values into one.
+	 */
+	function aggregate(probe: Probe): boolean {
+
+		return probe.pipe.some(isAggregate);
+
+	}
+
+	/**
+	 * Identifies the expression a selector or column states, whatever operator or binding name it carries.
+	 */
+	function signature(probe: Probe): string {
+
+		return `${probe.path.join(".")}|${probe.pipe.join(":")}`;
+
+	}
+
+	/**
+	 * Validates that every ordering ranks a grouped collection by something the grouping leaves standing.
+	 */
+	function grouped(keys: Optional<ReadonlySet<string>>, constraints: readonly (readonly [string, unknown])[]): Optional<Trace> {
+
+		const selectors = constraints.map(([selector]): [string, Probe] => [selector, decodeProbe(selector)]);
+
+		return keys === undefined ? undefined : all(...selectors
 
 			.filter(([, probe]) => (probe.target === "^" || probe.target === "+")
 				&& !aggregate(probe)
-				&& !keys.has(signature(probe))
+				&& !keyed(probe, keys)
 			)
 
 			.map(([selector]) => () => [{
@@ -730,11 +768,15 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 	/**
 	 * Validates the constraints filtering, ordering and paging a collection.
+	 *
+	 * @param keys The grouping keys of the collection, or `undefined` if it is not grouped; each holds one value per
+	 *     group, so ordering and focus admit it even where the member it reaches is multi-valued
 	 */
 	function filters(
 		constraints: readonly (readonly [string, unknown])[],
 		member: Property,
-		depth: Optional<number>
+		depth: Optional<number>,
+		keys: Optional<ReadonlySet<string>>
 	): Optional<Trace> {
 
 		// a selector resolves through the values the collection holds, one step below the collection itself
@@ -766,6 +808,10 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 			const branches = getShapeBranches(range.shape);
 
+			// a grouping key holds one value per group, however many the member it reaches holds per item
+
+			const single = range.maxCount === 1 || keyed(probe, keys);
+
 			switch ( probe.target ) {
 
 				case "<":
@@ -784,13 +830,13 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 
 					return options(asked, branches);
 
-				case "+": // a sort focus ranks one value per resource, so it refuses a multi-valued key
+				case "+": // a sort focus ranks one value per resource or group, so it refuses a multi-valued key
 
-					return range.maxCount === 1 ? options(asked, branches) : ["expected single-valued sort focus key"];
+					return single ? options(asked, branches) : ["expected single-valued sort focus key"];
 
 				case "^":
 
-					return order(asked, range);
+					return order(asked, single);
 
 				case "@":
 
@@ -909,14 +955,14 @@ export function validateTemplate(values: readonly unknown[], shape: ResourceShap
 	/**
 	 * Validates the ordering a collection is ranked by.
 	 */
-	function order(value: unknown, range: Range): Optional<Trace> {
+	function order(value: unknown, single: boolean): Optional<Trace> {
 
 		// an order is a precedence rank counted from one, which `asc` and `desc` abbreviate, so a fraction ranks
-		// nothing; ranking requires one value per resource, a multi-valued key leaving no order to rank by
+		// nothing; ranking requires one value per resource or group, a multi-valued key leaving no order to rank by
 
 		return value !== "asc" && value !== "desc" && !Number.isInteger(value)
 			? ["expected <asc>, <desc>, or integer value"]
-			: range.maxCount !== 1 ? ["expected single-valued sort key"]
+			: !single ? ["expected single-valued sort key"]
 				: undefined;
 
 	}

@@ -16,6 +16,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the member if no other variant reaches a resource, rather than within a projection column alone; retrieved results
   no longer report a missing required member whose template reaches only some of its variants, and admit coalesced
   text wherever any variant admits it ([#35](https://github.com/metreeca/blue/issues/35))
+- Accept an ordering (`^`) or sort focus (`+`) naming a grouping key of a projection even if the member it reaches is
+  multi-valued: a grouping key holds one value per group, so `validateTemplate` no longer rejects it as unrankable
 
 ## [0.13.1](https://github.com/metreeca/blue/compare/v0.13.0...v0.13.1) - 2026-10-22
 
