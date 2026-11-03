@@ -362,9 +362,10 @@ export type ResourceConstraints = {
 	/**
 	 * IRI path pattern that resource {@link Id identifiers} must match.
 	 *
-	 * Patterns are IRI-like templates using `{name}` placeholders for single path segments and `/*` for trailing
-	 * wildcards. Patterns may be absolute or root-relative; root-relative patterns match absolute IRIs, ignoring the
-	 * origin.
+	 * Patterns are IRI-like templates: `{name}` stands for a single path segment and a trailing `/*` for one or more.
+	 * A pattern ending in `/` names a container, such as a catalogue root, and matches only identifiers ending in that
+	 * slash. Patterns may be absolute or root-relative; root-relative patterns match absolute IRIs, ignoring the
+	 * origin. A `/*` wildcard standing alone on the root path admits every identifier under the origin, at any depth.
 	 *
 	 * **Inheritance** — only the trailing `/*` wildcard admits narrowing: a child may replace `/*` with more specific
 	 * segments (for example, `/products/*` to `/products/{id}/reviews/{rid}`), provided the fixed prefix matches.
@@ -376,6 +377,7 @@ export type ResourceConstraints = {
 	 * ```
 	 * https://example.org/products/{sku}  → https://example.org/products/ABC-456
 	 * https://example.org/categories/*    → https://example.org/categories/electronics/phones
+	 * https://example.org/*               → https://example.org/catalogues/2026
 	 *
 	 * /employees/{id}                     → https://example.org/employees/123
 	 * /departments/*                      → https://example.org/departments/sales/emea
@@ -824,6 +826,7 @@ export function resource<I extends Parents>(
  *
  * @returns An immutable shape admitting the resources the inherited members and the constraints bound
  *
+ * @throws {@link !TypeError TypeError} Where the identifier {@link ResourceConstraints.pattern | pattern} is malformed
  * @throws {@link @metreeca/core!TraceError | TraceError} Where the extended shapes disagree on an inherited constraint,
  *     or the merged shape states two identifiers, two types, or two members mapping to the same predicate
  */
@@ -847,6 +850,7 @@ export function resource<I extends Parents>(
  *
  * @returns An immutable shape admitting the resources the members and constraints bound
  *
+ * @throws {@link !TypeError TypeError} Where the identifier {@link ResourceConstraints.pattern | pattern} is malformed
  * @throws {@link @metreeca/core!TraceError | TraceError} Where a member fails to narrow the one it overrides, the
  *     extended shapes disagree on an inherited constraint, the merged shape states two identifiers, two types, or
  *     two members mapping to the same predicate, or a member admitting literals states a reverse mapping

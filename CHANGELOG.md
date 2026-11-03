@@ -34,6 +34,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   runtime and the last one settle the inferred range: a redeclaration is now held to every extended shape, shapes no
   single definition narrows are rejected unless the child redeclares the member, and a member two shapes give
   different cardinalities is inferred at the tighter one rather than voided ([#38](https://github.com/metreeca/blue/issues/38))
+- Accept a `/*` wildcard standing alone on the root path of an identifier `pattern`, admitting every identifier under
+  the origin, and a pattern closed by a trailing `/`, matching only the container identifier ending in that slash;
+  `resource()` now rejects a malformed pattern when the shape is declared, rather than leaving the `TypeError` to the
+  first validation of a value ([#41](https://github.com/metreeca/blue/issues/41))
 
 ## [0.13.1](https://github.com/metreeca/blue/compare/v0.13.0...v0.13.1) - 2026-10-22
 

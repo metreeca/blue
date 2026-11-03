@@ -988,6 +988,15 @@ describe("narrowsResource", () => {
 
 	});
 
+	it("accepts a child narrowing a root wildcard pattern", async () => {
+
+		expect(narrowsResource(
+			resource({ pattern: "https://example.org/catalogues/*" }, {}),
+			resource({ pattern: "https://example.org/*" }, {})
+		)).toBeUndefined();
+
+	});
+
 	it("rejects a child stating an unrelated pattern", async () => {
 
 		expect(narrowsResource(

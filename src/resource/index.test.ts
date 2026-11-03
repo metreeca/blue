@@ -147,6 +147,26 @@ describe("factories", () => {
 
 		});
 
+		it("accepts a root wildcard pattern", async () => {
+
+			expect(resource({ pattern: "/*" }, {}).pattern).toBe("/*");
+			expect(resource({ pattern: "https://example.org/*" }, {}).pattern).toBe("https://example.org/*");
+
+		});
+
+		it("accepts a pattern closed by a trailing slash", async () => {
+
+			expect(resource({ pattern: "https://example.org/users/" }, {}).pattern).toBe("https://example.org/users/");
+
+		});
+
+		it("rejects a malformed pattern", async () => {
+
+			expect(() => resource({ pattern: "products/{id}" }, {})).toThrow(TypeError);
+			expect(() => resource({ pattern: "https://example.org//*" })).toThrow(TypeError);
+
+		});
+
 		it("rejects a non-resource shape as the constraints", async () => {
 
 			expect(() => resource(string() as never, {})).toThrow(TypeError);

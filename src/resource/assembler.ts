@@ -44,6 +44,7 @@ import { type Dictionary, type Reference } from "@metreeca/qest/state";
 import { eager } from "../value/accessors.js";
 import { mergeShape, narrowsShape, reject } from "../value/assembler.js";
 import type { Shape } from "../value/index.js";
+import { isPattern } from "../value/validator.js";
 import type {
 	Member,
 	Members,
@@ -78,8 +79,9 @@ const Flattened = Symbol("flattened");
  *
  * @throws {@link @metreeca/core!TraceError | TraceError} Where the stated declarations are inconsistent with the
  *     inherited ones
- * @throws {@link !TypeError TypeError} Where a lone declaration lists neither members nor constraints, or of two
- *     declarations the last lists something other than members or the first something other than constraints
+ * @throws {@link !TypeError TypeError} Where a lone declaration lists neither members nor constraints, of two
+ *     declarations the last lists something other than members or the first something other than constraints, or
+ *     the constraints state an identifier pattern that is not a well-formed absolute or root-relative path template
  */
 export function assemble(args: readonly unknown[]): ResourceShape {
 
@@ -96,6 +98,10 @@ export function assemble(args: readonly unknown[]): ResourceShape {
 
 	if ( !isConstraints(constraints) ) {
 		throw new TypeError(`malformed shape constraints <${JSON.stringify(constraints)}>`);
+	}
+
+	if ( constraints.pattern !== undefined && !isPattern(constraints.pattern) ) {
+		throw new TypeError(`malformed pattern <${constraints.pattern}>`);
 	}
 
 	const { name, description, ...stated } = constraints;

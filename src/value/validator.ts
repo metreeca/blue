@@ -41,8 +41,10 @@ import type { Shape } from "./index.js";
  */
 const PatternFormat = new RegExp("^"
 	+"(?:[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+)?" // optional scheme://authority
-	+"/(?:(?:[^/{}*]+|\\{\\w+})(?:/(?:[^/{}*]+|\\{\\w+}))*)?" // path segments with {name} placeholders
-	+"(?:/\\*)?" // optional /* wildcard
+	+"/(?:" // root path, followed by either
+	+"(?:[^/{}*]+|\\{\\w+})(?:/(?:[^/{}*]+|\\{\\w+}))*(?:/\\*|/)?" // segments with {name} placeholders, closed by /* or /
+	+"|\\*" // or a wildcard on the root path
+	+")?"
 	+"$"
 );
 
@@ -157,12 +159,24 @@ export function validateShape(values: readonly unknown[], shape: Shape, {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Checks whether a string is a well-formed identifier pattern, as accepted by {@link match}.
+ *
+ * @param value The string to check
+ *
+ * @returns `true` where `value` is an absolute or root-relative path of literal segments and `{name}` placeholders,
+ *     optionally closed by `/` or by a `/*` wildcard; the wildcard may also stand alone on the root path
+ */
+export function isPattern(value: string): boolean {
+	return PatternFormat.test(value);
+}
+
+/**
  * Checks whether an identifier matches a pattern.
  *
- * Reads a pattern as an IRI template, where `{name}` stands for a single path segment and a trailing `/*` for one or
- * more, so that a shape states the identifiers it admits by their shape rather than by enumeration. A root-relative
- * pattern is matched against the path alone, ignoring the origin, so that the same shape serves whatever host the
- * resources are published under.
+ * Reads a pattern as an IRI template: `{name}` stands for a single path segment, a trailing `/*` for one or more, and
+ * a trailing `/` for a container whose identifier ends in that slash. A shape thus states the identifiers it admits
+ * by their form rather than by enumeration. A root-relative pattern is matched against the path alone, ignoring the
+ * origin, so the same shape serves whatever host the resources are published under.
  *
  * @param iri The identifier to test
  * @param pattern The pattern to match it against
@@ -173,7 +187,7 @@ export function validateShape(values: readonly unknown[], shape: Shape, {
  */
 export function match(iri: Reference, pattern: string): boolean {
 
-	const $pattern = assert(pattern, pattern => PatternFormat.test(pattern), `malformed pattern <${pattern}>`);
+	const $pattern = assert(pattern, isPattern, `malformed pattern <${pattern}>`);
 
 	// {name} matches a single path segment; a trailing /* matches one or more
 

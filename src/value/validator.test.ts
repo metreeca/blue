@@ -92,16 +92,31 @@ describe("match", () => {
 			"https://example.net/users/{id}", false],
 		["an absolute pattern against a root-relative IRI", "/users/1", "https://example.net/users/{id}", false],
 		["a root-relative pattern against an absolute IRI", "https://example.net/users/1", "/users/{id}", true],
-		["a root-relative pattern against a root-relative IRI", "/users/1", "/users/{id}", true]
+		["a root-relative pattern against a root-relative IRI", "/users/1", "/users/{id}", true],
+		["a root wildcard", "https://example.net/users/1", "/*", true],
+		["a root wildcard against the bare root", "https://example.net/", "/*", false],
+		["an absolute root wildcard", "https://example.net/users/1", "https://example.net/*", true],
+		["an absolute root wildcard against another origin", "https://example.com/users/1", "https://example.net/*",
+			false],
+		["a trailing slash", "https://example.net/users/", "/users/", true],
+		["a trailing slash against a member", "https://example.net/users/1", "/users/", false],
+		["a trailing slash against a path lacking it", "https://example.net/users", "/users/", false],
+		["an absolute trailing slash", "https://example.net/users/", "https://example.net/users/", true]
 	])("matches %s", async (_label, iri, pattern, expected) => {
 
 		expect(match(iri, pattern)).toBe(expected);
 
 	});
 
-	it("rejects a malformed pattern", async () => {
+	it.each<[string, string]>([
+		["a missing leading slash", "users/{id}"],
+		["a bare wildcard", "*"],
+		["an empty segment before the wildcard", "//*"],
+		["an empty segment before an absolute wildcard", "https://example.net//*"],
+		["an inner wildcard", "/users/*/posts"]
+	])("rejects a pattern with %s", async (_label, pattern) => {
 
-		expect(() => match("base:/users/1", "users/{id}")).toThrow(TypeError);
+		expect(() => match("base:/users/1", pattern)).toThrow(TypeError);
 
 	});
 
