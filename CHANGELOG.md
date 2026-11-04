@@ -38,6 +38,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the origin, and a pattern closed by a trailing `/`, matching only the container identifier ending in that slash;
   `resource()` now rejects a malformed pattern when the shape is declared, rather than leaving the `TypeError` to the
   first validation of a value ([#41](https://github.com/metreeca/blue/issues/41))
+- Keep an embedded resource shape inherited alike along several paths as declared, rather than copying it at each
+  merge, so that `model()` lists it once and consumers comparing shapes by reference see a single shape, as a diamond
+  inheriting one declaration does ([#42](https://github.com/metreeca/blue/issues/42))
 
 ## [0.13.1](https://github.com/metreeca/blue/compare/v0.13.0...v0.13.1) - 2026-10-22
 

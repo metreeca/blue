@@ -946,9 +946,10 @@ export function narrowest(first: Member, ...rest: readonly Member[]): Member {
 /**
  * Merges a resource shape with an inherited one.
  *
- * Yields the single shape an extending resource is validated against, combining the inherited constraints with the
+ * Returns the single shape an extending resource is validated against, combining the inherited constraints with the
  * overriding ones: the admitted identifiers intersect, the required ones accumulate, and members declared on both
- * sides are merged one by one, a marker being taken whole from the overriding shape.
+ * sides are merged one by one, a marker being taken whole from the overriding shape. A shape merged with itself is
+ * returned as it stands, so a shape inherited along several paths keeps its reference identity.
  *
  * @param target The overriding shape
  * @param source The inherited shape
@@ -961,7 +962,9 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
 
 	reject("incompatible resource shape override", narrowsResource(target, source));
 
-	return immutable({
+	// a shape reached along several paths is merged with itself and kept as stated, keeping its identity for consumers
+
+	return target === source ? target : immutable({
 
 		kind: target.kind,
 

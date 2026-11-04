@@ -405,6 +405,12 @@ export function schema(shape: Lazy<ResourceShape>, {
  * order given, followed by their dependencies, nearest first. Shapes at the same distance follow the order of the
  * shapes reaching them, each contributing its parents before its property targets, in declaration order.
  *
+ * Shapes are compared by reference, so a merged shape is listed alongside the shapes it merges. A property embedding
+ * different shapes along different inheritance paths, or re-pointed at a narrower embedded shape, ranges over a new
+ * shape stating the class of the narrowest, and the listing may then hold two shapes of that class. A shape embedded
+ * alike along every path is listed once, provided the shared definition is passed as its factory, as in
+ * `optional(Image)`, rather than built by separate calls to it, which return distinct shapes.
+ *
  * @param shapes The entry shape or shapes, possibly deferred
  *
  * @returns The entry shapes followed by their dependencies; empty if `shapes` is empty

@@ -146,6 +146,14 @@
  * held to. A {@link union!union | union}-valued member is refined by dropping alternatives and tightening the ones it
  * keeps, never by adding new ones.
  *
+ * A member embedding the same shape along every inheritance path keeps that shape as declared, as in a diamond
+ * inheriting one declaration through two parents, so code comparing shapes by reference finds a single shape. A
+ * member embedding different shapes along different paths ranges over a new merged shape instead. This happens when
+ * an embedded member is re-pointed at a narrower shape, or when parents embed different shapes under the same member,
+ * and the merged shape is distinct from every declared one, the narrowest included. Separate calls build separate
+ * shapes, even where they state the same constraints, so a definition shared along several paths is passed as its
+ * factory, as in `optional(Image)`, rather than as `optional(Image())`, which builds a new shape at each call.
+ *
  * **Reading a resource off a shape**
  *
  * {@link getShapeClass} and {@link getShapeClasses} resolve the classes the resources a shape describes belong to,

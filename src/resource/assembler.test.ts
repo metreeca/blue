@@ -171,6 +171,19 @@ describe("flatten", () => {
 
 		});
 
+		it("carries an embedded resource inherited along two paths as stated", async () => {
+
+			function Owner() { return resource({ embedded: optional(Embedded) }); }
+
+			function Left() { return resource(Owner, {}); }
+			function Right() { return resource(Owner, {}); }
+
+			const shape = resource(Left, Right, {});
+
+			expect(getProperty(shape, "embedded")?.range.shape).toBe(Embedded);
+
+		});
+
 		it("carries the members of a shape reached transitively", async () => {
 
 			const Base = resource({ name: required(string()) });
@@ -1153,6 +1166,12 @@ describe("mergeResource", () => {
 	it("carries the kind", async () => {
 
 		expect(mergeResource(resource({}), resource({})).kind).toBe("resource");
+
+	});
+
+	it("returns a shape merged with itself as it stands", async () => {
+
+		expect(mergeResource(Embedded, Embedded)).toBe(Embedded);
 
 	});
 
