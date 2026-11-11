@@ -9,10 +9,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Admit a `name`, `description`, `foreign` or `captive` facet on a member overriding one its parent left unstated,
-  rather than rejecting any facet the parent doesn't state: a facet stated on one side alone is carried into the
-  merged member, and one stated on both sides must still be stated alike; an override stating a mapping must now
-  state both `forward` and `reverse` as its parent does, rather than silently inheriting the one it leaves out
+- Admit a `foreign` or `captive` facet on a member overriding one its parent left unstated, rather than rejecting any
+  facet the parent doesn't state: a facet stated on one side alone is carried into the merged member, and one stated
+  on both sides must still be stated alike; an override stating a mapping must now state both `forward` and
+  `reverse` as its parent does, rather than silently inheriting the one it leaves out
+- Let a member override replace the `name` and `description` it inherits, rather than repeating the parent's
+  wording: the extending shape labels and describes the member in its own terms, and the parent keeps its own; parents
+  disagreeing on either now require the extending shape to state it ([#43](https://github.com/metreeca/blue/issues/43))
 
 ### Fixed
 

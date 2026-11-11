@@ -314,11 +314,16 @@ describe("flatten", () => {
 
 		});
 
-		it("rejects a member the extending shape relabels", async () => {
+		it.each<[string, Record<string, unknown>, Record<string, unknown>]>([
+			["name", { name: "Name" }, { name: "Label" }],
+			["description", { description: "Generic." }, { description: "Specific." }]
+		])("replaces the %s of a member the extending shape redeclares", async (field, inherited, declared) => {
 
-			const Base = resource({ name: required(string(), { name: "Name" }) });
+			const Base = resource({ name: required(string(), inherited) });
+			const shape = resource(Base, { name: required(string(), declared) });
 
-			expect(() => resource(Base, { name: required(string(), { name: "Label" }) })).toThrow(TraceError);
+			expect(getProperty(shape, "name")).toMatchObject({ [field]: { en: declared[field] } });
+			expect(getProperty(Base, "name")).toMatchObject({ [field]: { en: inherited[field] } });
 
 		});
 
@@ -501,12 +506,36 @@ describe("flatten", () => {
 
 			});
 
-			it("rejects parents disagreeing on the name of a member the child leaves undeclared", async () => {
+			describe.each<[string, Record<string, unknown>, Record<string, unknown>]>([
+				["name", { name: "Subject" }, { name: "Matter" }],
+				["description", { description: "The subject." }, { description: "The matter." }]
+			])("parents disagreeing on the %s of a member", (field, stated, restated) => {
 
-				const Named = resource({ subject: multiple(reference(Topic), { name: "Subject" }) });
-				const Renamed = resource({ subject: multiple(reference(Topic), { name: "Matter" }) });
+				const Stating = resource({ subject: multiple(reference(Topic), stated) });
+				const Restating = resource({ subject: multiple(reference(Topic), restated) });
 
-				expect(() => resource(Named, Renamed, {})).toThrow(TraceError);
+				it("rejects a child leaving the member undeclared", async () => {
+
+					expect(() => resource(Stating, Restating, {})).toThrow(TraceError);
+
+				});
+
+				it("rejects a child redeclaring the member without stating the field", async () => {
+
+					expect(() => resource(Stating, Restating, { subject: multiple(reference(Topic)) }))
+						.toThrow(TraceError);
+
+				});
+
+				it("takes the field the child states", async () => {
+
+					const shape = resource(Stating, Restating, {
+						subject: multiple(reference(Topic), { [field]: "Own" })
+					});
+
+					expect(getProperty(shape, "subject")).toMatchObject({ [field]: { en: "Own" } });
+
+				});
 
 			});
 
@@ -852,13 +881,43 @@ describe("checkParents", () => {
 
 		});
 
-		it("reports extended shapes disagreeing on a field of a member under that field", async () => {
+		describe.each<[string, Record<string, unknown>, Record<string, unknown>]>([
+			["name", { name: "Subject" }, { name: "Matter" }],
+			["description", { description: "The subject." }, { description: "The matter." }]
+		])("extended shapes disagreeing on the %s of a member", (field, stated, restated) => {
 
-			const Named = resource({ subject: multiple(reference(Topic), { name: "Subject" }) });
-			const Renamed = resource({ subject: multiple(reference(Topic), { name: "Matter" }) });
+			const Stating = resource({ subject: multiple(reference(Topic), stated) });
+			const Restating = resource({ subject: multiple(reference(Topic), restated) });
 
-			expect(checkParents(resource({}), [Named, Renamed]))
-				.toContainEqual({ subject: expect.arrayContaining([expect.stringContaining("{name}")]) });
+			it("reports the disagreement under the member and the field", async () => {
+
+				expect(checkParents(resource({}), [Stating, Restating]))
+					.toContainEqual({ subject: expect.arrayContaining([expect.stringContaining(`{${field}}`)]) });
+
+			});
+
+			it("reports the disagreement where the extending shape redeclares the member without the field", async () => {
+
+				const unsettled = resource({ subject: multiple(reference(Topic)) });
+
+				expect(checkParents(unsettled, [Stating, Restating]))
+					.toContainEqual({ subject: expect.arrayContaining([expect.stringContaining(`{${field}}`)]) });
+
+			});
+
+			it("returns undefined where the extending shape states the field", async () => {
+
+				const settled = resource({ subject: multiple(reference(Topic), { [field]: "Own" }) });
+
+				expect(checkParents(settled, [Stating, Restating])).toBeUndefined();
+
+			});
+
+			it("returns undefined where a single extended shape states the field", async () => {
+
+				expect(checkParents(resource({}), [Stating, Narrower])).toBeUndefined();
+
+			});
 
 		});
 
@@ -1121,13 +1180,20 @@ describe("narrowsProperty", () => {
 
 	it.each<[string, Record<string, unknown>, Record<string, unknown>]>([
 		["foreign", { foreign: false }, { foreign: true }],
-		["captive", { captive: false }, { captive: true }],
-		["name", { name: "Other" }, { name: "Base" }],
-		["description", { description: "Other" }, { description: "Base" }]
+		["captive", { captive: false }, { captive: true }]
 	])("rejects a child stating a %s differing from the parent's", async (field, declared, inherited) => {
 
 		expect(narrowsProperty(required(string(), declared), required(string(), inherited)))
 			.toContainEqual(expect.stringContaining(`{${field}}`));
+
+	});
+
+	it.each<[string, Record<string, unknown>, Record<string, unknown>]>([
+		["name", { name: "Other" }, { name: "Base" }],
+		["description", { description: "Other" }, { description: "Base" }]
+	])("accepts a child stating a %s differing from the parent's", async (_, declared, inherited) => {
+
+		expect(narrowsProperty(required(string(), declared), required(string(), inherited))).toBeUndefined();
 
 	});
 

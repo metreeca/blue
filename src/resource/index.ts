@@ -223,7 +223,8 @@ export {
  * definition narrowing all the others, whatever order the parents are listed in, and a member the child declares must
  * narrow the definition of each parent stating it. If no parent definition narrows all the others, an error is
  * reported unless the child redeclares the member to narrow each one, for instance by combining their bounds. Parents
- * stating different values for a facet other than `hidden` can't be reconciled, as no override may change a facet.
+ * disagreeing on `hidden`, `name` or `description` are reconciled by a child stating its own value. A disagreement
+ * on any other facet can't be reconciled, as no override may change a facet restricting the values admitted.
  *
  * **Cross-field validation**
  *
@@ -559,11 +560,11 @@ export type Type = {
  * | Field         | Override Rule                                                                    |
  * | ------------- | -------------------------------------------------------------------------------- |
  * | `kind`        | Cannot be overridden                                                             |
- * | `hidden`      | Inherited; conflicting parents without a child override are reported as an error |
+ * | `hidden`      | Inherited; child may replace it; conflicting parents require a child override    |
  * | `foreign`     | Inherited; child may state it where the parent doesn't, never change it          |
  * | `captive`     | Inherited; child may state it where the parent doesn't, never change it          |
- * | `name`        | Inherited; child may state it where the parent doesn't, never change it          |
- * | `description` | Inherited; child may state it where the parent doesn't, never change it          |
+ * | `name`        | Inherited; child may replace it; conflicting parents require a child override    |
+ * | `description` | Inherited; child may replace it; conflicting parents require a child override    |
  * | `forward`     | Taken from the parent if the child states no mapping, else equal to the parent's |
  * | `reverse`     | Taken from the parent if the child states no mapping, else equal to the parent's |
  * | `range`       | Child may only narrow the inherited range, bound by bound and shape by shape     |
@@ -640,7 +641,8 @@ export type PropertyConstraints<
 	 * {@link string!text | text} string, expanded to `{ en: <value> }` on the
 	 * {@link Property | resolved property}.
 	 *
-	 * **Inheritance** — inherited; a child may state it where the parent leaves it unstated, never change it.
+	 * **Inheritance** — inherited; a child may replace it, as a label restricts no value the property admits. Parents
+	 * stating conflicting labels require the child to state its own, or the extending shape is rejected.
 	 *
 	 * @defaultValue `undefined` (no label)
 	 *
@@ -655,7 +657,8 @@ export type PropertyConstraints<
 	 * {@link string!markdown | Markdown} string, expanded to `{ en: <value> }` on the
 	 * {@link Property | resolved property}.
 	 *
-	 * **Inheritance** — inherited; a child may state it where the parent leaves it unstated, never change it.
+	 * **Inheritance** — inherited; a child may replace it, as a description restricts no value the property admits.
+	 * Parents stating conflicting descriptions require the child to state its own, or the extending shape is rejected.
 	 *
 	 * @defaultValue `undefined` (no description)
 	 *

@@ -187,10 +187,11 @@ rejected only when it is matched. Either of the following representations is acc
 
 ## Extending Schemas
 
-Declare parent shapes first to inherit their members and constraints. Local members augment
-the parent and may override inherited ones, but only by *narrowing*: an override restricts what it inherits and never
-relaxes it. Cardinality narrows monotonically (`required` may override `optional`, but not the reverse), per-kind
-constraints intersect, and the override is rejected at the call site when the child relaxes the parent.
+Declare parent shapes first to inherit their members and constraints. Local members augment the parent and may override
+inherited ones, but only by *narrowing*: an override restricts what it inherits and never relaxes it. Cardinality
+narrows monotonically (`required` may override `optional`, but not the reverse), per-kind constraints intersect, and
+the override is rejected at the call site when the child relaxes the parent. Names and descriptions restrict no value,
+so an override may replace the ones it inherits to present the member in the terms of the child.
 
 ```ts
 const NamedThing = resource({

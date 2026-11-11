@@ -547,8 +547,8 @@ export function checkBounds(bounds: Partial<PropertyBounds>): Optional<Trace> {
  *
  * Reports the inherited fields the extended shapes disagree on and the extending shape states no value for, so that a
  * shape reaching the same field along two paths never resolves it by declaration order. The fields held to this rule
- * are `space` on the resource and `hidden` on each of its properties; a marker carries its own `hidden` from the
- * declaration that states it and conflicts on none.
+ * are `space` on the resource and `hidden`, `name` and `description` on each of its properties, even where the
+ * extending shape redeclares the property; markers, which take `hidden` from their own declaration, are exempt.
  *
  * Also reports each undeclared member stated by several extended shapes if no definition narrows all the others.
  * Such a member is rejected rather than settled by declaration order. The trace is keyed by the member name and lists
@@ -593,13 +593,17 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 				? conflicting(stated)
 				: undefined;
 
+			const annotations = disagreeing(shape.members[name], properties);
+
 			return all(
 
 				hidden !== undefined
 				&& fail([`{hidden} conflicting inherited values <${hidden[0]}> vs <${hidden[1]
 				}> for <${name}> without an override`]),
 
-				unsettled !== undefined && fail([{ [name]: unsettled }])
+				unsettled !== undefined && fail([{ [name]: unsettled }]),
+
+				annotations.length > 0 && fail([{ [name]: annotations }])
 
 			);
 
@@ -617,6 +621,32 @@ export function checkParents(shape: ResourceShape, parents: readonly ResourceSha
 		const other = values.findIndex(value => value !== first);
 
 		return other < 0 ? undefined : [first, values[other]];
+
+	}
+
+	/**
+	 * Identifies the annotations the extended shapes state differently for a property. Each one the extending shape
+	 * leaves unstated is an obstacle requiring an override, whether or not the extending shape redeclares the property.
+	 *
+	 * @param declared The member the extending shape declares under the same name, if any
+	 * @param properties The definitions the extended shapes state for the property
+	 *
+	 * @returns The obstacles found, one for each annotation left unsettled
+	 */
+	function disagreeing(declared: Optional<Member>, properties: readonly Property[]): readonly string[] {
+
+		const fields: readonly ("name" | "description")[] = ["name", "description"];
+
+		return fields.flatMap(field => {
+
+			const own = declared?.kind === "property" ? declared[field] : undefined;
+			const values = properties.flatMap(property => property[field] === undefined ? [] : [property[field]]);
+
+			return own === undefined && values.some(value => !equals(value, values[0]))
+				? [`{${field}} conflicting inherited values without an override`]
+				: [];
+
+		});
 
 	}
 
@@ -803,9 +833,10 @@ export function narrowsResource(target: ResourceShape, source: ResourceShape): O
  * Reports whether a member narrows an inherited one.
  *
  * Tests the override relation without building the merged member. A member narrows the inherited one if both state
- * the same `forward` and `reverse` mappings, every other facet stated on both sides has the same value (`hidden`
- * aside), and its range narrows the inherited one, bound by bound and shape by shape. A facet stated on one side alone
- * raises no conflict, so a child may label, describe or take ownership of a member its parent left bare.
+ * the same `forward` and `reverse` mappings, `foreign` and `captive` have the same value wherever both sides state
+ * them, and its range narrows the inherited one, bound by bound and shape by shape. A child may take ownership of a
+ * member its parent left bare. It may also hide, label or describe the member regardless of what its parent states,
+ * as these facets restrict no value the member admits and the merged member takes the ones the child states.
  *
  * Mappings are compared as stated, unstated included: an override leaving them unstated must first take the inherited
  * ones, as the {@link resource!resource | resource} factory does before testing the relation.
@@ -819,22 +850,9 @@ export function narrowsProperty(target: Property, source: Property): Optional<Tr
 
 	return all<Property>(
 
-		// a facet stated on one side alone is agreed on; one stated on both sides must be stated alike
+		// a facet stated on one side alone is agreed on; one stated on both sides must be stated alike, save for
+		// `hidden`, `name` and `description`, which an override may replace as they restrict no value admitted
 
-		test(({ name }) => {
-
-			return name === undefined || source.name === undefined || equals(name, source.name) || [
-				`{name} conflicting <name> override`
-			];
-
-		}),
-		test(({ description }) => {
-
-			return description === undefined || source.description === undefined
-				|| equals(description, source.description)
-				|| [`{description} conflicting <description> override`];
-
-		}),
 		test(({ foreign }) => {
 
 			return foreign === undefined || source.foreign === undefined || foreign === source.foreign || [
@@ -1015,7 +1033,8 @@ export function mergeResource(target: ResourceShape, source: ResourceShape): Res
  *
  * Returns the single member an extending resource is validated against: a range taking the tighter of the two
  * cardinality bounds over the merged shape, the mappings both members share, and every other facet from whichever
- * member states it. The overriding `hidden` flag takes precedence; any other facet stated on both sides is the same.
+ * member states it. The overriding `hidden`, `name` and `description` take precedence; any other facet stated on both
+ * sides is the same, as the {@link narrowsProperty | override relation} requires.
  *
  * @param target The overriding member
  * @param source The inherited member
